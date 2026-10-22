@@ -92,7 +92,7 @@ Proqramı lokal işə salıb işəgötürən axınını API ilə keçdim (şirk�
 
 **Tapılan çatışmazlıqlar:**
 1. ~~HR "İşə qəbul edildi" statusunu namizəd təklifi qəbul etmədən verə bilirdi, işçi maaşsız (0 AZN) əlavə olunurdu.~~ **Düzəldildi:** cavab gözləyən təklif varsa işə qəbul bloklanır (namizəd qəbul edəndə avtomatik tamamlanır və təklifdəki maaş yazılır), "Uyğun deyil" statusu gözləyən təklifi geri çəkir. Təklif göndərilməyibsə, işə qəbul əvvəlki kimi mümkündür (maaş əl ilə yazılır).
-2. Süni intellektsiz vakansiya layihəsi vəzifənin dərəcəsini itirir ("Baş mühasib" → "Mühasib", "Satış meneceri" → "Satış mütəxəssisi").
+2. ~~Süni intellektsiz vakansiya layihəsi vəzifənin dərəcəsini itirirdi ("Baş mühasib" → "Mühasib", "Satış meneceri" → "Satış mütəxəssisi").~~ **Düzəldildi:** işəgötürənin yazdığı və vəzifə siyahısında tanınan vəzifə adı olduğu kimi saxlanılır.
 3. Ayrılan işçi üçün tarix və səbəb saxlanmır, işçi axını hesabatı yoxdur.
 4. Hesabat növləri yalnız 4-dür, qıf və dövriyyə hesabatı yoxdur.
 5. Maaş kalkulyatorunun vergi bazası və dərəcələri rəsmi mənbə ilə təsdiqlənməyib (Vergilər Nazirliyi saytına bu mühitdən çıxış yoxdur).

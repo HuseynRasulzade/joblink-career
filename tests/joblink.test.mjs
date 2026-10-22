@@ -121,6 +121,17 @@ test("vacancy drafts recognize major local job categories and never invent comme
   assert.match(procurement?.description || "", /^• /);
   assert.ok((procurement?.description || "").split("\n").length >= 3);
 });
+test("a vacancy draft keeps the position the employer asked for", () => {
+  const title = (prompt) => draftJob(prompt)?.title;
+  assert.equal(title("Baş mühasib axtarırıq, Bakı, ofisdə, 3 il təcrübə"), "Baş mühasib");
+  assert.equal(title("Satış meneceri axtarırıq 2 il təcrübə"), "Satış meneceri");
+  assert.equal(title("aparıcı mühasib lazımdır"), "Aparıcı mühasib");
+  assert.equal(title("Senior Python Developer axtarırıq"), "Senior Python Developer");
+  assert.equal(title("3-5 il təcrübəli satış mütəxəssisi"), "Satış mütəxəssisi");
+  // Without a recognizable position the template title is used, as before.
+  assert.equal(title("Mühasibatlıq üzrə vakansiya"), "Mühasib");
+  assert.equal(title("mühəndis vakansiyası"), "Mühəndis");
+});
 test("vacancy assistant reports every missing publish detail", () => {
   const draft = draftJob("mühəndis vakansiyası");
   assert.ok(draft);

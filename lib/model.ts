@@ -810,6 +810,21 @@ export function recommendations(
             : "Nailiyyətlərinizi konkret nümunələrlə CV-də göstərin və müsahibəyə hazırlaşın.",
     }));
 }
+// The employer's own wording of the position ("Baş mühasib", "Satış meneceri",
+// "Senior Python Developer") when it is a known job title, so a draft built
+// from a template keeps the seniority and the kind of role that was asked for.
+function titleFromPrompt(prompt: string) {
+  const words = prompt.match(/[\p{L}\p{N}+#.]+/gu) || [];
+  for (let size = Math.min(4, words.length); size >= 1; size--) {
+    for (let i = 0; i + size <= words.length; i++) {
+      const phrase = words.slice(i, i + size).join(" ");
+      // "3-5 il təcrübəli satış mütəxəssisi" asks for experience, not a senior title.
+      if (/^təcrübəli\b/i.test(phrase)) continue;
+      if (phrase.length >= 4 && canonicalJobTitle(phrase)) return phrase.charAt(0).toLocaleUpperCase("az") + phrase.slice(1);
+    }
+  }
+  return "";
+}
 export function draftJob(prompt: string): Job | null {
   const t = normalize(prompt);
   const roles = [
@@ -926,7 +941,7 @@ export function draftJob(prompt: string): Job | null {
   return {
     id: crypto.randomUUID(),
     owner: "",
-    title: role.title,
+    title: titleFromPrompt(prompt) || role.title,
     company: "",
     city: "",
     mode: "",
