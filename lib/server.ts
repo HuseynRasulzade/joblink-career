@@ -25,6 +25,13 @@ export function runtime() {
       }) => Promise<unknown>;
     };
     EXTERNAL_AUTH?: string;
+    // "1" turns on package limits; without it everyone keeps full access.
+    BILLING_ENFORCED?: string;
+    PAYMENT_PROVIDER?: string;
+    PLATFORM_LEGAL_NAME?: string;
+    PLATFORM_VOEN?: string;
+    PLATFORM_ADDRESS?: string;
+    PLATFORM_EMAIL?: string;
     CV_STORAGE?: string;
     AI?: {
       run: (model: string, input: Record<string, unknown>) => Promise<unknown>;

@@ -4,6 +4,7 @@ import {
   integer,
   index,
   uniqueIndex,
+  primaryKey,
 } from "drizzle-orm/sqlite-core";
 export const profiles = sqliteTable(
   "profiles",
@@ -578,4 +579,83 @@ export const verifications = sqliteTable(
     uniqueIndex("verifications_item").on(t.userId, t.kind, t.itemKey),
     index("verifications_status").on(t.status, t.updated),
   ],
+);
+
+export const paymentMethods = sqliteTable(
+  "payment_methods",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    brand: text("brand").notNull(),
+    last4: text("last4").notNull(),
+    expMonth: integer("exp_month").notNull(),
+    expYear: integer("exp_year").notNull(),
+    holder: text("holder").notNull().default(""),
+    token: text("token").notNull(),
+    provider: text("provider").notNull().default("mock"),
+    isDefault: integer("is_default").notNull().default(0),
+    created: text("created").notNull(),
+  },
+  (t) => [index("payment_methods_account").on(t.accountId)],
+);
+export const subscriptions = sqliteTable(
+  "subscriptions",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    planId: text("plan_id").notNull(),
+    status: text("status").notNull().default("active"),
+    periodStart: text("period_start").notNull(),
+    periodEnd: text("period_end").notNull(),
+    autoRenew: integer("auto_renew").notNull().default(0),
+    methodId: text("method_id").notNull().default(""),
+    cancelledAt: text("cancelled_at").notNull().default(""),
+    created: text("created").notNull(),
+    updated: text("updated").notNull(),
+  },
+  (t) => [index("subscriptions_account").on(t.accountId, t.created)],
+);
+export const planPayments = sqliteTable(
+  "plan_payments",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    subscriptionId: text("subscription_id").notNull(),
+    planId: text("plan_id").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default("AZN"),
+    status: text("status").notNull(),
+    methodLabel: text("method_label").notNull().default(""),
+    provider: text("provider").notNull().default("mock"),
+    providerRef: text("provider_ref").notNull().default(""),
+    periodStart: text("period_start").notNull().default(""),
+    periodEnd: text("period_end").notNull().default(""),
+    error: text("error").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [index("plan_payments_account").on(t.accountId, t.created)],
+);
+export const usageCounters = sqliteTable(
+  "usage_counters",
+  {
+    accountId: text("account_id").notNull(),
+    day: text("day").notNull(),
+    feature: text("feature").notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.day, t.feature] })],
+);
+export const contracts = sqliteTable(
+  "contracts",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    subscriptionId: text("subscription_id").notNull(),
+    planId: text("plan_id").notNull(),
+    number: text("number").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [index("contracts_account").on(t.accountId, t.created)],
 );

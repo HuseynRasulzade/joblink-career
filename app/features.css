@@ -5190,3 +5190,15 @@ a svg {
 .insight.warn{color:#9a3412}.insight.good{color:#166534}
 .employee-history{margin:12px 0}.employee-history ul{margin:4px 0 0;padding-left:18px;display:grid;gap:3px;font-size:13px}
 .panel .funnel + h3{margin-top:18px}
+
+.plan-banner{background:#f3f7f5;border:1px solid #d7e3df;border-radius:10px;padding:10px 14px;margin:0}
+.plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.plan-card{display:grid;gap:8px;align-content:start}
+.plan-card.active{border-color:var(--brand,#2f6f5e);box-shadow:0 0 0 1px var(--brand,#2f6f5e)}
+.plan-card ul{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px}
+.plan-price{font-size:26px}.plan-price small{font-size:13px;font-weight:400;color:var(--muted,#6b7280)}
+.plan-current{color:var(--brand,#2f6f5e);font-weight:600}
+.usage-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:12px}
+.usage{display:grid;gap:4px}.usage-bar{background:var(--soft,#eef2f8);border-radius:6px;height:8px;overflow:hidden}.usage-bar i{display:block;height:100%;background:var(--brand,#2f6f5e)}
+.method-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}.method-list li{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--line,#e2e6ee);border-radius:8px;padding:8px 12px}
+.contract-view pre{white-space:pre-wrap;font-family:inherit;font-size:13px;max-height:60vh;overflow:auto;background:#fafafa;border:1px solid var(--line,#e2e6ee);border-radius:8px;padding:12px}

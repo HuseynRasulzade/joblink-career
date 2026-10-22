@@ -81,6 +81,7 @@ import { setCustomJobTitles } from "@/lib/job-title-catalog";
 import { CompaniesPage, CompanyView, VerifiedBadge, type CompanyInfo } from "./CompaniesPage";
 import { SalaryCalculator } from "./SalaryCalculator";
 import { FitReviewPanel } from "./FitReview";
+import PackagesPage from "./PackagesPage";
 import { localizeTree, setSiteLanguage } from "./i18n";
 import { googleMapsSearchUrl } from "@/lib/maps";
 const candidateNav = [
@@ -94,6 +95,7 @@ const candidateNav = [
   { id: "applications", label: "Müraciətlərim", icon: Send },
   { id: "messages", label: "Mesajlar", icon: MessageCircle },
   { id: "calculator", label: "Maaş kalkulyatoru", icon: Calculator },
+  { id: "packages", label: "Paketlər", icon: CreditCard },
   { id: "support", label: "Dəstək", icon: LifeBuoy },
 ];
 const hrNav = [
@@ -2269,6 +2271,7 @@ export default function Joblink() {
               )}
               {page === "companies" && <CompaniesPage onOpen={openCompany} notify={notify} />}
               {page === "calculator" && <SalaryCalculator notify={notify} />}
+              {page === "packages" && <PackagesPage notify={notify} />}
               {page === "profile" && (
                 <ProfileEditor
                   profile={profile}

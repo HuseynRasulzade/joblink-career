@@ -111,6 +111,10 @@ const normalizedProfileRecord = (value: unknown, customSkills: string[] = []): P
 // and its application deadline (when set) has not passed.
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
 import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
+import { PLANS, addPeriod, azn as aznCents, planById } from "@/lib/plans";
+import { cardLabel, parseCard, providerFor } from "@/lib/payments";
+import { buildServiceContract } from "@/lib/contracts";
+import { addUsage, planOf, quota, syncSubscription, usedToday } from "@/lib/plan-service";
 import { EXIT_REASONS, EXIT_TYPES, addDays, computeWorkforce, daysBetween, exitReasonLabel, exitTypeLabel, normalizeExit } from "@/lib/workforce";
 const OPEN_JOBS_SQL = `SELECT j.* FROM jobs j LEFT JOIN accounts a ON a.id=j.owner
   WHERE j.status='published' AND COALESCE(a.status,'active')='active'
@@ -182,8 +186,11 @@ async function notifyFollowers(db: D1Database, companyId: string, j: Job) {
     .bind(companyId)
     .all<{ actor_id: string }>()
     .catch(() => ({ results: [] as { actor_id: string }[] }));
+  const enforced = runtime().BILLING_ENFORCED === "1";
   for (const follower of followerRows.results) {
     await notify(db, { userId: follower.actor_id, type: "followed-job", title: `${j.company}: yeni vakansiya — ${j.title}`, link: "jobs" });
+    // With packages, e-mails about followed companies are part of the paid packages.
+    if (enforced && !(await planOf(db, follower.actor_id, providerFor(runtime().PAYMENT_PROVIDER))).limits.digestEmail) continue;
     await sendUserEmail(db, follower.actor_id, `${j.company}: yeni vakansiya — ${j.title}`, `İzlədiyiniz ${j.company} şirkəti yeni vakansiya paylaşdı: ${j.title} (${j.city}). Joblink-də baxın.`);
   }
 }
@@ -962,6 +969,15 @@ async function route(request: Request) {
   const requirePermission = (permission: CompanyPermission, message = "Bu əməliyyat üçün rolunuzun icazəsi yoxdur.") => {
     if (accountRole !== "company" || !can(memberRole, permission)) throw new HttpError(403, message);
   };
+  // Package limits apply only when BILLING_ENFORCED=1; until then everyone has full access.
+  const billingEnforced = runtime().BILLING_ENFORCED === "1";
+  const paymentProvider = providerFor(runtime().PAYMENT_PROVIDER);
+  const requireAiAccess = async () => {
+    if (!billingEnforced || accountRole === "company") return;
+    const plan = (await quota(db, id, "cv-analysis", true, paymentProvider)).plan!;
+    if (!plan.limits.aiAccess)
+      throw new HttpError(402, "Bu funksiya Plus paketlərə daxildir. “Paketlər” bölməsindən paket seçin.");
+  };
   if (request.method === "POST" && path === "skills/propose") {
     const origin = request.headers.get("origin");
     if (origin && origin !== requestUrl.origin)
@@ -1142,6 +1158,7 @@ async function route(request: Request) {
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "ai/chat") {
+    await requireAiAccess();
     if (accountRole !== "candidate") throw new HttpError(403, "Bu söhbət iş axtaranlar üçündür.");
     const body = await jsonBody(request);
     const message = str(body.message, 3000);
@@ -2103,6 +2120,14 @@ async function route(request: Request) {
     "verifications/submit",
     "verifications/delete",
     "verifications/doc",
+    "plan/me",
+    "plan/subscribe",
+    "plan/cancel",
+    "plan/auto-renew",
+    "plan/methods/add",
+    "plan/methods/remove",
+    "plan/methods/default",
+    "plan/contract",
   ]);
   const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file"]);
   if (accountRole === "company" && candidatePaths.has(path))
@@ -2928,6 +2953,154 @@ async function route(request: Request) {
     await notify(db, { userId: row.company_id, type: "test", title: `Test təhvil verildi: ${row.title}`, body: max ? `Avtomatik bal: ${score}/${max}` : "", link: "hr-tests" });
     return ok({ ok: true, late: late === 1 });
   }
+  // ---- Packages: plans, payment methods, subscription and agreement ----
+  if (request.method === "GET" && path === "plan/me") {
+    const sub = await syncSubscription(db, id, paymentProvider);
+    const q = async (feature: "cv-analysis" | "cv-fix" | "auto-apply") => ({ used: await usedToday(db, id, feature) });
+    const plan = (await quota(db, id, "cv-analysis", true, paymentProvider)).plan!;
+    const methods = await db.prepare("SELECT id,brand,last4,exp_month,exp_year,is_default FROM payment_methods WHERE account_id=? ORDER BY is_default DESC,created DESC").bind(id)
+      .all<{ id: string; brand: string; last4: string; exp_month: number; exp_year: number; is_default: number }>();
+    const payments = await db.prepare("SELECT plan_id,amount_cents,status,method_label,period_start,period_end,error,created FROM plan_payments WHERE account_id=? ORDER BY created DESC LIMIT 30").bind(id).all();
+    const contracts = await db.prepare("SELECT id,number,title,created FROM contracts WHERE account_id=? ORDER BY created DESC LIMIT 20").bind(id).all();
+    return ok({
+      enforced: billingEnforced,
+      provider: paymentProvider?.name || "",
+      plans: PLANS,
+      plan: plan.id,
+      subscription: sub && sub.status !== "expired" && Date.parse(sub.periodEnd) > Date.now() ? { planId: sub.planId, status: sub.status, periodStart: sub.periodStart, periodEnd: sub.periodEnd, autoRenew: sub.autoRenew, methodId: sub.methodId } : null,
+      usage: {
+        cvAnalyses: { ...(await q("cv-analysis")), limit: plan.limits.cvAnalysesPerDay },
+        cvFixes: { ...(await q("cv-fix")), limit: plan.limits.cvFixesPerDay },
+        aiApply: { ...(await q("auto-apply")), limit: plan.limits.aiApplyPerDay },
+      },
+      methods: methods.results.map((m) => ({ id: m.id, brand: m.brand, last4: m.last4, expMonth: m.exp_month, expYear: m.exp_year, isDefault: m.is_default === 1 })),
+      payments: payments.results,
+      contracts: contracts.results,
+    });
+  }
+  if (request.method === "POST" && path === "plan/methods/add") {
+    if (!paymentProvider) throw new HttpError(503, "Ödəniş provayderi qurulmayıb.");
+    const b = await jsonBody(request);
+    const parsed = parseCard({ number: String(b.number || ""), expMonth: Number(b.expMonth), expYear: Number(b.expYear), holder: str(b.holder, 80) });
+    if (!parsed.card) throw new HttpError(400, parsed.error);
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM payment_methods WHERE account_id=?").bind(id).first<{ n: number }>();
+    if ((count?.n || 0) >= 5) throw new HttpError(409, "Ən çoxu 5 ödəniş vasitəsi saxlamaq olar. Əvvəlcə birini silin.");
+    const makeDefault = b.makeDefault === true || !(count?.n || 0);
+    const methodId = crypto.randomUUID();
+    // Only the brand, the last four digits, the expiry and the provider token are stored.
+    const statements = [
+      db.prepare("INSERT INTO payment_methods(id,account_id,brand,last4,exp_month,exp_year,holder,token,provider,is_default,created) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+        .bind(methodId, id, parsed.card.brand, parsed.card.last4, parsed.card.expMonth, parsed.card.expYear, str(b.holder, 80), paymentProvider.tokenize(parsed.card), paymentProvider.name, makeDefault ? 1 : 0, new Date().toISOString()),
+    ];
+    if (makeDefault) statements.unshift(db.prepare("UPDATE payment_methods SET is_default=0 WHERE account_id=?").bind(id));
+    await db.batch(statements);
+    return ok({ ok: true, id: methodId }, 201);
+  }
+  if (request.method === "POST" && path === "plan/methods/default") {
+    const b = await jsonBody(request);
+    const mine = await db.prepare("SELECT 1 FROM payment_methods WHERE id=? AND account_id=?").bind(str(b.id, 100), id).first();
+    if (!mine) throw new HttpError(404, "Ödəniş vasitəsi tapılmadı.");
+    await db.batch([
+      db.prepare("UPDATE payment_methods SET is_default=0 WHERE account_id=?").bind(id),
+      db.prepare("UPDATE payment_methods SET is_default=1 WHERE id=? AND account_id=?").bind(str(b.id, 100), id),
+    ]);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "plan/methods/remove") {
+    const b = await jsonBody(request);
+    const methodId = str(b.id, 100);
+    const mine = await db.prepare("SELECT is_default FROM payment_methods WHERE id=? AND account_id=?").bind(methodId, id).first<{ is_default: number }>();
+    if (!mine) throw new HttpError(404, "Ödəniş vasitəsi tapılmadı.");
+    const sub = await syncSubscription(db, id, paymentProvider);
+    if (sub && sub.status === "active" && sub.autoRenew && sub.methodId === methodId)
+      throw new HttpError(409, "Avtomatik ödəniş bu kartdan istifadə edir. Əvvəlcə avtomatik ödənişi söndürün və ya başqa kart seçin.");
+    await db.prepare("DELETE FROM payment_methods WHERE id=? AND account_id=?").bind(methodId, id).run();
+    if (mine.is_default) {
+      const next = await db.prepare("SELECT id FROM payment_methods WHERE account_id=? ORDER BY created DESC LIMIT 1").bind(id).first<{ id: string }>();
+      if (next) await db.prepare("UPDATE payment_methods SET is_default=1 WHERE id=?").bind(next.id).run();
+    }
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "plan/subscribe") {
+    const b = await jsonBody(request);
+    const plan = planById(str(b.planId, 30));
+    if (!plan) throw new HttpError(400, "Paket tapılmadı.");
+    const now = new Date();
+    const at = now.toISOString();
+    const current = await syncSubscription(db, id, paymentProvider, now);
+    const active = current && current.status !== "expired" && Date.parse(current.periodEnd) > now.getTime() ? current : null;
+    // Choosing the free plan ends the subscription at the end of the paid period.
+    if (plan.priceAzn === 0) {
+      if (active) await db.prepare("UPDATE subscriptions SET status='cancelled',auto_renew=0,cancelled_at=?,updated=? WHERE id=?").bind(at, at, active.id).run();
+      return ok({ ok: true, plan: plan.id, activeUntil: active?.periodEnd || "" });
+    }
+    if (!paymentProvider) throw new HttpError(503, "Ödəniş provayderi qurulmayıb.");
+    if (active && active.planId === plan.id && active.status === "active")
+      throw new HttpError(409, "Bu paket artıq aktivdir.");
+    const method = await db
+      .prepare(str(b.methodId, 100) ? "SELECT id,brand,last4,token FROM payment_methods WHERE id=? AND account_id=?" : "SELECT id,brand,last4,token FROM payment_methods WHERE account_id=? AND is_default=1")
+      .bind(...(str(b.methodId, 100) ? [str(b.methodId, 100), id] : [id]))
+      .first<{ id: string; brand: string; last4: string; token: string }>();
+    if (!method) throw new HttpError(400, "Ödəniş üçün kart seçin və ya əlavə edin.");
+    const subId = crypto.randomUUID();
+    const periodEnd = addPeriod(now);
+    const charge = paymentProvider.charge({ token: method.token, amountCents: plan.priceAzn * 100, currency: "AZN", description: `Joblink ${plan.name}` });
+    await db.prepare("INSERT INTO plan_payments(id,account_id,subscription_id,plan_id,amount_cents,currency,status,method_label,provider,provider_ref,period_start,period_end,error,created) VALUES(?,?,?,?,?,'AZN',?,?,?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(), id, subId, plan.id, plan.priceAzn * 100, charge.ok ? "paid" : "failed", cardLabel(method), paymentProvider.name, charge.providerRef, at, periodEnd, charge.error, at)
+      .run();
+    if (!charge.ok) throw new HttpError(402, `${charge.error} Başqa kartla cəhd edin.`);
+    // A new package replaces the running one at once; the unused days are not refunded.
+    const autoRenew = b.autoRenew === true;
+    const account = await db.prepare("SELECT a.name,p.email FROM accounts a LEFT JOIN password_accounts p ON p.user_id=a.id WHERE a.id=?").bind(id).first<{ name: string; email: string | null }>();
+    const settings = runtime();
+    const contract = buildServiceContract({
+      id: subId,
+      date: at.slice(0, 10),
+      party: { kind: "candidate", name: account?.name || "", email: account?.email || "" },
+      plan,
+      operator: { name: settings.PLATFORM_LEGAL_NAME || "", voen: settings.PLATFORM_VOEN || "", address: settings.PLATFORM_ADDRESS || "", email: settings.PLATFORM_EMAIL || settings.ADMIN_EMAIL || "" },
+      autoRenew,
+      periodStart: at.slice(0, 10),
+      periodEnd: periodEnd.slice(0, 10),
+    });
+    const contractId = crypto.randomUUID();
+    await db.batch([
+      ...(active ? [db.prepare("UPDATE subscriptions SET status='expired',auto_renew=0,period_end=?,updated=? WHERE id=?").bind(at, at, active.id)] : []),
+      db.prepare("INSERT INTO subscriptions(id,account_id,plan_id,status,period_start,period_end,auto_renew,method_id,created,updated) VALUES(?,?,?,'active',?,?,?,?,?,?)")
+        .bind(subId, id, plan.id, at, periodEnd, autoRenew ? 1 : 0, method.id, at, at),
+      db.prepare("INSERT INTO contracts(id,account_id,subscription_id,plan_id,number,title,body,created) VALUES(?,?,?,?,?,?,?,?)")
+        .bind(contractId, id, subId, plan.id, contract.number, contract.title, contract.text, at),
+    ]);
+    await notify(db, { userId: id, type: "plan", title: `${plan.name} paketi aktivdir`, body: `${aznCents(plan.priceAzn * 100)} ödənildi. Müqavilə № ${contract.number}.`, link: "packages" });
+    return ok({ ok: true, plan: plan.id, activeUntil: periodEnd, contractId }, 201);
+  }
+  if (request.method === "POST" && path === "plan/cancel") {
+    const sub = await syncSubscription(db, id, paymentProvider);
+    if (!sub || sub.status === "expired") throw new HttpError(409, "Aktiv paket yoxdur.");
+    const at = new Date().toISOString();
+    await db.prepare("UPDATE subscriptions SET status='cancelled',auto_renew=0,cancelled_at=?,updated=? WHERE id=?").bind(at, at, sub.id).run();
+    return ok({ ok: true, activeUntil: sub.periodEnd });
+  }
+  if (request.method === "POST" && path === "plan/auto-renew") {
+    const b = await jsonBody(request);
+    const sub = await syncSubscription(db, id, paymentProvider);
+    if (!sub || sub.status !== "active" || Date.parse(sub.periodEnd) <= Date.now()) throw new HttpError(409, "Avtomatik ödəniş yalnız aktiv paket üçün dəyişdirilir.");
+    let methodId = sub.methodId;
+    if (b.on === true) {
+      const wanted = str(b.methodId, 100) || methodId;
+      const method = await db.prepare("SELECT id FROM payment_methods WHERE id=? AND account_id=?").bind(wanted, id).first<{ id: string }>()
+        || await db.prepare("SELECT id FROM payment_methods WHERE account_id=? AND is_default=1").bind(id).first<{ id: string }>();
+      if (!method) throw new HttpError(400, "Avtomatik ödəniş üçün kart əlavə edin.");
+      methodId = method.id;
+    }
+    await db.prepare("UPDATE subscriptions SET auto_renew=?,method_id=?,updated=? WHERE id=?").bind(b.on === true ? 1 : 0, methodId, new Date().toISOString(), sub.id).run();
+    return ok({ ok: true, autoRenew: b.on === true });
+  }
+  if (request.method === "GET" && path === "plan/contract") {
+    const row = await db.prepare("SELECT number,title,body,created FROM contracts WHERE id=? AND account_id=?").bind(str(requestUrl.searchParams.get("id"), 100), id).first();
+    if (!row) throw new HttpError(404, "Müqavilə tapılmadı.");
+    return ok({ contract: row });
+  }
   if (request.method === "POST" && path === "auto-apply") {
     const row = await db
       .prepare("SELECT data FROM profiles WHERE user_id=?")
@@ -2980,6 +3153,9 @@ async function route(request: Request) {
       .filter((x) => autoApplyEligible(x.result, minScore))
       .map((x) => ({ job: x.job, ...x.result }))
       .sort((a, b) => b.score - a.score);
+    const applyQuota = await quota(db, id, "auto-apply", billingEnforced, paymentProvider);
+    if (applyQuota.enforced && applyQuota.limit === 0)
+      throw new HttpError(402, "AI ilə avtomatik müraciət Plus paketlərə daxildir. “Paketlər” bölməsindən paket seçin.");
     const dayLimit = 10;
     const day = new Date().toISOString().slice(0, 10);
     const limitKey = `autoapply:${id}:${day}`;
@@ -2991,7 +3167,8 @@ async function route(request: Request) {
           .bind(limitKey)
           .first<{ count: number }>()
       )?.count || 0;
-    const remaining = Math.max(0, dayLimit - used);
+    // With packages the plan decides how many companies the AI may write to each day.
+    const remaining = applyQuota.enforced ? applyQuota.remaining ?? 0 : Math.max(0, dayLimit - used);
     const batch = eligible.slice(0, remaining);
     const applied: { jobId: string; title: string; company: string; score: number }[] =
       [];
@@ -3017,7 +3194,8 @@ async function route(request: Request) {
           score: x.score,
         });
     }
-    if (applied.length)
+    if (applied.length && applyQuota.enforced) await addUsage(db, id, "auto-apply", applied.length);
+    else if (applied.length)
       await db
         .prepare(
           "INSERT INTO auth_limits(id,count,expires) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET count=count+?",
@@ -3398,7 +3576,12 @@ async function route(request: Request) {
       }[];
     } | null = null;
     let source: "ai" | "rules" = "rules";
-    if (b.useAI === true) {
+    // Without quota left the rule-based analysis is still returned, with a notice.
+    let planNotice = "";
+    const analysisQuota = b.useAI === true ? await quota(db, id, "cv-analysis", billingEnforced, paymentProvider) : null;
+    if (analysisQuota && !analysisQuota.allowed)
+      planNotice = analysisQuota.limit === 0 ? "AI CV analizi Plus paketlərə daxildir." : `Bu gün ${analysisQuota.limit} AI analiz limitindən istifadə etmisiniz. Sabah yenidən cəhd edin və ya paketi yüksəldin.`;
+    if (b.useAI === true && !planNotice) {
       if (p.cvText.trim().length < 80)
         throw new HttpError(
           400,
@@ -3448,6 +3631,7 @@ async function route(request: Request) {
       );
       const raw = ai.text;
     if (!raw) throw new HttpError(503, "AI bağlantısı hazır deyil.");
+      if (analysisQuota?.enforced && !ai.cached) await addUsage(db, id, "cv-analysis");
       let parsed: any;
       try {
         parsed = JSON.parse(
@@ -3668,9 +3852,11 @@ async function route(request: Request) {
       evidence,
       deepReport,
       source,
+      planNotice,
     });
   }
   if (request.method === "POST" && path === "profile/summary") {
+    await requireAiAccess();
     const b = await jsonBody(request);
     const p = profileInput({ ...b.profile, experiences: [], education: [] }, customSkillLabels, { preserveStoredSkills: true });
     const experiences = (Array.isArray(b.profile?.experiences) ? b.profile.experiences : []).slice(0, 15).map((e: Record<string, unknown>) => ({
@@ -3720,6 +3906,9 @@ async function route(request: Request) {
       .map((item: unknown) => str(item, 600))
       .filter(Boolean);
     const english = b.language === "en";
+    const fixQuota = await quota(db, id, "cv-fix", billingEnforced, paymentProvider);
+    if (!fixQuota.allowed)
+      throw new HttpError(402, fixQuota.limit === 0 ? "ATS təklifləri ilə CV düzəlişi Plus paketlərə daxildir." : `Bu gün ${fixQuota.limit} CV düzəlişi limitindən istifadə etmisiniz. Sabah yenidən cəhd edin və ya paketi yüksəldin.`);
     const ai = await cachedAiText(
       `cv-rewrite:${english ? "en" : "az"}:${MATCH_VERSION}`,
       id,
@@ -3741,6 +3930,7 @@ async function route(request: Request) {
       { maxOutputTokens: 6000, timeoutMs: 110000 },
     );
     if (!ai.text) throw new HttpError(503, "AI bağlantısı hazır deyil.");
+    if (fixQuota.enforced && !ai.cached) await addUsage(db, id, "cv-fix");
     const parsed = parseAiObject(ai.text);
     const summary = str(parsed?.summary, 1500).replace(/[ \t]+/g, " ");
     const experiences = (Array.isArray(parsed?.experiences) ? parsed.experiences : [])
@@ -3763,6 +3953,7 @@ async function route(request: Request) {
     return ok({ summary, experiences, notes });
   }
   if (request.method === "POST" && path === "career-advice") {
+    await requireAiAccess();
     const b = await jsonBody(request);
     const escoLabels = await allowedEscoLabels(db, b.profile?.skills);
     const p = profileInput(b.profile, [...customSkillLabels, ...escoLabels]);
@@ -4259,6 +4450,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     });
   }
   if (request.method === "POST" && path === "fit-review") {
+    await requireAiAccess();
     const b = await jsonBody(request);
     const jobId = str(b.jobId, 100);
     const english = b.language === "en";
