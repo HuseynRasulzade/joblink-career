@@ -4271,10 +4271,22 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     const job = normalizedJobRecord(JSON.parse(row.job_data), customSkillLabels);
     // A stage belongs to the interview phase and must be one of the vacancy's stages.
     const stage = b.status === "Müsahibə" && (job.stages || []).includes(str(b.stage, 60)) ? str(b.stage, 60) : "";
+    // An offer that waits for the candidate's answer decides the outcome: hiring
+    // is not allowed until it is accepted (which hires automatically with the
+    // offer's salary), and rejecting the candidate withdraws it.
+    const pendingOffer = row.status !== b.status && (b.status === "İşə qəbul edildi" || b.status === "Uyğun deyil")
+      ? await db.prepare("SELECT id FROM offers WHERE application_id=? AND status='sent'").bind(row.id).first<{ id: string }>().catch(() => null)
+      : null;
+    if (pendingOffer && b.status === "İşə qəbul edildi")
+      throw new HttpError(409, "Namizədin iş təklifinə cavabı gözlənilir. Namizəd təklifi qəbul edəndə işə qəbul avtomatik tamamlanır. Gözləmək istəmirsinizsə, əvvəlcə təklifi geri çəkin.");
     await db
       .prepare("UPDATE applications SET status=?,stage=?,updated=? WHERE id=?")
       .bind(b.status, stage, new Date().toISOString(), row.id)
       .run();
+    if (pendingOffer) {
+      await db.prepare("UPDATE offers SET status='withdrawn',updated=? WHERE id=?").bind(new Date().toISOString(), pendingOffer.id).run();
+      await recordApplicationEvent(db, { applicationId: row.id, actorId: id, actorRole: "company", type: "offer", to: "geri götürüldü" });
+    }
     if (row.status !== b.status)
       await recordApplicationEvent(db, { applicationId: row.id, actorId: id, actorRole: "company", type: "status", from: row.status, to: b.status });
     if (row.status !== b.status && b.status === "İşə qəbul edildi") await addHiredEmployee(db, row.id);

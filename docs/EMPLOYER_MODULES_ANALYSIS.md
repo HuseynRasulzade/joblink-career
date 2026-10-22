@@ -91,7 +91,7 @@ Proqramı lokal işə salıb işəgötürən axınını API ilə keçdim (şirk�
 **İşləyir:** şirkət qeydiyyatı və rollar, dashboard rəqəmləri, vakansiyanın yaradılması və yayımı, səbəbin saxlanması, namizədin müraciəti, status dəyişməsi və tarixçə, iş təklifi (yalnız müsahibə mərhələsindən sonra), təklifin elektron qəbulu və işçinin avtomatik əlavə olunması (maaş və başlama tarixi təklifdən gəlir), işçinin əl ilə əlavəsi və statusu, komanda dəvəti, rekruterin vakansiyasının HR və direktor təsdiqi, test hazırlama və göndərmə, mesajlaşma, 4 XLSX hesabatı, audit jurnalı, şirkət profili, işəgötürən kalkulyatoru.
 
 **Tapılan çatışmazlıqlar:**
-1. HR "İşə qəbul edildi" statusunu namizəd təklifi qəbul etmədən verə bilir. İşçi maaşsız (0 AZN) əlavə olunur və namizəd sonra təklifi qəbul etsə belə maaş yenilənmir.
+1. ~~HR "İşə qəbul edildi" statusunu namizəd təklifi qəbul etmədən verə bilirdi, işçi maaşsız (0 AZN) əlavə olunurdu.~~ **Düzəldildi:** cavab gözləyən təklif varsa işə qəbul bloklanır (namizəd qəbul edəndə avtomatik tamamlanır və təklifdəki maaş yazılır), "Uyğun deyil" statusu gözləyən təklifi geri çəkir. Təklif göndərilməyibsə, işə qəbul əvvəlki kimi mümkündür (maaş əl ilə yazılır).
 2. Süni intellektsiz vakansiya layihəsi vəzifənin dərəcəsini itirir ("Baş mühasib" → "Mühasib", "Satış meneceri" → "Satış mütəxəssisi").
 3. Ayrılan işçi üçün tarix və səbəb saxlanmır, işçi axını hesabatı yoxdur.
 4. Hesabat növləri yalnız 4-dür, qıf və dövriyyə hesabatı yoxdur.
