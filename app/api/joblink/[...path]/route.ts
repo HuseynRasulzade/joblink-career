@@ -276,6 +276,30 @@ async function closeExpiredAssignments(db: D1Database, where: { companyId?: stri
     await notify(db, { userId: row.company_id, type: "test", title: `Testin vaxtı bitdi: ${row.title}`, body: result.max ? `Son yadda saxlanmış cavablarla avtomatik bal: ${result.score}/${result.max}` : "", link: "hr-tests" });
   }
 }
+async function hasUnreadFrom(db: D1Database, threadId: string, senderId: string) {
+  const row = await db
+    .prepare(`SELECT 1 AS x FROM messages m JOIN message_threads t ON t.id=m.thread_id
+      WHERE m.thread_id=? AND m.sender_id=? AND m.created > CASE WHEN t.company_id=? THEN t.candidate_read ELSE t.company_read END LIMIT 1`)
+    .bind(threadId, senderId, senderId)
+    .first();
+  return !!row;
+}
+async function senderLabel(db: D1Database, accountRole: string, accountId: string, userId: string) {
+  const row = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(accountRole === "company" ? accountId : userId).first<{ name: string }>();
+  return row?.name || "Joblink";
+}
+// At most 20 messages per five minutes for each real sender, so one account
+// cannot flood a conversation.
+async function assertMessageRate(db: D1Database, authorId: string) {
+  const since = new Date(Date.now() - 5 * 60_000).toISOString();
+  const row = await db.prepare("SELECT COUNT(*) AS n FROM messages WHERE author_id=? AND created>?").bind(authorId, since).first<{ n: number }>().catch(() => null);
+  if (Number(row?.n) >= 20) throw new HttpError(429, "Çox mesaj göndərdiniz. Bir neçə dəqiqə gözləyin.");
+}
+// The other side gets one notification for a run of unread messages, not one per message.
+async function notifyNewMessage(db: D1Database, input: { threadId: string; recipientId: string; senderName: string; unreadBefore: boolean; preview: string }) {
+  if (input.unreadBefore) return;
+  await notify(db, { userId: input.recipientId, type: "message", title: `Yeni mesaj: ${input.senderName}`, body: input.preview.slice(0, 120), link: "messages" });
+}
 // A hired candidate joins the company's current employees list.
 async function addHiredEmployee(db: D1Database, applicationId: string) {
   try {
@@ -1351,12 +1375,13 @@ async function route(request: Request) {
     const before = str(requestUrl.searchParams.get("before"), 40);
     const limit = Math.max(10, Math.min(100, Number(requestUrl.searchParams.get("limit")) || 40));
     const page = await db
-      .prepare(`SELECT m.id,m.sender_id,m.sender_role,m.body,m.created,m.reply_to,
+      .prepare(`SELECT m.id,m.sender_id,m.sender_role,m.body,m.created,m.reply_to,COALESCE(au.name,'') AS author,
           r.body AS reply_body, r.sender_id AS reply_sender
         FROM messages m LEFT JOIN messages r ON r.id=m.reply_to AND m.reply_to<>''
+        LEFT JOIN accounts au ON au.id=m.author_id AND m.author_id<>''
         WHERE m.thread_id=? ${before ? "AND m.created<?" : ""} ORDER BY m.created DESC LIMIT ?`)
       .bind(...(before ? [threadId, before, limit + 1] : [threadId, limit + 1]))
-      .all<{ id: string; sender_id: string; sender_role: string; body: string; created: string; reply_to: string; reply_body: string | null; reply_sender: string | null }>();
+      .all<{ id: string; sender_id: string; sender_role: string; body: string; created: string; reply_to: string; author: string; reply_body: string | null; reply_sender: string | null }>();
     const hasMore = page.results.length > limit;
     const rows = page.results.slice(0, limit).reverse();
     const otherReadAt = (thread as { company_id: string; company_read?: string; candidate_read?: string }).company_id === id
@@ -1372,6 +1397,8 @@ async function route(request: Request) {
         body: m.body,
         created: m.created,
         mine: m.sender_id === id,
+        // Which team member wrote it is shown to the company side only.
+        author: accountRole === "company" && m.sender_role === "company" ? m.author : "",
         replyTo: m.reply_body
           ? { id: m.reply_to, body: m.reply_body.slice(0, 160), mine: m.reply_sender === id }
           : null,
@@ -1426,6 +1453,7 @@ async function route(request: Request) {
       jobId = application.job_id;
     } else throw new HttpError(403, "Bu əməliyyat mövcud deyil.");
     if (await blockedBetween(db, companyId, candidateId)) throw new HttpError(403, "Bu istifadəçi ilə yazışma bloklanıb.");
+    await assertMessageRate(db, userId);
     const now = new Date().toISOString();
     let thread = await db
       .prepare("SELECT id FROM message_threads WHERE company_id=? AND candidate_id=? AND job_id=?")
@@ -1438,11 +1466,13 @@ async function route(request: Request) {
         .bind(thread.id, companyId, candidateId, jobId, accountRole === "company" ? now : "", accountRole === "candidate" ? now : "", now, now)
         .run();
     }
+    const unreadBefore = await hasUnreadFrom(db, thread.id, id);
     await db.batch([
-      db.prepare("INSERT INTO messages(id,thread_id,sender_id,sender_role,body,created) VALUES(?,?,?,?,?,?)")
-        .bind(crypto.randomUUID(), thread.id, id, accountRole, text, now),
+      db.prepare("INSERT INTO messages(id,thread_id,sender_id,sender_role,body,author_id,created) VALUES(?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), thread.id, id, accountRole, text, userId, now),
       db.prepare(`UPDATE message_threads SET updated=?,${accountRole === "company" ? "company_read" : "candidate_read"}=? WHERE id=?`).bind(now, now, thread.id),
     ]);
+    await notifyNewMessage(db, { threadId: thread.id, recipientId: accountRole === "company" ? candidateId : companyId, senderName: await senderLabel(db, accountRole, id, userId), unreadBefore, preview: text });
     return ok({ ok: true, threadId: thread.id }, 201);
   }
   if (request.method === "POST" && path === "messages/send") {
@@ -1462,11 +1492,14 @@ async function route(request: Request) {
       ? await db.prepare("SELECT id FROM messages WHERE id=? AND thread_id=?").bind(str(body.replyTo, 100), thread.id).first<{ id: string }>()
       : null;
     const replyTo = quoted?.id || "";
+    await assertMessageRate(db, userId);
+    const unreadBefore = await hasUnreadFrom(db, thread.id, id);
     await db.batch([
-      db.prepare("INSERT INTO messages(id,thread_id,sender_id,sender_role,body,reply_to,created) VALUES(?,?,?,?,?,?,?)")
-        .bind(crypto.randomUUID(), thread.id, id, accountRole, text, replyTo, now),
+      db.prepare("INSERT INTO messages(id,thread_id,sender_id,sender_role,body,reply_to,author_id,created) VALUES(?,?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), thread.id, id, accountRole, text, replyTo, userId, now),
       db.prepare(`UPDATE message_threads SET updated=?,${thread.company_id === id ? "company_read" : "candidate_read"}=? WHERE id=?`).bind(now, now, thread.id),
     ]);
+    if (other) await notifyNewMessage(db, { threadId: thread.id, recipientId: other.other, senderName: await senderLabel(db, accountRole, id, userId), unreadBefore, preview: text });
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "messages/unread") {
@@ -1489,16 +1522,17 @@ async function route(request: Request) {
     return ok({ messages: Number(unread?.count) || 0, support: Number(support?.count) || 0 });
   }
   if (request.method === "GET" && path === "notifications") {
+    // Company members see the shared company inbox and their own notifications.
     const rows = await db
-      .prepare("SELECT id,type,title,body,link,read,created FROM notifications WHERE user_id=? ORDER BY created DESC LIMIT 50")
-      .bind(id)
+      .prepare("SELECT id,type,title,body,link,read,created FROM notifications WHERE user_id=? OR user_id=? ORDER BY created DESC LIMIT 50")
+      .bind(id, userId)
       .all<{ read: number }>();
     return ok({ notifications: rows.results, unread: rows.results.filter((n) => !n.read).length });
   }
   if (request.method === "POST" && path === "notifications/read") {
     const body = await jsonBody(request);
-    if (body.all === true) await db.prepare("UPDATE notifications SET read=1 WHERE user_id=?").bind(id).run();
-    else await db.prepare("UPDATE notifications SET read=1 WHERE id=? AND user_id=?").bind(str(body.id, 100), id).run();
+    if (body.all === true) await db.prepare("UPDATE notifications SET read=1 WHERE user_id=? OR user_id=?").bind(id, userId).run();
+    else await db.prepare("UPDATE notifications SET read=1 WHERE id=? AND (user_id=? OR user_id=?)").bind(str(body.id, 100), id, userId).run();
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "relations") {
@@ -2266,7 +2300,7 @@ async function route(request: Request) {
     "plan/methods/default",
     "plan/contract",
   ]);
-  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file"]);
+  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel"]);
   if (accountRole === "company" && candidatePaths.has(path))
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
@@ -2310,11 +2344,17 @@ async function route(request: Request) {
       .bind(id)
       .first<{ id: string; name: string; email: string }>();
     const members = await db
-      .prepare(`SELECT m.id,m.email,m.role,m.department,m.status,m.created,COALESCE(a.name,'') AS name FROM company_members m
+      .prepare(`SELECT m.id,m.email,m.role,m.department,m.grants,m.status,m.created,COALESCE(a.name,'') AS name FROM company_members m
         LEFT JOIN accounts a ON a.id=m.user_id WHERE m.company_id=? AND m.status<>'removed' ORDER BY m.created`)
       .bind(id)
-      .all();
-    return ok({ owner, members: members.results, roles: COMPANY_ROLES, canManage: can(memberRole, "team") });
+      .all<Record<string, unknown> & { grants: string }>();
+    return ok({
+      owner,
+      members: members.results.map((m) => ({ ...m, grants: (() => { try { return normalizeGrants(JSON.parse(m.grants)); } catch { return []; } })() })),
+      roles: COMPANY_ROLES,
+      grantable: GRANTABLE,
+      canManage: can(memberRole, "team"),
+    });
   }
   if (request.method === "POST" && path === "company/team/invite") {
     requirePermission("team");
@@ -2330,11 +2370,11 @@ async function route(request: Request) {
     const existing = await db.prepare("SELECT id,status FROM company_members WHERE company_id=? AND email=?").bind(id, email).first<{ id: string; status: string }>();
     if (existing && existing.status !== "removed") throw new HttpError(409, "Bu ünvan artıq komandadadır və ya dəvət gözləyir.");
     if (existing)
-      await db.prepare("UPDATE company_members SET role=?,department=?,status='invited',user_id='',invited_by=?,updated=? WHERE id=?")
-        .bind(role, str(b.department, 120), userId, now, existing.id).run();
+      await db.prepare("UPDATE company_members SET role=?,department=?,grants=?,status='invited',user_id='',invited_by=?,updated=? WHERE id=?")
+        .bind(role, str(b.department, 120), JSON.stringify(normalizeGrants(b.grants)), userId, now, existing.id).run();
     else
-      await db.prepare("INSERT INTO company_members(id,company_id,user_id,email,role,department,status,invited_by,created,updated) VALUES(?,?,'',?,?,?,'invited',?,?,?)")
-        .bind(crypto.randomUUID(), id, email, role, str(b.department, 120), userId, now, now).run();
+      await db.prepare("INSERT INTO company_members(id,company_id,user_id,email,role,department,grants,status,invited_by,created,updated) VALUES(?,?,'',?,?,?,?,'invited',?,?,?)")
+        .bind(crypto.randomUUID(), id, email, role, str(b.department, 120), JSON.stringify(normalizeGrants(b.grants)), userId, now, now).run();
     const invitee = await db.prepare("SELECT user_id FROM password_accounts WHERE email=?").bind(email).first<{ user_id: string }>();
     const company = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>();
     if (invitee) await notify(db, { userId: invitee.user_id, type: "team-invite", title: `${company?.name || "Şirkət"} sizi komandaya dəvət etdi (${roleLabel(role)})`, link: "hr-team" });
@@ -2359,8 +2399,9 @@ async function route(request: Request) {
     if (!member) throw new HttpError(404, "Üzv tapılmadı.");
     if (member.user_id === userId) throw new HttpError(400, "Öz rolunuzu dəyişə bilməzsiniz.");
     if (member.role === "director" && memberRole !== "owner") throw new HttpError(403, "Direktorun rolunu yalnız hesab sahibi dəyişə bilər.");
-    await db.prepare("UPDATE company_members SET role=?,department=?,updated=? WHERE id=?").bind(role, str(b.department, 120), new Date().toISOString(), member.id).run();
-    await companyAudit(db, id, userId, "member-role", member.email, `${roleLabel(member.role)} → ${roleLabel(role)}`);
+    const grants = normalizeGrants(b.grants);
+    await db.prepare("UPDATE company_members SET role=?,department=?,grants=?,updated=? WHERE id=?").bind(role, str(b.department, 120), JSON.stringify(grants), new Date().toISOString(), member.id).run();
+    await companyAudit(db, id, userId, "member-role", member.email, `${roleLabel(member.role)} → ${roleLabel(role)}${grants.length ? ` (+${grants.join(", ")})` : ""}`);
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/team/remove") {
@@ -2414,7 +2455,15 @@ async function route(request: Request) {
     return ok({
       jobs: rows.results.map((r) => {
         const job = JSON.parse(r.data) as Job & { approval?: JobApproval };
-        return { id: r.id, status: r.status, title: job.title, company: job.company, city: job.city, reason: job.reason, created: r.created, approval: job.approval, canDecide: r.status === "pending_approval" && canDecide(memberRole, pendingStep(job.approval)) };
+        // The approver sees the whole vacancy, not only its title.
+        return {
+          id: r.id, status: r.status, title: job.title, company: job.company, city: job.city, reason: job.reason, created: r.created, approval: job.approval,
+          category: job.category, mode: job.mode, type: job.type, workSchedule: job.workSchedule, benefits: job.benefits, reasonNote: job.reasonNote, certifications: job.certifications, minYears: job.minYears, maxYears: job.maxYears,
+          minSalary: job.minSalary, maxSalary: job.maxSalary, skills: job.skills, description: job.description, requirements: job.requirements,
+          deadline: job.deadline,
+          canDecide: r.status === "pending_approval" && canDecide(memberRole, pendingStep(job.approval)),
+          canResubmit: r.status === "rejected" && (job.approval?.requestedBy === userId || can(memberRole, "approve-hr")),
+        };
       }),
     });
   }
@@ -2439,12 +2488,38 @@ async function route(request: Request) {
     const next = { ...job, status };
     await db.prepare("UPDATE jobs SET status=?,data=? WHERE id=?").bind(status, JSON.stringify(next), row.id).run();
     await companyAudit(db, id, userId, `job-${decision}`, row.id, `${job.title}${note ? ` — ${note}` : ""}`);
+    if (job.approval?.requestedBy && job.approval.requestedBy !== id)
+      await notify(db, { userId: job.approval.requestedBy, type: "approval", title: `${job.title}: ${status === "published" ? "təsdiqləndi və yayımlandı" : status === "rejected" ? "rədd edildi" : "bir mərhələ təsdiqləndi"}`, body: note, link: "hr-approvals" });
     if (job.approval?.requestedBy)
       await notify(db, { userId: id, type: "approval", title: `${job.title}: ${status === "published" ? "təsdiqləndi və yayımlandı" : status === "rejected" ? "rədd edildi" : `${step.role === "hr" ? "HR" : "direktor"} təsdiqlədi`}`, body: note, link: "hr-approvals" });
     if (status === "pending_approval")
       await notifyCompanyRoles(db, id, "approve-director", { type: "approval", title: `Direktor təsdiqi gözləyir: ${job.title}`, link: "hr-approvals" });
     if (status === "published") await notifyFollowers(db, id, next);
     return ok({ ok: true, status });
+  }
+  if (request.method === "POST" && path === "company/approvals/resubmit") {
+    const b = await jsonBody(request);
+    const row = await db.prepare("SELECT id,data FROM jobs WHERE id=? AND owner=? AND status='rejected'").bind(str(b.jobId, 100), id).first<Row>();
+    if (!row) throw new HttpError(404, "Rədd edilmiş vakansiya tapılmadı.");
+    const old = JSON.parse(row.data) as Job & { approval?: JobApproval; createdBy?: string };
+    if (old.approval?.requestedBy !== userId && !can(memberRole, "approve-hr")) throw new HttpError(403, "Yenidən göndərmək yalnız vakansiyanı göndərən və ya HR üçün mümkündür.");
+    const escoLabels = await allowedEscoLabels(db, b.job?.skills);
+    const edited = b.job && typeof b.job === "object" ? jobInput(b.job, [...customSkillLabels, ...escoLabels]) : null;
+    const me = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(userId).first<{ name: string }>();
+    // The previous decisions stay in the history; a fresh two-step approval starts.
+    const history = [...(((old as { approvalHistory?: unknown[] }).approvalHistory) || []), old.approval].filter(Boolean).slice(-10);
+    const next = {
+      ...old,
+      ...(edited ? { ...edited, id: old.id, owner: id, created: old.created, createdBy: old.createdBy || userId } : {}),
+      status: "pending_approval",
+      approval: newApproval(userId, me?.name || ""),
+      approvalHistory: history,
+    };
+    if (next.deadline && next.deadline < new Date().toISOString().slice(0, 10)) throw new HttpError(400, "Müraciət üçün son tarix keçmiş tarix ola bilməz.");
+    await db.prepare("UPDATE jobs SET status='pending_approval',data=? WHERE id=?").bind(JSON.stringify(next), row.id).run();
+    await companyAudit(db, id, userId, "job-resubmitted", row.id, String(next.title));
+    await notifyCompanyRoles(db, id, "approve-hr", { type: "approval", title: `Yenidən təsdiqə göndərildi: ${next.title}`, body: `${me?.name || ""} düzəlişlərlə təkrar göndərdi.`, link: "hr-approvals" });
+    return ok({ ok: true, status: "pending_approval" });
   }
   if (request.method === "GET" && path === "company/profile") {
     const row = await db.prepare("SELECT data,doc_name,verification_status,verification_note,submitted_at,reviewed_at FROM company_profiles WHERE company_id=?").bind(id)
@@ -2646,16 +2721,35 @@ async function route(request: Request) {
       },
     });
   }
+  // Date range, one vacancy and "own vacancies only" for roles that cannot publish.
+  const reportScope = async () => {
+    const day = (key: string) => { const v = str(requestUrl.searchParams.get(key), 10); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ""; };
+    const from = day("from");
+    const to = day("to");
+    if (from && to && from > to) throw new HttpError(400, "Başlanğıc tarixi son tarixdən böyük ola bilməz.");
+    const jobFilter = str(requestUrl.searchParams.get("jobId"), 100);
+    const ownOnly = !can(memberRole, "publish");
+    const all = await db.prepare("SELECT id,json_extract(data,'$.createdBy') AS created_by FROM jobs WHERE owner=?").bind(id).all<{ id: string; created_by: string | null }>();
+    const jobIds = all.results.filter((j) => (!ownOnly || j.created_by === userId) && (!jobFilter || j.id === jobFilter)).map((j) => j.id);
+    return {
+      from, to, ownOnly, jobIds, jobIdsJson: JSON.stringify(jobIds),
+      inRange: (iso: string) => (!from || iso.slice(0, 10) >= from) && (!to || iso.slice(0, 10) <= to),
+    };
+  };
   if (request.method === "GET" && path === "company/dashboard") {
-    const jobs = await db.prepare("SELECT id,status,created,json_extract(data,'$.title') AS title FROM jobs WHERE owner=?").bind(id)
+    const scope = await reportScope();
+    const jobs = await db.prepare("SELECT id,status,created,json_extract(data,'$.title') AS title FROM jobs WHERE owner=? AND id IN (SELECT value FROM json_each(?))").bind(id, scope.jobIdsJson)
       .all<{ id: string; status: string; created: string; title: string }>();
     const apps = await db
-      .prepare("SELECT a.id,a.job_id,a.status,a.created,a.updated,a.auto FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=?")
-      .bind(id)
-      .all<{ id: string; job_id: string; status: string; created: string; updated: string | null; auto: number }>();
-    const offers = await db.prepare("SELECT status FROM offers WHERE company_id=?").bind(id).all<{ status: string }>().catch(() => ({ results: [] as { status: string }[] }));
-    const tests = await db.prepare("SELECT status FROM assessment_assignments WHERE company_id=?").bind(id).all<{ status: string }>().catch(() => ({ results: [] as { status: string }[] }));
-    const employees = await db.prepare("SELECT COUNT(*) AS n FROM company_employees WHERE company_id=? AND status='active'").bind(id).first<{ n: number }>().catch(() => null);
+      .prepare("SELECT a.id,a.job_id,a.status,a.created,a.updated,a.auto FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))")
+      .bind(id, scope.jobIdsJson)
+      .all<{ id: string; job_id: string; status: string; created: string; updated: string | null; auto: number }>()
+      .then((r) => ({ results: r.results.filter((a) => scope.inRange(a.created)) }));
+    // Offers, tests and employees are company-wide, so a role limited to its own vacancies does not see them.
+    const empty = { results: [] as { status: string }[] };
+    const offers = scope.ownOnly ? empty : await db.prepare("SELECT status FROM offers WHERE company_id=? AND (?='' OR substr(created,1,10)>=?) AND (?='' OR substr(created,1,10)<=?)").bind(id, scope.from, scope.from, scope.to, scope.to).all<{ status: string }>().catch(() => empty);
+    const tests = scope.ownOnly ? empty : await db.prepare("SELECT status FROM assessment_assignments WHERE company_id=? AND (?='' OR substr(assigned_at,1,10)>=?) AND (?='' OR substr(assigned_at,1,10)<=?)").bind(id, scope.from, scope.from, scope.to, scope.to).all<{ status: string }>().catch(() => empty);
+    const employees = scope.ownOnly ? null : await db.prepare("SELECT COUNT(*) AS n FROM company_employees WHERE company_id=? AND status='active'").bind(id).first<{ n: number }>().catch(() => null);
     const byStatus: Record<string, number> = {};
     for (const a of apps.results) byStatus[a.status] = (byStatus[a.status] || 0) + 1;
     const hired = apps.results.filter((a) => a.status === "İşə qəbul edildi" && a.updated);
@@ -2664,8 +2758,10 @@ async function route(request: Request) {
       : null;
     // Applications per day for the last 30 days.
     const days: { date: string; count: number }[] = [];
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const dayCount = scope.from && scope.to ? Math.max(1, Math.min(120, Math.round((Date.parse(scope.to) - Date.parse(scope.from)) / 86400000) + 1)) : 30;
+    const lastDay = scope.to ? Date.parse(scope.to) : Date.now();
+    for (let i = dayCount - 1; i >= 0; i--) {
+      const date = new Date(lastDay - i * 86400000).toISOString().slice(0, 10);
       days.push({ date, count: apps.results.filter((a) => a.created.slice(0, 10) === date).length });
     }
     const perJob = jobs.results.map((j) => {
@@ -2681,8 +2777,8 @@ async function route(request: Request) {
     const sentOffers = offers.results.filter((o) => o.status !== "withdrawn");
     // Share of applicants whose profile fits the vacancy well (rule-based score of 70 or more).
     const scoredRows = await db
-      .prepare("SELECT a.data,j.id AS job_id,j.data AS job_data FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND a.status<>? ORDER BY a.created DESC LIMIT 500")
-      .bind(id, WITHDRAWN_STATUS)
+      .prepare("SELECT a.data,j.id AS job_id,j.data AS job_data FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND a.status<>? AND j.id IN (SELECT value FROM json_each(?)) AND (?='' OR substr(a.created,1,10)>=?) AND (?='' OR substr(a.created,1,10)<=?) ORDER BY a.created DESC LIMIT 500")
+      .bind(id, WITHDRAWN_STATUS, scope.jobIdsJson, scope.from, scope.from, scope.to, scope.to)
       .all<{ data: string; job_id: string; job_data: string }>()
       .catch(() => ({ results: [] as { data: string; job_id: string; job_data: string }[] }));
     const jobCache = new Map<string, Job>();
@@ -2713,18 +2809,24 @@ async function route(request: Request) {
       byStatus,
       days,
       perJob,
+      scope: { from: scope.from, to: scope.to, jobId: str(requestUrl.searchParams.get("jobId"), 100), ownOnly: scope.ownOnly },
+      jobsList: jobs.results.map((j) => ({ id: j.id, title: j.title })),
     });
   }
   if (request.method === "GET" && path === "company/report") {
     requirePermission("reports");
     const kind = str(requestUrl.searchParams.get("kind"), 20);
+    const scope = await reportScope();
+    if (scope.ownOnly && ["employees", "workforce", "exits", "invoices"].includes(kind))
+      throw new HttpError(403, "Bu hesabatı yalnız HR, direktor və hesab sahibi ixrac edə bilər.");
     let headers: string[] = [];
     let rows: (string | number)[][] = [];
     if (kind === "applications") {
       const result = await db
         .prepare(`SELECT a.status,a.stage,a.created,a.updated,a.auto,a.data,json_extract(j.data,'$.title') AS title FROM applications a
-          JOIN jobs j ON j.id=a.job_id WHERE j.owner=? ORDER BY a.created DESC`)
-        .bind(id)
+          JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))
+          AND (?='' OR substr(a.created,1,10)>=?) AND (?='' OR substr(a.created,1,10)<=?) ORDER BY a.created DESC`)
+        .bind(id, scope.jobIdsJson, scope.from, scope.from, scope.to, scope.to)
         .all<{ status: string; stage: string; created: string; updated: string | null; auto: number; data: string; title: string }>();
       headers = ["Vakansiya", "Namizəd", "Peşə", "E-poçt", "Telefon", "Status", "Mərhələ", "Müraciət tarixi", "Son dəyişiklik", "Mənbə"];
       rows = result.results.map((r) => {
@@ -2735,8 +2837,9 @@ async function route(request: Request) {
       const result = await db
         .prepare(`SELECT j.status,j.created,j.data,(SELECT COUNT(*) FROM applications a WHERE a.job_id=j.id) AS apps,
             (SELECT COUNT(*) FROM applications a WHERE a.job_id=j.id AND a.status='İşə qəbul edildi') AS hired
-          FROM jobs j WHERE j.owner=? ORDER BY j.created DESC`)
-        .bind(id)
+          FROM jobs j WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))
+          AND (?='' OR substr(j.created,1,10)>=?) AND (?='' OR substr(j.created,1,10)<=?) ORDER BY j.created DESC`)
+        .bind(id, scope.jobIdsJson, scope.from, scope.from, scope.to, scope.to)
         .all<{ status: string; created: string; data: string; apps: number; hired: number }>();
       headers = ["Vakansiya", "Şəhər", "Status", "Yaradılıb", "Son tarix", "Maaş (min)", "Maaş (maks)", "Müraciət", "İşə qəbul"];
       rows = result.results.map((r) => {
@@ -2747,8 +2850,9 @@ async function route(request: Request) {
       const showSalary = can(memberRole, "salaries");
       const result = await db.prepare("SELECT * FROM company_employees WHERE company_id=? AND status<>'removed' ORDER BY name").bind(id)
         .all<{ name: string; position: string; department: string; email: string; phone: string; start_date: string; salary_cents: number; status: string }>();
-      headers = ["Ad Soyad", "Vəzifə", "Şöbə", "E-poçt", "Telefon", "İşə başlama", "Status", ...(showSalary ? ["Maaş (AZN)"] : [])];
-      rows = result.results.map((r) => [r.name, r.position, r.department, r.email, r.phone, r.start_date, r.status, ...(showSalary ? [r.salary_cents / 100] : [])]);
+      // Contacts and pay are personal data: only roles with the salaries permission get them.
+      headers = ["Ad Soyad", "Vəzifə", "Şöbə", ...(showSalary ? ["E-poçt", "Telefon"] : []), "İşə başlama", "Status", ...(showSalary ? ["Maaş (AZN)"] : [])];
+      rows = result.results.map((r) => [r.name, r.position, r.department, ...(showSalary ? [r.email, r.phone] : []), r.start_date, r.status, ...(showSalary ? [r.salary_cents / 100] : [])]);
     } else if (kind === "invoices") {
       requirePermission("billing", "Hesab-fakturaları yalnız HR, direktor və hesab sahibi görə bilər.");
       const result = await db
@@ -2780,8 +2884,9 @@ async function route(request: Request) {
     } else if (kind === "funnel") {
       const result = await db
         .prepare(`SELECT json_extract(j.data,'$.title') AS title,json_extract(j.data,'$.reason') AS reason,j.created,a.status
-          FROM jobs j LEFT JOIN applications a ON a.job_id=j.id WHERE j.owner=? ORDER BY j.created DESC`)
-        .bind(id)
+          FROM jobs j LEFT JOIN applications a ON a.job_id=j.id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))
+          AND (?='' OR substr(j.created,1,10)>=?) AND (?='' OR substr(j.created,1,10)<=?) ORDER BY j.created DESC`)
+        .bind(id, scope.jobIdsJson, scope.from, scope.from, scope.to, scope.to)
         .all<{ title: string; reason: string | null; created: string; status: string | null }>();
       const order: string[] = [];
       const byJob = new Map<string, { title: string; reason: string; created: string; counts: Record<string, number> }>();
@@ -2804,8 +2909,9 @@ async function route(request: Request) {
       const result = await db
         .prepare(`SELECT json_extract(j.data,'$.reason') AS reason,COUNT(DISTINCT j.id) AS jobs,COUNT(a.id) AS apps,
             SUM(CASE WHEN a.status='İşə qəbul edildi' THEN 1 ELSE 0 END) AS hired
-          FROM jobs j LEFT JOIN applications a ON a.job_id=j.id WHERE j.owner=? GROUP BY 1 ORDER BY jobs DESC`)
-        .bind(id)
+          FROM jobs j LEFT JOIN applications a ON a.job_id=j.id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))
+          AND (?='' OR substr(j.created,1,10)>=?) AND (?='' OR substr(j.created,1,10)<=?) GROUP BY 1 ORDER BY jobs DESC`)
+        .bind(id, scope.jobIdsJson, scope.from, scope.from, scope.to, scope.to)
         .all<{ reason: string | null; jobs: number; apps: number; hired: number | null }>();
       headers = ["Yaradılma səbəbi", "Vakansiya", "Müraciət", "İşə qəbul"];
       rows = result.results.map((r) => [VACANCY_REASONS.find((x) => x.id === (r.reason || ""))?.label || "Göstərilməyib", Number(r.jobs), Number(r.apps), Number(r.hired || 0)]);
@@ -4504,14 +4610,19 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .bind(str(b.draftId, 100), id)
       .first<Row>();
     if (!draft) throw new HttpError(404, "Vakansiya layihəsi tapılmadı.");
-    if (draft.status === "published")
-      return ok({ job: normalizedJobRecord(JSON.parse(draft.data), customSkillLabels) });
+    if (draft.status === "published") {
+      // Report what really happened to the vacancy, not the stale submitted copy.
+      const live = await db.prepare("SELECT data,status FROM jobs WHERE id=? AND owner=?").bind(String(draft.id), id).first<Row>();
+      const job = normalizedJobRecord(JSON.parse(String(live?.data || draft.data)), customSkillLabels);
+      return ok({ job: { ...job, status: String(live?.status || job.status) }, pendingApproval: live?.status === "pending_approval" });
+    }
     const escoLabels = await allowedEscoLabels(db, b.job?.skills);
     const j = {
       ...jobInput(b.job, [...customSkillLabels, ...escoLabels]),
       id: draft.id,
       owner: id,
       status: "published",
+      createdBy: userId,
     };
     if (j.deadline && j.deadline < new Date().toISOString().slice(0, 10))
       throw new HttpError(400, "Müraciət üçün son tarix keçmiş tarix ola bilməz.");
