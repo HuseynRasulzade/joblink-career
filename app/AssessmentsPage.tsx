@@ -44,6 +44,11 @@ type Detail = {
     late: number;
     violations: { type: string; at: string }[];
     answers: Record<string, unknown>;
+    manualScores: Record<string, number>;
+    questions: Question[];
+    passingScore: number;
+    review_status: string;
+    reviewer_name: string;
   }[];
 };
 type Draft = {
@@ -110,6 +115,16 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
     try {
       setDetail(await request<Detail>(`hr/assessment?id=${encodeURIComponent(id)}`));
       setDraft(null);
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  const open_ = (id: string) => open(id);
+  async function act(path: string, body: Record<string, unknown>, message: string) {
+    try {
+      await request(path, body);
+      notify(message);
+      if (detail) await open(detail.assessment.id);
     } catch (error) {
       notify((error as Error).message);
     }
@@ -303,11 +318,21 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
             <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Namizəd</th><th>Status</th><th>Bal</th><th>Pozuntular</th><th>Təhvil</th></tr></thead><tbody>
               {detail.assignments.map((a) => {
                 const percent = a.max_score ? Math.round((a.score / a.max_score) * 100) : null;
+                const open = a.questions.filter((q) => q.type === "text");
+                const closed = a.status === "submitted" || a.status === "expired";
+                const statusText = { submitted: "Təhvil verilib", expired: "Vaxt bitib", started: "Davam edir", assigned: "Göndərilib", cancelled: "Ləğv edilib" }[a.status] || a.status;
                 return (
                   <tr key={a.id}>
                     <td><strong>{a.candidate_name}</strong></td>
-                    <td><span className={`admin-status ${a.status === "submitted" ? "active" : a.status === "started" ? "paused" : "archived"}`}>{a.status === "submitted" ? "Təhvil verilib" : a.status === "started" ? "Davam edir" : "Göndərilib"}</span>{a.late ? <small className="skill-description">gecikmə ilə</small> : null}</td>
-                    <td>{percent === null ? "—" : <b className={percent >= detail.assessment.passing_score ? "compare-best" : ""}>{a.score}/{a.max_score} ({percent}%)</b>}</td>
+                    <td>
+                      <span className={`admin-status ${a.status === "submitted" ? "active" : a.status === "started" ? "paused" : "archived"}`}>{statusText}</span>
+                      {a.review_status === "pending" && <small className="skill-description">açıq suallar yoxlanmalıdır</small>}
+                      {a.review_status === "done" && a.reviewer_name && <small className="skill-description">yoxladı: {a.reviewer_name}</small>}
+                    </td>
+                    <td>
+                      {percent === null ? "—" : <b className={a.review_status !== "pending" && percent >= a.passingScore ? "compare-best" : ""}>{a.score}/{a.max_score} ({percent}%)</b>}
+                      {a.review_status === "pending" && percent !== null && <small className="skill-description">açıq suallar daxil deyil</small>}
+                    </td>
                     <td>
                       {a.violations.length ? (
                         <details>
@@ -318,12 +343,15 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                     </td>
                     <td>
                       {a.submitted_at ? formatDate(a.submitted_at, siteLanguage(), { time: true }) : "—"}
-                      {detail.assessment.questions.some((q) => q.type === "text") && a.status === "submitted" && (
-                        <details>
-                          <summary>Açıq cavablar</summary>
-                          {detail.assessment.questions.filter((q) => q.type === "text").map((q) => <p key={q.id}><b>{q.text}</b><br />{String(a.answers[q.id] || "—")}</p>)}
-                        </details>
-                      )}
+                      {closed && open.length > 0 && <GradeBox assignmentId={a.id} questions={open} answers={a.answers} manual={a.manualScores} notify={notify} onSaved={() => open_(detail.assessment.id)} />}
+                      <div className="admin-actions">
+                        {(a.status === "started" || a.status === "expired") && (
+                          <button type="button" onClick={() => act("hr/assessments/extend", { assignmentId: a.id, minutes: 15 }, "Vaxt 15 dəqiqə uzadıldı.")}>+15 dəq</button>
+                        )}
+                        {(a.status === "assigned" || a.status === "started") && (
+                          <button type="button" onClick={() => window.confirm("Test ləğv edilsin?") && act("hr/assessments/cancel", { assignmentId: a.id }, "Test ləğv edildi.")}>Ləğv et</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -351,6 +379,46 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
         )}
       </section>
     </div>
+  );
+}
+
+// Open questions are graded by hand, each within the question's own maximum.
+function GradeBox({ assignmentId, questions, answers, manual, notify, onSaved }: {
+  assignmentId: string;
+  questions: Question[];
+  answers: Record<string, unknown>;
+  manual: Record<string, number>;
+  notify: (message: string) => void;
+  onSaved: () => void;
+}) {
+  const [grades, setGrades] = useState<Record<string, string>>(() => Object.fromEntries(questions.map((q) => [q.id, manual[q.id] === undefined ? "" : String(manual[q.id])])));
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try {
+      const result = await request<{ score: number; max: number; reviewStatus: string }>("hr/assessments/grade", { assignmentId, grades });
+      notify(result.reviewStatus === "done" ? `Qiymətləndirmə tamamlandı: ${result.score}/${result.max}` : "Bal yadda saxlanıldı. Qalan suallar yoxlanmalıdır.");
+      onSaved();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <details>
+      <summary>Açıq cavablar</summary>
+      {questions.map((q) => (
+        <div key={q.id}>
+          <p><b>{q.text}</b><br />{String(answers[q.id] || "—")}</p>
+          <label>
+            Bal (0–{q.points}){" "}
+            <input type="number" min={0} max={q.points} value={grades[q.id] ?? ""} onChange={(e) => setGrades({ ...grades, [q.id]: e.target.value })} style={{ width: 70 }} />
+          </label>
+        </div>
+      ))}
+      <button type="button" className="primary" disabled={busy} onClick={save}>Balı yadda saxla</button>
+    </details>
   );
 }
 

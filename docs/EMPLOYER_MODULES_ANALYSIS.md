@@ -155,3 +155,39 @@ Kodu oxudum və lokal serverdə rekruter (icazəsiz), şöbə rəhbəri, HR/hesa
 4. Təsdiq kartında vakansiyanın tam məzmunu və rədd edilmişi redaktə edib yenidən göndərmək.
 5. Mesaj bildirişi, komanda üzvünün adı, spam həddi.
 6. Hesabatlarda dövr və vakansiya filtri, şöbə rəhbəri üçün şöbə ilə məhdudlaşdırma.
+
+## 8. Bölmə 7-dəki düzəlişlərin icrası (migrasiya 0025)
+
+### Görüldü
+**Testlər**
+- Test idarəsi yeni `tests` icazəsinə bağlandı (hesab sahibi, direktor, HR). Rekruter/menecerə yalnız hesab sahibi/HR "Komanda" səhifəsindən əlavə icazə verə bilər. Cavablar və fayl baxışları artıq şirkət adı ilə yox, **real istifadəçi adı ilə** jurnala yazılır. Naviqasiyada icazəsiz bölmələr gizlədilir.
+- Test namizədə göndəriləndə **surəti (snapshot)** götürülür: ad, təlimat, müddət, keçid balı, suallar. Sonradan redaktə yalnız yeni göndərilənlərə təsir edir; namizəd və bal hesablaması həmişə öz surətindən istifadə edir. Göndərildikdən sonra test faylı dəyişdirilə bilmir.
+- Açıq suallar üçün **əl ilə qiymətləndirmə** (`hr/assessments/grade`): hər sual öz maksimum balı daxilində; hamısı yoxlanılana qədər status "yoxlanmalıdır", ümumi bal yalnız sonra tam hesablanır.
+- **Vaxt bitmə**: son tarix + 60 san. keçəndə yekun göndəriş 409 ilə rədd edilir; başlanmış, lakin təhvil verilməmiş test sonrakı sorğuda avtomatik `expired` olur (son saxlanmış cavablarla). Şirkət "+15 dəq" ilə vaxtı uzada və ya testi ləğv edə bilər (səbəb tarixçədə).
+- **Avtomatik saxlama** (hər 20 san.) və təkrar açılışda cavabların bərpası.
+- Namizəd siyahısında "Vaxt bitib" statusu, şirkətdə "Ləğv edilib/Vaxt bitib" etiketləri; dashboard testləri `expired` daxil sayır.
+
+**Təsdiqlər**
+- Təsdiqləyən artıq vakansiyanın tam məzmununu (təsvir, tələblər, maaş, bacarıqlar və s.) görür; 2 gündən çox gözləyənlərdə "gündür gözləyir" göstəricisi.
+- Rədd olunmuş vakansiya düzəlişlə **yenidən göndərilir** (`company/approvals/resubmit`); əvvəlki qərarlar `approvalHistory`-də qalır, yeni iki mərhələli təsdiq başlayır.
+- Təsdiq/rədd bildirişi indi göndərənin **şəxsi** bildirişinə də düşür (bildirişlər siyahısı şirkət qutusu + şəxsi qutunu birləşdirir).
+- `publish` artıq göndərilmiş layihə üçün köhnə "pending" yox, vakansiyanın **real statusunu** qaytarır.
+
+**Mesajlar**
+- Qarşı tərəfə bildiriş (oxunmamış ardıcıllığın birinci mesajında bir dəfə), mesajın **müəllifi** (komanda üzvünün adı, yalnız şirkət tərəfi görür), real istifadəçi üzrə **spam limiti** (5 dəq-də 20 mesaj).
+
+**Hesabatlar**
+- Dashboard və XLSX üçün `from`/`to`/`jobId` filtrləri (UI-da tarix və vakansiya seçimi).
+- Publish icazəsi olmayan rollar (menecer, rekruter) yalnız **özünün yaratdığı** vakansiyaları (`createdBy`) görür; işçi/işçi axını/ayrılanlar/faktura hesabatları onlara bağlıdır, təklif/test/işçi sayğacları şirkət üzrə olduğu üçün gizlədilir.
+- İşçi hesabatında e-poçt/telefon yalnız `salaries` icazəsi olanlara verilir.
+
+**Komanda**: üzv başına əlavə icazə (`tests`, `reports`) — dəvətdə və cədvəldə. Əskik `grants` sütunu heç vaxt üzvü sahibə çevirmir.
+
+### Qalanlar (hələ edilməyib)
+- Test fayllarını Word/Excel kimi qəbul etmək; sual və variant sırasını qarışdırmaq; server tərəfdə ekran şəkli/proctoring (brauzerdə texniki olaraq mümkün deyil — yalnız qeydə alınır).
+- Test nəticəsinin vakansiya statusuna avtomatik bağlanması; sualların CSV ilə idxalı.
+- Mesajlarda qoşma, şablon, arxiv, mesajı komanda üzvünə təyin etmək.
+- Təsdiq xatırlatmaları, əvəzedici (delegation), təklif/maaş üçün təsdiq.
+- `hr` siyahısının menecer üçün özünə aid vakansiyalarla məhdudlaşdırılması (indi yalnız dashboard və hesabatlar məhduddur; köhnə vakansiyalarda `createdBy` yoxdur, ona görə menecer onları görmür).
+- XLSX-də həqiqi tarix xanaları (indi mətn).
+- Əvvəlki siyahıdan: ESCO vəzifə idxalı, saytın rus UI-sı, ASAN imza, real ödəniş provayderi, SMS, işəgötürən paketləri, **deploy** (GitHub secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` əlavə edib "Deploy to Cloudflare" workflow-nu işə salmaq lazımdır), əmək haqqı kalkulyatorunda "3% (−200 AZN)" izahının rəsmi kalkulyatorla yoxlanması (1000/3000 AZN özəl, 1000 AZN dövlət).

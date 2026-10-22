@@ -19,6 +19,7 @@ type Message = {
   body: string;
   created: string;
   mine: boolean;
+  author?: string;
   replyTo?: { id: string; body: string; mine: boolean } | null;
 };
 type SearchHit = { id: string; thread_id: string; body: string; created: string; other_name: string; job_title: string };
@@ -379,7 +380,7 @@ export default function MessagesPage({
                       )}
                       <p>{m.body}</p>
                       <small className="message-time">
-                        {time(m.created)}
+                        {m.author ? `${m.author} · ` : ""}{time(m.created)}
                         {m.mine && !mineAfter && (
                           <span className="receipt" title={read ? t("Oxundu") : t("Göndərildi")}>
                             {read ? <CheckCheck size={13} /> : <Check size={13} />} {read ? t("Oxundu") : t("Göndərildi")}

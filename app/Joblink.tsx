@@ -338,7 +338,8 @@ export default function Joblink() {
       ? "Nümunə hesab"
       : profile.name || "Joblink";
   // Company sections follow the team member's role.
-  const hrVisible = hrNav.filter((item) => item.id !== "hr-billing" || !companyMe || companyMe.permissions.includes("billing"));
+  const hrNeeds: Record<string, string> = { "hr-billing": "billing", "hr-tests": "tests", "hr-reports": "reports" };
+  const hrVisible = hrNav.filter((item) => !hrNeeds[item.id] || !companyMe || companyMe.permissions.includes(hrNeeds[item.id] as never));
   const navigation = admin ? adminNav : hr ? hrVisible : candidateNav;
   const label = navigation.find((n) => n.id === page)?.label || "Ümumi baxış";
   const fingerprint = JSON.stringify(profile);

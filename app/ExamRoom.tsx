@@ -7,7 +7,7 @@ import { siteLanguage } from "./i18n";
 
 type Exam = {
   id: string;
-  status: "assigned" | "started" | "submitted";
+  status: "assigned" | "started" | "submitted" | "expired";
   title: string;
   company: string;
   duration_min: number;
@@ -22,6 +22,7 @@ type Session = {
   deadline: string;
   serverNow: string;
   questions: Omit<Question, "correct">[];
+  saved?: Record<string, unknown>;
   hasAttachment: boolean;
   attachmentType: string;
 };
@@ -59,6 +60,8 @@ export function ExamList({ notify }: { notify: (message: string) => void }) {
           </div>
           {exam.status === "submitted" ? (
             <span className="admin-status active">Təhvil verilib</span>
+          ) : exam.status === "expired" ? (
+            <span className="admin-status">Vaxt bitib</span>
           ) : (
             <button className="primary" onClick={() => setActive(exam)}>{exam.status === "started" ? "Davam et" : "Testə başla"}</button>
           )}
@@ -149,6 +152,8 @@ function ExamRoom({ exam, notify, onClose }: { exam: Exam; notify: (message: str
     try {
       const data = await request<Session>("exams/start", { id: exam.id });
       offset.current = Date.parse(data.serverNow) - Date.now();
+      // Answers saved before a crash or a closed tab come back.
+      if (data.saved && Object.keys(data.saved).length) setAnswers(data.saved);
       setSession(data);
       setStage("running");
     } catch (error) {
@@ -156,6 +161,15 @@ function ExamRoom({ exam, notify, onClose }: { exam: Exam; notify: (message: str
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     }
   }
+
+  // Autosave every 20 seconds, so a crash or a closed tab loses almost nothing.
+  useEffect(() => {
+    if (stage !== "running") return;
+    const timer = window.setInterval(() => {
+      if (!submitted.current) void request("exams/save", { id: exam.id, answers: answersRef.current }).catch(() => {});
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, [stage, exam.id]);
 
   // Timer follows the server deadline.
   useEffect(() => {

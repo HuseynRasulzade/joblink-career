@@ -2504,7 +2504,7 @@ async function route(request: Request) {
     const old = JSON.parse(row.data) as Job & { approval?: JobApproval; createdBy?: string };
     if (old.approval?.requestedBy !== userId && !can(memberRole, "approve-hr")) throw new HttpError(403, "Yenidən göndərmək yalnız vakansiyanı göndərən və ya HR üçün mümkündür.");
     const escoLabels = await allowedEscoLabels(db, b.job?.skills);
-    const edited = b.job && typeof b.job === "object" ? jobInput(b.job, [...customSkillLabels, ...escoLabels]) : null;
+    const edited = b.job && typeof b.job === "object" ? jobInput({ ...old, ...b.job }, [...customSkillLabels, ...escoLabels]) : null;
     const me = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(userId).first<{ name: string }>();
     // The previous decisions stay in the history; a fresh two-step approval starts.
     const history = [...(((old as { approvalHistory?: unknown[] }).approvalHistory) || []), old.approval].filter(Boolean).slice(-10);

@@ -42,9 +42,9 @@ function useLoad<T>(path: string, notify: Notify) {
   useEffect(load, [load]);
   return [data, load] as const;
 }
-function ReportButton({ kind, label }: { kind: string; label: string }) {
+function ReportButton({ kind, label, query = "" }: { kind: string; label: string; query?: string }) {
   return (
-    <a className="secondary report-button" href={`/api/joblink/company/report?kind=${kind}`} download>
+    <a className="secondary report-button" href={`/api/joblink/company/report?kind=${kind}${query ? `&${query}` : ""}`} download>
       <Download size={14} /> {label}
     </a>
   );
@@ -60,10 +60,18 @@ type Dashboard = {
   byStatus: Record<string, number>;
   days: { date: string; count: number }[];
   perJob: { id: string; title: string; status: string; applications: number; interview: number; offered: number; hired: number }[];
+  scope?: { from: string; to: string; jobId: string; ownOnly: boolean };
+  jobsList?: { id: string; title: string }[];
 };
 const FUNNEL = ["Göndərildi", "Baxışda", "Müsahibə", "Təklif edildi", "İşə qəbul edildi", "Uyğun deyil"];
 export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify: Notify }) {
-  const [data] = useLoad<Dashboard>("company/dashboard", notify);
+  const [filter, setFilter] = useState({ from: "", to: "", jobId: "" });
+  const query = new URLSearchParams(Object.entries(filter).filter(([, v]) => v)).toString();
+  const [data] = useLoad<Dashboard>(`company/dashboard${query ? `?${query}` : ""}`, notify);
+  const [jobOptions, setJobOptions] = useState<{ id: string; title: string }[]>([]);
+  useEffect(() => {
+    if (data?.jobsList && !filter.jobId) setJobOptions(data.jobsList);
+  }, [data, filter.jobId]);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const t = data.totals;
   const peak = Math.max(1, ...data.days.map((d) => d.count));
@@ -79,6 +87,17 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
   ];
   return (
     <div className="company-page">
+      <div className="form-grid">
+        <Field label="Başlanğıc tarixi"><input type="date" value={filter.from} onChange={(e) => setFilter({ ...filter, from: e.target.value })} /></Field>
+        <Field label="Son tarix"><input type="date" value={filter.to} onChange={(e) => setFilter({ ...filter, to: e.target.value })} /></Field>
+        <Field label="Vakansiya">
+          <select value={filter.jobId} onChange={(e) => setFilter({ ...filter, jobId: e.target.value })}>
+            <option value="">Hamısı</option>
+            {jobOptions.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
+          </select>
+        </Field>
+      </div>
+      {data.scope?.ownOnly && <p className="muted fine-print">Yalnız sizin yaratdığınız vakansiyalar göstərilir.</p>}
       <div className="kpi-grid">
         {cards.map(([label, value, hint]) => (
           <div className="kpi" key={label}>
@@ -89,7 +108,7 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
         ))}
       </div>
       <section className="panel">
-        <h3>Son 30 gündə müraciətlər</h3>
+        <h3>{filter.from && filter.to ? "Seçilmiş dövrdə müraciətlər" : "Son 30 gündə müraciətlər"}</h3>
         <div className="bar-chart" role="img" aria-label="Son 30 gündə gündəlik müraciətlər">
           {data.days.map((d) => (
             <span key={d.date} title={`${day(d.date)}: ${d.count}`} style={{ height: `${Math.max(3, (d.count / peak) * 100)}%` }} />
@@ -116,8 +135,8 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
           <h3>Vakansiyalar üzrə</h3>
           {reports && (
             <div className="admin-actions">
-              <ReportButton kind="jobs" label="Vakansiyalar XLSX" />
-              <ReportButton kind="applications" label="Müraciətlər XLSX" />
+              <ReportButton kind="jobs" label="Vakansiyalar XLSX" query={query} />
+              <ReportButton kind="applications" label="Müraciətlər XLSX" query={query} />
             </div>
           )}
         </div>
@@ -138,10 +157,28 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
 }
 
 // ---------- Vacancy approvals ----------
-type ApprovalJob = { id: string; status: string; title: string; city: string; reason?: string; created: string; approval?: JobApproval; canDecide: boolean };
+type ApprovalJob = {
+  id: string; status: string; title: string; city: string; reason?: string; created: string; approval?: JobApproval; canDecide: boolean; canResubmit?: boolean;
+  category?: string; mode?: string; type?: string; minYears?: number; maxYears?: number; minSalary?: number; maxSalary?: number;
+  skills?: string[]; description?: string; requirements?: string; deadline?: string; workSchedule?: string; benefits?: string;
+};
 export function ApprovalsPage({ notify, onChange }: { notify: Notify; onChange: () => void }) {
   const [data, load] = useLoad<{ jobs: ApprovalJob[] }>("company/approvals", notify);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [editing, setEditing] = useState<ApprovalJob | null>(null);
+  const [edit, setEdit] = useState({ description: "", requirements: "", minSalary: 0, maxSalary: 0 });
+  async function resubmit() {
+    if (!editing) return;
+    try {
+      await request("company/approvals/resubmit", { jobId: editing.id, job: edit });
+      notify("Vakansiya düzəlişlərlə yenidən təsdiqə göndərildi.");
+      setEditing(null);
+      load();
+      onChange();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   async function decide(job: ApprovalJob, decision: "approve" | "reject") {
     try {
       const result = await request<{ status: string }>("company/approve", { jobId: job.id, decision, note: notes[job.id] || "" });
@@ -163,9 +200,22 @@ export function ApprovalsPage({ notify, onChange }: { notify: Notify; onChange: 
               <h3>{job.title}</h3>
               <p>{job.city} · göndərən: {job.approval?.requestedByName || "—"} · {when(job.approval?.requestedAt || job.created)}</p>
               {job.reason && <p className="muted">Daxili səbəb: {job.reason}</p>}
+              {job.status === "pending_approval" && (() => {
+                const days = Math.floor((Date.now() - Date.parse(job.approval?.requestedAt || job.created)) / 86400000);
+                return days >= 2 ? <p className="muted">⏱ {days} gündür gözləyir</p> : null;
+              })()}
             </div>
             <span className={`admin-status ${job.status === "rejected" ? "archived" : "paused"}`}>{job.status === "rejected" ? "Rədd edildi" : "Təsdiq gözləyir"}</span>
           </div>
+          <details>
+            <summary>Vakansiyanın tam məzmunu</summary>
+            <p><b>Kateqoriya:</b> {job.category || "—"} · <b>İş rejimi:</b> {job.mode || "—"} · <b>Məşğulluq:</b> {job.type || "—"}</p>
+            <p><b>Təcrübə:</b> {job.minYears ?? 0}–{job.maxYears ?? 0} il · <b>Maaş:</b> {job.minSalary || job.maxSalary ? `${job.minSalary || 0}–${job.maxSalary || 0} AZN` : "göstərilməyib"}{job.deadline ? ` · son tarix ${day(job.deadline)}` : ""}</p>
+            {!!job.skills?.length && <p><b>Bacarıqlar:</b> {job.skills.join(", ")}</p>}
+            {job.description && <p><b>Təsvir:</b><br />{job.description}</p>}
+            {job.requirements && <p><b>Tələblər:</b><br />{job.requirements}</p>}
+            {job.benefits && <p><b>Üstünlüklər:</b> {job.benefits}</p>}
+          </details>
           <ol className="approval-steps">
             {job.approval?.steps.map((step) => (
               <li key={step.role} className={step.decision || "waiting"}>
@@ -178,6 +228,14 @@ export function ApprovalsPage({ notify, onChange }: { notify: Notify; onChange: 
               </li>
             ))}
           </ol>
+          {job.canResubmit && (
+            <div className="approval-actions">
+              <button className="primary" onClick={() => {
+                setEditing(job);
+                setEdit({ description: job.description || "", requirements: job.requirements || "", minSalary: job.minSalary || 0, maxSalary: job.maxSalary || 0 });
+              }}>Düzəliş et və yenidən göndər</button>
+            </div>
+          )}
           {job.canDecide && (
             <div className="approval-actions">
               <input placeholder="Qeyd (rədd üçün məcburi)" value={notes[job.id] || ""} onChange={(e) => setNotes({ ...notes, [job.id]: e.target.value })} />
@@ -188,6 +246,20 @@ export function ApprovalsPage({ notify, onChange }: { notify: Notify; onChange: 
         </article>
       ))}
       {!data.jobs.length && <p className="admin-empty">Təsdiq gözləyən vakansiya yoxdur.</p>}
+      {editing && (
+        <Modal title={`Yenidən göndər — ${editing.title}`} onClose={() => setEditing(null)}>
+          <div className="offer-composer">
+            <Field label="Təsvir"><textarea rows={4} value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></Field>
+            <Field label="Tələblər"><textarea rows={3} value={edit.requirements} onChange={(e) => setEdit({ ...edit, requirements: e.target.value })} /></Field>
+            <div className="form-grid">
+              <Field label="Minimum maaş (AZN)"><input type="number" min={0} value={edit.minSalary} onChange={(e) => setEdit({ ...edit, minSalary: Number(e.target.value) })} /></Field>
+              <Field label="Maksimum maaş (AZN)"><input type="number" min={0} value={edit.maxSalary} onChange={(e) => setEdit({ ...edit, maxSalary: Number(e.target.value) })} /></Field>
+            </div>
+            <p className="muted fine-print">Əvvəlki qərarlar tarixçədə saxlanılır; təsdiq mərhələləri yenidən başlayır.</p>
+            <button className="primary" onClick={resubmit}>Yenidən təsdiqə göndər</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -195,7 +267,8 @@ export function ApprovalsPage({ notify, onChange }: { notify: Notify; onChange: 
 // ---------- Team ----------
 type Team = {
   owner: { id: string; name: string; email: string } | null;
-  members: { id: string; email: string; role: string; department: string; status: string; name: string; created: string }[];
+  members: { id: string; email: string; role: string; department: string; grants: string[]; status: string; name: string; created: string }[];
+  grantable?: { id: string; label: string }[];
   roles: { id: string; label: string; description: string }[];
   canManage: boolean;
 };
@@ -203,7 +276,7 @@ type Invite = { id: string; role: string; department: string; company: string; c
 export function TeamPage({ me, notify, onJoined }: { me: CompanyMe | null; notify: Notify; onJoined: () => void }) {
   const [team, load] = useLoad<Team>("company/team", notify);
   const [invites, loadInvites] = useLoad<{ invites: Invite[] }>("company/invites", notify);
-  const [form, setForm] = useState({ email: "", role: "manager", department: "" });
+  const [form, setForm] = useState<{ email: string; role: string; department: string; grants: string[] }>({ email: "", role: "manager", department: "", grants: [] });
   const [audit, setAudit] = useState<{ action: string; target: string; detail: string; created: string; actor: string }[] | null>(null);
   const roleName = (id: string) => team?.roles.find((r) => r.id === id)?.label || id;
   async function invite(event: React.FormEvent) {
@@ -211,7 +284,7 @@ export function TeamPage({ me, notify, onJoined }: { me: CompanyMe | null; notif
     try {
       await request("company/team/invite", form);
       notify("Dəvət göndərildi. İstifadəçi bu e-poçtla şirkət hesabı kimi daxil olub dəvəti qəbul etməlidir.");
-      setForm({ ...form, email: "", department: "" });
+      setForm({ ...form, email: "", department: "", grants: [] });
       load();
     } catch (error) {
       notify((error as Error).message);
@@ -256,6 +329,16 @@ export function TeamPage({ me, notify, onJoined }: { me: CompanyMe | null; notif
             <Field label="Şöbə"><input value={form.department} placeholder="Məsələn: Maliyyə" onChange={(e) => setForm({ ...form, department: e.target.value })} /></Field>
           </div>
           <small className="skill-picker-help">{team.roles.find((r) => r.id === form.role)?.description}</small>
+          {!!team.grantable?.length && (
+            <fieldset className="field">
+              <legend>Əlavə icazələr (rolun üstündən)</legend>
+              {team.grantable.map((g) => (
+                <label key={g.id}>
+                  <input type="checkbox" checked={form.grants.includes(g.id)} onChange={(e) => setForm({ ...form, grants: e.target.checked ? [...form.grants, g.id] : form.grants.filter((x) => x !== g.id) })} /> {g.label}
+                </label>
+              ))}
+            </fieldset>
+          )}
           <button className="primary"><Plus size={14} /> Dəvət et</button>
         </form>
       )}
@@ -273,10 +356,16 @@ export function TeamPage({ me, notify, onJoined }: { me: CompanyMe | null; notif
                   <td><strong>{m.name || "—"}</strong><small className="skill-description">{m.email}</small></td>
                   <td>
                     {team.canManage ? (
-                      <select value={m.role} aria-label="Rol" onChange={(e) => act("company/team/update", { id: m.id, role: e.target.value, department: m.department }, "Rol dəyişdirildi.")}>
+                      <select value={m.role} aria-label="Rol" onChange={(e) => act("company/team/update", { id: m.id, role: e.target.value, department: m.department, grants: m.grants }, "Rol dəyişdirildi.")}>
                         {team.roles.filter((r) => r.id !== "owner").map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
                       </select>
                     ) : roleName(m.role)}
+                    {team.canManage && team.grantable?.map((g) => (
+                      <label key={g.id} className="skill-description">
+                        <input type="checkbox" checked={m.grants.includes(g.id)} onChange={(e) =>
+                          act("company/team/update", { id: m.id, role: m.role, department: m.department, grants: e.target.checked ? [...m.grants, g.id] : m.grants.filter((x) => x !== g.id) }, "İcazə yeniləndi.")} /> {g.label}
+                      </label>
+                    ))}
                   </td>
                   <td>{m.department || "—"}</td>
                   <td><span className={`admin-status ${m.status === "active" ? "active" : "paused"}`}>{m.status === "active" ? "Aktiv" : "Dəvət gözləyir"}</span></td>
