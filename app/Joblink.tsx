@@ -1751,9 +1751,8 @@ export default function Joblink() {
                       {(
                         [
                           ["Bacarıq dəlili", activeJobMatch.breakdown.skills, 50],
-                          ["Vəzifə uyğunluğu", activeJobMatch.breakdown.role, 20],
-                          ["Uyğun təcrübə", activeJobMatch.breakdown.experience, 20],
-                          ["Şəhər və iş formatı", activeJobMatch.breakdown.location, 10],
+                          ["Vəzifə uyğunluğu", activeJobMatch.breakdown.role, 25],
+                          ["Uyğun təcrübə", activeJobMatch.breakdown.experience, 25],
                         ] as const
                       ).map(([label, value, max]) => (
                         <li key={label}>

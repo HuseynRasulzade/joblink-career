@@ -657,7 +657,7 @@ test("Sadiq CV receives a fair finance match across vacancy phrasing variants", 
   // A genuine finance specialist with related titles should rank strongly;
   // the exact value depends on weights, so assert the band and the role signal.
   assert.ok(result.score >= 70, `score ${result.score}`);
-  assert.equal(result.breakdown.role, 20);
+  assert.equal(result.breakdown.role, 25);
 });
 test("structured CV dates still count when editable experience rows are stale", () => {
   const profile = {

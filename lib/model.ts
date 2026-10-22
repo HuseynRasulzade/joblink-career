@@ -621,16 +621,22 @@ export function match(p: Profile, j: Job) {
       });
   const ratio = j.minYears ? relevantYears / j.minYears : 1;
   const overqualified = j.maxYears > j.minYears && relevantYears > j.maxYears + 5;
-  const exp = ratio >= 1 ? (overqualified ? 0.85 : 1) : Math.pow(ratio, 1.5);
+  // A vacancy without a minimum still favours someone with related work
+  // behind them over a newcomer, and a newcomer in the same field over one
+  // from another profession.
+  const exp = overqualified
+    ? 0.7
+    : !j.minYears
+      ? relevantYears > 0 ? 1 : role >= 0.7 ? 0.8 : 0.3
+      : ratio >= 1 ? 1 : Math.pow(ratio, 1.5);
+  // City and work mode are practical preferences, not qualifications, so
+  // they are reported but never add to the fit score.
   const city =
     normalizeSkillKey(p.city) === normalizeSkillKey(j.city) || j.mode === "Uzaqdan";
   const mode = !j.mode || p.mode === j.mode;
-  const location = (city ? 5 : 0) + (mode ? 5 : 0);
-  let score = Math.min(100, Math.round(skills * 50 + role * 20 + exp * 20 + location + preferredBonus));
+  let score = Math.min(100, Math.round(skills * 50 + role * 25 + exp * 25 + preferredBonus));
   const caps: string[] = [];
-  // City and work mode default to filled values, and a vacancy without a
-  // minimum experience would award the full experience share, so a profile
-  // with nothing to evaluate must not score at all.
+  // A profile with nothing to evaluate must not score at all.
   const hasEvidence =
     profileSkillIds.size > 0 ||
     certifications.length > 0 ||
@@ -667,13 +673,13 @@ export function match(p: Profile, j: Job) {
     experienceMet: relevantYears >= j.minYears,
     breakdown: {
       skills: Math.round(skills * 50),
-      role: Math.round(role * 20),
-      experience: Math.round(exp * 20),
-      location,
+      role: Math.round(role * 25),
+      experience: Math.round(exp * 25),
       certifications: preferredBonus,
     },
     certEvidence,
     certifications,
+    locationFit: { city, mode },
     roleRelevance: role,
     caps,
   };
