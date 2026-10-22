@@ -60,6 +60,13 @@ test("concurrent positions do not double-count experience", () => {
     3,
   );
 });
+test("an empty profile matches no vacancy", () => {
+  for (const job of sampleJobs) {
+    const result = match(blankProfile, job);
+    assert.equal(result.score, 0);
+    assert.ok(result.caps.includes("empty-profile"));
+  }
+});
 test("experience alone never establishes a new profession", () => {
   const unrelated = {
     ...sampleProfile,

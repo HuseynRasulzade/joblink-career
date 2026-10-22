@@ -628,6 +628,17 @@ export function match(p: Profile, j: Job) {
   const location = (city ? 5 : 0) + (mode ? 5 : 0);
   let score = Math.min(100, Math.round(skills * 50 + role * 20 + exp * 20 + location + preferredBonus));
   const caps: string[] = [];
+  // City and work mode default to filled values, and a vacancy without a
+  // minimum experience would award the full experience share, so a profile
+  // with nothing to evaluate must not score at all.
+  const hasEvidence =
+    profileSkillIds.size > 0 ||
+    certifications.length > 0 ||
+    [p.title, p.summary, p.cvText, ...roles.flatMap((r) => [r.title, r.text])].some((x) => x?.trim());
+  if (!hasEvidence) {
+    score = 0;
+    caps.push("empty-profile");
+  }
   if (requiredCerts.some((c) => c.level === "none")) {
     score = Math.min(score, 70);
     caps.push("missing-certification");
