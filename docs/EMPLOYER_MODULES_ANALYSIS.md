@@ -83,3 +83,16 @@ Rəqəmləri izah edən qısa şərh: "Satış şöbəsində son 6 ayda dövriyy
 - İşəgötürən ekranları canlıda real istifadəçi ilə sınanmayıb.
 - Maaş kalkulyatorunun düzgünlüyü mühasibatla təsdiqlənməyib.
 - Testlərdəki kamera və ekran paylaşımı real brauzerdə yoxlanmayıb.
+
+## 5. Real yoxlama (lokal server, test hesablar, 2026-10-23)
+
+Proqramı lokal işə salıb işəgötürən axınını API ilə keçdim (şirkət qeydiyyatı, vakansiya, namizəd müraciəti, status, iş təklifi, işə qəbul, komanda, təsdiq, test, mesaj, hesabat). Ekranların vizual görünüşü, imtahan otağı, admin tərəfi və faktura yoxlanmayıb. AI funksiyaları açar olmadığı üçün lokal işləmir (cavab 503, gözlənilən haldır).
+
+**İşləyir:** şirkət qeydiyyatı və rollar, dashboard rəqəmləri, vakansiyanın yaradılması və yayımı, səbəbin saxlanması, namizədin müraciəti, status dəyişməsi və tarixçə, iş təklifi (yalnız müsahibə mərhələsindən sonra), təklifin elektron qəbulu və işçinin avtomatik əlavə olunması (maaş və başlama tarixi təklifdən gəlir), işçinin əl ilə əlavəsi və statusu, komanda dəvəti, rekruterin vakansiyasının HR və direktor təsdiqi, test hazırlama və göndərmə, mesajlaşma, 4 XLSX hesabatı, audit jurnalı, şirkət profili, işəgötürən kalkulyatoru.
+
+**Tapılan çatışmazlıqlar:**
+1. HR "İşə qəbul edildi" statusunu namizəd təklifi qəbul etmədən verə bilir. İşçi maaşsız (0 AZN) əlavə olunur və namizəd sonra təklifi qəbul etsə belə maaş yenilənmir.
+2. Süni intellektsiz vakansiya layihəsi vəzifənin dərəcəsini itirir ("Baş mühasib" → "Mühasib", "Satış meneceri" → "Satış mütəxəssisi").
+3. Ayrılan işçi üçün tarix və səbəb saxlanmır, işçi axını hesabatı yoxdur.
+4. Hesabat növləri yalnız 4-dür, qıf və dövriyyə hesabatı yoxdur.
+5. Maaş kalkulyatorunun vergi bazası və dərəcələri rəsmi mənbə ilə təsdiqlənməyib (Vergilər Nazirliyi saytına bu mühitdən çıxış yoxdur).
