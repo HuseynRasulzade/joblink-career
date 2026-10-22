@@ -2,6 +2,7 @@
 // automatic requests such as a missing job title.
 export const SUPPORT_TOPICS: { id: string; label: string; labelEn: string }[] = [
   { id: "job-title", label: "Vəzifə adının əlavə edilməsi", labelEn: "Add a job title" },
+  { id: "university", label: "Universitetin əlavə edilməsi", labelEn: "Add a university" },
   { id: "skill", label: "Bacarıq kataloqu", labelEn: "Skills catalog" },
   { id: "certification", label: "Sertifikat kataloqu", labelEn: "Certifications catalog" },
   { id: "complaint", label: "Şikayət", labelEn: "Complaint" },

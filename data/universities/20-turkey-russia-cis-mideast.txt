@@ -1,0 +1,139 @@
+TR|Middle East Technical University|Orta Doğu Texniki Universiteti|Ближневосточный технический университет|ODTÜ;METU
+TR|Bilkent University|Bilkent Universiteti|Университет Билькент|
+TR|Boğaziçi University|Boğaziçi Universiteti|Университет Богазичи|Bogazici
+TR|Istanbul Technical University|İstanbul Texniki Universiteti|Стамбульский технический университет|İTÜ;ITU
+TR|Istanbul University|İstanbul Universiteti|Стамбульский университет|
+TR|Ankara University|Ankara Universiteti|Университет Анкары|
+TR|Gazi University|Qazi Universiteti|Университет Гази|Gazi Üniversitesi
+TR|Hacettepe University|Hacettepe Universiteti|Университет Хаджеттепе|
+TR|Koç University|Koç Universiteti|Университет Коч|Koc
+TR|Sabancı University|Sabancı Universiteti|Университет Сабанджи|Sabanci
+TR|Yıldız Technical University|Yıldız Texniki Universiteti|Технический университет Йылдыз|YTÜ
+TR|Marmara University|Mərmərə Universiteti|Университет Мармара|Marmara
+TR|Atatürk University|Atatürk Universiteti|Университет Ататюрка|
+TR|Ege University|Egey Universiteti|Эгейский университет|Ege
+TR|Dokuz Eylül University|Dokuz Eylül Universiteti|Университет Докуз Эйлюль|
+TR|Selçuk University|Selçuk Universiteti|Университет Сельчук|
+TR|Karadeniz Technical University|Qara Dəniz Texniki Universiteti|Черноморский технический университет|KTÜ;Karadeniz
+TR|Anadolu University|Anadolu Universiteti|Анадолийский университет|
+TR|Istanbul Bilgi University|İstanbul Bilgi Universiteti|Стамбульский университет Бильги|
+TR|Bahçeşehir University|Bahçeşehir Universiteti|Университет Бахчешехир|
+TR|Özyeğin University|Özyeğin Universiteti|Университет Озъегин|
+TR|Başkent University|Başkent Universiteti|Университет Башкент|
+TR|TOBB University of Economics and Technology|TOBB İqtisad və Texnologiya Universiteti|Университет экономики и технологий ТОББ|TOBB ETÜ
+TR|Çankaya University|Çankaya Universiteti|Университет Чанкая|
+TR|Atılım University|Atılım Universiteti|Университет Атылым|
+TR|Yeditepe University|Yeditepe Universiteti|Университет Едитепе|
+TR|Kadir Has University|Kadir Has Universiteti|Университет Кадир Хас|
+TR|Istanbul Medipol University|İstanbul Medipol Universiteti|Стамбульский университет Медипол|
+TR|Gebze Technical University|Gebze Texniki Universiteti|Технический университет Гебзе|
+TR|Akdeniz University|Aralıq dənizi Universiteti (Akdeniz)|Университет Акдениз|
+TR|Erciyes University|Erciyes Universiteti|Университет Эрджиес|
+TR|Fırat University|Fırat Universiteti|Университет Фыраты|
+TR|Pamukkale University|Pamukkale Universiteti|Университет Памуккале|
+TR|Uludağ University|Uludağ Universiteti|Университет Улудаг|
+TR|Kocaeli University|Kocaeli Universiteti|Университет Коджаэли|
+TR|Sakarya University|Sakarya Universiteti|Университет Сакарья|
+TR|Gaziantep University|Gaziantep Universiteti|Университет Газиантепа|
+TR|Istanbul Ticaret University|İstanbul Ticarət Universiteti|Стамбульский торговый университет|
+TR|Galatasaray University|Qalatasaray Universiteti|Университет Галатасарай|Galatasaray
+TR|Eskişehir Technical University|Eskişehir Texniki Universiteti|Технический университет Эскишехира|
+TR|Istanbul Aydın University|İstanbul Aydın Universiteti|Стамбульский университет Айдын|
+TR|Turkish-German University|Türk-Alman Universiteti|Турецко-немецкий университет|TAU
+TR|Ankara Yıldırım Beyazıt University|Ankara Yıldırım Bəyazıt Universiteti|Университет Анкары Йылдырым Беязыт|
+TR|Ankara Social Sciences University|Ankara Sosial Elmlər Universiteti|Университет социальных наук Анкары|
+TR|Turkish Aeronautical Association University|Türk Hava Qurumu Universiteti|Университет Турецкой авиационной ассоциации|THK
+TR|Nişantaşı University|Nişantaşı Universiteti|Университет Нишанташы|
+TR|Beykent University|Beykent Universiteti|Университет Бейкент|
+RU|Lomonosov Moscow State University|M.V. Lomonosov adına Moskva Dövlət Universiteti|Московский государственный университет имени М.В. Ломоносова|MDU;MSU;МГУ
+RU|Saint Petersburg State University|Sankt-Peterburq Dövlət Universiteti|Санкт-Петербургский государственный университет|SPbU;СПбГУ
+RU|MGIMO University|Moskva Dövlət Beynəlxalq Münasibətlər İnstitutu (MGİMO)|МГИМО|MGIMO;МГИМО
+RU|HSE University|Ali İqtisadiyyat Məktəbi (HSE)|Национальный исследовательский университет «Высшая школа экономики»|HSE;ВШЭ;Higher School of Economics
+RU|Moscow Institute of Physics and Technology|Moskva Fizika-Texnologiya İnstitutu|Московский физико-технический институт|MIPT;МФТИ;Fiztex
+RU|Bauman Moscow State Technical University|Bauman adına Moskva Dövlət Texniki Universiteti|МГТУ имени Н.Э. Баумана|Bauman;МГТУ;Бауманка
+RU|RUDN University|Xalqlar Dostluğu Universiteti (RUDN)|Российский университет дружбы народов|RUDN;РУДН
+RU|Gubkin Russian State University of Oil and Gas|Qubkin adına Rusiya Dövlət Neft və Qaz Universiteti|Российский государственный университет нефти и газа имени И.М. Губкина|Gubkin;Губкин;Qubkin
+RU|Plekhanov Russian University of Economics|Plexanov adına Rusiya İqtisad Universiteti|Российский экономический университет имени Г.В. Плеханова|Plekhanov;РЭУ;Плеханова
+RU|Financial University under the Government of the Russian Federation|Rusiya Federasiyası Hökuməti yanında Maliyyə Universiteti|Финансовый университет при Правительстве Российской Федерации|Финуниверситет;Finuniversitet
+RU|Moscow Aviation Institute|Moskva Aviasiya İnstitutu|Московский авиационный институт|MAI;МАИ
+RU|National Research Nuclear University MEPhI|MEPhİ Milli Tədqiqat Nüvə Universiteti|Национальный исследовательский ядерный университет МИФИ|MEPhI;МИФИ
+RU|ITMO University|İTMO Universiteti|Университет ИТМО|ITMO;ИТМО
+RU|Tomsk State University|Tomsk Dövlət Universiteti|Томский государственный университет|TSU;ТГУ
+RU|Novosibirsk State University|Novosibirsk Dövlət Universiteti|Новосибирский государственный университет|NSU;НГУ
+RU|Ural Federal University|Ural Federal Universiteti|Уральский федеральный университет|UrFU;УрФУ
+RU|Kazan Federal University|Kazan Federal Universiteti|Казанский федеральный университет|KFU;КФУ
+RU|Peter the Great St. Petersburg Polytechnic University|Böyük Pyotr adına Sankt-Peterburq Politexnik Universiteti|Санкт-Петербургский политехнический университет Петра Великого|SPbPU;Политех
+RU|Moscow City University|Moskva Şəhər Universiteti|Московский городской педагогический университет|MGPU;МГПУ
+RU|Russian Presidential Academy of National Economy and Public Administration|Rusiya Prezident Milli İqtisadiyyat və Dövlət Xidməti Akademiyası|Российская академия народного хозяйства и государственной службы при Президенте РФ|RANEPA;РАНХиГС
+RU|Pirogov Russian National Research Medical University|Pirogov adına Rusiya Milli Tədqiqat Tibb Universiteti|Российский национальный исследовательский медицинский университет имени Н.И. Пирогова|РНИМУ;Pirogov
+RU|Sechenov First Moscow State Medical University|Seçenov adına Birinci Moskva Dövlət Tibb Universiteti|Первый МГМУ имени И.М. Сеченова|Sechenov;Сеченовский университет
+RU|Kutafin Moscow State Law University|Kutafin adına Moskva Dövlət Hüquq Universiteti|Московский государственный юридический университет имени О.Е. Кутафина|MSAL;МГЮА;Kutafin
+RU|MISIS National University of Science and Technology|MİSİS Milli Elm və Texnologiya Universiteti|Национальный исследовательский технологический университет МИСИС|MISIS;МИСИС
+RU|Russian State University for the Humanities|Rusiya Dövlət Humanitar Universiteti|Российский государственный гуманитарный университет|RGGU;РГГУ
+RU|Moscow State Linguistic University|Moskva Dövlət Linqvistika Universiteti|Московский государственный лингвистический университет|MGLU;МГЛУ
+RU|Moscow Power Engineering Institute|Moskva Enerji İnstitutu|Московский энергетический институт|MPEI;МЭИ
+RU|Moscow State University of Civil Engineering|Moskva Dövlət İnşaat Universiteti|Национальный исследовательский Московский государственный строительный университет|MGSU;МГСУ
+RU|Saint Petersburg State University of Economics|Sankt-Peterburq Dövlət İqtisad Universiteti|Санкт-Петербургский государственный экономический университет|UNECON;СПбГЭУ
+RU|Saint Petersburg Mining University|Sankt-Peterburq Dağ-Mədən Universiteti|Санкт-Петербургский горный университет|Горный университет
+RU|Southern Federal University|Cənub Federal Universiteti|Южный федеральный университет|SFedU;ЮФУ
+RU|Voronezh State University|Voronej Dövlət Universiteti|Воронежский государственный университет|VSU;ВГУ
+RU|Russian State Pedagogical University named after Herzen|Herzen adına Rusiya Dövlət Pedaqoji Universiteti|Российский государственный педагогический университет имени А.И. Герцена|Herzen;РГПУ Герцена
+RU|Dagestan State University|Dağıstan Dövlət Universiteti|Дагестанский государственный университет|ДГУ
+RU|Astrakhan State University|Həştərxan Dövlət Universiteti|Астраханский государственный университет|АГУ
+RU|Kuban State University|Kuban Dövlət Universiteti|Кубанский государственный университет|КубГУ
+RU|Moscow State Institute of Culture|Moskva Dövlət Mədəniyyət İnstitutu|Московский государственный институт культуры|МГИК
+RU|Russian Academy of Music (Gnessin)|Qnesin adına Rusiya Musiqi Akademiyası|Российская академия музыки имени Гнесиных|Gnesin;Гнесинка
+RU|Moscow Conservatory|Moskva Konservatoriyası|Московская консерватория имени П.И. Чайковского|Tchaikovsky Conservatory
+GE|Tbilisi State University|Tbilisi Dövlət Universiteti|Тбилисский государственный университет|TSU Georgia;Ivane Javakhishvili Tbilisi State University
+GE|Ilia State University|İliya Dövlət Universiteti|Государственный университет Илии|
+GE|Caucasus University|Qafqaz Universiteti (Gürcüstan)|Кавказский университет (Грузия)|
+GE|Free University of Tbilisi|Tbilisi Azad Universiteti|Свободный университет Тбилиси|
+GE|Georgian Technical University|Gürcüstan Texniki Universiteti|Грузинский технический университет|GTU
+GE|Batumi Shota Rustaveli State University|Batumi Şota Rustaveli Dövlət Universiteti|Батумский государственный университет имени Шота Руставели|BSU Batumi
+GE|Kutaisi University|Kutaisi Universiteti|Университет Кутаиси|
+GE|International Black Sea University|Beynəlxalq Qara Dəniz Universiteti|Международный университет Чёрного моря|IBSU
+UA|Taras Shevchenko National University of Kyiv|Kiyev Milli Taras Şevçenko Universiteti|Киевский национальный университет имени Тараса Шевченко|KNU;КНУ
+UA|Igor Sikorsky Kyiv Polytechnic Institute|Kiyev Politexnik İnstitutu|Киевский политехнический институт имени Игоря Сикорского|KPI;КПИ
+UA|National University of Kyiv-Mohyla Academy|Kiyev-Mohila Akademiyası|Национальный университет «Киево-Могилянская академия»|NaUKMA
+UA|Lviv Polytechnic National University|Lvov Politexnik Universiteti|Национальный университет «Львовская политехника»|
+UA|Karazin Kharkiv National University|Xarkov Karazin Universiteti|Харьковский национальный университет имени Каразина|
+UA|Odesa I.I. Mechnikov National University|Odessa Meçnikov Universiteti|Одесский национальный университет имени Мечникова|
+UA|Kyiv National Economic University|Kiyev Milli İqtisad Universiteti|Киевский национальный экономический университет имени Вадима Гетьмана|KNEU;КНЭУ
+UA|Kharkiv Polytechnic Institute|Xarkov Politexnik İnstitutu|Харьковский политехнический институт|
+BY|Belarusian State University|Belarus Dövlət Universiteti|Белорусский государственный университет|BSU Belarus;БГУ
+BY|Belarusian National Technical University|Belarus Milli Texniki Universiteti|Белорусский национальный технический университет|БНТУ
+KZ|Nazarbayev University|Nazarbayev Universiteti|Назарбаев Университет|NU
+KZ|Kazakh-British Technical University|Qazax-Britaniya Texniki Universiteti|Казахстанско-Британский технический университет|KBTU;КБТУ
+KZ|Al-Farabi Kazakh National University|Əl-Fərabi adına Qazax Milli Universiteti|Казахский национальный университет имени аль-Фараби|KazNU;КазНУ
+KZ|Satbayev University|Satbayev Universiteti|Университет имени Сатпаева|KazNTU;КазНИТУ
+KZ|KIMEP University|KİMEP Universiteti|Университет КИМЭП|KIMEP
+KZ|Narxoz University|Narxoz Universiteti|Университет Нарксоз|
+KZ|L.N. Gumilyov Eurasian National University|L.N. Qumilyov adına Avrasiya Milli Universiteti|Евразийский национальный университет имени Л.Н. Гумилёва|ENU
+UZ|Tashkent State University of Economics|Daşkənd Dövlət İqtisad Universiteti|Ташкентский государственный экономический университет|TSUE
+UZ|National University of Uzbekistan|Özbəkistan Milli Universiteti|Национальный университет Узбекистана|NUUz;Mirzo Ulugbek
+UZ|Westminster International University in Tashkent|Daşkənddə Vestminster Beynəlxalq Universiteti|Международный Вестминстерский университет в Ташкенте|WIUT
+UZ|Inha University in Tashkent|Daşkənddə İnha Universiteti|Университет Инха в Ташкенте|
+UZ|Tashkent University of Information Technologies|Daşkənd İnformasiya Texnologiyaları Universiteti|Ташкентский университет информационных технологий|TUIT
+KG|American University of Central Asia|Mərkəzi Asiya Amerika Universiteti|Американский университет в Центральной Азии|AUCA
+KG|Kyrgyz-Turkish Manas University|Qırğız-Türk Manas Universiteti|Кыргызско-Турецкий университет «Манас»|Manas
+IR|University of Tehran|Tehran Universiteti|Тегеранский университет|
+IR|Sharif University of Technology|Şərif Texnologiya Universiteti|Технологический университет Шариф|Sharif
+IR|University of Tabriz|Təbriz Universiteti|Тебризский университет|
+IR|Amirkabir University of Technology|Əmirkəbir Texnologiya Universiteti|Технологический университет Амиркабир|Tehran Polytechnic
+IL|Hebrew University of Jerusalem|Yerusəlim İbrani Universiteti|Иерусалимский университет|
+IL|Technion – Israel Institute of Technology|Texnion – İsrail Texnologiya İnstitutu|Технион – Израильский технологический институт|Technion
+IL|Tel Aviv University|Tel-Əviv Universiteti|Тель-Авивский университет|
+AE|Khalifa University|Xəlifə Universiteti|Университет Халифа|
+AE|American University of Sharjah|Şarcah Amerika Universiteti|Американский университет Шарджи|AUS
+AE|American University in Dubai|Dubay Amerika Universiteti|Американский университет в Дубае|AUD
+AE|Heriot-Watt University Dubai|Heriot-Watt Universiteti (Dubay)|Университет Хериот-Уотт (Дубай)|
+AE|Middlesex University Dubai|Middlesex Universiteti (Dubay)|Университет Мидлсекс (Дубай)|
+AE|University of Wollongong in Dubai|Dubayda Vollonqonq Universiteti|Университет Вуллонгонг в Дубае|
+AE|Zayed University|Zayed Universiteti|Университет Заида|
+QA|Qatar University|Qətər Universiteti|Университет Катара|
+QA|Texas A&M University at Qatar|Texas A&M Universiteti (Qətər)|Университет Техаса A&M в Катаре|
+SA|King Abdullah University of Science and Technology|Kral Abdullah Elm və Texnologiya Universiteti|Университет науки и технологий имени короля Абдаллы|KAUST
+SA|King Fahd University of Petroleum and Minerals|Kral Fəhd Neft və Mineral Universiteti|Университет нефти и минеральных ресурсов имени короля Фахда|KFUPM
+SA|King Saud University|Kral Səud Universiteti|Университет короля Сауда|
+EG|Cairo University|Qahirə Universiteti|Каирский университет|
+EG|American University in Cairo|Qahirə Amerika Universiteti|Американский университет в Каире|AUC

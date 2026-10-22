@@ -1,0 +1,137 @@
+DE|Technical University of Munich|Münhen Texniki Universiteti|Мюнхенский технический университет|TUM
+DE|Ludwig Maximilian University of Munich|Münhen Lüdviq Maksimilian Universiteti|Мюнхенский университет Людвига-Максимилиана|LMU
+DE|Humboldt University of Berlin|Berlin Humboldt Universiteti|Берлинский университет имени Гумбольдта|HU Berlin;Humboldt
+DE|Free University of Berlin|Berlin Azad Universiteti|Свободный университет Берлина|FU Berlin
+DE|Technical University of Berlin|Berlin Texniki Universiteti|Берлинский технический университет|TU Berlin
+DE|Heidelberg University|Haydelberq Universiteti|Гейдельбергский университет|Heidelberg
+DE|RWTH Aachen University|Axen RWTH Universiteti|Рейнско-Вестфальский технический университет Аахена|RWTH;Aachen
+DE|Karlsruhe Institute of Technology|Karlsruhe Texnologiya İnstitutu|Технологический институт Карлсруэ|KIT
+DE|Goethe University Frankfurt|Frankfurt Höte Universiteti|Университет Гёте во Франкфурте|Goethe
+DE|University of Mannheim|Mannhaym Universiteti|Университет Мангейма|Mannheim
+DE|University of Hamburg|Hamburq Universiteti|Гамбургский университет|Hamburg
+DE|University of Bonn|Bonn Universiteti|Боннский университет|Bonn
+DE|University of Cologne|Köln Universiteti|Кёльнский университет|Cologne
+DE|Frankfurt School of Finance and Management|Frankfurt Maliyyə və Menecment Məktəbi|Франкфуртская школа финансов и менеджмента|
+DE|WHU – Otto Beisheim School of Management|WHU Otto Beisheim Menecment Məktəbi|Высшая школа менеджмента WHU|WHU
+FR|Sorbonne University|Sorbonna Universiteti|Университет Сорбонна|Sorbonne
+FR|Sciences Po|Sians Po|Институт политических исследований (Сианс По)|Sciences Po Paris
+FR|HEC Paris|HEC Paris|HEC Париж|HEC
+FR|ESSEC Business School|ESSEC Biznes Məktəbi|Бизнес-школа ESSEC|ESSEC
+FR|INSEAD|İNSEAD|INSEAD|INSEAD
+FR|École Polytechnique|Ekol Politexnik|Политехническая школа (Эколь Политекник)|X;Polytechnique
+FR|ESCP Business School|ESCP Biznes Məktəbi|Бизнес-школа ESCP|ESCP
+FR|Paris-Saclay University|Paris-Saklay Universiteti|Университет Париж-Сакле|Paris Saclay
+FR|University of Strasbourg|Strasburq Universiteti|Страсбургский университет|Strasbourg
+FR|University of Lyon|Lion Universiteti|Лионский университет|Lyon
+FR|Toulouse School of Economics|Tuluza İqtisad Məktəbi|Тулузская школа экономики|TSE
+FR|Université Paris-Dauphine|Paris-Dofin Universiteti|Университет Париж-Дофин|Dauphine
+FR|Paris Institute of Political Studies|Paris Siyasi Tədqiqatlar İnstitutu|Парижский институт политических исследований|IEP
+FR|Université Paris Cité|Paris Cité Universiteti|Университет Парижа|Paris Cité
+CH|ETH Zurich|Sürix ETH|ETH Цюрих|ETH;ETH Zürich
+CH|EPFL|Lozanna Federal Politexnik Məktəbi (EPFL)|Федеральная политехническая школа Лозанны|EPFL
+CH|University of St. Gallen|Sankt-Qallen Universiteti|Университет Санкт-Галлена|HSG
+CH|University of Zurich|Sürix Universiteti|Цюрихский университет|UZH
+CH|University of Geneva|Cenevrə Universiteti|Женевский университет|UNIGE
+CH|IMD Business School|IMD Biznes Məktəbi|Бизнес-школа IMD|IMD
+AT|University of Vienna|Vyana Universiteti|Венский университет|Vienna
+AT|TU Wien|Vyana Texniki Universiteti|Венский технический университет|TU Vienna
+AT|Vienna University of Economics and Business|Vyana İqtisadiyyat və Biznes Universiteti|Венский университет экономики и бизнеса|WU Wien
+NL|Delft University of Technology|Delft Texnologiya Universiteti|Делфтский технический университет|TU Delft
+NL|University of Amsterdam|Amsterdam Universiteti|Амстердамский университет|UvA
+NL|Erasmus University Rotterdam|Roterdam Erazm Universiteti|Университет Эразма Роттердамского|EUR;Erasmus
+NL|Utrecht University|Utrext Universiteti|Утрехтский университет|Utrecht
+NL|Leiden University|Leyden Universiteti|Лейденский университет|Leiden
+NL|University of Groningen|Qroninqen Universiteti|Гронингенский университет|Groningen
+NL|Maastricht University|Maastrixt Universiteti|Маастрихтский университет|Maastricht
+NL|Wageningen University|Vageninqen Universiteti|Вагенингенский университет|Wageningen
+NL|Tilburg University|Tilburq Universiteti|Тилбургский университет|Tilburg
+BE|KU Leuven|Leyven Katolik Universiteti|Лёвенский католический университет|Leuven
+BE|Ghent University|Hent Universiteti|Гентский университет|UGent
+BE|Université libre de Bruxelles|Brüssel Azad Universiteti|Свободный университет Брюсселя|ULB
+BE|Vrije Universiteit Brussel|Brüssel Vrije Universiteti|Брюссельский свободный университет|VUB
+IT|Bocconi University|Bokkoni Universiteti|Университет Боккони|Bocconi
+IT|Politecnico di Milano|Milan Politexnik Universiteti|Миланский политехнический университет|Polimi
+IT|University of Bologna|Boloniya Universiteti|Болонский университет|Bologna
+IT|Sapienza University of Rome|Roma Sapiensa Universiteti|Римский университет Ла Сапиенца|Sapienza
+IT|University of Padua|Padua Universiteti|Падуанский университет|Padua
+IT|University of Florence|Florensiya Universiteti|Флорентийский университет|Florence
+IT|Politecnico di Torino|Turin Politexnik Universiteti|Туринский политехнический университет|Polito
+ES|IE University|IE Universiteti|Университет IE|IE Business School
+ES|IESE Business School|IESE Biznes Məktəbi|Бизнес-школа IESE|IESE
+ES|ESADE Business School|ESADE Biznes Məktəbi|Бизнес-школа ESADE|ESADE
+ES|University of Barcelona|Barselona Universiteti|Барселонский университет|UB
+ES|Complutense University of Madrid|Madrid Komplutense Universiteti|Мадридский университет Комплутенсе|UCM
+ES|Pompeu Fabra University|Pompeu Fabra Universiteti|Университет Помпеу Фабра|UPF
+PT|University of Lisbon|Lissabon Universiteti|Лиссабонский университет|ULisboa
+PT|University of Porto|Porto Universiteti|Университет Порту|UPorto
+PT|Nova School of Business and Economics|Nova Biznes və İqtisadiyyat Məktəbi|Школа бизнеса и экономики Nova|Nova SBE
+PL|University of Warsaw|Varşava Universiteti|Варшавский университет|UW Warsaw
+PL|Jagiellonian University|Yagellon Universiteti|Ягеллонский университет|UJ
+PL|Warsaw University of Technology|Varşava Texnologiya Universiteti|Варшавский политехнический университет|PW
+PL|SGH Warsaw School of Economics|Varşava İqtisad Məktəbi (SGH)|Варшавская школа экономики|SGH
+CZ|Charles University|Karl Universiteti (Praqa)|Карлов университет|Charles
+CZ|Czech Technical University in Prague|Praqa Çex Texniki Universiteti|Чешский технический университет в Праге|CTU;ČVUT
+CZ|Masaryk University|Masaryk Universiteti|Университет Масарика|Masaryk
+HU|Central European University|Mərkəzi Avropa Universiteti|Центрально-Европейский университет|CEU
+HU|Corvinus University of Budapest|Budapeşt Korvinus Universiteti|Университет Корвинус|Corvinus
+HU|Eötvös Loránd University|Budapeşt Eötvös Loránd Universiteti|Университет имени Лорана Этвёша|ELTE
+HU|Budapest University of Technology and Economics|Budapeşt Texnologiya və İqtisadiyyat Universiteti|Будапештский технический и экономический университет|BME
+RO|University of Bucharest|Buxarest Universiteti|Бухарестский университет|UniBuc
+BG|Sofia University|Sofiya Universiteti|Софийский университет|Sofia University
+GR|National and Kapodistrian University of Athens|Afina Milli və Kapodistrias Universiteti|Афинский университет|NKUA
+GR|Aristotle University of Thessaloniki|Saloniki Aristotel Universiteti|Университет Аристотеля в Салониках|AUTH
+DK|University of Copenhagen|Kopenhagen Universiteti|Копенгагенский университет|KU
+DK|Aarhus University|Orhus Universiteti|Орхусский университет|Aarhus
+DK|Technical University of Denmark|Danimarka Texniki Universiteti|Технический университет Дании|DTU
+SE|Stockholm University|Stokholm Universiteti|Стокгольмский университет|Stockholm
+SE|KTH Royal Institute of Technology|KTH Kral Texnologiya İnstitutu|Королевский технологический институт KTH|KTH
+SE|Lund University|Lund Universiteti|Лундский университет|Lund
+SE|Uppsala University|Uppsala Universiteti|Уппсальский университет|Uppsala
+SE|University of Gothenburg|Göteborq Universiteti|Гётеборгский университет|Gothenburg
+SE|Stockholm School of Economics|Stokholm İqtisad Məktəbi|Стокгольмская школа экономики|SSE
+FI|University of Helsinki|Helsinki Universiteti|Хельсинкский университет|Helsinki
+FI|Aalto University|Aalto Universiteti|Университет Аалто|Aalto
+NO|University of Oslo|Oslo Universiteti|Университет Осло|UiO
+NO|Norwegian University of Science and Technology|Norveç Elm və Texnologiya Universiteti|Норвежский университет естественных и технических наук|NTNU
+NO|University of Bergen|Bergen Universiteti|Университет Бергена|UiB
+NO|Norwegian School of Economics|Norveç İqtisad Məktəbi|Норвежская школа экономики|NHH
+IE|Trinity College Dublin|Dublin Trinity Kolleci|Тринити-колледж Дублин|TCD
+IE|University College Dublin|Dublin Universiteti Kolleci|Университетский колледж Дублина|UCD
+EE|University of Tartu|Tartu Universiteti|Тартуский университет|Tartu
+EE|Tallinn University of Technology|Tallin Texnologiya Universiteti|Таллинский технологический университет|TalTech
+LT|Vilnius University|Vilnüs Universiteti|Вильнюсский университет|Vilnius
+LV|Riga Technical University|Riqa Texniki Universiteti|Рижский технический университет|RTU
+LV|University of Latvia|Latviya Universiteti|Латвийский университет|LU
+LV|Riga Stradiņš University|Riqa Stradins Universiteti|Университет имени Страдиня в Риге|RSU
+CN|Tsinghua University|Tsinxua Universiteti|Университет Цинхуа|Tsinghua
+CN|Peking University|Pekin Universiteti|Пекинский университет|PKU
+CN|Fudan University|Fudan Universiteti|Университет Фудань|Fudan
+CN|Zhejiang University|Çjesyan Universiteti|Чжэцзянский университет|Zhejiang
+CN|Shanghai Jiao Tong University|Şanxay Szyaotun Universiteti|Шанхайский университет Цзяо Тун|SJTU
+CN|University of Science and Technology of China|Çin Elm və Texnologiya Universiteti|Университет науки и технологий Китая|USTC
+CN|Beijing Institute of Technology|Pekin Texnologiya İnstitutu|Пекинский технологический институт|BIT
+JP|University of Tokyo|Tokio Universiteti|Токийский университет|UTokyo
+JP|Kyoto University|Kioto Universiteti|Киотский университет|Kyoto
+JP|Osaka University|Osaka Universiteti|Университет Осаки|Osaka
+JP|Tokyo Institute of Technology|Tokio Texnologiya İnstitutu|Токийский технологический институт|Tokyo Tech
+JP|Waseda University|Vaseda Universiteti|Университет Васэда|Waseda
+JP|Keio University|Keyo Universiteti|Университет Кэйо|Keio
+KR|Seoul National University|Seul Milli Universiteti|Сеульский национальный университет|SNU
+KR|KAIST|KAIST|KAIST|Korea Advanced Institute of Science and Technology
+KR|Yonsei University|Yonse Universiteti|Университет Ёнсе|Yonsei
+KR|Korea University|Koreya Universiteti|Корейский университет|Korea Univ
+KR|POSTECH|POSTECH|POSTECH|Pohang University of Science and Technology
+SG|National University of Singapore|Sinqapur Milli Universiteti|Национальный университет Сингапура|NUS
+SG|Nanyang Technological University|Nanyanq Texnologiya Universiteti|Наньянский технологический университет|NTU
+HK|University of Hong Kong|Honq Konq Universiteti|Гонконгский университет|HKU
+HK|Chinese University of Hong Kong|Honq Konq Çin Universiteti|Китайский университет Гонконга|CUHK
+HK|Hong Kong University of Science and Technology|Honq Konq Elm və Texnologiya Universiteti|Гонконгский университет науки и технологий|HKUST
+IN|Indian Institute of Technology Bombay|Hindistan Texnologiya İnstitutu, Bombay|Индийский технологический институт в Бомбее|IIT Bombay
+IN|Indian Institute of Technology Delhi|Hindistan Texnologiya İnstitutu, Dehli|Индийский технологический институт в Дели|IIT Delhi
+IN|Indian Institute of Science|Hindistan Elm İnstitutu|Индийский институт науки|IISc
+IN|University of Delhi|Dehli Universiteti|Делийский университет|DU
+IN|Jawaharlal Nehru University|Cəvahərləl Nehru Universiteti|Университет имени Джавахарлала Неру|JNU
+MY|University of Malaya|Malayya Universiteti|Университет Малайя|UM
+MY|Taylor's University|Teylor Universiteti|Университет Тейлора|Taylor's
+PK|Lahore University of Management Sciences|Lahor İdarəetmə Elmləri Universiteti|Лахорский университет управленческих наук|LUMS
+PK|National University of Sciences and Technology|Pakistan Milli Elm və Texnologiya Universiteti|Национальный университет науки и технологий Пакистана|NUST

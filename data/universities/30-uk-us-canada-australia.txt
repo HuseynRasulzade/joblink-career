@@ -1,0 +1,135 @@
+GB|University of Oxford|Oksford Universiteti|Оксфордский университет|Oxford
+GB|University of Cambridge|Kembric Universiteti|Кембриджский университет|Cambridge
+GB|Imperial College London|London İmperial Kolleci|Имперский колледж Лондона|Imperial
+GB|University College London|London Universiteti Kolleci (UCL)|Университетский колледж Лондона|UCL
+GB|London School of Economics and Political Science|London İqtisad və Siyasi Elmlər Məktəbi (LSE)|Лондонская школа экономики и политических наук|LSE
+GB|King's College London|London Kinqs Kolleci|Королевский колледж Лондона|KCL;King's College
+GB|University of Manchester|Mançester Universiteti|Манчестерский университет|Manchester
+GB|University of Edinburgh|Edinburq Universiteti|Эдинбургский университет|Edinburgh
+GB|University of Warwick|Uorvik Universiteti|Уорикский университет|Warwick
+GB|University of Bristol|Bristol Universiteti|Бристольский университет|Bristol
+GB|University of Birmingham|Birmingem Universiteti|Бирмингемский университет|Birmingham
+GB|University of Leeds|Lids Universiteti|Лидсский университет|Leeds
+GB|University of Glasgow|Qlazqo Universiteti|Университет Глазго|Glasgow
+GB|University of Southampton|Sauthempton Universiteti|Саутгемптонский университет|Southampton
+GB|University of Nottingham|Nottingem Universiteti|Ноттингемский университет|Nottingham
+GB|Cardiff University|Kardiff Universiteti|Кардиффский университет|Cardiff
+GB|Durham University|Daram Universiteti|Даремский университет|Durham
+GB|University of St Andrews|Sent-Endryus Universiteti|Университет Сент-Эндрюс|St Andrews
+GB|University of Sheffield|Şeffild Universiteti|Шеффилдский университет|Sheffield
+GB|University of Liverpool|Liverpul Universiteti|Ливерпульский университет|Liverpool
+GB|Newcastle University|Nyukasl Universiteti|Университет Ньюкасла|Newcastle
+GB|University of Exeter|Eksiter Universiteti|Эксетерский университет|Exeter
+GB|University of Bath|Bat Universiteti|Университет Бата|Bath
+GB|University of York|York Universiteti|Университет Йорка|York
+GB|Lancaster University|Lankaster Universiteti|Ланкастерский университет|Lancaster
+GB|Loughborough University|Laffboro Universiteti|Университет Лафборо|Loughborough
+GB|Queen Mary University of London|London Kraliça Meri Universiteti|Университет Королевы Марии Лондонский|QMUL;Queen Mary
+GB|University of Westminster|Vestminster Universiteti|Вестминстерский университет|Westminster
+GB|Coventry University|Koventri Universiteti|Ковентрийский университет|Coventry
+GB|City, University of London|London Siti Universiteti|Сити, Лондонский университет|City University
+GB|SOAS University of London|London SOAS Universiteti|Школа востоковедения и африканистики|SOAS
+GB|Royal Holloway, University of London|London Royal Holloway Universiteti|Королевский колледж Холлоуэй|Royal Holloway
+GB|University of Surrey|Sürrey Universiteti|Университет Суррея|Surrey
+GB|University of Sussex|Sasseks Universiteti|Университет Сассекса|Sussex
+GB|University of Aberdeen|Aberdin Universiteti|Университет Абердина|Aberdeen
+GB|University of Strathclyde|Strathklayd Universiteti|Университет Стратклайда|Strathclyde
+GB|Heriot-Watt University|Heriot-Watt Universiteti|Университет Хериот-Ватт|Heriot-Watt
+GB|Queen's University Belfast|Belfast Kraliça Universiteti|Университет Королевы в Белфасте|QUB
+GB|University of Leicester|Lester Universiteti|Лестерский университет|Leicester
+GB|University of Reading|Rieding Universiteti|Университет Рединга|Reading
+GB|Aston University|Aston Universiteti|Астонский университет|Aston
+GB|University of Kent|Kent Universiteti|Университет Кента|Kent
+GB|University of Essex|Esseks Universiteti|Университет Эссекса|Essex
+GB|Brunel University London|Brunel Universiteti|Университет Брунеля|Brunel
+GB|University of the West of England|Qərbi İngiltərə Universiteti (UWE)|Университет Западной Англии|UWE Bristol
+GB|University of East Anglia|Şərqi Anqliya Universiteti|Университет Восточной Англии|UEA
+GB|Cranfield University|Kranfild Universiteti|Университет Крэнфилда|Cranfield
+GB|London Business School|London Biznes Məktəbi|Лондонская школа бизнеса|LBS
+GB|Cass Business School (Bayes)|Kass Biznes Məktəbi (Bayes)|Бизнес-школа Касс (Байес)|Bayes Business School
+GB|University of the Arts London|London İncəsənət Universiteti|Лондонский университет искусств|UAL
+GB|Middlesex University|Middlesex Universiteti|Мидлсекский университет|Middlesex
+GB|University of Greenwich|Qrinviç Universiteti|Гринвичский университет|Greenwich
+GB|Oxford Brookes University|Oksford Bruks Universiteti|Оксфордский университет Брукса|Oxford Brookes
+GB|De Montfort University|De Montfort Universiteti|Университет Де Монфорт|DMU
+GB|Robert Gordon University|Robert Gordon Universiteti|Университет Роберта Гордона|RGU
+US|Harvard University|Harvard Universiteti|Гарвардский университет|Harvard
+US|Massachusetts Institute of Technology|Massaçusets Texnologiya İnstitutu (MIT)|Массачусетский технологический институт|MIT
+US|Stanford University|Stenford Universiteti|Стэнфордский университет|Stanford
+US|Yale University|Yel Universiteti|Йельский университет|Yale
+US|Princeton University|Prinston Universiteti|Принстонский университет|Princeton
+US|Columbia University|Kolumbiya Universiteti|Колумбийский университет|Columbia
+US|University of Pennsylvania|Pensilvaniya Universiteti|Пенсильванский университет|UPenn;Wharton
+US|Cornell University|Kornell Universiteti|Корнеллский университет|Cornell
+US|Brown University|Braun Universiteti|Университет Брауна|Brown
+US|Dartmouth College|Dartmut Kolleci|Дартмутский колледж|Dartmouth
+US|Duke University|Dyuk Universiteti|Университет Дьюка|Duke
+US|Northwestern University|Nortuestern Universiteti|Северо-Западный университет|Northwestern
+US|University of Chicago|Çikaqo Universiteti|Чикагский университет|UChicago;Chicago
+US|Johns Hopkins University|Consu Hopkins Universiteti|Университет Джонса Хопкинса|JHU;Johns Hopkins
+US|California Institute of Technology|Kaliforniya Texnologiya İnstitutu|Калифорнийский технологический институт|Caltech
+US|University of California, Berkeley|Kaliforniya Universiteti, Berkli|Калифорнийский университет в Беркли|UC Berkeley;Berkeley
+US|University of California, Los Angeles|Kaliforniya Universiteti, Los-Anceles|Калифорнийский университет в Лос-Анджелесе|UCLA
+US|University of California, San Diego|Kaliforniya Universiteti, San-Dieqo|Калифорнийский университет в Сан-Диего|UCSD
+US|University of Michigan|Miçiqan Universiteti|Мичиганский университет|UMich;Michigan
+US|New York University|Nyu-York Universiteti|Нью-Йоркский университет|NYU
+US|Carnegie Mellon University|Karneqi Mellon Universiteti|Университет Карнеги — Меллона|CMU;Carnegie Mellon
+US|Georgetown University|Corctaun Universiteti|Джорджтаунский университет|Georgetown
+US|George Washington University|Corc Vaşinqton Universiteti|Университет Джорджа Вашингтона|GWU
+US|Boston University|Boston Universiteti|Бостонский университет|BU
+US|Georgia Institute of Technology|Corciya Texnologiya İnstitutu|Технологический институт Джорджии|Georgia Tech
+US|University of Texas at Austin|Texas Universiteti, Ostin|Техасский университет в Остине|UT Austin
+US|University of Illinois Urbana-Champaign|İllinoys Universiteti, Urbana-Şampeyn|Университет Иллинойса в Урбане-Шампейне|UIUC
+US|University of Wisconsin–Madison|Viskonsin Universiteti, Medison|Университет Висконсина в Мадисоне|UW Madison
+US|University of Washington|Vaşinqton Universiteti|Вашингтонский университет|UW
+US|University of Southern California|Cənubi Kaliforniya Universiteti|Университет Южной Калифорнии|USC
+US|Emory University|Emori Universiteti|Университет Эмори|Emory
+US|Vanderbilt University|Vanderbilt Universiteti|Университет Вандербильта|Vanderbilt
+US|Rice University|Rays Universiteti|Университет Райса|Rice
+US|University of Notre Dame|Notr-Dam Universiteti|Университет Нотр-Дам|Notre Dame
+US|Tufts University|Tafts Universiteti|Университет Тафтса|Tufts
+US|Boston College|Boston Kolleci|Бостонский колледж|BC
+US|Fordham University|Fordham Universiteti|Фордемский университет|Fordham
+US|American University|Amerika Universiteti (Vaşinqton)|Американский университет (Вашингтон)|AU Washington
+US|Indiana University Bloomington|İndiana Universiteti, Blumington|Университет Индианы в Блумингтоне|IU
+US|Pennsylvania State University|Pensilvaniya Dövlət Universiteti|Университет штата Пенсильвания|Penn State
+US|Ohio State University|Ohayo Dövlət Universiteti|Университет штата Огайо|OSU;Ohio State
+US|Rutgers University|Rutgers Universiteti|Университет Рутгерса|Rutgers
+US|Texas A&M University|Texas A&M Universiteti|Университет Texas A&M|TAMU
+US|Purdue University|Purdyu Universiteti|Университет Пердью|Purdue
+US|Syracuse University|Sirakuz Universiteti|Сиракузский университет|Syracuse
+US|Arizona State University|Arizona Dövlət Universiteti|Университет штата Аризона|ASU
+US|University of Maryland|Merilend Universiteti|Университет Мэриленда|UMD
+US|University of Virginia|Virciniya Universiteti|Университет Виргинии|UVA
+US|University of North Carolina at Chapel Hill|Şimali Karolina Universiteti, Çapel-Hill|Университет Северной Каролины в Чапел-Хилл|UNC
+US|Northeastern University|Nortistern Universiteti|Университет Северо-Восточный|Northeastern
+US|Washington University in St. Louis|Sent-Luis Vaşinqton Universiteti|Университет Вашингтона в Сент-Луисе|WashU
+US|University of Florida|Florida Universiteti|Университет Флориды|UF
+US|University of Pittsburgh|Pitsburq Universiteti|Питтсбургский университет|Pitt
+US|Rochester Institute of Technology|Roçester Texnologiya İnstitutu|Рочестерский технологический институт|RIT
+US|Wharton School|Wharton Biznes Məktəbi|Школа бизнеса Уортон|Wharton
+CA|University of Toronto|Toronto Universiteti|Университет Торонто|UofT
+CA|McGill University|Makqill Universiteti|Университет Макгилла|McGill
+CA|University of British Columbia|Britaniya Kolumbiyası Universiteti|Университет Британской Колумбии|UBC
+CA|University of Waterloo|Vaterlo Universiteti|Университет Ватерлоо|Waterloo
+CA|McMaster University|Makmaster Universiteti|Университет Макмастера|McMaster
+CA|University of Alberta|Alberta Universiteti|Университет Альберты|UAlberta
+CA|Queen's University|Kvins Universiteti|Университет Куинс|Queen's
+CA|Western University (Canada)|Qərbi Ontario Universiteti|Университет Западного Онтарио|Western Ontario
+CA|Université de Montréal|Monreal Universiteti|Монреальский университет|UdeM
+CA|University of Ottawa|Ottava Universiteti|Оттавский университет|uOttawa
+CA|University of Calgary|Kalqari Universiteti|Калгарийский университет|UCalgary
+CA|Simon Fraser University|Saymon Freyzer Universiteti|Университет Саймона Фрейзера|SFU
+CA|York University|York Universiteti (Kanada)|Университет Йорк (Канада)|York Canada
+AU|University of Melbourne|Melburn Universiteti|Мельбурнский университет|Melbourne
+AU|University of Sydney|Sidney Universiteti|Сиднейский университет|Sydney
+AU|Australian National University|Avstraliya Milli Universiteti|Австралийский национальный университет|ANU
+AU|University of New South Wales|Yeni Cənubi Uels Universiteti|Университет Нового Южного Уэльса|UNSW
+AU|Monash University|Monaş Universiteti|Университет Монаш|Monash
+AU|University of Queensland|Kvinslend Universiteti|Университет Квинсленда|UQ
+AU|University of Adelaide|Adelaida Universiteti|Университет Аделаиды|Adelaide
+AU|University of Western Australia|Qərbi Avstraliya Universiteti|Университет Западной Австралии|UWA
+AU|RMIT University|RMİT Universiteti|Университет RMIT|RMIT
+AU|University of Technology Sydney|Sidney Texnologiya Universiteti|Технологический университет Сиднея|UTS
+NZ|University of Auckland|Oklend Universiteti|Оклендский университет|Auckland
+NZ|University of Otago|Otaqo Universiteti|Университет Отаго|Otago

@@ -1,0 +1,47 @@
+# country|English|Azərbaycanca|Русский|aliases
+AZ|Baku State University|Bakı Dövlət Universiteti|Бакинский государственный университет|BDU;BSU
+AZ|Azerbaijan State University of Economics (UNEC)|Azərbaycan Dövlət İqtisad Universiteti|Азербайджанский государственный экономический университет|UNEC;ADİU;AzDİU;UNEC Universiteti
+AZ|Azerbaijan Technical University|Azərbaycan Texniki Universiteti|Азербайджанский технический университет|AzTU;ATU
+AZ|Azerbaijan State Oil and Industry University|Azərbaycan Dövlət Neft və Sənaye Universiteti|Азербайджанский государственный университет нефти и промышленности|ADNSU;ASOIU;ADNA;Azərbaycan Dövlət Neft Akademiyası;Neft Akademiyası;Азербайджанская государственная нефтяная академия
+AZ|Azerbaijan University of Architecture and Construction|Azərbaycan Memarlıq və İnşaat Universiteti|Азербайджанский университет архитектуры и строительства|AzMİU;AUAC
+AZ|Azerbaijan Medical University|Azərbaycan Tibb Universiteti|Азербайджанский медицинский университет|ATU Tibb;AMU
+AZ|Azerbaijan University of Languages|Azərbaycan Dillər Universiteti|Азербайджанский университет языков|ADU;AUL
+AZ|Azerbaijan State Pedagogical University|Azərbaycan Dövlət Pedaqoji Universiteti|Азербайджанский государственный педагогический университет|ADPU
+AZ|Azerbaijan State University of Culture and Arts|Azərbaycan Dövlət Mədəniyyət və İncəsənət Universiteti|Азербайджанский государственный университет культуры и искусств|ADMİU
+AZ|Azerbaijan State Academy of Physical Education and Sport|Azərbaycan Dövlət Bədən Tərbiyəsi və İdman Akademiyası|Азербайджанская государственная академия физической культуры и спорта|ADBTİA
+AZ|Azerbaijan State Agrarian University|Azərbaycan Dövlət Aqrar Universiteti|Азербайджанский государственный аграрный университет|ADAU
+AZ|Azerbaijan Technological University|Azərbaycan Texnologiya Universiteti|Азербайджанский технологический университет|ATU Gəncə
+AZ|Azerbaijan State Academy of Fine Arts|Azərbaycan Dövlət Rəssamlıq Akademiyası|Азербайджанская государственная академия художеств|
+AZ|Baku Academy of Music|Bakı Musiqi Akademiyası|Бакинская музыкальная академия|
+AZ|Azerbaijan National Conservatory|Azərbaycan Milli Konservatoriyası|Азербайджанская национальная консерватория|
+AZ|Azerbaijan State Marine Academy|Azərbaycan Dövlət Dəniz Akademiyası|Азербайджанская государственная морская академия|ADDA
+AZ|Azerbaijan National Aviation Academy|Azərbaycan Milli Aviasiya Akademiyası|Национальная академия авиации Азербайджана|AMAA;NAA
+AZ|Academy of Public Administration under the President of the Republic of Azerbaijan|Azərbaycan Respublikası Prezidenti yanında Dövlət İdarəçilik Akademiyası|Академия государственного управления при Президенте Азербайджанской Республики|DİA;Dövlət İdarəçilik Akademiyası
+AZ|Baku Higher Oil School|Bakı Ali Neft Məktəbi|Бакинская высшая нефтяная школа|BHOS;BANM
+AZ|Azerbaijan-French University (UFAZ)|Azərbaycan-Fransa Universiteti|Азербайджано-французский университет|UFAZ
+AZ|ADA University|ADA Universiteti|Университет АДА|ADA;Diplomatik Akademiya
+AZ|Baku Slavic University|Bakı Slavyan Universiteti|Бакинский славянский университет|BSU Slavyan
+AZ|Baku Engineering University|Bakı Mühəndislik Universiteti|Бакинский инженерный университет|BEU;BMU
+AZ|Baku Business University|Bakı Biznes Universiteti|Бакинский университет бизнеса|BBU
+AZ|Baku Eurasian University|Bakı Avrasiya Universiteti|Бакинский евразийский университет|BAU
+AZ|Baku Asia University|Bakı Asiya Universiteti|Бакинский азиатский университет|
+AZ|Khazar University|Xəzər Universiteti|Университет Хазар|
+AZ|Qafqaz University|Qafqaz Universiteti|Университет Кавказ|
+AZ|Azerbaijan University|Azərbaycan Universiteti|Университет Азербайджан|AU
+AZ|Western Caspian University|Qərbi Kaspi Universiteti|Западно-Каспийский университет|WCU;Azərbaycan Qərbi Kaspi
+AZ|Azerbaijan Cooperation University|Azərbaycan Kooperasiya Universiteti|Азербайджанский университет кооперации|
+AZ|Azerbaijan Tourism and Management University|Azərbaycan Turizm və Menecment Universiteti|Азербайджанский университет туризма и менеджмента|ATMU
+AZ|Odlar Yurdu University|Odlar Yurdu Universiteti|Университет Одлар Юрду|OYU
+AZ|Nakhchivan State University|Naxçıvan Dövlət Universiteti|Нахчыванский государственный университет|NDU
+AZ|Nakhchivan University|Naxçıvan Universiteti|Нахчыванский университет|
+AZ|Ganja State University|Gəncə Dövlət Universiteti|Гянджинский государственный университет|GDU
+AZ|Sumgait State University|Sumqayıt Dövlət Universiteti|Сумгаитский государственный университет|SDU
+AZ|Lankaran State University|Lənkəran Dövlət Universiteti|Ленкоранский государственный университет|LDU
+AZ|Mingachevir State University|Mingəçevir Dövlət Universiteti|Мингечевирский государственный университет|MDU
+AZ|Azerbaijan Teachers Institute|Azərbaycan Müəllimlər İnstitutu|Азербайджанский институт учителей|AMİ
+AZ|Western University|Qərb Universiteti|Западный университет|
+AZ|Baku Islamic University|Bakı İslam Universiteti|Бакинский исламский университет|
+AZ|Azerbaijan Theological Institute|Azərbaycan İlahiyyat İnstitutu|Азербайджанский теологический институт|
+AZ|Police Academy of the Ministry of Internal Affairs|Daxili İşlər Nazirliyinin Polis Akademiyası|Полицейская академия МВД Азербайджана|Polis Akademiyası
+AZ|Lomonosov Moscow State University Baku Branch|M.V. Lomonosov adına Moskva Dövlət Universitetinin Bakı filialı|Филиал МГУ имени М.В. Ломоносова в Баку|MDU Bakı filialı;MSU Baku
+AZ|Azerbaijan Academy of Labor and Social Relations|Əmək və Sosial Münasibətlər Akademiyası|Академия труда и социальных отношений Азербайджана|

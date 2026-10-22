@@ -38,6 +38,7 @@ import {
 } from "./CertificationPickers";
 import { detectCertifications } from "@/lib/certification-catalog";
 import JobTitleInput from "./JobTitleInput";
+import UniversityInput from "./UniversityInput";
 import BrandedCv from "./BrandedCv";
 import StageEditor from "./StageEditor";
 import { VACANCY_REASONS } from "@/lib/recruitment";
@@ -1591,9 +1592,19 @@ export function ProfileEditor({
                           <Trash2 size={16} />
                         </button>
                       </div>
+                      <UniversityInput
+                        id={`profile-education-school-${e.id}`}
+                        label="Təhsil müəssisəsi"
+                        value={e.school}
+                        onChange={(school) =>
+                          set(
+                            "education",
+                            p.education.map((x) => (x.id === e.id ? { ...x, school } : x)),
+                          )
+                        }
+                      />
                       {(
                         [
-                          ["school", "Təhsil müəssisəsi"],
                           ["degree", "İxtisas və dərəcə"],
                           ["year", "Məzuniyyət ili"],
                         ] as const

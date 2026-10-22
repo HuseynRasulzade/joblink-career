@@ -167,7 +167,7 @@ export default function SupportPage({
             <label className="field">
               <span>{t("Mövzu")}</span>
               <select value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })}>
-                {SUPPORT_TOPICS.filter((topic) => topic.id !== "job-title").map((topic) => (
+                {SUPPORT_TOPICS.filter((topic) => topic.id !== "job-title" && topic.id !== "university").map((topic) => (
                   <option key={topic.id} value={topic.id}>{t(topic.label)}</option>
                 ))}
               </select>
