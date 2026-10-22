@@ -5177,3 +5177,16 @@ a svg {
 .fit-review-card q { display: block; font-size: 0.85em; }
 .fit-review-card.strong { border-color: #3f9a7d; }
 .fit-review-card.weak { border-color: #d9a066; }
+
+.month-chart{display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:8px}
+.month-col{flex:1;display:grid;grid-template-rows:1fr auto;gap:4px;height:100%;text-align:center;min-width:18px}
+.month-bars{display:flex;align-items:flex-end;justify-content:center;gap:2px;height:100%}
+.month-bars span{flex:1;max-width:16px;border-radius:3px 3px 0 0}
+.month-bars .hire,.legend.hire{background:var(--brand,#2f6f5e)}
+.month-bars .exit,.legend.exit{background:#d9824f}
+.month-col small{font-size:10px;color:var(--muted,#6b7280)}
+.legend{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 12px}
+.insight-list{margin:0;padding-left:18px;display:grid;gap:6px}
+.insight.warn{color:#9a3412}.insight.good{color:#166534}
+.employee-history{margin:12px 0}.employee-history ul{margin:4px 0 0;padding-left:18px;display:grid;gap:3px;font-size:13px}
+.panel .funnel + h3{margin-top:18px}

@@ -516,10 +516,31 @@ export const companyEmployees = sqliteTable(
     status: text("status").notNull().default("active"),
     source: text("source").notNull().default("manual"),
     applicationId: text("application_id").notNull().default(""),
+    endDate: text("end_date").notNull().default(""),
+    exitType: text("exit_type").notNull().default(""),
+    exitReason: text("exit_reason").notNull().default(""),
+    exitNote: text("exit_note").notNull().default(""),
+    jobId: text("job_id").notNull().default(""),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
   },
   (t) => [index("company_employees_company").on(t.companyId, t.status)],
+);
+export const employeeEvents = sqliteTable(
+  "employee_events",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    type: text("type").notNull(),
+    fromValue: text("from_value").notNull().default(""),
+    toValue: text("to_value").notNull().default(""),
+    note: text("note").notNull().default(""),
+    actorId: text("actor_id").notNull().default(""),
+    eventDate: text("event_date").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [index("employee_events_employee").on(t.employeeId, t.eventDate), index("employee_events_company").on(t.companyId, t.eventDate)],
 );
 export const companyAudit = sqliteTable(
   "company_audit",

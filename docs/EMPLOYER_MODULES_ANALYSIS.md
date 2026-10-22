@@ -96,3 +96,13 @@ Proqramı lokal işə salıb işəgötürən axınını API ilə keçdim (şirk�
 3. Ayrılan işçi üçün tarix və səbəb saxlanmır, işçi axını hesabatı yoxdur.
 4. Hesabat növləri yalnız 4-dür, qıf və dövriyyə hesabatı yoxdur.
 5. Maaş kalkulyatorunun vergi bazası və dərəcələri rəsmi mənbə ilə təsdiqlənməyib (Vergilər Nazirliyi saytına bu mühitdən çıxış yoxdur).
+
+## 6. Düzəldilənlər və əlavə olunanlar (2026-10-23)
+
+- **İşçi axını modulu quruldu** (`İşçi axını` bölməsi): dövr seçimi, işçi sayı, işə qəbul, ayrılan, dövriyyə, ilk 90 gündə ayrılanlar, orta staj, aylıq qrafik, şöbələr üzrə cədvəl, ayrılma növü və səbəbi (yalnız HR, direktor və hesab sahibi), vakansiya səbəbi ilə müqayisə, avtomatik nəticələr. Miqrasiya `0022_workforce_flow.sql`.
+- **İşçi kartı:** ayrılma tarixi, növü, səbəbi, qeyd və hərəkət tarixçəsi (işə qəbul, vəzifə, şöbə, maaş, məzuniyyət, ayrılma).
+- **Yeni XLSX hesabatları:** işçi axını, ayrılanlar, qıf (vakansiya üzrə mərhələlər və səbəb), vakansiya səbəbləri.
+- **Dashboard:** "Güclü namizədlər" göstəricisi (uyğunluq 70% və yuxarı olan müraciətlərin payı).
+- **İşə qəbul və təklif:** cavab gözləyən təklif varsa işə qəbul bloklanır, rədd gözləyən təklifi geri çəkir.
+- **Vakansiya layihəsi:** vəzifənin dərəcəsi saxlanılır, süni intellekt işləməyəndə şablona qayıdır.
+- **Maaş kalkulyatoru** Vergilər Nazirliyinin 2026 cədvəlinə görə yeniləndi.

@@ -70,7 +70,7 @@ import MessagesPage, { type MessageTarget } from "./MessagesPage";
 import SupportPage from "./SupportPage";
 import AssessmentsPage from "./AssessmentsPage";
 import { AdminVerifications, VerificationPanel } from "./Verifications";
-import { AdminCompanies, ApprovalsPage, BillingPage, CompanyDashboard, CompanyProfilePage, EmployeesPage, TeamPage, type CompanyMe } from "./CompanyPages";
+import { AdminCompanies, ApprovalsPage, BillingPage, CompanyDashboard, CompanyProfilePage, EmployeesPage, TeamPage, WorkforcePage, type CompanyMe } from "./CompanyPages";
 import { ExamList } from "./ExamRoom";
 import { OFFER_STATUS, OfferResponse, type Offer } from "./Offers";
 import { CompareBar, JobComparison } from "./Comparison";
@@ -105,6 +105,7 @@ const hrNav = [
   { id: "hr-approvals", label: "Təsdiqlər", icon: ListChecks },
   { id: "hr-reports", label: "Hesabatlar", icon: BarChart3 },
   { id: "hr-employees", label: "İşçilər", icon: Contact },
+  { id: "hr-workforce", label: "İşçi axını", icon: TrendingUp },
   { id: "hr-team", label: "Komanda və rollar", icon: UserCog },
   { id: "hr-company", label: "Şirkət məlumatları", icon: Building2 },
   { id: "hr-billing", label: "Hesablar və ödənişlər", icon: Receipt },
@@ -1975,7 +1976,7 @@ export default function Joblink() {
               <section className="page-heading"><div className="heading-row"><div><h1>Mesajlar</h1><p>{hr ? "Namizədlərlə yazışmalarınız" : "İşəgötürənlərlə yazışmalarınız"}</p></div></div></section>
               <MessagesPage role={hr ? "company" : "candidate"} target={messageTarget} onTargetHandled={clearMessageTarget} onRead={refreshUnread} notify={notify} />
             </>
-          ) : !admin && signedIn && hr && ["hr-approvals", "hr-reports", "hr-employees", "hr-team", "hr-company", "hr-billing", "hr-calculator"].includes(page) ? (
+          ) : !admin && signedIn && hr && ["hr-approvals", "hr-reports", "hr-employees", "hr-workforce", "hr-team", "hr-company", "hr-billing", "hr-calculator"].includes(page) ? (
             <>
               <section className="page-heading"><div className="heading-row"><div>
                 <h1>{navigation.find((n) => n.id === page)?.label}</h1>
@@ -1984,6 +1985,7 @@ export default function Joblink() {
               {page === "hr-approvals" && <ApprovalsPage notify={notify} onChange={() => { void refreshCompany(); void refresh(); }} />}
               {page === "hr-reports" && <CompanyDashboard me={companyMe} notify={notify} />}
               {page === "hr-employees" && <EmployeesPage notify={notify} />}
+              {page === "hr-workforce" && <WorkforcePage me={companyMe} notify={notify} />}
               {page === "hr-team" && <TeamPage me={companyMe} notify={notify} onJoined={() => { void refreshCompany(); void refresh(); }} />}
               {page === "hr-company" && <CompanyProfilePage notify={notify} onChange={refreshCompany} />}
               {page === "hr-billing" && <BillingPage notify={notify} />}

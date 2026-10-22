@@ -4,6 +4,8 @@ import { BadgeCheck, Building2, CheckCircle2, Download, FileText, Plus, Receipt,
 import { COMPANY_SIZES, type CompanyDetails, type CompanyPermission, type JobApproval } from "@/lib/company";
 import { Field, Modal } from "./components";
 import { formatDate } from "@/lib/dates";
+import { VACANCY_REASONS } from "@/lib/recruitment";
+import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
 
 export type CompanyMe = {
@@ -53,6 +55,7 @@ type Dashboard = {
   totals: {
     activeJobs: number; pendingJobs: number; applications: number; autoApplications: number; hired: number; employees: number;
     offerAcceptance: number | null; testsSubmitted: number; testsAssigned: number; avgDaysToHire: number | null;
+    strongApplicants?: number; scoredApplicants?: number;
   };
   byStatus: Record<string, number>;
   days: { date: string; count: number }[];
@@ -70,6 +73,7 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
     ["Müraciətlər", t.applications, t.autoApplications ? `${t.autoApplications} AI avtomatik` : undefined],
     ["İşə qəbul", t.hired, t.avgDaysToHire !== null ? `orta ${t.avgDaysToHire} gün` : undefined],
     ["Təkliflərin qəbulu", t.offerAcceptance === null ? "—" : `${t.offerAcceptance}%`],
+    ["Güclü namizədlər", t.scoredApplicants ? `${Math.round(((t.strongApplicants || 0) / t.scoredApplicants) * 100)}%` : "—", t.scoredApplicants ? `${t.strongApplicants}/${t.scoredApplicants} müraciət, uyğunluq 70% və yuxarı` : undefined],
     ["Testlər", `${t.testsSubmitted}/${t.testsAssigned}`, "təhvil / göndərilib"],
     ["İşçilər", t.employees],
   ];
@@ -410,11 +414,18 @@ export function CompanyProfilePage({ notify, onChange }: { notify: Notify; onCha
 }
 
 // ---------- Current employees ----------
-type Employee = { id: string; name: string; position: string; department: string; email: string; phone: string; startDate: string; status: string; source: string; salary: number | null };
+type Employee = { id: string; name: string; position: string; department: string; email: string; phone: string; startDate: string; status: string; source: string; salary: number | null; endDate?: string; exitType?: string; exitReason?: string; exitNote?: string };
+type Option = { id: string; label: string };
+const EVENT_LABEL: Record<string, string> = { hired: "İşə qəbul", left: "İşdən ayrıldı", returned: "İşə qayıtdı", "leave-start": "Məzuniyyətə çıxdı", "leave-end": "Məzuniyyətdən qayıtdı", position: "Vəzifə dəyişikliyi", department: "Şöbə dəyişikliyi", salary: "Maaş dəyişikliyi" };
 const EMPLOYEE_STATUS: Record<string, string> = { active: "İşləyir", leave: "Məzuniyyətdə", left: "İşdən çıxıb" };
 export function EmployeesPage({ notify }: { notify: Notify }) {
-  const [data, load] = useLoad<{ employees: Employee[]; showSalary: boolean; canEdit: boolean }>("company/employees", notify);
+  const [data, load] = useLoad<{ employees: Employee[]; showSalary: boolean; canEdit: boolean; exitTypes: Option[]; exitReasons: Option[] }>("company/employees", notify);
   const [editing, setEditing] = useState<Partial<Employee> | null>(null);
+  const [history, setHistory] = useState<{ type: string; from_value: string; to_value: string; event_date: string; actor: string }[]>([]);
+  useEffect(() => {
+    setHistory([]);
+    if (editing?.id) request<{ events: typeof history }>(`company/employee-events?id=${editing.id}`).then((r) => setHistory(r.events)).catch(() => {});
+  }, [editing?.id]);
   const [query, setQuery] = useState("");
   async function save() {
     try {
@@ -449,7 +460,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                 <td>{e.position || "—"}</td>
                 <td>{e.department || "—"}</td>
                 <td>{day(e.startDate)}</td>
-                <td>{EMPLOYEE_STATUS[e.status] || e.status}</td>
+                <td>{EMPLOYEE_STATUS[e.status] || e.status}{e.status === "left" && e.endDate ? <small className="skill-description">{day(e.endDate)}</small> : null}</td>
                 {data.showSalary && <td>{e.salary ? azn(e.salary) : "—"}</td>}
                 {data.canEdit && (
                   <td className="admin-actions">
@@ -479,7 +490,35 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   {Object.entries(EMPLOYEE_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </Field>
+              {editing.status === "left" && (
+                <>
+                  <Field label="Ayrılma tarixi"><input type="date" value={editing.endDate || ""} onChange={(e) => setEditing({ ...editing, endDate: e.target.value })} /></Field>
+                  <Field label="Ayrılma növü">
+                    <select value={editing.exitType || ""} onChange={(e) => setEditing({ ...editing, exitType: e.target.value })}>
+                      <option value="">Seçin</option>
+                      {data.exitTypes.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Ayrılma səbəbi">
+                    <select value={editing.exitReason || ""} onChange={(e) => setEditing({ ...editing, exitReason: e.target.value })}>
+                      <option value="">Seçin</option>
+                      {data.exitReasons.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Qeyd (yalnız HR və direktor görür)"><textarea value={editing.exitNote || ""} onChange={(e) => setEditing({ ...editing, exitNote: e.target.value })} /></Field>
+                </>
+              )}
             </div>
+            {!!history.length && (
+              <div className="employee-history">
+                <h4>Hərəkət tarixçəsi</h4>
+                <ul>
+                  {history.map((h, i) => (
+                    <li key={i}><b>{day(h.event_date)}</b> {EVENT_LABEL[h.type] || h.type}{h.type === "position" || h.type === "department" ? `: ${h.from_value || "—"} → ${h.to_value || "—"}` : ""}{h.actor ? <small className="skill-description"> {h.actor}</small> : null}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <button className="primary" onClick={save}>Yadda saxla</button>
           </div>
         </Modal>
@@ -590,5 +629,168 @@ export function AdminCompanies({ notify }: { notify: Notify }) {
         </table>
       </div>
     </section>
+  );
+}
+
+// ---------- Workforce flow ----------
+type WorkforceResponse = { metrics: WorkforceMetrics; exitTypes: Option[]; exitReasons: Option[]; canSeeReasons: boolean };
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const monthShort = (month: string) => `${month.slice(5)}.${month.slice(2, 4)}`;
+export function WorkforcePage({ me, notify }: { me: CompanyMe | null; notify: Notify }) {
+  const [range, setRange] = useState("12");
+  const [custom, setCustom] = useState({ from: "", to: "" });
+  const [data, setData] = useState<WorkforceResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const today = new Date();
+  const params = (() => {
+    const to = isoDay(today);
+    if (range === "year") return `from=${today.getFullYear()}-01-01&to=${to}`;
+    if (range === "custom") return custom.from && custom.to ? `from=${custom.from}&to=${custom.to}` : "";
+    const start = new Date(today);
+    start.setMonth(start.getMonth() - Number(range));
+    start.setDate(start.getDate() + 1);
+    return `from=${isoDay(start)}&to=${to}`;
+  })();
+  useEffect(() => {
+    if (!params) return;
+    setLoading(true);
+    request<WorkforceResponse>(`company/workforce?${params}`)
+      .then(setData)
+      .catch((error) => notify((error as Error).message))
+      .finally(() => setLoading(false));
+  }, [params, notify]);
+  const reportAllowed = me?.permissions.includes("reports");
+  const m = data?.metrics;
+  const peak = Math.max(1, ...(m?.months.flatMap((x) => [x.hires, x.exits]) || [1]));
+  const reasonLabel = (list: Option[], id: string) => list.find((o) => o.id === id)?.label || id;
+  const cards: [string, string | number, string?][] = m
+    ? [
+        ["İşçi sayı", m.headcountEnd, `dövrün əvvəlində ${m.headcountStart}`],
+        ["İşə qəbul", m.hires],
+        ["Ayrılan", m.exits],
+        ["Dövriyyə", m.turnoverPercent === null ? "—" : `${m.turnoverPercent}%`, m.turnoverAnnualPercent === null ? undefined : `illik ${m.turnoverAnnualPercent}%`],
+        ["İlk 90 gündə ayrılan", m.earlyExits, m.earlyExitPercent === null ? undefined : `ayrılanların ${m.earlyExitPercent}%-i`],
+        ["Orta staj", m.avgTenureMonths === null ? "—" : `${m.avgTenureMonths} ay`, m.avgLeaverTenureMonths === null ? undefined : `ayrılanlarda ${m.avgLeaverTenureMonths} ay`],
+      ]
+    : [];
+  return (
+    <div className="company-page">
+      <div className="section-heading">
+        <div className="admin-actions">
+          <Field label="Dövr">
+            <select value={range} onChange={(e) => setRange(e.target.value)}>
+              <option value="3">Son 3 ay</option>
+              <option value="6">Son 6 ay</option>
+              <option value="12">Son 12 ay</option>
+              <option value="year">Bu il</option>
+              <option value="custom">Özəl tarix aralığı</option>
+            </select>
+          </Field>
+          {range === "custom" && (
+            <>
+              <Field label="Başlanğıc"><input type="date" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} /></Field>
+              <Field label="Son"><input type="date" value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} /></Field>
+            </>
+          )}
+        </div>
+        {reportAllowed && (
+          <div className="admin-actions">
+            <ReportButton kind="workforce" label="İşçi axını XLSX" />
+            {data?.canSeeReasons && <ReportButton kind="exits" label="Ayrılanlar XLSX" />}
+            <ReportButton kind="funnel" label="Qıf XLSX" />
+            <ReportButton kind="reasons" label="Vakansiya səbəbləri XLSX" />
+          </div>
+        )}
+      </div>
+      {loading && !m && <p className="muted">Yüklənir…</p>}
+      {m && (
+        <>
+          <p className="muted">{day(m.from)} – {day(m.to)}</p>
+          <div className="kpi-grid">
+            {cards.map(([label, value, hint]) => (
+              <div className="kpi" key={label}>
+                <small>{label}</small>
+                <strong>{value}</strong>
+                {hint && <span>{hint}</span>}
+              </div>
+            ))}
+          </div>
+          {!!m.insights.length && (
+            <section className="panel">
+              <h3>Nəticələr</h3>
+              <ul className="insight-list">
+                {m.insights.map((i) => (
+                  <li key={i.text} className={`insight ${i.level}`}>{i.text}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <section className="panel">
+            <h3>Aylar üzrə işə qəbul və ayrılma</h3>
+            <div className="month-chart" role="img" aria-label="Aylar üzrə işə qəbul və ayrılan işçilər">
+              {m.months.map((x) => (
+                <div key={x.month} className="month-col" title={`${x.month}: ${x.hires} işə qəbul, ${x.exits} ayrılan, ay sonu ${x.headcount} işçi`}>
+                  <div className="month-bars">
+                    <span className="hire" style={{ height: `${Math.max(x.hires ? 6 : 0, (x.hires / peak) * 100)}%` }} />
+                    <span className="exit" style={{ height: `${Math.max(x.exits ? 6 : 0, (x.exits / peak) * 100)}%` }} />
+                  </div>
+                  <small>{monthShort(x.month)}</small>
+                </div>
+              ))}
+            </div>
+            <p className="muted fine-print"><i className="legend hire" /> İşə qəbul <i className="legend exit" /> Ayrılan</p>
+          </section>
+          <section className="panel">
+            <h3>Şöbələr üzrə</h3>
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead><tr><th>Şöbə</th><th>İşçi sayı</th><th>İşə qəbul</th><th>Ayrılan</th><th>Dövriyyə</th></tr></thead>
+                <tbody>
+                  {m.departments.map((d) => (
+                    <tr key={d.name}><td><strong>{d.name}</strong></td><td>{d.headcount}</td><td>{d.hires}</td><td>{d.exits}</td><td>{d.turnoverPercent === null ? "—" : `${d.turnoverPercent}%`}</td></tr>
+                  ))}
+                  {!m.departments.length && <tr><td colSpan={5}><p className="admin-empty">İşçi məlumatı yoxdur. “İşçilər” bölməsində işçiləri əlavə edin.</p></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          {!!m.exits && (
+            <section className="panel">
+              <h3>Necə ayrılıblar</h3>
+              <div className="funnel">
+                {m.exitTypes.map((t) => (
+                  <div key={t.id} className="funnel-row"><span>{reasonLabel(data.exitTypes, t.id)}</span><div><i style={{ width: `${(t.count / m.exits) * 100}%` }} /></div><b>{t.count}</b></div>
+                ))}
+              </div>
+              {m.exitReasons && (
+                <>
+                  <h3>Ayrılma səbəbləri</h3>
+                  <div className="funnel">
+                    {m.exitReasons.map((r) => (
+                      <div key={r.id} className="funnel-row"><span>{reasonLabel(data.exitReasons, r.id)}</span><div><i style={{ width: `${(r.count / m.exits) * 100}%` }} /></div><b>{r.count}</b></div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {!m.exitReasons && <p className="muted fine-print">Ayrılma səbəbləri yalnız HR, direktor və hesab sahibinə görünür.</p>}
+            </section>
+          )}
+          <section className="panel">
+            <h3>Vakansiyaların yaradılma səbəbi</h3>
+            <p className="muted fine-print">Bu məlumat yalnız şirkətə görünür, namizədlər görmür.</p>
+            <div className="funnel">
+              {m.vacancyReasons.map((r) => {
+                const total = m.vacancyReasons.reduce((a, b) => a + b.count, 0);
+                return (
+                  <div key={r.reason} className="funnel-row"><span>{VACANCY_REASONS.find((x) => x.id === r.reason)?.label || "Göstərilməyib"}</span><div><i style={{ width: `${(r.count / total) * 100}%` }} /></div><b>{r.count}</b></div>
+                );
+              })}
+              {!m.vacancyReasons.length && <p className="admin-empty">Bu dövrdə vakansiya açılmayıb.</p>}
+            </div>
+            {m.exits > 0 && <p className="muted">Ayrılan işçilər: <b>{m.exits}</b>. “İşçinin çıxması ilə əlaqədar” açılan vakansiyalar: <b>{m.replacementOpened}</b>.</p>}
+          </section>
+        </>
+      )}
+    </div>
   );
 }

@@ -75,7 +75,7 @@ import {
   type JobTitleDefinition,
 } from "@/lib/job-title-catalog";
 import { SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
-import { APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, WITHDRAWN_STATUS } from "@/lib/recruitment";
+import { APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, VACANCY_REASONS, WITHDRAWN_STATUS } from "@/lib/recruitment";
 import { COMPANY_ROLES, INVITABLE_ROLES, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval } from "@/lib/company";
 import { DOCUMENT_CHECK_PROMPT, VERIFICATION_LABELS, normalizeAiCheck, statusFromAi, type AiDocumentCheck } from "@/lib/verification";
 import { publicQuestions, sanitizeQuestions, scoreAnswers, type Question } from "@/lib/assessments";
@@ -111,6 +111,7 @@ const normalizedProfileRecord = (value: unknown, customSkills: string[] = []): P
 // and its application deadline (when set) has not passed.
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
 import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
+import { EXIT_REASONS, EXIT_TYPES, addDays, computeWorkforce, daysBetween, exitReasonLabel, exitTypeLabel, normalizeExit } from "@/lib/workforce";
 const OPEN_JOBS_SQL = `SELECT j.* FROM jobs j LEFT JOIN accounts a ON a.id=j.owner
   WHERE j.status='published' AND COALESCE(a.status,'active')='active'
   AND (COALESCE(json_extract(j.data,'$.deadline'),'')='' OR json_extract(j.data,'$.deadline')>=date('now'))`;
@@ -217,11 +218,11 @@ async function notifyCompanyRoles(db: D1Database, companyId: string, permission:
 async function addHiredEmployee(db: D1Database, applicationId: string) {
   try {
     const row = await db
-      .prepare(`SELECT a.id,a.data,j.owner,j.data AS job_data,
+      .prepare(`SELECT a.id,a.job_id,a.data,j.owner,j.data AS job_data,
           (SELECT data FROM offers WHERE application_id=a.id AND status='accepted' ORDER BY created DESC LIMIT 1) AS offer
         FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=?`)
       .bind(applicationId)
-      .first<{ id: string; data: string; owner: string; job_data: string; offer: string | null }>();
+      .first<{ id: string; job_id: string; data: string; owner: string; job_data: string; offer: string | null }>();
     if (!row) return;
     const exists = await db.prepare("SELECT 1 FROM company_employees WHERE application_id=?").bind(applicationId).first();
     if (exists) return;
@@ -229,12 +230,16 @@ async function addHiredEmployee(db: D1Database, applicationId: string) {
     const job = JSON.parse(row.job_data) as Job;
     const offer = row.offer ? (JSON.parse(row.offer) as { position?: string; salary?: number; startDate?: string; salaryPeriod?: string }) : null;
     const now = new Date().toISOString();
-    await db
-      .prepare(`INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,created,updated)
-        VALUES(?,?,?,?,?,?,?,?,?,'active','hired',?,?,?)`)
-      .bind(crypto.randomUUID(), row.owner, profile.name, offer?.position || job.title, "", profile.email || "", profile.phone || "",
-        offer?.startDate || now.slice(0, 10), Math.round((offer?.salary || 0) * 100), applicationId, now, now)
-      .run();
+    const employeeId = crypto.randomUUID();
+    const startDate = offer?.startDate || now.slice(0, 10);
+    await db.batch([
+      db.prepare(`INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,job_id,created,updated)
+          VALUES(?,?,?,?,?,?,?,?,?,'active','hired',?,?,?,?)`)
+        .bind(employeeId, row.owner, profile.name, offer?.position || job.title, "", profile.email || "", profile.phone || "",
+          startDate, Math.round((offer?.salary || 0) * 100), applicationId, row.job_id, now, now),
+      db.prepare("INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), row.owner, employeeId, "hired", "", "", "joblink", "", startDate, now),
+    ]);
   } catch {
     // The employees list is optional until migration 0019 is applied.
   }
@@ -2342,17 +2347,54 @@ async function route(request: Request) {
   if (request.method === "GET" && path === "company/employees") {
     const showSalary = can(memberRole, "salaries");
     const rows = await db.prepare("SELECT * FROM company_employees WHERE company_id=? AND status<>'removed' ORDER BY name").bind(id)
-      .all<{ id: string; name: string; position: string; department: string; email: string; phone: string; start_date: string; salary_cents: number; status: string; source: string }>();
+      .all<{ id: string; name: string; position: string; department: string; email: string; phone: string; start_date: string; salary_cents: number; status: string; source: string; end_date?: string; exit_type?: string; exit_reason?: string; exit_note?: string }>();
     return ok({
       showSalary,
       canEdit: showSalary,
+      exitTypes: EXIT_TYPES,
+      exitReasons: EXIT_REASONS,
       employees: rows.results.map((r) => ({
         id: r.id, name: r.name, position: r.position, department: r.department, email: r.email, phone: r.phone,
         startDate: r.start_date, status: r.status, source: r.source,
-        // Salaries stay with HR, the director and the owner.
+        endDate: r.end_date || "",
+        // Salaries and the way and reason people left stay with HR, the director and the owner.
+        exitType: showSalary ? r.exit_type || "" : "",
+        exitReason: showSalary ? r.exit_reason || "" : "",
+        exitNote: showSalary ? r.exit_note || "" : "",
         salary: showSalary ? r.salary_cents / 100 : null,
       })),
     });
+  }
+  if (request.method === "GET" && path === "company/employee-events") {
+    requirePermission("salaries", "İşçinin hərəkət tarixçəsini yalnız HR, direktor və hesab sahibi görə bilər.");
+    const rows = await db
+      .prepare(`SELECT e.type,e.from_value,e.to_value,e.note,e.event_date,e.created,COALESCE(a.name,'') AS actor FROM employee_events e
+        LEFT JOIN accounts a ON a.id=e.actor_id WHERE e.company_id=? AND e.employee_id=? ORDER BY e.event_date DESC,e.created DESC LIMIT 100`)
+      .bind(id, str(requestUrl.searchParams.get("id"), 100))
+      .all();
+    return ok({ events: rows.results });
+  }
+  if (request.method === "GET" && path === "company/workforce") {
+    requirePermission("reports");
+    const today = new Date().toISOString().slice(0, 10);
+    const rawTo = str(requestUrl.searchParams.get("to"), 10);
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(rawTo) ? rawTo : today;
+    const rawFrom = str(requestUrl.searchParams.get("from"), 10);
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom) ? rawFrom : addDays(to, -364);
+    if (from > to) throw new HttpError(400, "Başlanğıc tarix son tarixdən sonra ola bilməz.");
+    if (daysBetween(from, to) > 366 * 3) throw new HttpError(400, "Dövr üç ildən uzun ola bilməz.");
+    const employees = await db.prepare("SELECT department,start_date,end_date,status,exit_type,exit_reason,source FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id)
+      .all<{ department: string; start_date: string; end_date: string; status: "active" | "leave" | "left"; exit_type: string; exit_reason: string; source: string }>();
+    const vacancies = await db.prepare("SELECT created,json_extract(data,'$.reason') AS reason FROM jobs WHERE owner=?").bind(id)
+      .all<{ created: string; reason: string | null }>();
+    const metrics = computeWorkforce(
+      employees.results.map((e) => ({ department: e.department, startDate: e.start_date, endDate: e.end_date, status: e.status, exitType: e.exit_type, exitReason: e.exit_reason, source: e.source })),
+      vacancies.results.map((v) => ({ created: v.created, reason: v.reason || "" })),
+      from,
+      to,
+      { includeReasons: can(memberRole, "salaries") },
+    );
+    return ok({ metrics, exitTypes: EXIT_TYPES, exitReasons: EXIT_REASONS, canSeeReasons: can(memberRole, "salaries") });
   }
   if (request.method === "POST" && path === "company/employees/save") {
     requirePermission("salaries", "İşçi məlumatlarını yalnız HR, direktor və hesab sahibi dəyişə bilər.");
@@ -2361,20 +2403,46 @@ async function route(request: Request) {
     if (name.length < 2) throw new HttpError(400, "İşçinin adını yazın.");
     const salary = Math.max(0, Math.min(1_000_000, Number(b.salary) || 0));
     const status = ["active", "leave", "left"].includes(str(b.status, 10)) ? str(b.status, 10) : "active";
-    const values = [name, str(b.position, 120), str(b.department, 120), str(b.email, 160), str(b.phone, 40), str(b.startDate, 10), Math.round(salary * 100), status];
+    const position = str(b.position, 120), department = str(b.department, 120), email = str(b.email, 160), phone = str(b.phone, 40), startDate = str(b.startDate, 10);
     const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const exit = normalizeExit({ status, endDate: b.endDate, exitType: b.exitType, exitReason: b.exitReason, exitNote: b.exitNote }, startDate, today);
+    if (exit.error) throw new HttpError(400, exit.error);
     const existingId = str(b.id, 100);
+    const event = (employeeId: string, type: string, from: string, to: string, note: string, date: string) =>
+      db.prepare("INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), id, employeeId, type, from, to, note, userId, date, now);
     if (existingId) {
-      const old = await db.prepare("SELECT salary_cents FROM company_employees WHERE id=? AND company_id=?").bind(existingId, id).first<{ salary_cents: number }>();
+      const old = await db.prepare("SELECT * FROM company_employees WHERE id=? AND company_id=?").bind(existingId, id)
+        .first<{ salary_cents: number; position: string; department: string; status: string }>();
       if (!old) throw new HttpError(404, "İşçi tapılmadı.");
-      await db.prepare("UPDATE company_employees SET name=?,position=?,department=?,email=?,phone=?,start_date=?,salary_cents=?,status=?,updated=? WHERE id=? AND company_id=?")
-        .bind(...values, now, existingId, id).run();
-      if (old.salary_cents !== values[6]) await companyAudit(db, id, userId, "salary-changed", existingId, `${name}: ${old.salary_cents / 100} → ${salary} AZN`);
+      const events = [];
+      if (old.status !== status) {
+        if (status === "left") events.push(event(existingId, "left", old.status, exit.exitType, exit.exitReason, exit.endDate));
+        else if (old.status === "left") events.push(event(existingId, "returned", "left", status, "", today));
+        else events.push(event(existingId, status === "leave" ? "leave-start" : "leave-end", old.status, status, "", today));
+      }
+      if (old.position !== position) events.push(event(existingId, "position", old.position, position, "", today));
+      if (old.department !== department) events.push(event(existingId, "department", old.department, department, "", today));
+      // The amounts stay in the audit log, which only HR, the director and the owner can read.
+      if (old.salary_cents !== Math.round(salary * 100)) events.push(event(existingId, "salary", "", "", "", today));
+      await db.batch([
+        db.prepare("UPDATE company_employees SET name=?,position=?,department=?,email=?,phone=?,start_date=?,salary_cents=?,status=?,end_date=?,exit_type=?,exit_reason=?,exit_note=?,updated=? WHERE id=? AND company_id=?")
+          .bind(name, position, department, email, phone, startDate, Math.round(salary * 100), status, exit.endDate, exit.exitType, exit.exitReason, exit.exitNote, now, existingId, id),
+        ...events,
+      ]);
+      if (old.salary_cents !== Math.round(salary * 100)) await companyAudit(db, id, userId, "salary-changed", existingId, `${name}: ${old.salary_cents / 100} → ${salary} AZN`);
+      if (old.status !== status && status === "left") await companyAudit(db, id, userId, "employee-left", existingId, `${name}: ${exitTypeLabel(exit.exitType)}`);
       return ok({ ok: true, id: existingId });
     }
     const newId = crypto.randomUUID();
-    await db.prepare("INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,'manual','',?,?)")
-      .bind(newId, id, ...values, now, now).run();
+    const events = [event(newId, "hired", "", "", "manual", startDate || today)];
+    if (status === "left") events.push(event(newId, "left", "active", exit.exitType, exit.exitReason, exit.endDate));
+    await db.batch([
+      db.prepare("INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,end_date,exit_type,exit_reason,exit_note,job_id,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,'manual','',?,?,?,?,'',?,?)")
+        .bind(newId, id, name, position, department, email, phone, startDate, Math.round(salary * 100), status, exit.endDate, exit.exitType, exit.exitReason, exit.exitNote, now, now),
+      ...events,
+    ]);
     await companyAudit(db, id, userId, "employee-added", newId, name);
     return ok({ ok: true, id: newId }, 201);
   }
@@ -2449,8 +2517,26 @@ async function route(request: Request) {
       };
     }).sort((a, b) => b.applications - a.applications);
     const sentOffers = offers.results.filter((o) => o.status !== "withdrawn");
+    // Share of applicants whose profile fits the vacancy well (rule-based score of 70 or more).
+    const scoredRows = await db
+      .prepare("SELECT a.data,j.id AS job_id,j.data AS job_data FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND a.status<>? ORDER BY a.created DESC LIMIT 500")
+      .bind(id, WITHDRAWN_STATUS)
+      .all<{ data: string; job_id: string; job_data: string }>()
+      .catch(() => ({ results: [] as { data: string; job_id: string; job_data: string }[] }));
+    const jobCache = new Map<string, Job>();
+    let strongApplicants = 0;
+    for (const r of scoredRows.results) {
+      let job = jobCache.get(r.job_id);
+      if (!job) {
+        job = normalizedJobRecord(JSON.parse(r.job_data), customSkillLabels);
+        jobCache.set(r.job_id, job);
+      }
+      if (match(normalizedProfileRecord(JSON.parse(r.data), customSkillLabels), job).score >= 70) strongApplicants++;
+    }
     return ok({
       totals: {
+        strongApplicants,
+        scoredApplicants: scoredRows.results.length,
         activeJobs: jobs.results.filter((j) => j.status === "published").length,
         pendingJobs: jobs.results.filter((j) => j.status === "pending_approval").length,
         applications: apps.results.length,
@@ -2511,6 +2597,56 @@ async function route(request: Request) {
         .all<{ description: string; amount_cents: number; due_date: string; status: string; created: string; paid_cents: number }>();
       headers = ["Təsvir", "Məbləğ (AZN)", "Ödənilib (AZN)", "Qalıq (AZN)", "Son ödəniş tarixi", "Status", "Yaradılıb"];
       rows = result.results.map((r) => [r.description, r.amount_cents / 100, r.paid_cents / 100, Math.max(0, r.amount_cents - r.paid_cents) / 100, r.due_date, r.status, r.created.slice(0, 10)]);
+    } else if (kind === "workforce") {
+      const to = new Date().toISOString().slice(0, 10);
+      const employees = await db.prepare("SELECT department,start_date,end_date,status,exit_type,exit_reason,source FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id)
+        .all<{ department: string; start_date: string; end_date: string; status: "active" | "leave" | "left"; exit_type: string; exit_reason: string; source: string }>();
+      const metrics = computeWorkforce(
+        employees.results.map((e) => ({ department: e.department, startDate: e.start_date, endDate: e.end_date, status: e.status, exitType: e.exit_type, exitReason: e.exit_reason, source: e.source })),
+        [], addDays(to, -364), to, { includeReasons: false },
+      );
+      headers = ["Ay", "İşə qəbul", "Ayrılan", "İşçi sayı (ayın sonu)"];
+      rows = metrics.months.map((m) => [m.month, m.hires, m.exits, m.headcount]);
+      rows.push(["Cəmi / dövrün sonu", metrics.hires, metrics.exits, metrics.headcountEnd]);
+      rows.push(["Dövriyyə, % (dövr)", metrics.turnoverPercent ?? "", "", ""]);
+    } else if (kind === "exits") {
+      requirePermission("salaries", "Ayrılan işçilərin siyahısını yalnız HR, direktor və hesab sahibi ixrac edə bilər.");
+      const result = await db.prepare("SELECT name,position,department,start_date,end_date,exit_type,exit_reason,exit_note FROM company_employees WHERE company_id=? AND status='left' ORDER BY end_date DESC").bind(id)
+        .all<{ name: string; position: string; department: string; start_date: string; end_date: string; exit_type: string; exit_reason: string; exit_note: string }>();
+      headers = ["Ad Soyad", "Vəzifə", "Şöbə", "İşə başlama", "Ayrılma tarixi", "Staj (gün)", "Ayrılma növü", "Ayrılma səbəbi", "Qeyd"];
+      rows = result.results.map((r) => [r.name, r.position, r.department, r.start_date, r.end_date, r.start_date && r.end_date ? daysBetween(r.start_date, r.end_date) : "", exitTypeLabel(r.exit_type), exitReasonLabel(r.exit_reason), r.exit_note]);
+    } else if (kind === "funnel") {
+      const result = await db
+        .prepare(`SELECT json_extract(j.data,'$.title') AS title,json_extract(j.data,'$.reason') AS reason,j.created,a.status
+          FROM jobs j LEFT JOIN applications a ON a.job_id=j.id WHERE j.owner=? ORDER BY j.created DESC`)
+        .bind(id)
+        .all<{ title: string; reason: string | null; created: string; status: string | null }>();
+      const order: string[] = [];
+      const byJob = new Map<string, { title: string; reason: string; created: string; counts: Record<string, number> }>();
+      for (const r of result.results) {
+        const key = `${r.title}|${r.created}`;
+        if (!byJob.has(key)) {
+          byJob.set(key, { title: r.title, reason: r.reason || "", created: r.created, counts: {} });
+          order.push(key);
+        }
+        if (r.status) byJob.get(key)!.counts[r.status] = (byJob.get(key)!.counts[r.status] || 0) + 1;
+      }
+      const stages = ["Göndərildi", "Baxışda", "Müsahibə", "Təklif edildi", "İşə qəbul edildi", "Uyğun deyil"];
+      headers = ["Vakansiya", "Yaradılma səbəbi", "Yaradılıb", "Müraciət (cəmi)", ...stages];
+      rows = order.map((key) => {
+        const v = byJob.get(key)!;
+        const total = Object.values(v.counts).reduce((a, b) => a + b, 0);
+        return [v.title, VACANCY_REASONS.find((x) => x.id === v.reason)?.label || "", v.created.slice(0, 10), total, ...stages.map((st) => v.counts[st] || 0)];
+      });
+    } else if (kind === "reasons") {
+      const result = await db
+        .prepare(`SELECT json_extract(j.data,'$.reason') AS reason,COUNT(DISTINCT j.id) AS jobs,COUNT(a.id) AS apps,
+            SUM(CASE WHEN a.status='İşə qəbul edildi' THEN 1 ELSE 0 END) AS hired
+          FROM jobs j LEFT JOIN applications a ON a.job_id=j.id WHERE j.owner=? GROUP BY 1 ORDER BY jobs DESC`)
+        .bind(id)
+        .all<{ reason: string | null; jobs: number; apps: number; hired: number | null }>();
+      headers = ["Yaradılma səbəbi", "Vakansiya", "Müraciət", "İşə qəbul"];
+      rows = result.results.map((r) => [VACANCY_REASONS.find((x) => x.id === (r.reason || ""))?.label || "Göstərilməyib", Number(r.jobs), Number(r.apps), Number(r.hired || 0)]);
     } else throw new HttpError(400, "Hesabat növü yanlışdır.");
     await companyAudit(db, id, userId, "report-exported", kind);
     const workbook = createXlsx(headers, rows, kind);
