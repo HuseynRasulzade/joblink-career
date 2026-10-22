@@ -5167,3 +5167,13 @@ a svg {
 .messages-page .chat-message p { margin: 0; }
 .messages-page .message-time { justify-content: flex-end; font-size: 11px; color: var(--muted); margin-top: 2px; }
 @media (max-width: 720px) { .messages-page .chat-message { max-width: 88%; } }
+
+.fit-review { margin-top: 12px; }
+.fit-review-error { color: #9a3412; }
+.fit-review-card { border: 1px solid #d7e3df; border-radius: 12px; padding: 14px 16px; background: #fff; }
+.fit-review-card h4 { margin: 0 0 6px; }
+.fit-review-card h5 { margin: 12px 0 4px; }
+.fit-review-card ul { margin: 0; padding-left: 18px; }
+.fit-review-card q { display: block; font-size: 0.85em; }
+.fit-review-card.strong { border-color: #3f9a7d; }
+.fit-review-card.weak { border-color: #d9a066; }

@@ -80,6 +80,7 @@ import { setCustomCertifications } from "@/lib/certification-catalog";
 import { setCustomJobTitles } from "@/lib/job-title-catalog";
 import { CompaniesPage, CompanyView, VerifiedBadge, type CompanyInfo } from "./CompaniesPage";
 import { SalaryCalculator } from "./SalaryCalculator";
+import { FitReviewPanel } from "./FitReview";
 import { localizeTree, setSiteLanguage } from "./i18n";
 import { googleMapsSearchUrl } from "@/lib/maps";
 const candidateNav = [
@@ -1800,11 +1801,14 @@ export default function Joblink() {
                     / tələb olunan {job.minYears} il
                   </p>
                   <small>
-                    Bacarıq dəlili 50%, vəzifə uyğunluğu 20%, uyğun təcrübə 20%,
-                    şəhər və iş formatı 10%. Bacarıq iş təcrübəsində göstərilibsə
-                    tam, yalnız siyahıda və ya mətndə keçirsə qismən sayılır.
-                    İşə qəbul ehtimalı deyil.
+                    Bacarıq və sertifikat dəlili 50%, vəzifə uyğunluğu 25%, uyğun
+                    təcrübə 25%. Şəhər və iş formatı bala təsir etmir. Bacarıq iş
+                    təcrübəsində göstərilibsə tam, yalnız siyahıda və ya mətndə
+                    keçirsə qismən sayılır. İşə qəbul ehtimalı deyil.
                   </small>
+                  {signedIn && (
+                    <FitReviewPanel api={api} jobId={job.id} language={language} audience="candidate" />
+                  )}
                 </div>
               </aside>
             </div>

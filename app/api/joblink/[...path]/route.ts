@@ -110,6 +110,7 @@ const normalizedProfileRecord = (value: unknown, customSkills: string[] = []): P
 // A vacancy is open only while it is published, its owner is not suspended
 // and its application deadline (when set) has not passed.
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
+import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
 const OPEN_JOBS_SQL = `SELECT j.* FROM jobs j LEFT JOIN accounts a ON a.id=j.owner
   WHERE j.status='published' AND COALESCE(a.status,'active')='active'
   AND (COALESCE(json_extract(j.data,'$.deadline'),'')='' OR json_extract(j.data,'$.deadline')>=date('now'))`;
@@ -4101,6 +4102,69 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         };
       }),
     });
+  }
+  if (request.method === "POST" && path === "fit-review") {
+    const b = await jsonBody(request);
+    const jobId = str(b.jobId, 100);
+    const english = b.language === "en";
+    let job: Job | null = null;
+    let profile: Profile | null = null;
+    if (accountRole === "company") {
+      const jobRow = await db.prepare("SELECT data FROM jobs WHERE id=? AND owner=?").bind(jobId, id).first<Row>();
+      if (!jobRow) throw new HttpError(404, "Vakansiya tapılmadı.");
+      job = normalizedJobRecord(JSON.parse(jobRow.data), customSkillLabels);
+      const candidateId = str(b.candidateId, 100);
+      // The candidate must have applied to this vacancy or have an open profile.
+      const application = await db
+        .prepare("SELECT data FROM applications WHERE job_id=? AND candidate_id=?")
+        .bind(jobId, candidateId)
+        .first<Row>();
+      const row = application
+        || (await db
+          .prepare(`SELECT p.data FROM profiles p LEFT JOIN accounts a ON a.id=p.user_id
+            WHERE p.user_id=? AND p.active='1' AND COALESCE(a.status,'active')='active'`)
+          .bind(candidateId)
+          .first<Row>());
+      if (!row) throw new HttpError(404, "Namizəd tapılmadı.");
+      profile = normalizedProfileRecord(JSON.parse(row.data), customSkillLabels);
+    } else {
+      const jobRow = await db.prepare("SELECT data FROM jobs WHERE id=? AND status='published'").bind(jobId).first<Row>();
+      job = jobRow
+        ? normalizedJobRecord(JSON.parse(jobRow.data), customSkillLabels)
+        : sampleJobs.find((j) => j.id === jobId) || null;
+      if (!job) throw new HttpError(404, "Vakansiya tapılmadı.");
+      const row = await db.prepare("SELECT data FROM profiles WHERE user_id=?").bind(id).first<Row>();
+      profile = row ? normalizedProfileRecord(JSON.parse(row.data), customSkillLabels) : null;
+      if (!profile) throw new HttpError(400, "Qiymətləndirmə üçün əvvəlcə profilinizi doldurun.");
+    }
+    const rule = match(profile, job);
+    if (rule.caps.includes("empty-profile"))
+      throw new HttpError(400, "Qiymətləndirmə üçün profildə peşə, təcrübə, bacarıq və ya CV mətni olmalıdır.");
+    const recent = await db
+      .prepare("SELECT COUNT(*) AS n FROM ai_cache WHERE user_id=? AND kind LIKE 'fit-review:%' AND created>=datetime('now','-1 day')")
+      .bind(id)
+      .first<{ n: number }>()
+      .catch(() => null);
+    if ((recent?.n || 0) >= 60)
+      throw new HttpError(429, "Bu gün üçün AI qiymətləndirmə limitinə çatdınız. Sabah yenidən sınayın.");
+    const facts = fitFacts(profile, job, rule);
+    let review: FitReview | null = null;
+    // A second attempt is made when the first answer fails validation.
+    for (let attempt = 0; attempt < 2 && !review; attempt++) {
+      const ai = await cachedAiText(
+        `fit-review:${english ? "en" : "az"}:${MATCH_VERSION}`,
+        id,
+        FIT_REVIEW_PROMPT(english ? "en" : "az"),
+        JSON.stringify({ ...facts, attempt }),
+        true,
+        { maxOutputTokens: 2500, timeoutMs: 60000 },
+      );
+      if (!ai.text) throw new HttpError(503, "AI bağlantısı hazır deyil.");
+      review = validateFitReview(parseAiObject(ai.text), rule, facts);
+      if (review) await ai.save();
+    }
+    if (!review) throw new HttpError(502, "AI cavabı yoxlamadan keçmədi. Bir az sonra yenidən sınayın.");
+    return ok({ review });
   }
   if (request.method === "POST" && path === "hr/rank-candidates") {
     const b = await jsonBody(request);

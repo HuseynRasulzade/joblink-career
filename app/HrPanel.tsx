@@ -1,4 +1,5 @@
 "use client";
+import { FitReviewPanel } from "./FitReview";
 import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
@@ -781,6 +782,9 @@ export default function HrPanel({
                         {aiRatings.items[c.id].gaps && <p>△ {aiRatings.items[c.id].gaps}</p>}
                       </div>
                     )}
+                    {!demo && selectedJob && (
+                      <FitReviewPanel api={api} jobId={selectedJob.id} candidateId={c.id} language={language} audience="employer" />
+                    )}
                   </div>
                   <div className="candidate-actions">
                     <span className="match-score">
@@ -917,6 +921,9 @@ export default function HrPanel({
                       >
                         Müraciət CV-si ↗
                       </button>
+                      {!demo && a.candidateId && selectedJob && (
+                        <FitReviewPanel api={api} jobId={selectedJob.id} candidateId={a.candidateId} language={language} audience="employer" />
+                      )}
                       {!demo && a.candidateId && (
                         <button
                           className="text-button"
