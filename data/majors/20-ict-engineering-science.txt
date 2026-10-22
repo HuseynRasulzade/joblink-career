@@ -1,0 +1,107 @@
+ict|Computer Science|Kompüter elmləri|Информатика и вычислительная техника|computer sciences;informatika
+ict|Informatics|İnformatika|Информатика|
+ict|Information Technology|İnformasiya texnologiyaları|Информационные технологии|IT;İT
+ict|Information Systems|İnformasiya sistemləri|Информационные системы|
+ict|Software Engineering|Proqram mühəndisliyi|Программная инженерия|
+ict|Computer Engineering|Kompüter mühəndisliyi|Компьютерная инженерия|
+ict|Information Security|İnformasiya təhlükəsizliyi|Информационная безопасность|kibertəhlükəsizlik;cybersecurity
+ict|Artificial Intelligence|Süni intellekt|Искусственный интеллект|AI
+ict|Data Science|Məlumat elmi (Data Science)|Наука о данных|data science;verilənlər elmi
+ict|Data Analytics|Məlumatların analitikası|Аналитика данных|
+ict|Applied Mathematics and Informatics|Tətbiqi riyaziyyat və informatika|Прикладная математика и информатика|
+ict|Computer Networks|Kompüter şəbəkələri|Компьютерные сети|
+ict|Telecommunications|Telekommunikasiya|Телекоммуникации|
+ict|Radio Engineering|Radiotexnika|Радиотехника|
+ict|Electronics|Elektronika|Электроника|
+ict|Electronics and Telecommunications Engineering|Elektronika və telekommunikasiya mühəndisliyi|Электроника и телекоммуникации|
+ict|Mechatronics and Robotics|Mexatronika və robototexnika|Мехатроника и робототехника|
+ict|Automation and Control|Avtomatlaşdırma və idarəetmə|Автоматизация и управление|avtomatika
+ict|Computer Graphics and Design|Kompüter qrafikası və dizayn|Компьютерная графика и дизайн|
+ict|Game Development|Kompüter oyunlarının hazırlanması|Разработка компьютерных игр|
+ict|Digital Media|Rəqəmsal media|Цифровые медиа|
+ict|Information Technologies in Education|Təhsildə informasiya texnologiyaları|Информационные технологии в образовании|
+ict|Computer Science Teaching|İnformatika müəllimliyi|Преподавание информатики|
+ict|Geographic Information Systems|Coğrafi informasiya sistemləri|Географические информационные системы|GIS;CİS
+engineering|Petroleum Engineering|Neft-qaz mühəndisliyi|Нефтегазовая инженерия|neft mühəndisliyi
+engineering|Development and Operation of Oil and Gas Fields|Neft və qaz yataqlarının işlənməsi və istismarı|Разработка и эксплуатация нефтяных и газовых месторождений|
+engineering|Oil and Gas Drilling|Neft-qaz quyularının qazılması|Бурение нефтяных и газовых скважин|
+engineering|Oil and Gas Transportation and Storage|Neft və qazın nəqli və saxlanması|Транспорт и хранение нефти и газа|
+engineering|Petroleum Refining Technology|Neftin emalı texnologiyası|Технология переработки нефти|
+engineering|Geology|Geologiya|Геология|
+engineering|Geophysics|Geofizika|Геофизика|
+engineering|Geodesy and Cartography|Geodeziya və kartoqrafiya|Геодезия и картография|
+engineering|Mining Engineering|Mədən mühəndisliyi|Горное дело|
+engineering|Chemical Engineering|Kimya mühəndisliyi|Химическая инженерия|
+engineering|Chemical Technology|Kimya texnologiyası|Химическая технология|
+engineering|Materials Science|Materialşünaslıq|Материаловедение|
+engineering|Metallurgy|Metallurgiya|Металлургия|
+engineering|Mechanical Engineering|Mexanika mühəndisliyi|Машиностроение|maşınqayırma
+engineering|Mechanics|Mexanika|Механика|
+engineering|Automotive Engineering|Avtomobil mühəndisliyi|Автомобильная инженерия|
+engineering|Transport Engineering|Nəqliyyat mühəndisliyi|Транспортная инженерия|
+engineering|Aviation Engineering|Aviasiya mühəndisliyi|Авиационная инженерия|
+engineering|Aerospace Engineering|Aerokosmik mühəndislik|Аэрокосмическая инженерия|
+engineering|Marine Engineering|Gəmi mühəndisliyi|Судостроение и судовая инженерия|
+engineering|Navigation|Naviqasiya|Навигация (судовождение)|gəmiqayırma
+engineering|Electrical Engineering|Elektrik mühəndisliyi|Электротехника|elektrotexnika
+engineering|Power Engineering|Energetika|Энергетика|
+engineering|Electric Power Systems|Elektrik enerjisi sistemləri|Электроэнергетические системы|
+engineering|Renewable Energy|Bərpa olunan enerji|Возобновляемая энергетика|alternativ enerji
+engineering|Heat Power Engineering|İstilik energetikası|Теплоэнергетика|
+engineering|Nuclear Engineering|Nüvə mühəndisliyi|Ядерная инженерия|
+engineering|Civil Engineering|İnşaat mühəndisliyi|Строительство|
+engineering|Industrial and Civil Construction|Sənaye və mülki tikinti|Промышленное и гражданское строительство|
+engineering|Road Construction|Yol tikintisi|Дорожное строительство|
+engineering|Bridges and Tunnels|Körpü və tunellər|Мосты и тоннели|
+engineering|Hydrotechnical Engineering|Hidrotexniki tikinti|Гидротехническое строительство|
+engineering|Water Supply and Sewerage|Su təchizatı və kanalizasiya|Водоснабжение и водоотведение|
+engineering|Heating, Ventilation and Air Conditioning|İstilik, ventilyasiya və kondisioner|Отопление, вентиляция и кондиционирование|HVAC
+engineering|Architecture|Memarlıq|Архитектура|
+engineering|Urban Planning|Şəhərsalma|Градостроительство|
+engineering|Interior Design|İnteryer dizaynı|Дизайн интерьера|
+engineering|Landscape Architecture|Landşaft memarlığı|Ландшафтная архитектура|
+engineering|Environmental Engineering|Ətraf mühitin mühafizəsi mühəndisliyi|Инженерная экология|ekologiya mühəndisliyi
+engineering|Industrial Engineering|Sənaye mühəndisliyi|Промышленная инженерия|
+engineering|Production Technology|İstehsal texnologiyası|Технология производства|
+engineering|Food Engineering|Qida mühəndisliyi|Пищевая инженерия|
+engineering|Food Technology|Qida məhsullarının texnologiyası|Технология пищевых продуктов|
+engineering|Light Industry Technology|Yüngül sənaye texnologiyası|Технология лёгкой промышленности|toxuculuq
+engineering|Textile Engineering|Toxuculuq mühəndisliyi|Текстильная инженерия|
+engineering|Packaging Technology|Qablaşdırma texnologiyası|Технология упаковки|
+engineering|Metrology and Standardization|Metrologiya və standartlaşdırma|Метрология и стандартизация|
+engineering|Quality Engineering|Keyfiyyət mühəndisliyi|Инженерия качества|
+engineering|Occupational Safety|Əməyin mühafizəsi və təhlükəsizlik|Охрана труда и безопасность|
+engineering|Fire Safety|Yanğın təhlükəsizliyi|Пожарная безопасность|
+engineering|Emergency Management|Fövqəladə hallarda müdafiə|Защита в чрезвычайных ситуациях|
+engineering|Technology of Printing|Poliqrafiya texnologiyası|Технология полиграфии|
+engineering|Biomedical Engineering|Biomedisin mühəndisliyi|Биомедицинская инженерия|
+engineering|Biotechnology|Biotexnologiya|Биотехнология|
+engineering|Nanotechnology|Nanotexnologiya|Нанотехнологии|
+engineering|Engineering Physics|Mühəndis fizikası|Инженерная физика|
+science|Mathematics|Riyaziyyat|Математика|
+science|Applied Mathematics|Tətbiqi riyaziyyat|Прикладная математика|
+science|Mechanics and Mathematics|Mexanika-riyaziyyat|Механика и математика|
+science|Physics|Fizika|Физика|
+science|Astronomy|Astronomiya|Астрономия|
+science|Chemistry|Kimya|Химия|
+science|Biology|Biologiya|Биология|
+science|Microbiology|Mikrobiologiya|Микробиология|
+science|Genetics|Genetika|Генетика|
+science|Biochemistry|Biokimya|Биохимия|
+science|Ecology|Ekologiya|Экология|
+science|Environmental Science|Ətraf mühit elmləri|Науки об окружающей среде|
+science|Geography|Coğrafiya|География|
+science|Hydrometeorology|Hidrometeorologiya|Гидрометеорология|
+science|Soil Science|Torpaqşünaslıq|Почвоведение|
+science|Earth Sciences|Yer elmləri|Науки о Земле|
+science|Oceanography|Okeanoqrafiya|Океанография|
+science|Seismology|Seysmologiya|Сейсмология|
+science|Physics of Materials|Materiallar fizikası|Физика материалов|
+science|Nuclear Physics|Nüvə fizikası|Ядерная физика|
+science|Theoretical Physics|Nəzəri fizika|Теоретическая физика|
+science|Organic Chemistry|Üzvi kimya|Органическая химия|
+science|Inorganic Chemistry|Qeyri-üzvi kimya|Неорганическая химия|
+science|Analytical Chemistry|Analitik kimya|Аналитическая химия|
+science|Zoology|Zoologiya|Зоология|
+science|Botany|Botanika|Ботаника|
+science|Physiology|İnsan və heyvan fiziologiyası|Физиология человека и животных|

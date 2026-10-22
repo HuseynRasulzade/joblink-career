@@ -1,0 +1,84 @@
+# field|English|Azərbaycanca|Русский|aliases
+business|Economics|İqtisadiyyat|Экономика|iqtisad;ekonomika
+business|World Economy|Dünya iqtisadiyyatı|Мировая экономика|beynəlxalq iqtisadiyyat;международная экономика
+business|International Economics|Beynəlxalq iqtisadiyyat|Международная экономика|
+business|Economics of Enterprises|Sahə iqtisadiyyatı|Экономика предприятий|müəssisə iqtisadiyyatı
+business|Applied Economics|Tətbiqi iqtisadiyyat|Прикладная экономика|
+business|Energy Economics|Enerji iqtisadiyyatı|Экономика энергетики|
+business|Agricultural Economics|Aqrar iqtisadiyyat|Аграрная экономика|kənd təsərrüfatı iqtisadiyyatı
+business|Labor Economics|Əmək iqtisadiyyatı|Экономика труда|
+business|Finance|Maliyyə|Финансы|maliyye
+business|Banking|Bank işi|Банковское дело|bankçılıq
+business|Insurance|Sığorta işi|Страховое дело|sığorta
+business|Public Finance|Dövlət maliyyəsi|Государственные финансы|
+business|Taxation|Vergi və vergitutma|Налоги и налогообложение|vergilər
+business|Accounting|Mühasibat uçotu|Бухгалтерский учёт|mühasibatlıq;uçot
+business|Accounting and Audit|Mühasibat uçotu və audit|Бухгалтерский учёт и аудит|uçot və audit
+business|Audit|Audit|Аудит|
+business|Business Administration|Biznesin idarə edilməsi|Управление бизнесом|biznes administrasiyası;BBA
+business|Management|Menecment|Менеджмент|idarəetmə
+business|Public Administration|Dövlət idarəçiliyi|Государственное управление|
+business|Marketing|Marketinq|Маркетинг|
+business|Digital Marketing|Rəqəmsal marketinq|Цифровой маркетинг|
+business|Advertising|Reklam|Реклама|reklam işi
+business|Public Relations|İctimaiyyətlə əlaqələr|Связи с общественностью|PR;паблик рилейшнз
+business|Logistics|Logistika|Логистика|
+business|Supply Chain Management|Təchizat zəncirinin idarə edilməsi|Управление цепями поставок|
+business|Human Resources Management|İnsan resurslarının idarə edilməsi|Управление человеческими ресурсами|HR;kadr idarəetməsi
+business|Entrepreneurship|Sahibkarlıq|Предпринимательство|
+business|Innovation Management|İnnovasiya menecmenti|Инновационный менеджмент|
+business|Project Management|Layihə menecmenti|Управление проектами|
+business|International Business|Beynəlxalq biznes|Международный бизнес|
+business|International Trade|Beynəlxalq ticarət|Международная торговля|
+business|Commerce|Ticarət|Коммерция|
+business|Customs|Gömrük işi|Таможенное дело|
+business|Real Estate|Daşınmaz əmlak|Недвижимость|
+business|Investment|İnvestisiya|Инвестиции|
+business|Risk Management|Risk idarəetməsi|Управление рисками|
+business|Quality Management|Keyfiyyətin idarə edilməsi|Управление качеством|
+business|Production Management|İstehsalın idarə edilməsi|Управление производством|
+business|Hospitality Management|Mehmanxana və restoran biznesi|Гостиничный и ресторанный бизнес|mehmanxana işi
+business|Tourism Management|Turizm menecmenti|Менеджмент в туризме|turizm
+business|Statistics|Statistika|Статистика|
+business|Economic Informatics|İqtisadi informatika|Экономическая информатика|
+business|Business Analytics|Biznes analitika|Бизнес-аналитика|
+business|Financial Technology|Maliyyə texnologiyaları|Финансовые технологии|fintech
+business|Cooperation|Kooperasiya|Кооперация|
+business|Commodity Science|Əmtəəşünaslıq|Товароведение|
+business|Management of Information Systems|İnformasiya sistemlərinin idarə edilməsi|Управление информационными системами|
+business|Office Management|Kargüzarlıq və ofis idarəçiliyi|Делопроизводство и офис-менеджмент|
+business|Sports Management|İdman menecmenti|Спортивный менеджмент|
+business|Healthcare Management|Səhiyyə menecmenti|Менеджмент в здравоохранении|
+business|Education Management|Təhsil menecmenti|Менеджмент в образовании|
+law|Law|Hüquqşünaslıq|Юриспруденция|hüquq;yurisprudensiya
+law|International Law|Beynəlxalq hüquq|Международное право|
+law|Criminal Law|Cinayət hüququ|Уголовное право|
+law|Civil Law|Mülki hüquq|Гражданское право|
+law|Business Law|Sahibkarlıq hüququ|Предпринимательское право|
+law|Constitutional Law|Konstitusiya hüququ|Конституционное право|
+law|Customs Law|Gömrük hüququ|Таможенное право|
+law|Labour Law|Əmək hüququ|Трудовое право|
+law|Environmental Law|Ekoloji hüquq|Экологическое право|
+law|Intellectual Property Law|Əqli mülkiyyət hüququ|Право интеллектуальной собственности|
+law|Law Enforcement|Hüquq-mühafizə fəaliyyəti|Правоохранительная деятельность|
+law|Forensic Science|Kriminalistika və məhkəmə ekspertizası|Криминалистика и судебная экспертиза|
+law|Customs Examination|Gömrük ekspertizası|Таможенная экспертиза|
+social|International Relations|Beynəlxalq münasibətlər|Международные отношения|
+social|Political Science|Politologiya|Политология|siyasi elmlər
+social|Regional Studies|Regionşünaslıq|Регионоведение|
+social|Sociology|Sosiologiya|Социология|
+social|Psychology|Psixologiya|Психология|
+social|Clinical Psychology|Klinik psixologiya|Клиническая психология|
+social|Social Work|Sosial iş|Социальная работа|
+social|Journalism|Jurnalistika|Журналистика|
+social|Media and Communications|Media və kommunikasiya|Медиа и коммуникации|
+social|Television and Radio Journalism|Televiziya və radio jurnalistikası|Телерадиожурналистика|
+social|Library and Information Science|Kitabxanaçılıq və informasiya|Библиотечное дело и информация|kitabxanaşünaslıq
+social|Archival Studies|Arxivşünaslıq və sənədləşmə|Архивоведение и документоведение|
+social|Demography|Demoqrafiya|Демография|
+social|Anthropology|Antropologiya|Антропология|
+social|Gender Studies|Gender tədqiqatları|Гендерные исследования|
+social|Cultural Studies|Mədəniyyətşünaslıq|Культурология|
+social|Conflict Studies|Münaqişəşünaslıq|Конфликтология|
+social|Diplomacy|Diplomatiya|Дипломатия|
+social|Security Studies|Təhlükəsizlik tədqiqatları|Исследования безопасности|

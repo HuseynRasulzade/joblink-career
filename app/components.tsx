@@ -39,6 +39,7 @@ import {
 import { detectCertifications } from "@/lib/certification-catalog";
 import JobTitleInput from "./JobTitleInput";
 import UniversityInput from "./UniversityInput";
+import MajorInput from "./MajorInput";
 import BrandedCv from "./BrandedCv";
 import StageEditor from "./StageEditor";
 import { VACANCY_REASONS } from "@/lib/recruitment";
@@ -1603,28 +1604,28 @@ export function ProfileEditor({
                           )
                         }
                       />
-                      {(
-                        [
-                          ["degree", "İxtisas və dərəcə"],
-                          ["year", "Məzuniyyət ili"],
-                        ] as const
-                      ).map(([key, label]) => (
-                        <Field key={key} label={label}>
-                          <input
-                            value={e[key]}
-                            onChange={(v) =>
-                              set(
-                                "education",
-                                p.education.map((x) =>
-                                  x.id === e.id
-                                    ? { ...x, [key]: v.target.value }
-                                    : x,
-                                ),
-                              )
-                            }
-                          />
-                        </Field>
-                      ))}
+                      <MajorInput
+                        id={`profile-education-degree-${e.id}`}
+                        label="İxtisas"
+                        value={e.degree}
+                        onChange={(degree) =>
+                          set(
+                            "education",
+                            p.education.map((x) => (x.id === e.id ? { ...x, degree } : x)),
+                          )
+                        }
+                      />
+                      <Field label="Məzuniyyət ili">
+                        <input
+                          value={e.year}
+                          onChange={(v) =>
+                            set(
+                              "education",
+                              p.education.map((x) => (x.id === e.id ? { ...x, year: v.target.value } : x)),
+                            )
+                          }
+                        />
+                      </Field>
                     </div>
                   ))}
                   <button

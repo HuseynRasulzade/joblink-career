@@ -1,0 +1,132 @@
+education|Primary Education|İbtidai təhsil (sinif müəllimliyi)|Начальное образование|sinif müəllimliyi;ibtidai sinif müəllimliyi
+education|Preschool Education|Məktəbəqədər təhsil|Дошкольное образование|
+education|Pedagogy|Pedaqogika|Педагогика|
+education|Teacher Education|Müəllimlik|Подготовка учителей|
+education|Special Education|Xüsusi təhsil|Специальное образование|korreksiyaedici pedaqogika
+education|Speech Therapy|Loqopediya|Логопедия|
+education|Defectology|Defektologiya|Дефектология|
+education|Pedagogical Psychology|Pedaqoji psixologiya|Педагогическая психология|
+education|Educational Management|Təhsil idarəetməsi|Управление образованием|
+education|Physical Education|Bədən tərbiyəsi və idman|Физическая культура и спорт|
+education|Mathematics Teaching|Riyaziyyat müəllimliyi|Преподавание математики|
+education|Physics Teaching|Fizika müəllimliyi|Преподавание физики|
+education|Chemistry Teaching|Kimya müəllimliyi|Преподавание химии|
+education|Biology Teaching|Biologiya müəllimliyi|Преподавание биологии|
+education|History Teaching|Tarix müəllimliyi|Преподавание истории|
+education|Geography Teaching|Coğrafiya müəllimliyi|Преподавание географии|
+education|Azerbaijani Language and Literature Teaching|Azərbaycan dili və ədəbiyyatı müəllimliyi|Преподавание азербайджанского языка и литературы|
+education|Russian Language and Literature Teaching|Rus dili və ədəbiyyatı müəllimliyi|Преподавание русского языка и литературы|
+education|English Language Teaching|İngilis dili müəllimliyi|Преподавание английского языка|
+education|Music Teaching|Musiqi müəllimliyi|Преподавание музыки|
+education|Art Teaching|Təsviri incəsənət müəllimliyi|Преподавание изобразительного искусства|
+education|Technology Teaching|Texnologiya müəllimliyi|Преподавание технологии|əmək təlimi
+education|Life Skills Education|Həyat bilgisi müəllimliyi|Преподавание основ жизнедеятельности|
+health|General Medicine|Müalicə işi|Лечебное дело|müalicə;general medicine
+health|Medicine|Tibb|Медицина|
+health|Pediatrics|Pediatriya|Педиатрия|
+health|Dentistry|Stomatologiya|Стоматология|
+health|Pharmacy|Əczaçılıq|Фармация|
+health|Medical Prevention|Tibbi profilaktika|Медико-профилактическое дело|
+health|Nursing|Tibb bacısı işi|Сестринское дело|hemşirəlik
+health|Midwifery|Mamalıq|Акушерское дело|
+health|Medical Laboratory|Tibbi laboratoriya diaqnostikası|Лабораторная диагностика|
+health|Public Health|İctimai səhiyyə|Общественное здравоохранение|
+health|Medical Biology|Tibbi biologiya|Медицинская биология|
+health|Medical Physics|Tibbi fizika|Медицинская физика|
+health|Biomedicine|Biomedisin|Биомедицина|
+health|Veterinary Medicine|Baytarlıq|Ветеринария|veterinariya
+health|Physical Therapy|Fiziki terapiya və reabilitasiya|Физическая терапия и реабилитация|reabilitasiya
+health|Nutrition and Dietetics|Qidalanma və dietologiya|Питание и диетология|
+health|Radiology|Radiologiya|Радиология|
+health|Surgery|Cərrahiyyə|Хирургия|
+health|Internal Medicine|Daxili xəstəliklər|Внутренние болезни|
+health|Cardiology|Kardiologiya|Кардиология|
+health|Neurology|Nevrologiya|Неврология|
+health|Psychiatry|Psixiatriya|Психиатрия|
+health|Obstetrics and Gynecology|Mamalıq və ginekologiya|Акушерство и гинекология|
+health|Ophthalmology|Oftalmologiya|Офтальмология|
+health|Anesthesiology|Anesteziologiya və reanimatologiya|Анестезиология и реаниматология|
+health|Oncology|Onkologiya|Онкология|
+health|Orthodontics|Ortodontiya|Ортодонтия|
+health|Social Medicine|Sosial tibb|Социальная медицина|
+health|Traditional Medicine|Ənənəvi tibb|Традиционная медицина|
+arts|Music|Musiqi|Музыка|
+arts|Musicology|Musiqişünaslıq|Музыковедение|
+arts|Performing Arts|İfaçılıq sənəti|Исполнительское искусство|
+arts|Vocal Arts|Vokal sənəti|Вокальное искусство|
+arts|Conducting|Dirijorluq|Дирижирование|
+arts|Composition|Bəstəkarlıq|Композиция|
+arts|Fine Arts|Təsviri incəsənət|Изобразительное искусство|rəssamlıq
+arts|Painting|Rəngkarlıq|Живопись|
+arts|Sculpture|Heykəltəraşlıq|Скульптура|
+arts|Graphic Design|Qrafik dizayn|Графический дизайн|
+arts|Fashion Design|Moda dizaynı|Дизайн одежды|
+arts|Industrial Design|Sənaye dizaynı|Промышленный дизайн|
+arts|Decorative Arts|Dekorativ-tətbiqi sənət|Декоративно-прикладное искусство|
+arts|Carpet Design|Xalçaçılıq sənəti|Ковроделие|
+arts|Art History|İncəsənətşünaslıq|Искусствоведение|
+arts|Theatre Arts|Teatr sənəti|Театральное искусство|aktyorluq
+arts|Acting|Aktyorluq|Актёрское мастерство|
+arts|Stage Directing|Rejissorluq|Режиссура|
+arts|Cinematography|Kinooperatorluq|Кинооператорское искусство|
+arts|Film and Television|Kino və televiziya|Кино и телевидение|
+arts|Choreography|Xoreoqrafiya|Хореография|
+arts|Cultural Heritage|Mədəni irsin qorunması|Сохранение культурного наследия|bərpa
+arts|Museology|Muzeyşünaslıq|Музеология|
+arts|Photography|Fotoqrafiya|Фотография|
+arts|Animation|Animasiya|Анимация|
+humanities|Philology|Filologiya|Филология|
+humanities|Azerbaijani Philology|Azərbaycan filologiyası|Азербайджанская филология|Azərbaycan dili və ədəbiyyatı
+humanities|Russian Philology|Rus filologiyası|Русская филология|rus dili və ədəbiyyatı
+humanities|English Philology|İngilis filologiyası|Английская филология|ingilis dili və ədəbiyyatı
+humanities|Turkish Philology|Türk filologiyası|Тюркская филология|
+humanities|Romance Philology|Roman filologiyası|Романская филология|
+humanities|German Philology|German filologiyası|Германская филология|
+humanities|Oriental Studies|Şərqşünaslıq|Востоковедение|
+humanities|Turkology|Türkologiya|Тюркология|
+humanities|Arabic Studies|Ərəb filologiyası|Арабская филология|
+humanities|Iranian Studies|İranşünaslıq|Иранистика|
+humanities|Linguistics|Dilçilik|Лингвистика|
+humanities|Translation Studies|Tərcümə|Перевод и переводоведение|tərcüməçilik
+humanities|Literary Studies|Ədəbiyyatşünaslıq|Литературоведение|
+humanities|History|Tarix|История|
+humanities|Archaeology|Arxeologiya|Археология|
+humanities|Ethnography|Etnoqrafiya|Этнография|
+humanities|Philosophy|Fəlsəfə|Философия|
+humanities|Theology|İlahiyyat|Теология|dinşünaslıq
+humanities|Religious Studies|Dinşünaslıq|Религиоведение|
+humanities|Source Studies|Mənbəşünaslıq|Источниковедение|
+humanities|Archaeology and Ethnology|Arxeologiya və etnologiya|Археология и этнология|
+agri|Agronomy|Aqronomluq|Агрономия|
+agri|Plant Protection|Bitki mühafizəsi|Защита растений|
+agri|Horticulture|Bağçılıq|Садоводство|
+agri|Viticulture and Winemaking|Üzümçülük və şərabçılıq|Виноградарство и виноделие|
+agri|Animal Science|Zootexniya|Зоотехния|
+agri|Fisheries|Balıqçılıq|Рыбное хозяйство|
+agri|Forestry|Meşə təsərrüfatı|Лесное хозяйство|
+agri|Agricultural Engineering|Aqromühəndislik|Агроинженерия|
+agri|Agricultural Mechanization|Kənd təsərrüfatının mexanikləşdirilməsi|Механизация сельского хозяйства|
+agri|Land Management|Torpaqşünaslıq və aqrokimya|Почвоведение и агрохимия|
+agri|Land Cadastre|Torpaq quruluşu və kadastr|Землеустройство и кадастр|
+agri|Water Management and Melioration|Su təsərrüfatı və meliorasiya|Водное хозяйство и мелиорация|
+agri|Beekeeping|Arıçılıq|Пчеловодство|
+agri|Agribusiness|Aqrobiznes|Агробизнес|
+agri|Food Safety|Qida təhlükəsizliyi|Безопасность пищевых продуктов|
+services|Tourism|Turizm|Туризм|
+services|Hotel Management|Mehmanxana təsərrüfatı|Гостиничное дело|
+services|Restaurant Business|Restoran işi|Ресторанное дело|
+services|Culinary Arts|Aşpazlıq|Кулинария|
+services|Service Industry|Xidmət sahəsi|Сфера обслуживания|
+services|Sports Training|İdman məşqçiliyi|Спортивная тренировка|
+services|Physical Culture and Sports|Bədən tərbiyəsi və idman|Физическая культура и спорт|
+services|Aviation Service|Hava nəqliyyatının istismarı|Эксплуатация воздушного транспорта|
+services|Civil Aviation|Mülki aviasiya|Гражданская авиация|
+services|Maritime Transport|Dəniz nəqliyyatı|Морской транспорт|
+services|Railway Transport|Dəmir yol nəqliyyatı|Железнодорожный транспорт|
+services|Road Transport|Avtomobil nəqliyyatı|Автомобильный транспорт|
+services|Security and Defense|Təhlükəsizlik və müdafiə|Безопасность и оборона|
+services|Military Science|Hərbi elmlər|Военные науки|
+services|Border Security|Sərhəd təhlükəsizliyi|Пограничная безопасность|
+services|Cosmetology|Kosmetologiya|Косметология|
+services|Hairdressing and Aesthetics|Bərbərlik və estetik xidmət|Парикмахерское искусство и эстетика|
+services|Event Management|Tədbirlərin təşkili|Организация мероприятий|

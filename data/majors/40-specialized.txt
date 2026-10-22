@@ -1,0 +1,123 @@
+ict|Cloud Computing|Bulud hesablamaları|Облачные вычисления|
+ict|Machine Learning|Maşın öyrənməsi|Машинное обучение|
+ict|Software Testing|Proqram təminatının test edilməsi|Тестирование программного обеспечения|
+ict|Web Development|Veb proqramlaşdırma|Веб-разработка|
+ict|Mobile Application Development|Mobil tətbiqlərin hazırlanması|Разработка мобильных приложений|
+ict|Business Informatics|Biznes informatikası|Бизнес-информатика|
+ict|Digital Economy|Rəqəmsal iqtisadiyyat|Цифровая экономика|
+ict|Computer Systems and Networks|Kompüter sistemləri və şəbəkələri|Компьютерные системы и сети|
+ict|Databases and Information Retrieval|Verilənlər bazası və informasiya axtarışı|Базы данных и информационный поиск|
+ict|Embedded Systems|Quraşdırılmış sistemlər|Встраиваемые системы|
+ict|Internet of Things|Əşyaların interneti|Интернет вещей|
+ict|Blockchain Technologies|Blokçeyn texnologiyaları|Технологии блокчейн|
+business|Corporate Finance|Korporativ maliyyə|Корпоративные финансы|
+business|Financial Markets|Maliyyə bazarları|Финансовые рынки|
+business|Accounting and Taxation|Mühasibat uçotu və vergitutma|Учёт и налогообложение|
+business|Oil and Gas Economics|Neft-qaz iqtisadiyyatı|Экономика нефтегазовой отрасли|
+business|Energy Management|Enerji menecmenti|Энергетический менеджмент|
+business|Sustainable Development|Dayanıqlı inkişaf|Устойчивое развитие|
+business|Construction Management|Tikinti menecmenti|Управление строительством|
+business|Brand Management|Brend menecmenti|Управление брендом|
+business|Marketing Communications|Marketinq kommunikasiyaları|Маркетинговые коммуникации|
+business|Aviation Management|Aviasiya menecmenti|Менеджмент в авиации|
+business|Maritime and Port Management|Dəniz və liman menecmenti|Морской и портовый менеджмент|
+business|Customs and Logistics|Gömrük və logistika|Таможня и логистика|
+business|Environmental Management|Ətraf mühitin idarə edilməsi|Экологический менеджмент|
+business|Master of Business Administration|Biznes administrasiyası (MBA)|Управление бизнесом (MBA)|MBA
+business|Consulting|Konsaltinq|Консалтинг|
+business|E-commerce|Elektron ticarət|Электронная коммерция|
+business|Financial Analysis|Maliyyə təhlili|Финансовый анализ|
+business|Economic Security|İqtisadi təhlükəsizlik|Экономическая безопасность|
+business|Public Policy|Dövlət siyasəti|Государственная политика|
+engineering|Petroleum Geology|Neft geologiyası|Нефтяная геология|
+engineering|Reservoir Engineering|Lay mühəndisliyi|Разработка пластов (резервуарная инженерия)|
+engineering|Process Automation|Proseslərin avtomatlaşdırılması|Автоматизация технологических процессов|
+engineering|Electrical Machines and Apparatus|Elektrik maşınları və aparatları|Электрические машины и аппараты|
+engineering|Industrial Electronics|Sənaye elektronikası|Промышленная электроника|
+engineering|Surveying and Geoinformatics|Geoinformatika|Геоинформатика|
+engineering|Water Resources Engineering|Su ehtiyatları mühəndisliyi|Инженерия водных ресурсов|
+engineering|Pharmaceutical Technology|Əczaçılıq texnologiyası|Фармацевтическая технология|
+engineering|Polymer Technology|Polimer texnologiyası|Технология полимеров|
+engineering|Petrochemistry|Neft-kimya texnologiyası|Нефтехимия|
+engineering|Gas Engineering|Qaz mühəndisliyi|Газовая инженерия|
+engineering|Offshore Engineering|Dəniz neft-qaz mühəndisliyi|Морская нефтегазовая инженерия|
+engineering|Energy Systems Engineering|Enerji sistemləri mühəndisliyi|Инженерия энергетических систем|
+engineering|Control Systems Engineering|İdarəetmə sistemləri mühəndisliyi|Инженерия систем управления|
+engineering|Construction Technology|Tikinti texnologiyası|Технология строительства|
+engineering|Building Materials|Tikinti materialları|Строительные материалы|
+science|Pharmaceutical Chemistry|Əczaçılıq kimyası|Фармацевтическая химия|
+science|Neuroscience|Neyrobiologiya|Нейронаука|
+science|Biostatistics|Biostatistika|Биостатистика|
+science|Geoinformatics and Remote Sensing|Məsafədən zondlama və geoinformatika|Дистанционное зондирование и геоинформатика|
+science|Climate Science|İqlimşünaslıq|Климатология|
+science|Mathematical Modeling|Riyazi modelləşdirmə|Математическое моделирование|
+science|Actuarial Science|Aktuar riyaziyyatı|Актуарная математика|
+science|Optics and Photonics|Optika və fotonika|Оптика и фотоника|
+health|Clinical Pharmacy|Klinik əczaçılıq|Клиническая фармация|
+health|Medical Imaging|Tibbi görüntüləmə|Медицинская визуализация|
+health|Health Informatics|Səhiyyə informatikası|Медицинская информатика|
+health|Emergency Medicine|Təcili tibbi yardım|Скорая медицинская помощь|
+health|Pathology|Patologiya|Патология|
+health|Dermatology|Dermatologiya|Дерматология|
+health|Endocrinology|Endokrinologiya|Эндокринология|
+health|Urology|Urologiya|Урология|
+health|Orthopedics and Traumatology|Ortopediya və travmatologiya|Ортопедия и травматология|
+health|Otorhinolaryngology|Otorinolarinqologiya|Оториноларингология|
+health|Infectious Diseases|İnfeksion xəstəliklər|Инфекционные болезни|
+health|Epidemiology|Epidemiologiya|Эпидемиология|
+health|Family Medicine|Ailə təbabəti|Семейная медицина|
+health|Pharmacology|Farmakologiya|Фармакология|
+health|Dental Technology|Diş texnikası|Зубная техника|
+social|Child Psychology|Uşaq psixologiyası|Детская психология|
+social|Organizational Psychology|Təşkilati psixologiya|Организационная психология|
+social|Counseling Psychology|Məsləhətçi psixologiya|Консультативная психология|
+social|Development Studies|İnkişaf tədqiqatları|Исследования развития|
+social|International Security|Beynəlxalq təhlükəsizlik|Международная безопасность|
+social|Peace and Conflict Studies|Sülh və münaqişə tədqiqatları|Исследования мира и конфликтов|
+social|Eurasian Studies|Avrasiya tədqiqatları|Евразийские исследования|
+social|Caucasus Studies|Qafqazşünaslıq|Кавказоведение|
+social|Azerbaijan Studies|Azərbaycanşünaslıq|Азербайджановедение|
+social|Urban Studies|Şəhər tədqiqatları|Урбанистика|
+social|Political Economy|Siyasi iqtisad|Политическая экономия|
+social|Journalism and New Media|Jurnalistika və yeni media|Журналистика и новые медиа|
+social|Digital Journalism|Rəqəmsal jurnalistika|Цифровая журналистика|
+social|Social Pedagogy|Sosial pedaqogika|Социальная педагогика|
+education|Early Childhood Education|Erkən uşaqlıq təhsili|Раннее детское образование|
+education|Inclusive Education|İnklüziv təhsil|Инклюзивное образование|
+education|Educational Technology|Təhsil texnologiyaları|Образовательные технологии|
+education|Teaching English as a Foreign Language|İngilis dilinin xarici dil kimi tədrisi|Преподавание английского как иностранного|TEFL;TESOL
+education|Teaching Azerbaijani as a Foreign Language|Azərbaycan dilinin xarici dil kimi tədrisi|Преподавание азербайджанского как иностранного|
+education|Curriculum and Instruction|Tədris proqramı və metodika|Учебные программы и методика|
+humanities|Applied Linguistics|Tətbiqi dilçilik|Прикладная лингвистика|
+humanities|Comparative Literature|Müqayisəli ədəbiyyatşünaslıq|Сравнительное литературоведение|
+humanities|Creative Writing|Yaradıcı yazı|Творческое письмо|
+humanities|Digital Humanities|Rəqəmsal humanitar elmlər|Цифровые гуманитарные науки|
+humanities|Islamic Studies|İslamşünaslıq|Исламоведение|
+humanities|Turkic Studies|Türk xalqları tarixi və mədəniyyəti|Тюркские народы: история и культура|
+humanities|Medieval History|Orta əsrlər tarixi|История Средних веков|
+humanities|History of Azerbaijan|Azərbaycan tarixi|История Азербайджана|
+humanities|World History|Ümumi tarix|Всеобщая история|
+humanities|Interpreting|Şifahi tərcümə|Устный перевод|
+humanities|Russian Language and Literature|Rus dili və ədəbiyyatı|Русский язык и литература|
+humanities|English Language and Literature|İngilis dili və ədəbiyyatı|Английский язык и литература|
+humanities|German Language and Literature|Alman dili və ədəbiyyatı|Немецкий язык и литература|
+humanities|French Language and Literature|Fransız dili və ədəbiyyatı|Французский язык и литература|
+humanities|Turkish Language and Literature|Türk dili və ədəbiyyatı|Турецкий язык и литература|
+humanities|Spanish Language|İspan dili|Испанский язык|
+humanities|Chinese Language and Culture|Çin dili və mədəniyyəti|Китайский язык и культура|
+humanities|Japanese Language|Yapon dili|Японский язык|
+arts|Interior Architecture|İnteryer memarlığı|Архитектура интерьера|
+arts|Digital Art|Rəqəmsal incəsənət|Цифровое искусство|
+arts|Art Management|İncəsənət menecmenti|Арт-менеджмент|
+arts|Jazz Performance|Caz ifaçılığı|Джазовое исполнительство|
+arts|Mugham Performance|Muğam ifaçılığı|Исполнение мугама|muğam
+arts|Folk Instruments|Xalq çalğı alətləri|Народные инструменты|
+agri|Sustainable Agriculture|Dayanıqlı kənd təsərrüfatı|Устойчивое сельское хозяйство|
+agri|Plant Breeding and Seed Production|Seleksiya və toxumçuluq|Селекция и семеноводство|
+agri|Agricultural Biotechnology|Aqrar biotexnologiya|Аграрная биотехнология|
+agri|Livestock Breeding|Heyvandarlıq|Животноводство|maldarlıq
+services|Tourism Guiding|Turizmdə bələdçilik|Гидирование в туризме|
+services|Airport Management|Hava limanı menecmenti|Менеджмент аэропортов|
+services|Cabin Crew Service|Salon heyəti xidməti|Сервис бортпроводников|
+services|Civil Defense|Mülki müdafiə|Гражданская оборона|
+services|Law Enforcement Studies|Polis fəaliyyəti|Полицейская деятельность|
