@@ -19,14 +19,24 @@ export type SalaryBreakdown = {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+// Rates: Vergilər Nazirliyinin 2026 cədvəli (non-state, non-oil sector):
+//   income tax  up to 2,500 AZN: 3% of the amount above 200 AZN
+//               2,500 - 8,000:  75 + 10% of the amount above 2,500
+//               above 8,000:    625 + 14% of the amount above 8,000
+// State and oil-and-gas sector: 14% up to 2,500, then 350 + 25%.
+const TAX_FREE_AMOUNT = 200;
 function incomeTax(taxable: number, sector: Sector) {
   if (sector === "public") return taxable <= 2500 ? taxable * 0.14 : 350 + (taxable - 2500) * 0.25;
-  if (taxable <= 2500) return taxable * 0.03;
+  if (taxable <= 2500) return Math.max(0, taxable - TAX_FREE_AMOUNT) * 0.03;
   if (taxable <= 8000) return 75 + (taxable - 2500) * 0.1;
   return 75 + 550 + (taxable - 8000) * 0.14;
 }
 
-function social(gross: number, side: "employee" | "employer") {
+// Private sector DSMF: employee 3% up to 200 and 10% above; employer 22% up to
+// 200, 15% from 200 to 8,000 and 11% above. State and oil-and-gas sector:
+// employee 3% and employer 22% of the whole salary.
+function social(gross: number, side: "employee" | "employer", sector: Sector) {
+  if (sector === "public") return gross * (side === "employee" ? 0.03 : 0.22);
   const [low, mid, high] = side === "employee" ? [0.03, 0.1, 0.1] : [0.22, 0.15, 0.11];
   if (gross <= 200) return gross * low;
   if (gross <= 8000) return 200 * low + (gross - 200) * mid;
@@ -40,11 +50,11 @@ function medical(gross: number) {
 
 export function calculateFromGross(grossInput: number, sector: Sector = "private"): SalaryBreakdown {
   const gross = Math.max(0, Number(grossInput) || 0);
-  const employeeSocial = social(gross, "employee");
+  const employeeSocial = social(gross, "employee", sector);
   const employeeUnemployment = gross * 0.005;
   const employeeMedical = medical(gross);
   const tax = incomeTax(gross, sector);
-  const employerSocial = social(gross, "employer");
+  const employerSocial = social(gross, "employer", sector);
   const employerUnemployment = gross * 0.005;
   const employerMedical = medical(gross);
   const deductions = tax + employeeSocial + employeeUnemployment + employeeMedical;
