@@ -1,17 +1,41 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Send } from "lucide-react";
 import {
   COUNTRIES,
   canonicalUniversity,
   searchUniversities,
+  searchWorldUniversities,
+  worldUniversityKnown,
   type University,
+  type WorldUniversity,
 } from "@/lib/university-catalog";
 import { siteLanguage, translate } from "./i18n";
 
 const t = (text: string) => translate(text, siteLanguage());
 const display = (u: University) => (siteLanguage() === "en" ? u.labelEn : u.label);
 const country = (u: University) => COUNTRIES[u.country]?.[siteLanguage() === "en" ? "en" : "az"] || u.country;
+
+// The wider list is fetched once, only when a candidate starts typing.
+let worldList: Promise<WorldUniversity[]> | null = null;
+function loadWorldList() {
+  worldList ||= fetch("/data/world-universities.json")
+    .then((response) => (response.ok ? (response.json() as Promise<WorldUniversity[]>) : []))
+    .catch(() => {
+      worldList = null;
+      return [] as WorldUniversity[];
+    });
+  return worldList;
+}
+function countryName(code: string) {
+  const known = COUNTRIES[code];
+  if (known) return known[siteLanguage() === "en" ? "en" : "az"];
+  try {
+    return new Intl.DisplayNames([siteLanguage() === "en" ? "en" : "az"], { type: "region" }).of(code) || code;
+  } catch {
+    return code;
+  }
+}
 
 // Education institution input backed by the shared university list. A name
 // that is not in the list stays valid as typed; the candidate can ask for it
@@ -29,8 +53,15 @@ export default function UniversityInput({
 }) {
   const [open, setOpen] = useState(false);
   const [request, setRequest] = useState<"idle" | "sending" | "sent" | { error: string }>("idle");
+  const [world, setWorld] = useState<WorldUniversity[]>([]);
+  useEffect(() => {
+    if (open && !world.length) void loadWorldList().then(setWorld);
+  }, [open, world.length]);
   const known = canonicalUniversity(value);
-  const suggestions = open && value.trim().length >= 2 && !known ? searchUniversities(value, 8) : [];
+  const worldKnown = !known && world.length ? worldUniversityKnown(world, value) : null;
+  const searching = open && value.trim().length >= 2 && !known && !worldKnown;
+  const curated = searching ? searchUniversities(value, 8) : [];
+  const wider = searching && curated.length < 8 ? searchWorldUniversities(world, value, 8 - curated.length) : [];
 
   async function ask() {
     setRequest("sending");
@@ -71,21 +102,22 @@ export default function UniversityInput({
             setOpen(true);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && suggestions[0]) {
+            const first = curated[0] ? display(curated[0]) : wider[0]?.[0];
+            if (event.key === "Enter" && first) {
               event.preventDefault();
-              onChange(display(suggestions[0]));
+              onChange(first);
               setOpen(false);
             }
           }}
         />
-        {known && (
-          <span className="job-title-known" title={known.labelEn}>
+        {(known || worldKnown) && (
+          <span className="job-title-known" title={known?.labelEn || worldKnown?.[0]}>
             <Check size={14} /> {t("Siyahıda")}
           </span>
         )}
-        {suggestions.length > 0 && (
+        {curated.length + wider.length > 0 && (
           <div className="skill-suggestions" role="listbox">
-            {suggestions.map((u) => (
+            {curated.map((u) => (
               <button
                 type="button"
                 role="option"
@@ -103,10 +135,26 @@ export default function UniversityInput({
                 </small>
               </button>
             ))}
+            {wider.map(([name, code]) => (
+              <button
+                type="button"
+                role="option"
+                aria-selected="false"
+                key={`${code}-${name}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(name);
+                  setOpen(false);
+                }}
+              >
+                <strong>{name}</strong>
+                <small>{countryName(code)}</small>
+              </button>
+            ))}
           </div>
         )}
       </div>
-      {!known && value.trim().length >= 3 && !open && (
+      {!known && !worldKnown && value.trim().length >= 3 && !open && (
         <div className="job-title-help">
           {request === "idle" && (
             <>

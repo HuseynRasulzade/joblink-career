@@ -59,3 +59,19 @@ test("Azerbaijani institutions come first for a shared word", () => {
   const found = searchUniversities("state university", 5);
   assert.equal(found[0].country, "AZ");
 });
+
+test("the wider world list is searchable and does not repeat the curated list", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { searchWorldUniversities, worldUniversityKnown } = await import("../lib/university-catalog.ts");
+  const list = JSON.parse(readFileSync(new URL("../public/data/world-universities.json", import.meta.url), "utf8"));
+  assert.ok(list.length >= 9000, `only ${list.length}`);
+  assert.ok(list.every((row) => Array.isArray(row) && row.length === 2 && /^[A-Z]{2}$/.test(row[1])));
+  // Nothing in the wide list may also be a curated name or abbreviation.
+  const curated = new Set(UNIVERSITIES.flatMap((u) => u.aliases.map(normalizeUniversityKey)));
+  assert.ok(list.every(([name]) => !curated.has(normalizeUniversityKey(name))));
+  assert.ok(searchWorldUniversities(list, "sabanci").length >= 0);
+  const hit = list.find(([name]) => /university/i.test(name));
+  assert.ok(worldUniversityKnown(list, hit[0]));
+  assert.ok(searchWorldUniversities(list, hit[0].slice(0, 10)).some(([name]) => name === hit[0]));
+  assert.deepEqual(searchWorldUniversities(list, "x"), []);
+});

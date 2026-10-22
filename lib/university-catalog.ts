@@ -142,3 +142,55 @@ export function searchUniversities(query: string, limit = 8) {
 export function universityLabel(u: University, language: "az" | "en" | "ru") {
   return language === "en" ? u.labelEn : language === "ru" ? u.labelRu : u.label;
 }
+
+// ---- Wider world list -------------------------------------------------
+// ~10,000 further universities as [English name, country code]. Served as a
+// static file and loaded in the browser on demand, so it never weighs on the
+// main bundle. Names here exist in English only.
+export type WorldUniversity = [name: string, country: string];
+
+const worldKeys = new WeakMap<WorldUniversity[], string[]>();
+const keysOf = (list: WorldUniversity[]) => {
+  let keys = worldKeys.get(list);
+  if (!keys) {
+    keys = list.map(([name]) => normalizeUniversityKey(name));
+    worldKeys.set(list, keys);
+  }
+  return keys;
+};
+
+export function searchWorldUniversities(list: WorldUniversity[], query: string, limit = 8) {
+  const needle = normalizeUniversityKey(query);
+  if (needle.length < 2) return [] as WorldUniversity[];
+  const keys = keysOf(list);
+  const ranked: { i: number; rank: number }[] = [];
+  for (let i = 0; i < list.length; i++) {
+    const key = keys[i];
+    let rank = 9;
+    if (key === needle) rank = 0;
+    else if (key.startsWith(needle)) rank = 1;
+    else if (key.split(" ").some((w) => w.startsWith(needle))) rank = 2;
+    else if (needle.length >= 3 && key.includes(needle)) rank = 3;
+    if (rank < 9) ranked.push({ i, rank });
+  }
+  // Typo tolerance only when the plain matches do not fill the list.
+  if (ranked.length < limit && needle.length >= 5) {
+    const tolerance = needle.length >= 8 ? 2 : 1;
+    for (let i = 0; i < list.length; i++) {
+      if (ranked.some((r) => r.i === i)) continue;
+      const best = distance(keys[i], needle);
+      if (best <= tolerance) ranked.push({ i, rank: 4 + best });
+    }
+  }
+  return ranked
+    .sort((a, b) => a.rank - b.rank || list[a.i][0].length - list[b.i][0].length)
+    .slice(0, limit)
+    .map((r) => list[r.i]);
+}
+
+export function worldUniversityKnown(list: WorldUniversity[], value: string) {
+  const key = normalizeUniversityKey(value);
+  if (!key) return null;
+  const index = keysOf(list).indexOf(key);
+  return index >= 0 ? list[index] : null;
+}
