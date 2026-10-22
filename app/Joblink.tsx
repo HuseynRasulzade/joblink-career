@@ -1039,8 +1039,14 @@ export default function Joblink() {
               )}
               <div className="job-footer">
                 <strong>
-                  {j.minSalary.toLocaleString("fr-FR")} –{" "}
-                  {j.maxSalary.toLocaleString("fr-FR")} <small>AZN / ay</small>
+                  {j.minSalary || j.maxSalary ? (
+                    <>
+                      {j.minSalary.toLocaleString("fr-FR")} –{" "}
+                      {j.maxSalary.toLocaleString("fr-FR")} <small>AZN / ay</small>
+                    </>
+                  ) : (
+                    "Razılaşma yolu ilə"
+                  )}
                 </strong>
                 <button
                   className="match-score"

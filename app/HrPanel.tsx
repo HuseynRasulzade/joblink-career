@@ -489,7 +489,7 @@ export default function HrPanel({
                 )}
                 <div className="job-footer">
                   <span>
-                    {j.minSalary}–{j.maxSalary} AZN
+                    {j.minSalary || j.maxSalary ? `${j.minSalary}–${j.maxSalary} AZN` : "Razılaşma yolu ilə"}
                   </span>
                   {!j.demo && jobStatus(j) !== "archived" && (
                     <div className="admin-actions">
