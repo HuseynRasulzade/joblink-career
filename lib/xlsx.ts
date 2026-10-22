@@ -22,8 +22,17 @@ function columnName(index: number) {
   return name;
 }
 
+// A plain YYYY-MM-DD value becomes a real Excel date, so it sorts and filters as one.
+export function excelDateSerial(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const time = Date.parse(`${value}T00:00:00Z`);
+  return Number.isNaN(time) || new Date(time).toISOString().slice(0, 10) !== value ? null : Math.round(time / 86400000) + 25569;
+}
+
 function cellXml(value: XlsxCell, row: number, column: number, style = 0) {
   const reference = `${columnName(column)}${row}`;
+  const serial = style === 0 && typeof value === "string" ? excelDateSerial(value) : null;
+  if (serial !== null) return `<c r="${reference}" s="2"><v>${serial}</v></c>`;
   if (typeof value === "number" && Number.isFinite(value))
     return `<c r="${reference}" s="${style}"><v>${value}</v></c>`;
   if (typeof value === "boolean")
@@ -79,11 +88,12 @@ export function createXlsx(headers: string[], rows: XlsxCell[][], sheetName = "S
 </Relationships>`),
     "xl/styles.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="1"><numFmt numFmtId="164" formatCode="yyyy\-mm\-dd"/></numFmts>
   <fonts count="2"><font><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos"/></font></fonts>
   <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF187C6C"/><bgColor indexed="64"/></patternFill></fill></fills>
   <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf></cellXfs>
+  <cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`),
     "xl/worksheets/sheet1.xml": strToU8(worksheet),

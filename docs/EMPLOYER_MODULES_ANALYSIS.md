@@ -191,3 +191,10 @@ Kodu oxudum və lokal serverdə rekruter (icazəsiz), şöbə rəhbəri, HR/hesa
 - `hr` siyahısının menecer üçün özünə aid vakansiyalarla məhdudlaşdırılması (indi yalnız dashboard və hesabatlar məhduddur; köhnə vakansiyalarda `createdBy` yoxdur, ona görə menecer onları görmür).
 - XLSX-də həqiqi tarix xanaları (indi mətn).
 - Əvvəlki siyahıdan: ESCO vəzifə idxalı, saytın rus UI-sı, ASAN imza, real ödəniş provayderi, SMS, işəgötürən paketləri, **deploy** (GitHub secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` əlavə edib "Deploy to Cloudflare" workflow-nu işə salmaq lazımdır), əmək haqqı kalkulyatorunda "3% (−200 AZN)" izahının rəsmi kalkulyatorla yoxlanması (1000/3000 AZN özəl, 1000 AZN dövlət).
+
+### 9. Sonradan tamamlananlar
+- XLSX-də `YYYY-MM-DD` dəyərləri həqiqi Excel tarix xanalarıdır (filtr və çeşidləmə işləyir), testi var.
+- Test suallarının sırası hər namizəd üçün fərqli, lakin sabit qarışdırılır (variantlar qarışdırılmır ki, düzgün cavab indeksləri pozulmasın).
+- Sualların CSV ilə yüklənməsi (`tip;sual;variantlar;düzgün;bal`), testi var.
+- `hr` siyahısı (vakansiyalar, müraciətlər) menecer/rekruter üçün yalnız özünün yaratdığı vakansiyalarla məhduddur.
+- Hələ qalır: Word/Excel test faylı, test nəticəsinin vakansiya statusuna bağlanması, mesaj qoşması/şablonu/arxivi/təyinatı, təsdiq xatırlatması və əvəzedici (planlaşdırıcı tələb edir), təklif/maaş təsdiqi, ESCO idxalı, rus UI, ASAN imza, real ödəniş, SMS, işəgötürən paketləri, deploy (GitHub secrets).

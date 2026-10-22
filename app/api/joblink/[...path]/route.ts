@@ -78,7 +78,7 @@ import { SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/suppo
 import { APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, VACANCY_REASONS, WITHDRAWN_STATUS } from "@/lib/recruitment";
 import { COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval } from "@/lib/company";
 import { DOCUMENT_CHECK_PROMPT, VERIFICATION_LABELS, normalizeAiCheck, statusFromAi, type AiDocumentCheck } from "@/lib/verification";
-import { GRACE_MS, cleanAnswers, combinedScore, isExpired, parseSnapshot, publicQuestions, reviewState, sanitizeGrades, sanitizeQuestions, textQuestions, type Question } from "@/lib/assessments";
+import { GRACE_MS, shuffleQuestions, cleanAnswers, combinedScore, isExpired, parseSnapshot, publicQuestions, reviewState, sanitizeGrades, sanitizeQuestions, textQuestions, type Question } from "@/lib/assessments";
 export const dynamic = "force-dynamic";
 type Row = {
   id: string;
@@ -3165,7 +3165,7 @@ async function route(request: Request) {
       instructions,
       deadline,
       serverNow: new Date().toISOString(),
-      questions: publicQuestions(questions),
+      questions: shuffleQuestions(publicQuestions(questions), row.id),
       saved: row.status === "started" ? saved : {},
       hasAttachment: row.has_attachment === 1,
       attachmentType: row.attachment_type,
@@ -4664,13 +4664,23 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     const jobRows = await db
       .prepare("SELECT * FROM jobs WHERE owner=? ORDER BY created DESC")
       .bind(id)
-      .all<Row>();
+      .all<Row>()
+      .then((r) => {
+        // Roles that cannot publish see only the vacancies they created themselves.
+        if (can(memberRole, "publish")) return r;
+        return { ...r, results: r.results.filter((j) => (JSON.parse(j.data) as { createdBy?: string }).createdBy === userId) };
+      });
     const appRows = await db
       .prepare(
         "SELECT a.* FROM applications a JOIN jobs j ON a.job_id=j.id WHERE j.owner=? ORDER BY a.created DESC",
       )
       .bind(id)
-      .all<Row>();
+      .all<Row>()
+      .then((r) => {
+        if (can(memberRole, "publish")) return r;
+        const own = new Set(jobRows.results.map((j) => String(j.id)));
+        return { ...r, results: r.results.filter((a) => own.has(String(a.job_id))) };
+      });
     const active = await db
       .prepare(
         `SELECT p.user_id,p.data FROM profiles p LEFT JOIN accounts a ON a.id=p.user_id

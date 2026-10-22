@@ -1,4 +1,5 @@
 // Employer tests: snapshots, answers, manual review and expiry.
+import { shuffleQuestions, parseQuestionCsv } from "../lib/assessments.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -69,4 +70,20 @@ test("a test is closed one minute after its deadline", () => {
   assert.equal(isExpired(deadline, Date.parse("2026-11-10T12:00:59Z")), false);
   assert.equal(isExpired(deadline, Date.parse("2026-11-10T12:01:01Z")), true);
   assert.equal(isExpired("", Date.now()), false);
+});
+
+test("shuffle is stable per seed and keeps every question", () => {
+  const qs = Array.from({ length: 12 }, (_, i) => ({ id: `q${i}` }));
+  const a = shuffleQuestions(qs, "x");
+  assert.deepEqual(a, shuffleQuestions(qs, "x"));
+  assert.equal(a.length, 12);
+  assert.notDeepEqual(a, shuffleQuestions(qs, "y"));
+});
+test("csv import builds valid questions and skips broken rows", () => {
+  const qs = parseQuestionCsv("tip;sual;variantlar;düzgün;bal\nsingle;2+2?;3|4|5;2;2\nmultiple;Cütlər;2|3|4;1|3\ntext;Izah et;;;5\nsingle;Pis;yalniz\n");
+  assert.equal(qs.length, 3);
+  assert.deepEqual(qs[0].correct, [1]);
+  assert.deepEqual(qs[1].correct, [0, 2]);
+  assert.equal(qs[2].type, "text");
+  assert.equal(qs[2].points, 5);
 });

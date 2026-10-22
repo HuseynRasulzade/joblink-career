@@ -123,3 +123,30 @@ export function combinedScore(questions: Question[], answers: Record<string, unk
 }
 export const GRACE_MS = 60_000;
 export const isExpired = (deadlineAt: string, now = Date.now()) => !!deadlineAt && now > Date.parse(deadlineAt) + GRACE_MS;
+
+// Each candidate gets the questions in a different, but stable, order (seeded by the
+// assignment), which makes copying answers between candidates harder.
+export function shuffleQuestions<T extends { id: string }>(questions: T[], seed: string): T[] {
+  const hash = (text: string) => {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619) >>> 0;
+    return h;
+  };
+  return [...questions].sort((a, b) => hash(seed + a.id) - hash(seed + b.id));
+}
+
+// CSV import: type;text;option1|option2;correct (1-based, several separated by |);points
+export function parseQuestionCsv(input: string): Question[] {
+  const out: Question[] = [];
+  for (const line of input.split(/\r?\n/)) {
+    const cells = line.split(";").map((c) => c.trim());
+    if (cells.length < 2 || !cells[1] || /^(type|tip)$/i.test(cells[0])) continue;
+    const kind = cells[0].toLowerCase();
+    const type: QuestionType = kind.startsWith("m") ? "multiple" : kind.startsWith("t") || kind.startsWith("a") ? "text" : "single";
+    const options = type === "text" ? [] : (cells[2] || "").split("|").map((o) => o.trim()).filter(Boolean);
+    const correct = type === "text" ? [] : (cells[3] || "1").split("|").map((n) => Number(n) - 1).filter((n) => Number.isInteger(n) && n >= 0 && n < options.length);
+    if (type !== "text" && (options.length < 2 || !correct.length)) continue;
+    out.push({ id: crypto.randomUUID().slice(0, 8), type, text: cells[1], options, correct: type === "single" ? correct.slice(0, 1) : correct, points: Math.max(1, Math.min(20, Number(cells[4]) || 1)) });
+  }
+  return out.slice(0, 60);
+}

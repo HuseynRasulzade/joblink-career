@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { ClipboardCheck, FileText, History, Plus, Trash2, X } from "lucide-react";
 import type { Application, Job } from "@/lib/model";
-import type { Question, QuestionType } from "@/lib/assessments";
+import { parseQuestionCsv, type Question, type QuestionType } from "@/lib/assessments";
 import { Field, Modal } from "./components";
 import { formatDate } from "@/lib/dates";
 import { siteLanguage } from "./i18n";
@@ -272,6 +272,26 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
               </article>
             ))}
             <button type="button" className="secondary" onClick={() => setDraft({ ...draft, questions: [...draft.questions, blankQuestion()] })}><Plus size={14} /> Sual əlavə et</button>
+            <div className="field">
+              <span>Sualları CSV ilə yüklə</span>
+              <input
+                type="file"
+                accept=".csv,text/csv,text/plain"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  const imported = parseQuestionCsv(await file.text());
+                  if (!imported.length) {
+                    notify("Faylda düzgün sual tapılmadı.");
+                    return;
+                  }
+                  setDraft((d) => (d ? { ...d, questions: [...d.questions.filter((q) => q.text.trim()), ...imported].slice(0, 60) } : d));
+                  notify(`${imported.length} sual əlavə edildi.`);
+                }}
+              />
+              <small className="skill-picker-help">Format (nöqtəli vergül): tip;sual;variant1|variant2;düzgün nömrə (1-dən, bir neçəsi | ilə);bal. Tip: single, multiple və ya text.</small>
+            </div>
             {draft.id && (
               <Field label="Dəyişikliyin səbəbi (məcburi, tarixçədə saxlanılır)">
                 <input value={draft.reason} placeholder="Məsələn: 3-cü sualın cavab variantı düzəldildi" onChange={(e) => setDraft({ ...draft, reason: e.target.value })} />
