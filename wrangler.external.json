@@ -1,0 +1,24 @@
+{
+  "name": "joblink-career",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "vars": {
+    "EXTERNAL_AUTH": "password",
+    "CV_STORAGE": "profile_text",
+    "AI_PROVIDER": "openai",
+    "ADMIN_EMAIL": "ec.alizade99@gmail.com"
+  },
+  "ai": { "binding": "AI" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "joblink-career-db",
+      "database_id": "741f8c7b-2c05-44fb-abcb-99cddc5b29e6",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "observability": { "enabled": false }
+}
