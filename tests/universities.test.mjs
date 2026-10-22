@@ -72,6 +72,6 @@ test("the wider world list is searchable and does not repeat the curated list", 
   assert.ok(searchWorldUniversities(list, "sabanci").length >= 0);
   const hit = list.find(([name]) => /university/i.test(name));
   assert.ok(worldUniversityKnown(list, hit[0]));
-  assert.ok(searchWorldUniversities(list, hit[0].slice(0, 10)).some(([name]) => name === hit[0]));
+  assert.equal(searchWorldUniversities(list, hit[0])[0][0], hit[0]);
   assert.deepEqual(searchWorldUniversities(list, "x"), []);
 });
