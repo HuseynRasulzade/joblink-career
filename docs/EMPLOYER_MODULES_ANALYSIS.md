@@ -106,3 +106,52 @@ Proqramı lokal işə salıb işəgötürən axınını API ilə keçdim (şirk�
 - **İşə qəbul və təklif:** cavab gözləyən təklif varsa işə qəbul bloklanır, rədd gözləyən təklifi geri çəkir.
 - **Vakansiya layihəsi:** vəzifənin dərəcəsi saxlanılır, süni intellekt işləməyəndə şablona qayıdır.
 - **Maaş kalkulyatoru** Vergilər Nazirliyinin 2026 cədvəlinə görə yeniləndi.
+
+## 7. Testlər, hesabatlar, mesajlar və təsdiqlər: ətraflı analiz (2026-10-23)
+
+Kodu oxudum və lokal serverdə rekruter (icazəsiz), şöbə rəhbəri, HR/hesab sahibi və namizəd hesabları ilə real axınlardan keçdim. Faizlər tələblər siyahınıza görə təxmini hazırlıqdır.
+
+### Testlər: ~55%
+**İşləyir:** test yaratma (tək seçim, çox seçim, açıq cavab), sənəd əlavəsi (PDF və şəkil), namizədə göndərmə, serverdə taymer, kamera, mikrofon və tam ekran tələbi, pozuntu qeydi, dəyişikliyin səbəbi ilə tarixçəsi, göndərilmiş testin silinməməsi, nəticə cədvəli, gecikmə işarəsi.
+
+**Yoxlamada tapılan çatışmazlıqlar:**
+1. **İcazə və şəxs.** İcazəsi olmayan rekruter testləri siyahılaya, açıb dəyişə, gizli test sənədini endirə və namizədə göndərə bildi. Tarixçədə "kim baxdı və kim dəyişdi" yerinə şirkət adı yazılır, konkret şəxs görünmür. Tələb: faylı yalnız icazə verilmiş şəxs görsün və hər baxış və dəyişiklik şəxslə qeyd olunsun.
+2. **Test başlayandan sonra dəyişdirilə bilir.** Namizəd başlayandan sonra cavab açarı dəyişdirildi, düzgün cavab verən namizəd 0/2 aldı, çünki bal sonradan dəyişən testlə hesablanır (test nüsxəsi saxlanmır).
+3. **Açıq cavablar qiymətləndirilə bilmir.** Cavabı görmək olur, bal vermək üçün yer yoxdur. Yekun bal yalnız seçim suallarından çıxır.
+4. **Vaxtı keçən test bağlanmır.** Namizəd 8 saat gec təhvil verdi, qəbul olundu ("gecikmə ilə" işarəsi ilə) və tam bal aldı. Heç vaxt təhvil verməyən test həmişə "Davam edir" qalır.
+5. **Formatlar.** Yalnız PDF, PNG, JPG, WEBP. Word və Excel yoxdur. Sualları fayldan idxal etmək olmur.
+6. **Nəzarət yalnız brauzer tərəfindədir.** Pozuntular namizədin brauzerindən gəlir. Kameranın həqiqətən açıq olduğu serverdə yoxlanmır, şəkil və ya yazı saxlanmır. Ekran şəklinin qarşısını brauzerdə almaq mümkün deyil.
+7. Suallar və variantlar qarışdırılmır, təkrar cəhd və vaxt uzatma yoxdur, nəticə vakansiya statusuna bağlı deyil.
+
+### Hesabatlar: ~60%
+**İşləyir:** dashboard (qıf, günlük qrafik, vakansiya üzrə cədvəl), 8 XLSX hesabatı, hesabatlar auditə yazılır, başlıq, filtr və dondurulmuş sətir, mətn xanaları formula kimi oxunmur.
+**Çatışmır:**
+1. Dashboard və hesabatlarda dövr, vakansiya və şöbə filtri yoxdur (`from`/`to` parametrləri qəbul olunmur).
+2. Şöbə rəhbəri bütün şirkətin müraciətlərini (namizədin e-poçtu və telefonu ilə) və bütün işçi siyahısını ixrac edə bilir, öz şöbəsi ilə məhdudlaşmır.
+3. Tarixlər mətn kimi yazılır, planlı hesabat və dövrlər arası müqayisə yoxdur.
+4. Test nəticələri və mesaj cavab vaxtı hesabatlara daxil deyil.
+
+### Mesajlar: ~65%
+**İşləyir:** namizəd və şirkət yazışması, vakansiya üzrə söhbət, cavab (sitat), oxunma işarəsi, axtarış, səhifələmə, blok yoxlaması, yalnız müraciət edənə və ya təkliflərə açıq namizədə yazmaq.
+**Çatışmır:**
+1. Yeni mesaj üçün bildiriş və e-poçt yoxdur, qarşı tərəf yalnız bölməni açanda sayğacı görür (namizədə bildiriş sayı 6 qaldı).
+2. Komanda üzvü göstərilmir: rekruterin mesajı namizədə "şirkət" kimi görünür, şirkət daxilində də kimin yazdığı bilinmir.
+3. Spam qoruması yoxdur: ardıcıl 30 mesaj qəbul olundu.
+4. Fayl əlavəsi, şablon cavab, söhbəti arxivə atma və təyin etmə yoxdur.
+
+### Təsdiqlər: ~75%
+**İşləyir:** iki mərhələ (HR, sonra direktor), hesab sahibi hər ikisini edə bilir, rədd üçün səbəb məcburidir, öz göndərdiyini təsdiqləmək olmaz, rola görə icazə, auditə yazılır, təsdiqdən sonra izləyənlərə bildiriş.
+**Çatışmır:**
+1. **Təsdiq verənə vakansiyanın məzmunu göstərilmir.** Kartda yalnız ad, şəhər və səbəb var. Maaş aralığı, təsvir, tələblər və bacarıqlar görünmədən təsdiqləmək olur.
+2. Rədd edilmiş elan düzəldilib yenidən göndərilə bilmir, yeni elan yaratmaq lazımdır.
+3. Göndərənə fərdi bildiriş getmir: bildirişlər şirkətin ortaq qutusuna düşür və komanda üzvü öz adına bildiriş ala bilmir.
+4. Rədd edilmiş layihə üçün "Yayımla" yenidən basılanda cavab köhnə "təsdiq gözləyir" statusunu göstərir (real status "rədd edilib").
+5. Xatırlatma, gecikmə həddi və səlahiyyət verilməsi yoxdur. Təsdiq yalnız vakansiyalar üçündür, təklif və maaş dəyişikliyi üçün yoxdur.
+
+### Ən vacib düzəlişlər (sıra ilə)
+1. Test icazəsi və şəxsin qeydi, test sənədinə baxışı məhdudlaşdırmaq.
+2. Test nüsxəsini namizədə göndərilən anda saxlamaq, başlamış testi dəyişməyə qadağa.
+3. Açıq cavabları qiymətləndirmək, vaxtı bitən testi avtomatik bağlamaq, həddi keçən gec təhvili rədd etmək.
+4. Təsdiq kartında vakansiyanın tam məzmunu və rədd edilmişi redaktə edib yenidən göndərmək.
+5. Mesaj bildirişi, komanda üzvünün adı, spam həddi.
+6. Hesabatlarda dövr və vakansiya filtri, şöbə rəhbəri üçün şöbə ilə məhdudlaşdırma.
