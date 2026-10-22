@@ -58,3 +58,68 @@ export function scoreAnswers(questions: Question[], answers: Record<string, unkn
   }
   return { score, max };
 }
+
+// ---- Snapshot, answers and manual review ----
+// A test is copied into the assignment when it is sent, so editing the test
+// afterwards never changes what a candidate sees or how it is scored.
+export type TestSnapshot = { title: string; instructions: string; durationMin: number; passingScore: number; questions: Question[] };
+
+export function parseSnapshot(raw: string): TestSnapshot | null {
+  try {
+    const value = JSON.parse(raw) as TestSnapshot;
+    return value && Array.isArray(value.questions) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+// Answers as stored: only known question ids, in the shape each question expects.
+export function cleanAnswers(questions: Question[], raw: unknown): Record<string, unknown> {
+  const answers = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const clean: Record<string, unknown> = {};
+  for (const q of questions) {
+    const value = answers[q.id];
+    clean[q.id] =
+      q.type === "text"
+        ? clean_text(value)
+        : q.type === "multiple"
+          ? Array.isArray(value) ? value.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < q.options.length) : []
+          : Number.isInteger(Number(value)) && value !== "" && value !== null && value !== undefined ? Number(value) : -1;
+  }
+  return clean;
+}
+const clean_text = (value: unknown) => (typeof value === "string" ? value.trim().slice(0, 4000) : "");
+
+export const textQuestions = (questions: Question[]) => questions.filter((q) => q.type === "text");
+
+// Points an employer may give to each open question, within the question's own maximum.
+export function sanitizeGrades(questions: Question[], grades: unknown): Record<string, number> {
+  const given = grades && typeof grades === "object" ? (grades as Record<string, unknown>) : {};
+  const out: Record<string, number> = {};
+  for (const q of textQuestions(questions)) {
+    if (given[q.id] === undefined || given[q.id] === null || given[q.id] === "") continue;
+    const n = Math.round(Number(given[q.id]));
+    if (Number.isFinite(n)) out[q.id] = Math.max(0, Math.min(q.points, n));
+  }
+  return out;
+}
+// "" when there are no open questions, "pending" until every one is graded, then "done".
+export function reviewState(questions: Question[], manual: Record<string, number>) {
+  const open = textQuestions(questions);
+  if (!open.length) return "";
+  return open.every((q) => typeof manual[q.id] === "number") ? "done" : "pending";
+}
+// The recorded score: choice questions at once, open questions once all are graded.
+export function combinedScore(questions: Question[], answers: Record<string, unknown>, manual: Record<string, number>) {
+  const auto = scoreAnswers(questions, answers);
+  const state = reviewState(questions, manual);
+  if (state !== "done") return { ...auto, state };
+  const text = textQuestions(questions);
+  return {
+    score: auto.score + text.reduce((sum, q) => sum + (manual[q.id] || 0), 0),
+    max: auto.max + text.reduce((sum, q) => sum + q.points, 0),
+    state,
+  };
+}
+export const GRACE_MS = 60_000;
+export const isExpired = (deadlineAt: string, now = Date.now()) => !!deadlineAt && now > Date.parse(deadlineAt) + GRACE_MS;

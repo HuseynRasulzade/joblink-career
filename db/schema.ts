@@ -338,6 +338,8 @@ export const messages = sqliteTable(
     senderRole: text("sender_role").notNull(),
     body: text("body").notNull(),
     replyTo: text("reply_to").notNull().default(""),
+    // The person who wrote it; senderId is the company for company messages.
+    authorId: text("author_id").notNull().default(""),
     created: text("created").notNull(),
   },
   (t) => [index("messages_thread").on(t.threadId, t.created)],
@@ -459,6 +461,13 @@ export const assessmentAssignments = sqliteTable(
     maxScore: integer("max_score").notNull().default(0),
     violations: text("violations").notNull().default("[]"),
     late: integer("late").notNull().default(0),
+    // Copy of the test at the moment it was sent, so later edits cannot change it.
+    snapshot: text("snapshot").notNull().default(""),
+    manualScores: text("manual_scores").notNull().default("{}"),
+    reviewStatus: text("review_status").notNull().default(""),
+    reviewedBy: text("reviewed_by").notNull().default(""),
+    reviewedAt: text("reviewed_at").notNull().default(""),
+    autosavedAt: text("autosaved_at").notNull().default(""),
   },
   (t) => [
     index("assessment_assignments_candidate").on(t.candidateId, t.assignedAt),
@@ -475,6 +484,8 @@ export const companyMembers = sqliteTable(
     role: text("role").notNull(),
     department: text("department").notNull().default(""),
     status: text("status").notNull().default("invited"),
+    // Extra permissions granted to this person on top of the role (JSON array).
+    grants: text("grants").notNull().default("[]"),
     invitedBy: text("invited_by").notNull(),
     created: text("created").notNull(),
     updated: text("updated").notNull(),

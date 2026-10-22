@@ -19,20 +19,28 @@ export type CompanyPermission =
   | "billing" // invoices and payments
   | "company-profile" // company details and verification
   | "offers" // send job offers
-  | "reports"; // dashboard reports and XLSX
+  | "reports" // dashboard reports and XLSX
+  | "tests"; // employer tests: create, send, results and the exam file
 
 const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
-  owner: ["team", "publish", "approve-hr", "approve-director", "salaries", "billing", "company-profile", "offers", "reports"],
-  director: ["team", "publish", "approve-director", "salaries", "billing", "company-profile", "offers", "reports"],
-  hr: ["publish", "approve-hr", "salaries", "billing", "company-profile", "offers", "reports"],
+  owner: ["team", "publish", "approve-hr", "approve-director", "salaries", "billing", "company-profile", "offers", "reports", "tests"],
+  director: ["team", "publish", "approve-director", "salaries", "billing", "company-profile", "offers", "reports", "tests"],
+  hr: ["publish", "approve-hr", "salaries", "billing", "company-profile", "offers", "reports", "tests"],
   manager: ["reports"],
   recruiter: [],
 };
-export function can(role: string, permission: CompanyPermission) {
-  return (PERMISSIONS[role as CompanyRole] || []).includes(permission);
+// Permissions the account owner may give to one person beyond their role.
+export const GRANTABLE: { id: CompanyPermission; label: string }[] = [
+  { id: "tests", label: "Testlərə giriş (yaratmaq, göndərmək, nəticələr, test faylı)" },
+  { id: "reports", label: "Hesabatların ixracı" },
+];
+export const normalizeGrants = (value: unknown): CompanyPermission[] =>
+  [...new Set((Array.isArray(value) ? value : []).map(String))].filter((g): g is CompanyPermission => GRANTABLE.some((x) => x.id === g));
+export function can(role: string, permission: CompanyPermission, grants: readonly string[] = []) {
+  return (PERMISSIONS[role as CompanyRole] || []).includes(permission) || (grants.includes(permission) && GRANTABLE.some((g) => g.id === permission));
 }
-export function permissionsOf(role: string): CompanyPermission[] {
-  return PERMISSIONS[role as CompanyRole] || [];
+export function permissionsOf(role: string, grants: readonly string[] = []): CompanyPermission[] {
+  return [...new Set([...(PERMISSIONS[role as CompanyRole] || []), ...normalizeGrants(grants)])];
 }
 
 // Approval chain for vacancies created by roles without "publish".

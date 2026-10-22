@@ -76,9 +76,9 @@ import {
 } from "@/lib/job-title-catalog";
 import { SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
 import { APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, VACANCY_REASONS, WITHDRAWN_STATUS } from "@/lib/recruitment";
-import { COMPANY_ROLES, INVITABLE_ROLES, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval } from "@/lib/company";
+import { COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval } from "@/lib/company";
 import { DOCUMENT_CHECK_PROMPT, VERIFICATION_LABELS, normalizeAiCheck, statusFromAi, type AiDocumentCheck } from "@/lib/verification";
-import { publicQuestions, sanitizeQuestions, scoreAnswers, type Question } from "@/lib/assessments";
+import { GRACE_MS, cleanAnswers, combinedScore, isExpired, parseSnapshot, publicQuestions, reviewState, sanitizeGrades, sanitizeQuestions, textQuestions, type Question } from "@/lib/assessments";
 export const dynamic = "force-dynamic";
 type Row = {
   id: string;
@@ -244,6 +244,37 @@ async function notifyCompanyRoles(db: D1Database, companyId: string, permission:
   await notify(db, { userId: companyId, ...input });
   for (const user of (await companyUsersWith(db, companyId, permission)).slice(1))
     await sendUserEmail(db, user, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`);
+}
+// A test that was started but not handed in by its deadline (plus one minute) is
+// closed with the answers saved so far, instead of staying "in progress" forever.
+async function closeExpiredAssignments(db: D1Database, where: { companyId?: string; candidateId?: string; assignmentId?: string }) {
+  const filters = [where.companyId ? "s.company_id=?" : "", where.candidateId ? "s.candidate_id=?" : "", where.assignmentId ? "s.id=?" : ""].filter(Boolean);
+  const rows = await db
+    .prepare(`SELECT s.id,s.application_id,s.company_id,s.deadline_at,s.answers,s.snapshot,t.questions,t.title FROM assessment_assignments s
+      JOIN assessments t ON t.id=s.assessment_id
+      WHERE s.status='started' AND s.deadline_at<>'' AND s.deadline_at<? ${filters.map((f) => `AND ${f}`).join(" ")} LIMIT 100`)
+    .bind(new Date(Date.now() - GRACE_MS).toISOString(), ...[where.companyId, where.candidateId, where.assignmentId].filter((v): v is string => !!v))
+    .all<{ id: string; application_id: string; company_id: string; deadline_at: string; answers: string; snapshot: string; questions: string; title: string }>()
+    .catch(() => ({ results: [] as { id: string; application_id: string; company_id: string; deadline_at: string; answers: string; snapshot: string; questions: string; title: string }[] }));
+  for (const row of rows.results) {
+    const snapshot = parseSnapshot(row.snapshot);
+    const questions = snapshot?.questions || (JSON.parse(row.questions) as Question[]);
+    let saved: unknown = {};
+    try {
+      saved = JSON.parse(row.answers);
+    } catch {
+      saved = {};
+    }
+    const answers = cleanAnswers(questions, saved);
+    const result = combinedScore(questions, answers, {});
+    const updated = await db
+      .prepare("UPDATE assessment_assignments SET status='expired',submitted_at=?,answers=?,score=?,max_score=?,review_status=? WHERE id=? AND status='started'")
+      .bind(row.deadline_at, JSON.stringify(answers), result.score, result.max, result.state, row.id)
+      .run();
+    if (!updated.meta.changes) continue;
+    await recordApplicationEvent(db, { applicationId: row.application_id, actorId: row.company_id, actorRole: "company", type: "test", to: `${row.title}: vaxt bitdi` });
+    await notify(db, { userId: row.company_id, type: "test", title: `Testin vaxtı bitdi: ${row.title}`, body: result.max ? `Son yadda saxlanmış cavablarla avtomatik bal: ${result.score}/${result.max}` : "", link: "hr-tests" });
+  }
 }
 // A hired candidate joins the company's current employees list.
 async function addHiredEmployee(db: D1Database, applicationId: string) {
@@ -992,6 +1023,7 @@ async function route(request: Request) {
         )?.role || "candidate"
       : "candidate";
   let memberRole = "";
+  let memberGrants: string[] = [];
   if (accountRole === "company") {
     const membership = await db
       .prepare("SELECT m.company_id,m.role FROM company_members m JOIN accounts c ON c.id=m.company_id WHERE m.user_id=? AND m.status='active'")
@@ -1001,10 +1033,21 @@ async function route(request: Request) {
     if (membership) {
       id = membership.company_id;
       memberRole = membership.role;
+      // Extra permissions the owner gave to this person (column added by migration 0025).
+      const granted = await db
+        .prepare("SELECT grants FROM company_members WHERE user_id=? AND company_id=? AND status='active'")
+        .bind(userId, membership.company_id)
+        .first<{ grants: string }>()
+        .catch(() => null);
+      try {
+        memberGrants = normalizeGrants(JSON.parse(granted?.grants || "[]"));
+      } catch {
+        memberGrants = [];
+      }
     } else memberRole = "owner";
   }
   const requirePermission = (permission: CompanyPermission, message = "Bu əməliyyat üçün rolunuzun icazəsi yoxdur.") => {
-    if (accountRole !== "company" || !can(memberRole, permission)) throw new HttpError(403, message);
+    if (accountRole !== "company" || !can(memberRole, permission, memberGrants)) throw new HttpError(403, message);
   };
   // Package limits apply only when BILLING_ENFORCED=1; until then everyone has full access.
   const billingEnforced = runtime().BILLING_ENFORCED === "1";
@@ -2206,6 +2249,7 @@ async function route(request: Request) {
     "offers/respond",
     "exams",
     "exams/start",
+    "exams/save",
     "exams/file",
     "exams/violation",
     "exams/submit",
@@ -2254,7 +2298,7 @@ async function route(request: Request) {
       company,
       role: memberRole,
       roleLabel: roleLabel(memberRole),
-      permissions: permissionsOf(memberRole),
+      permissions: permissionsOf(memberRole, memberGrants),
       member: userId !== id,
       verification: profileRow?.verification_status || "none",
       awaitingApproval: awaiting,
@@ -2662,7 +2706,7 @@ async function route(request: Request) {
         hired: byStatus["İşə qəbul edildi"] || 0,
         employees: Number(employees?.n) || 0,
         offerAcceptance: sentOffers.length ? Math.round((sentOffers.filter((o) => o.status === "accepted").length / sentOffers.length) * 100) : null,
-        testsSubmitted: tests.results.filter((t) => t.status === "submitted").length,
+        testsSubmitted: tests.results.filter((t) => t.status === "submitted" || t.status === "expired").length,
         testsAssigned: tests.results.length,
         avgDaysToHire,
       },
@@ -2962,43 +3006,79 @@ async function route(request: Request) {
     });
   }
   if (request.method === "GET" && path === "exams") {
+    await closeExpiredAssignments(db, { candidateId: id });
     const rows = await db
-      .prepare(`SELECT s.id,s.application_id,s.status,s.assigned_at,s.started_at,s.deadline_at,s.submitted_at,s.score,s.max_score,
+      .prepare(`SELECT s.id,s.application_id,s.status,s.assigned_at,s.started_at,s.deadline_at,s.submitted_at,s.score,s.max_score,s.review_status,s.snapshot,
           t.title,t.duration_min,t.instructions,COALESCE(c.name,'') AS company
         FROM assessment_assignments s JOIN assessments t ON t.id=s.assessment_id LEFT JOIN accounts c ON c.id=s.company_id
-        WHERE s.candidate_id=? ORDER BY s.assigned_at DESC`)
+        WHERE s.candidate_id=? AND s.status<>'cancelled' ORDER BY s.assigned_at DESC`)
       .bind(id)
-      .all();
-    return ok({ exams: rows.results });
+      .all<Record<string, unknown> & { snapshot: string }>();
+    return ok({
+      exams: rows.results.map(({ snapshot, ...row }) => {
+        const copy = parseSnapshot(snapshot);
+        return copy ? { ...row, title: copy.title, instructions: copy.instructions, duration_min: copy.durationMin } : row;
+      }),
+    });
   }
   if (request.method === "POST" && path === "exams/start") {
     const b = await jsonBody(request);
+    await closeExpiredAssignments(db, { candidateId: id, assignmentId: str(b.id, 100) });
     const row = await db
-      .prepare(`SELECT s.id,s.status,s.started_at,s.deadline_at,t.title,t.instructions,t.duration_min,t.questions,
+      .prepare(`SELECT s.id,s.status,s.started_at,s.deadline_at,s.answers,s.snapshot,t.title,t.instructions,t.duration_min,t.questions,
           CASE WHEN t.attachment_data<>'' THEN 1 ELSE 0 END AS has_attachment, t.attachment_type
         FROM assessment_assignments s JOIN assessments t ON t.id=s.assessment_id WHERE s.id=? AND s.candidate_id=?`)
       .bind(str(b.id, 100), id)
-      .first<{ id: string; status: string; started_at: string; deadline_at: string; title: string; instructions: string; duration_min: number; questions: string; has_attachment: number; attachment_type: string }>();
-    if (!row) throw new HttpError(404, "Test tapılmadı.");
+      .first<{ id: string; status: string; started_at: string; deadline_at: string; answers: string; snapshot: string; title: string; instructions: string; duration_min: number; questions: string; has_attachment: number; attachment_type: string }>();
+    if (!row || row.status === "cancelled") throw new HttpError(404, "Test tapılmadı.");
     if (row.status === "submitted") throw new HttpError(409, "Bu test artıq təhvil verilib.");
+    if (row.status === "expired") throw new HttpError(409, "Testin vaxtı bitib.");
+    // The employer's copy taken at send time is what the candidate sees.
+    const copy = parseSnapshot(row.snapshot);
+    const title = copy?.title ?? row.title;
+    const instructions = copy?.instructions ?? row.instructions;
+    const durationMin = copy?.durationMin ?? row.duration_min;
+    const questions = copy?.questions ?? (JSON.parse(row.questions) as Question[]);
     let deadline = row.deadline_at;
     if (row.status === "assigned") {
       // The timer runs on the server from the first start.
       const now = new Date();
-      deadline = new Date(now.getTime() + row.duration_min * 60000).toISOString();
+      deadline = new Date(now.getTime() + durationMin * 60000).toISOString();
       await db.prepare("UPDATE assessment_assignments SET status='started',started_at=?,deadline_at=? WHERE id=?").bind(now.toISOString(), deadline, row.id).run();
-    } else if (deadline && Date.now() > Date.parse(deadline) + 60000) {
+    } else if (isExpired(deadline)) {
       throw new HttpError(409, "Testin vaxtı bitib.");
     }
+    let saved: unknown = {};
+    try {
+      saved = JSON.parse(row.answers);
+    } catch {
+      saved = {};
+    }
     return ok({
-      title: row.title,
-      instructions: row.instructions,
+      title,
+      instructions,
       deadline,
       serverNow: new Date().toISOString(),
-      questions: publicQuestions(JSON.parse(row.questions) as Question[]),
+      questions: publicQuestions(questions),
+      saved: row.status === "started" ? saved : {},
       hasAttachment: row.has_attachment === 1,
       attachmentType: row.attachment_type,
     });
+  }
+  if (request.method === "POST" && path === "exams/save") {
+    // Autosave: keeps the answers so a crash or a closed tab does not lose them.
+    const b = await jsonBody(request);
+    const row = await db
+      .prepare(`SELECT s.id,s.status,s.deadline_at,s.snapshot,t.questions FROM assessment_assignments s
+        JOIN assessments t ON t.id=s.assessment_id WHERE s.id=? AND s.candidate_id=?`)
+      .bind(str(b.id, 100), id)
+      .first<{ id: string; status: string; deadline_at: string; snapshot: string; questions: string }>();
+    if (!row || row.status !== "started") throw new HttpError(409, "Test başlamayıb və ya artıq bağlanıb.");
+    if (isExpired(row.deadline_at)) throw new HttpError(409, "Testin vaxtı bitib.");
+    const questions = parseSnapshot(row.snapshot)?.questions ?? (JSON.parse(row.questions) as Question[]);
+    await db.prepare("UPDATE assessment_assignments SET answers=?,autosaved_at=? WHERE id=?")
+      .bind(JSON.stringify(cleanAnswers(questions, b.answers)), new Date().toISOString(), row.id).run();
+    return ok({ ok: true });
   }
   if (request.method === "GET" && path === "exams/file") {
     const row = await db
@@ -3007,7 +3087,7 @@ async function route(request: Request) {
       .bind(str(requestUrl.searchParams.get("id"), 100), id)
       .first<{ status: string; deadline_at: string; attachment_type: string; attachment_data: string }>();
     // The document is available only during the candidate's own test session.
-    if (!row?.attachment_data || row.status !== "started" || Date.now() > Date.parse(row.deadline_at) + 60000)
+    if (!row?.attachment_data || row.status !== "started" || isExpired(row.deadline_at))
       throw new HttpError(403, "Fayl yalnız test zamanı açıqdır.");
     return new Response(Uint8Array.from(atob(row.attachment_data), (c) => c.charCodeAt(0)), {
       headers: { "Content-Type": row.attachment_type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
@@ -3024,27 +3104,27 @@ async function route(request: Request) {
   }
   if (request.method === "POST" && path === "exams/submit") {
     const b = await jsonBody(request);
+    await closeExpiredAssignments(db, { candidateId: id, assignmentId: str(b.id, 100) });
     const row = await db
-      .prepare(`SELECT s.id,s.status,s.deadline_at,s.company_id,s.application_id,t.questions,t.title FROM assessment_assignments s
+      .prepare(`SELECT s.id,s.status,s.deadline_at,s.company_id,s.application_id,s.snapshot,t.questions,t.title FROM assessment_assignments s
         JOIN assessments t ON t.id=s.assessment_id WHERE s.id=? AND s.candidate_id=?`)
       .bind(str(b.id, 100), id)
-      .first<{ id: string; status: string; deadline_at: string; company_id: string; application_id: string; questions: string; title: string }>();
+      .first<{ id: string; status: string; deadline_at: string; company_id: string; application_id: string; snapshot: string; questions: string; title: string }>();
+    if (row?.status === "expired") throw new HttpError(409, "Testin vaxtı bitib. Son yadda saxlanmış cavablarınız qəbul edildi.");
     if (!row || row.status !== "started") throw new HttpError(409, "Test başlamayıb və ya artıq təhvil verilib.");
-    const questions = JSON.parse(row.questions) as Question[];
-    const answers = b.answers && typeof b.answers === "object" ? (b.answers as Record<string, unknown>) : {};
-    const clean: Record<string, unknown> = {};
-    for (const q of questions)
-      clean[q.id] = q.type === "text" ? str(answers[q.id], 4000) : q.type === "multiple"
-        ? (Array.isArray(answers[q.id]) ? (answers[q.id] as unknown[]).map(Number).filter((n) => Number.isInteger(n)) : [])
-        : Number(answers[q.id]);
-    const { score, max } = scoreAnswers(questions, clean);
+    // Past the deadline (plus the grace period) the final answers are refused.
+    if (isExpired(row.deadline_at)) throw new HttpError(409, "Testin vaxtı bitib.");
+    const copy = parseSnapshot(row.snapshot);
+    const questions = copy?.questions ?? (JSON.parse(row.questions) as Question[]);
+    const clean = cleanAnswers(questions, b.answers);
+    const { score, max, state } = combinedScore(questions, clean, {});
     const now = new Date().toISOString();
-    const late = Date.now() > Date.parse(row.deadline_at) + 60000 ? 1 : 0;
-    await db.prepare("UPDATE assessment_assignments SET status='submitted',submitted_at=?,answers=?,score=?,max_score=?,late=? WHERE id=?")
-      .bind(now, JSON.stringify(clean), score, max, late, row.id).run();
-    await recordApplicationEvent(db, { applicationId: row.application_id, actorId: id, actorRole: "candidate", type: "test", to: `${row.title}: təhvil verildi` });
-    await notify(db, { userId: row.company_id, type: "test", title: `Test təhvil verildi: ${row.title}`, body: max ? `Avtomatik bal: ${score}/${max}` : "", link: "hr-tests" });
-    return ok({ ok: true, late: late === 1 });
+    await db.prepare("UPDATE assessment_assignments SET status='submitted',submitted_at=?,answers=?,score=?,max_score=?,review_status=?,late=0 WHERE id=? AND status='started'")
+      .bind(now, JSON.stringify(clean), score, max, state, row.id).run();
+    const title = copy?.title ?? row.title;
+    await recordApplicationEvent(db, { applicationId: row.application_id, actorId: id, actorRole: "candidate", type: "test", to: `${title}: təhvil verildi` });
+    await notify(db, { userId: row.company_id, type: "test", title: `Test təhvil verildi: ${title}`, body: max ? `Avtomatik bal: ${score}/${max}${state === "pending" ? " (açıq suallar yoxlanmalıdır)" : ""}` : "", link: "hr-tests" });
+    return ok({ ok: true, late: false });
   }
   // ---- Packages: plans, payment methods, subscription and agreement ----
   if (request.method === "GET" && path === "plan/me") {
@@ -4803,25 +4883,30 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     await notify(db, { userId: offer.candidate_id, type: "offer", title: "İş təklifi geri götürüldü", link: "applications" });
     return ok({ ok: true });
   }
+  const testsDenied = "Testləri yalnız HR, direktor, hesab sahibi və ya bu icazə verilmiş şəxs idarə edə bilər.";
   if (request.method === "GET" && path === "hr/assessments") {
+    requirePermission("tests", testsDenied);
+    await closeExpiredAssignments(db, { companyId: id });
     const rows = await db
       .prepare(`SELECT a.id,a.job_id,a.title,a.duration_min,a.passing_score,a.updated,
           json_array_length(a.questions) AS question_count,
           CASE WHEN a.attachment_data<>'' THEN 1 ELSE 0 END AS has_attachment,
           COALESCE(json_extract(j.data,'$.title'),'') AS job_title,
           (SELECT COUNT(*) FROM assessment_assignments s WHERE s.assessment_id=a.id) AS assigned,
-          (SELECT COUNT(*) FROM assessment_assignments s WHERE s.assessment_id=a.id AND s.status='submitted') AS submitted
+          (SELECT COUNT(*) FROM assessment_assignments s WHERE s.assessment_id=a.id AND s.status IN ('submitted','expired')) AS submitted
         FROM assessments a LEFT JOIN jobs j ON j.id=a.job_id WHERE a.company_id=? ORDER BY a.updated DESC`)
       .bind(id)
       .all();
     return ok({ assessments: rows.results });
   }
   if (request.method === "GET" && path === "hr/assessment") {
+    requirePermission("tests", testsDenied);
     const assessmentId = str(requestUrl.searchParams.get("id"), 100);
+    await closeExpiredAssignments(db, { companyId: id });
     const row = await db
       .prepare("SELECT id,job_id,title,instructions,duration_min,passing_score,questions,attachment_name,attachment_type,updated FROM assessments WHERE id=? AND company_id=?")
       .bind(assessmentId, id)
-      .first<Record<string, unknown> & { questions: string }>();
+      .first<Record<string, unknown> & { questions: string; passing_score: number }>();
     if (!row) throw new HttpError(404, "Test tapılmadı.");
     const revisions = await db
       .prepare(`SELECT r.action,r.reason,r.summary,r.created,COALESCE(a.name,'') AS actor_name FROM assessment_revisions r
@@ -4829,18 +4914,33 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .bind(assessmentId)
       .all();
     const assignments = await db
-      .prepare(`SELECT s.id,s.application_id,s.status,s.assigned_at,s.started_at,s.submitted_at,s.score,s.max_score,s.violations,s.answers,s.late,
+      .prepare(`SELECT s.id,s.application_id,s.status,s.assigned_at,s.started_at,s.deadline_at,s.submitted_at,s.score,s.max_score,s.violations,s.answers,s.late,
+          s.snapshot,s.manual_scores,s.review_status,s.reviewed_at,COALESCE(rv.name,'') AS reviewer_name,
           COALESCE(c.name,'') AS candidate_name FROM assessment_assignments s LEFT JOIN accounts c ON c.id=s.candidate_id
+          LEFT JOIN accounts rv ON rv.id=s.reviewed_by
         WHERE s.assessment_id=? ORDER BY s.assigned_at DESC`)
       .bind(assessmentId)
-      .all<Record<string, unknown> & { violations: string; answers: string }>();
+      .all<Record<string, unknown> & { violations: string; answers: string; snapshot: string; manual_scores: string }>();
+    const current = JSON.parse(row.questions) as Question[];
     return ok({
-      assessment: { ...row, questions: JSON.parse(row.questions) },
+      assessment: { ...row, questions: current },
       revisions: revisions.results,
-      assignments: assignments.results.map((a) => ({ ...a, violations: JSON.parse(a.violations), answers: JSON.parse(a.answers) })),
+      assignments: assignments.results.map(({ snapshot, manual_scores, ...a }) => {
+        const copy = parseSnapshot(snapshot);
+        return {
+          ...a,
+          violations: JSON.parse(a.violations),
+          answers: JSON.parse(a.answers),
+          manualScores: JSON.parse(manual_scores || "{}"),
+          // Answers are shown with the questions the candidate actually received.
+          questions: copy?.questions || current,
+          passingScore: copy?.passingScore ?? row.passing_score,
+        };
+      }),
     });
   }
   if (request.method === "POST" && path === "hr/assessments/save") {
+    requirePermission("tests", testsDenied);
     // Larger body than usual: the test may carry a document (up to ~1 MB).
     const raw = await request.text();
     if (raw.length > 1_600_000) throw new HttpError(413, "Fayl çox böyükdür (maksimum 1 MB).");
@@ -4879,6 +4979,11 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       // Every change keeps a reason in the test's history.
       const reason = str(b.reason, 500);
       if (reason.length < 5) throw new HttpError(400, "Dəyişikliyin səbəbini yazın (ən azı 5 simvol).");
+      // The document is read live during every exam, so it cannot change once the test was sent.
+      if (attachmentData || b.removeAttachment === true) {
+        const sent = await db.prepare("SELECT COUNT(*) AS n FROM assessment_assignments WHERE assessment_id=?").bind(existingId).first<{ n: number }>();
+        if ((sent?.n || 0) > 0) throw new HttpError(409, "Namizədlərə göndərilmiş testin faylını dəyişmək olmaz. Yeni test yaradın. Suallar, ad və müddət dəyişdirilə bilər, göndərilmiş testlər dəyişməz qalır.");
+      }
       const changes = [
         current.title !== title ? "ad" : "",
         current.questions !== JSON.stringify(questions) ? "suallar" : "",
@@ -4892,7 +4997,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           .bind(...[fields.title, fields.instructions, fields.duration, fields.passing, JSON.stringify(questions), jobId, now,
             ...(attachmentData ? [str(attachment?.name, 160), attachmentType, attachmentData] : []), existingId, id]),
         db.prepare("INSERT INTO assessment_revisions(id,assessment_id,actor_id,action,reason,summary,created) VALUES(?,?,?,?,?,?,?)")
-          .bind(crypto.randomUUID(), existingId, id, "updated", reason, changes.length ? `Dəyişdi: ${changes.join(", ")}` : "Dəyişiklik yoxdur", now),
+          .bind(crypto.randomUUID(), existingId, userId, "updated", reason, changes.length ? `Dəyişdi: ${changes.join(", ")}` : "Dəyişiklik yoxdur", now),
       ]);
       return ok({ ok: true, id: existingId });
     }
@@ -4901,13 +5006,14 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       db.prepare(`INSERT INTO assessments(id,company_id,job_id,title,instructions,duration_min,passing_score,questions,attachment_name,attachment_type,attachment_data,created_by,created,updated)
           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .bind(newId, id, jobId, fields.title, fields.instructions, fields.duration, fields.passing, JSON.stringify(questions),
-          attachmentData ? str(attachment?.name, 160) : "", attachmentData ? attachmentType : "", attachmentData, id, now, now),
+          attachmentData ? str(attachment?.name, 160) : "", attachmentData ? attachmentType : "", attachmentData, userId, now, now),
       db.prepare("INSERT INTO assessment_revisions(id,assessment_id,actor_id,action,reason,summary,created) VALUES(?,?,?,?,?,?,?)")
-        .bind(crypto.randomUUID(), newId, id, "created", str(b.reason, 500), `${questions.length} sual${attachmentData ? ", fayl" : ""}`, now),
+        .bind(crypto.randomUUID(), newId, userId, "created", str(b.reason, 500), `${questions.length} sual${attachmentData ? ", fayl" : ""}`, now),
     ]);
     return ok({ ok: true, id: newId }, 201);
   }
   if (request.method === "POST" && path === "hr/assessments/delete") {
+    requirePermission("tests", testsDenied);
     const b = await jsonBody(request);
     const assessmentId = str(b.id, 100);
     const used = await db.prepare("SELECT COUNT(*) AS count FROM assessment_assignments WHERE assessment_id=? AND company_id=?").bind(assessmentId, id).first<{ count: number }>();
@@ -4916,8 +5022,10 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "hr/assessments/assign") {
+    requirePermission("tests", testsDenied);
     const b = await jsonBody(request);
-    const assessment = await db.prepare("SELECT id,title,duration_min FROM assessments WHERE id=? AND company_id=?").bind(str(b.assessmentId, 100), id).first<{ id: string; title: string; duration_min: number }>();
+    const assessment = await db.prepare("SELECT id,title,instructions,duration_min,passing_score,questions FROM assessments WHERE id=? AND company_id=?").bind(str(b.assessmentId, 100), id)
+      .first<{ id: string; title: string; instructions: string; duration_min: number; passing_score: number; questions: string }>();
     const application = await db
       .prepare("SELECT a.id,a.candidate_id,a.status FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND j.owner=?")
       .bind(str(b.applicationId, 100), id)
@@ -4928,19 +5036,87 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .bind(assessment.id, application.id).first();
     if (open) throw new HttpError(409, "Bu test artıq namizədə göndərilib.");
     const now = new Date().toISOString();
-    await db.prepare("INSERT INTO assessment_assignments(id,assessment_id,application_id,candidate_id,company_id,status,assigned_at) VALUES(?,?,?,?,?,'assigned',?)")
-      .bind(crypto.randomUUID(), assessment.id, application.id, application.candidate_id, id, now).run();
+    // The candidate gets a copy: later edits of the test do not reach this attempt.
+    const snapshot = JSON.stringify({ title: assessment.title, instructions: assessment.instructions, durationMin: assessment.duration_min, passingScore: assessment.passing_score, questions: JSON.parse(assessment.questions) });
+    await db.prepare("INSERT INTO assessment_assignments(id,assessment_id,application_id,candidate_id,company_id,status,assigned_at,snapshot) VALUES(?,?,?,?,?,'assigned',?,?)")
+      .bind(crypto.randomUUID(), assessment.id, application.id, application.candidate_id, id, now, snapshot).run();
     await recordApplicationEvent(db, { applicationId: application.id, actorId: id, actorRole: "company", type: "test", to: assessment.title });
     await notify(db, { userId: application.candidate_id, type: "test", title: `Test: ${assessment.title}`, body: `${assessment.duration_min} dəqiqəlik test göndərildi. Platformada verə bilərsiniz.`, link: "applications" });
     return ok({ ok: true }, 201);
   }
+  // Scores the open questions by hand once the candidate has handed the test in.
+  if (request.method === "POST" && path === "hr/assessments/grade") {
+    requirePermission("tests", testsDenied);
+    const b = await jsonBody(request);
+    const row = await db
+      .prepare(`SELECT s.id,s.status,s.answers,s.snapshot,s.manual_scores,s.assessment_id,s.application_id,t.questions,t.title FROM assessment_assignments s
+        JOIN assessments t ON t.id=s.assessment_id WHERE s.id=? AND s.company_id=?`)
+      .bind(str(b.assignmentId, 100), id)
+      .first<{ id: string; status: string; answers: string; snapshot: string; manual_scores: string; assessment_id: string; application_id: string; questions: string; title: string }>();
+    if (!row) throw new HttpError(404, "Test nəticəsi tapılmadı.");
+    if (!["submitted", "expired"].includes(row.status)) throw new HttpError(409, "Qiymətləndirmə yalnız təhvil verilmiş və ya vaxtı bitmiş test üçündür.");
+    const questions = parseSnapshot(row.snapshot)?.questions || (JSON.parse(row.questions) as Question[]);
+    if (!textQuestions(questions).length) throw new HttpError(400, "Bu testdə açıq sual yoxdur.");
+    const manual = { ...(JSON.parse(row.manual_scores || "{}") as Record<string, number>), ...sanitizeGrades(questions, b.grades) };
+    const result = combinedScore(questions, JSON.parse(row.answers || "{}"), manual);
+    const now = new Date().toISOString();
+    await db.batch([
+      db.prepare("UPDATE assessment_assignments SET manual_scores=?,score=?,max_score=?,review_status=?,reviewed_by=?,reviewed_at=? WHERE id=?")
+        .bind(JSON.stringify(manual), result.score, result.max, result.state, userId, now, row.id),
+      db.prepare("INSERT INTO assessment_revisions(id,assessment_id,actor_id,action,reason,summary,created) VALUES(?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), row.assessment_id, userId, "graded", str(b.note, 500), `Açıq suallar: ${result.state === "done" ? `yekun bal ${result.score}/${result.max}` : "qismən yoxlanıb"}`, now),
+    ]);
+    await recordApplicationEvent(db, { applicationId: row.application_id, actorId: id, actorRole: "company", type: "test", to: `${row.title}: qiymətləndirildi` });
+    return ok({ ok: true, score: result.score, max: result.max, reviewStatus: result.state });
+  }
+  // Gives a candidate more time, or a second chance after the time ran out.
+  if (request.method === "POST" && path === "hr/assessments/extend") {
+    requirePermission("tests", testsDenied);
+    const b = await jsonBody(request);
+    const minutes = Math.max(5, Math.min(120, Math.round(Number(b.minutes) || 0)));
+    await closeExpiredAssignments(db, { companyId: id });
+    const row = await db
+      .prepare("SELECT id,status,deadline_at,assessment_id,candidate_id FROM assessment_assignments WHERE id=? AND company_id=?")
+      .bind(str(b.assignmentId, 100), id)
+      .first<{ id: string; status: string; deadline_at: string; assessment_id: string; candidate_id: string }>();
+    if (!row) throw new HttpError(404, "Test nəticəsi tapılmadı.");
+    if (!["started", "expired"].includes(row.status)) throw new HttpError(409, "Vaxt yalnız davam edən və ya vaxtı bitmiş test üçün uzadılır.");
+    const now = new Date();
+    const deadline = new Date((row.status === "started" ? Date.parse(row.deadline_at) : now.getTime()) + minutes * 60000).toISOString();
+    await db.batch([
+      db.prepare("UPDATE assessment_assignments SET status='started',deadline_at=?,submitted_at='',review_status='' WHERE id=?").bind(deadline, row.id),
+      db.prepare("INSERT INTO assessment_revisions(id,assessment_id,actor_id,action,reason,summary,created) VALUES(?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), row.assessment_id, userId, "extended", str(b.reason, 500), `+${minutes} dəq${row.status === "expired" ? " (yenidən açıldı)" : ""}`, now.toISOString()),
+    ]);
+    await notify(db, { userId: row.candidate_id, type: "test", title: "Testə əlavə vaxt verildi", body: `${minutes} dəqiqə əlavə edildi. Testə davam edə bilərsiniz.`, link: "applications" });
+    return ok({ ok: true, deadline });
+  }
+  if (request.method === "POST" && path === "hr/assessments/cancel") {
+    requirePermission("tests", testsDenied);
+    const b = await jsonBody(request);
+    const row = await db
+      .prepare("SELECT id,status,assessment_id,candidate_id FROM assessment_assignments WHERE id=? AND company_id=?")
+      .bind(str(b.assignmentId, 100), id)
+      .first<{ id: string; status: string; assessment_id: string; candidate_id: string }>();
+    if (!row) throw new HttpError(404, "Test nəticəsi tapılmadı.");
+    if (!["assigned", "started"].includes(row.status)) throw new HttpError(409, "Yalnız göndərilmiş və ya davam edən test ləğv edilə bilər.");
+    await db.batch([
+      db.prepare("UPDATE assessment_assignments SET status='cancelled' WHERE id=?").bind(row.id),
+      db.prepare("INSERT INTO assessment_revisions(id,assessment_id,actor_id,action,reason,summary,created) VALUES(?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), row.assessment_id, userId, "cancelled", str(b.reason, 500), "Namizədə göndərilmiş test ləğv edildi", new Date().toISOString()),
+    ]);
+    await notify(db, { userId: row.candidate_id, type: "test", title: "Test ləğv edildi", link: "applications" });
+    return ok({ ok: true });
+  }
   if (request.method === "GET" && path === "hr/assessment-file") {
+    requirePermission("tests", testsDenied);
     const assessmentId = str(requestUrl.searchParams.get("id"), 100);
     const row = await db.prepare("SELECT attachment_name,attachment_type,attachment_data FROM assessments WHERE id=? AND company_id=?").bind(assessmentId, id)
       .first<{ attachment_name: string; attachment_type: string; attachment_data: string }>();
     if (!row?.attachment_data) throw new HttpError(404, "Fayl tapılmadı.");
+    // Who opened the confidential file, and when, stays in the test's history.
     await db.prepare("INSERT INTO assessment_revisions(id,assessment_id,actor_id,action,reason,summary,created) VALUES(?,?,?,?,?,?,?)")
-      .bind(crypto.randomUUID(), assessmentId, id, "file-viewed", "", row.attachment_name, new Date().toISOString()).run();
+      .bind(crypto.randomUUID(), assessmentId, userId, "file-viewed", "", row.attachment_name, new Date().toISOString()).run();
     return new Response(Uint8Array.from(atob(row.attachment_data), (c) => c.charCodeAt(0)), {
       headers: { "Content-Type": row.attachment_type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
     });

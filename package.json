@@ -12,7 +12,7 @@
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "node --experimental-strip-types --test tests/joblink.test.mjs tests/matching-benchmark.test.mjs tests/certifications.test.mjs tests/job-titles.test.mjs tests/salary.test.mjs tests/fit-review.test.mjs tests/universities.test.mjs tests/majors.test.mjs tests/workforce.test.mjs tests/plans.test.mjs tests/contracts.test.mjs tests/cv-layout.test.mjs",
+    "test": "node --experimental-strip-types --test tests/joblink.test.mjs tests/matching-benchmark.test.mjs tests/certifications.test.mjs tests/job-titles.test.mjs tests/salary.test.mjs tests/fit-review.test.mjs tests/universities.test.mjs tests/majors.test.mjs tests/workforce.test.mjs tests/plans.test.mjs tests/contracts.test.mjs tests/assessments.test.mjs tests/cv-layout.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
