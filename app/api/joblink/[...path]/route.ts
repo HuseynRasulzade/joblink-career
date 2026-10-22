@@ -263,14 +263,23 @@ async function addHiredEmployee(db: D1Database, applicationId: string) {
     const now = new Date().toISOString();
     const employeeId = crypto.randomUUID();
     const startDate = offer?.startDate || now.slice(0, 10);
-    await db.batch([
+    try {
+      await db.batch([
       db.prepare(`INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,job_id,created,updated)
           VALUES(?,?,?,?,?,?,?,?,?,'active','hired',?,?,?,?)`)
         .bind(employeeId, row.owner, profile.name, offer?.position || job.title, "", profile.email || "", profile.phone || "",
           startDate, Math.round((offer?.salary || 0) * 100), applicationId, row.job_id, now, now),
       db.prepare("INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)")
         .bind(crypto.randomUUID(), row.owner, employeeId, "hired", "", "", "joblink", "", startDate, now),
-    ]);
+      ]);
+    } catch {
+      // Before migration 0022 the employee is saved without the vacancy link and history.
+      await db
+        .prepare(`INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,created,updated)
+          VALUES(?,?,?,?,?,?,?,?,?,'active','hired',?,?,?)`)
+        .bind(employeeId, row.owner, profile.name, offer?.position || job.title, "", profile.email || "", profile.phone || "", startDate, Math.round((offer?.salary || 0) * 100), applicationId, now, now)
+        .run();
+    }
   } catch {
     // The employees list is optional until migration 0019 is applied.
   }
