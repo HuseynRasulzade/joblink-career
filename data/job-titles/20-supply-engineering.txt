@@ -1,0 +1,143 @@
+supply|Procurement Assistant|Satınalma köməkçisi|Помощник по закупкам|
+supply|Senior Buyer|Baş alıcı|Старший закупщик|buyer;alıcı;закупщик
+supply|Category Buyer|Kateqoriya üzrə alıcı|Категорийный закупщик|
+supply|Sourcing Manager|Təchizatçıların axtarışı meneceri|Менеджер по поиску поставщиков|
+supply|Supplier Relations Manager|Təchizatçılarla iş meneceri|Менеджер по работе с поставщиками|
+supply|Contract Procurement Specialist|Müqavilə satınalmaları mütəxəssisi|Специалист по контрактным закупкам|
+supply|State Procurement Specialist|Dövlət satınalmaları mütəxəssisi|Специалист по государственным закупкам|
+supply|Demand Planner|Tələbin planlaşdırılması mütəxəssisi|Планировщик спроса|
+supply|Supply Planner|Təchizatın planlaşdırılması mütəxəssisi|Планировщик поставок|
+supply|Production Planner|İstehsalın planlaşdırılması mütəxəssisi|Планировщик производства|
+supply|Logistics Coordinator|Logistika koordinatoru|Координатор по логистике|
+supply|International Logistics Specialist|Beynəlxalq logistika mütəxəssisi|Специалист по международной логистике|
+supply|Transport Logistics Manager|Daşıma logistikası meneceri|Менеджер по транспортной логистике|
+supply|Fleet Manager|Avtopark meneceri|Руководитель автопарка|avtonəqliyyat rəhbəri
+supply|Transport Manager|Nəqliyyat meneceri|Транспортный менеджер|
+supply|Customs Declarant|Gömrük deklarantı|Таможенный декларант|
+supply|Customs Specialist|Gömrük rəsmiləşdirilməsi mütəxəssisi|Специалист по таможенному оформлению|
+supply|Import Export Specialist|İdxal-ixrac mütəxəssisi|Специалист по импорту и экспорту|
+supply|Shipping Specialist|Yük göndərmə mütəxəssisi|Специалист по отправке грузов|
+supply|Cargo Handler|Yük işçisi|Грузчик|yükləyici
+supply|Loader|Yükləyici-boşaldıcı|Грузчик-разгрузчик|
+supply|Order Picker|Sifariş yığıcısı|Комплектовщик заказов|yığıcı
+supply|Packer|Qablaşdırıcı|Упаковщик|
+supply|Warehouse Supervisor|Anbar supervayzeri|Старший кладовщик|
+supply|Warehouse Operator|Anbar operatoru|Оператор склада|
+supply|Warehouse Administrator|Anbar administratoru|Администратор склада|
+supply|Warehouse Logistics Specialist|Anbar logistikası mütəxəssisi|Специалист по складской логистике|
+supply|Stock Controller|Ehtiyatlara nəzarət mütəxəssisi|Специалист по контролю запасов|
+supply|Material Planner|Material planlaşdırıcısı|Планировщик материалов|
+supply|Reach Truck Operator|Yüksək qaldırıcı yükləyici operatoru|Оператор штабелёра|
+supply|Crane Operator|Kran operatoru|Крановщик|
+supply|Tower Crane Operator|Qüllə kranı operatoru|Машинист башенного крана|
+supply|Taxi Driver|Taksi sürücüsü|Водитель такси|
+supply|Personal Driver|Şəxsi sürücü|Персональный водитель|xüsusi sürücü
+supply|Bus Driver|Avtobus sürücüsü|Водитель автобуса|
+supply|Delivery Driver|Çatdırılma sürücüsü|Водитель-доставщик|
+supply|Delivery Courier|Çatdırılma kuryeri|Курьер службы доставки|
+supply|Heavy Equipment Operator|Ağır texnika operatoru|Оператор тяжёлой техники|
+engineering|Civil Engineering Manager|Tikinti mühəndisliyi meneceri|Руководитель строительного проекта|
+engineering|Resident Engineer|Rezident mühəndis|Резидент-инженер|
+engineering|Construction Supervisor|Tikinti işlərinə nəzarətçi|Строительный прораб|prorab;iş icraçısı;прораб
+engineering|Foreman|Usta|Мастер участка|usta;ustabaşı
+engineering|Construction Technical Supervisor|Texniki nəzarət mühəndisi|Инженер технического надзора|texniki nəzarətçi
+engineering|Building Inspector|Tikinti inspektoru|Строительный инспектор|
+engineering|Quantity Surveyor|Həcm hesablama mütəxəssisi|Специалист по расчёту объёмов работ|QS
+engineering|Planning Engineer|Planlaşdırma mühəndisi|Инженер по планированию|
+engineering|Surveyor|Geodezist|Геодезист|geodeziya mühəndisi
+engineering|Land Surveyor|Torpaq ölçmə mühəndisi|Землеустроитель|
+engineering|Urban Planner|Şəhərsalma mütəxəssisi|Градостроитель|
+engineering|Landscape Architect|Landşaft memarı|Ландшафтный архитектор|
+engineering|Design Engineer|Layihələndirmə mühəndisi|Инженер-проектировщик|
+engineering|Bridge Engineer|Körpü mühəndisi|Инженер по мостам|
+engineering|Road Engineer|Yol mühəndisi|Инженер по дорожному строительству|
+engineering|Geotechnical Engineer|Geotexnik mühəndis|Инженер-геотехник|
+engineering|Hydraulic Engineer|Hidrotexniki mühəndis|Инженер-гидротехник|
+engineering|Water Supply Engineer|Su təchizatı mühəndisi|Инженер по водоснабжению|
+engineering|Sewage Engineer|Kanalizasiya mühəndisi|Инженер по водоотведению|
+engineering|Heating Engineer|İstilik mühəndisi|Инженер-теплотехник|
+engineering|Refrigeration Technician|Soyuducu sistemləri texniki|Техник по холодильному оборудованию|
+engineering|Air Conditioning Technician|Kondisioner ustası|Мастер по кондиционерам|kondisioner quraşdırıcısı
+engineering|Mechanical Technician|Mexanik texnik|Техник-механик|
+engineering|Electrical Technician|Elektrik texnik|Техник-электрик|
+engineering|Electronics Engineer|Elektronika mühəndisi|Инженер-электронщик|
+engineering|Electronics Technician|Elektronika texniki|Техник-электронщик|
+engineering|Power Engineer|Enerji mühəndisi|Инженер-энергетик|
+engineering|Substation Electrician|Yarımstansiya elektrikçisi|Электромонтёр подстанции|
+engineering|Power Line Technician|Elektrik xətti montyoru|Электромонтёр по линиям электропередачи|
+engineering|Instrumentation Engineer|Ölçü cihazları mühəndisi|Инженер КИПиА|KİP və A mühəndisi;КИПиА
+engineering|Instrumentation Technician|KİP və A texniki|Техник КИПиА|
+engineering|Telecommunications Engineer|Telekommunikasiya mühəndisi|Инженер связи|
+engineering|Telecommunications Technician|Rabitə texniki|Техник связи|
+engineering|Cable Technician|Kabel montyoru|Кабельщик-спайщик|
+engineering|Industrial Engineer|Sənaye mühəndisi|Инженер-технолог производства|
+engineering|Chemical Engineer|Kimya mühəndisi|Инженер-химик|
+engineering|Materials Engineer|Materialşünas mühəndis|Инженер-материаловед|
+engineering|Metallurgical Engineer|Metallurq mühəndis|Инженер-металлург|
+engineering|Mechanical Design Engineer|Mexaniki konstruktor|Инженер-конструктор механик|konstruktor
+engineering|Mechatronics Engineer|Mexatronika mühəndisi|Инженер-мехатроник|
+engineering|Robotics Engineer|Robototexnika mühəndisi|Инженер-робототехник|
+engineering|Reliability Engineer|Etibarlılıq mühəndisi|Инженер по надёжности|
+engineering|Inspection Engineer|Yoxlama mühəndisi|Инженер по инспекции|
+engineering|Corrosion Engineer|Korroziya mühəndisi|Инженер по коррозии|
+engineering|Metrology Engineer|Metroloq mühəndis|Инженер-метролог|metroloq
+engineering|Standardization Specialist|Standartlaşdırma mütəxəssisi|Специалист по стандартизации|
+engineering|Quality Manager|Keyfiyyət meneceri|Менеджер по качеству|
+engineering|Quality Assurance Specialist|Keyfiyyətin təminatı mütəxəssisi|Специалист по обеспечению качества|
+engineering|Quality Control Technician|Keyfiyyətə nəzarət texniki|Техник по контролю качества|
+engineering|Lab Quality Analyst|Keyfiyyət laboratoriyası analitiki|Лаборант-аналитик по качеству|
+engineering|Production Supervisor|İstehsal sahəsinin rəisi|Начальник производственного участка|
+engineering|Shift Supervisor|Növbə rəisi|Начальник смены|növbə müdiri
+engineering|Plant Manager|Zavod direktoru|Директор завода|zavod müdiri
+engineering|Factory Technologist|Texnoloq|Технолог|
+engineering|Food Technologist|Qida texnoloqu|Технолог пищевого производства|
+engineering|Production Technologist|İstehsalat texnoloqu|Технолог производства|
+engineering|Production Worker|İstehsalat işçisi|Рабочий производства|
+engineering|Assembly Worker|Yığım işçisi|Сборщик|yığıcı
+engineering|Assembler|Montajçı|Монтажник|
+engineering|Machine Setter|Dəzgah qurucusu|Наладчик станков|naladçik;наладчик
+engineering|CNC Operator|CNC operatoru|Оператор станков с ЧПУ|
+engineering|CNC Programmer|CNC proqramçısı|Программист станков с ЧПУ|
+engineering|Lathe Operator|Torna dəzgahı operatoru|Токарь|tokar;frezer
+engineering|Milling Machine Operator|Frez dəzgahı operatoru|Фрезеровщик|
+engineering|Fitter|Çilingər|Слесарь|slesar;çilingər
+engineering|Mechanical Fitter|Mexanik-çilingər|Слесарь-механик|
+engineering|Electrical Fitter|Elektrik montyoru|Электромонтёр|elektromontyor
+engineering|Pipefitter|Boru çəkən|Монтажник трубопроводов|boru montyoru
+engineering|Industrial Painter|Sənaye boyaqçısı|Промышленный маляр|
+engineering|Painter|Rəngsaz|Маляр|boyaqçı
+engineering|Plasterer|Suvaqçı|Штукатур|
+engineering|Tiler|Kafel döşəyən|Плиточник|kaşı ustası
+engineering|Bricklayer|Hörgüçü|Каменщик|
+engineering|Concrete Worker|Beton işçisi|Бетонщик|
+engineering|Rebar Fixer|Armaturaçı|Арматурщик|
+engineering|Carpenter|Dülgər|Плотник|
+engineering|Joiner|Xarrat|Столяр|
+engineering|Roofer|Dam örtükçüsü|Кровельщик|
+engineering|Glazier|Şüşəçi|Стекольщик|
+engineering|Drywall Installer|Gips-karton ustası|Монтажник гипсокартона|
+engineering|Scaffolder|Yaruslu qurucusu|Монтажник лесов|
+engineering|Excavator Operator|Ekskavator operatoru|Машинист экскаватора|ekskavatorçu
+engineering|Bulldozer Operator|Buldozer operatoru|Машинист бульдозера|
+engineering|Asphalt Worker|Asfalt işçisi|Асфальтировщик|
+engineering|Road Worker|Yol işçisi|Дорожный рабочий|
+engineering|Window Installer|Pəncərə quraşdırıcısı|Монтажник окон|
+engineering|Elevator Technician|Lift ustası|Лифтёр-монтажник|lift mexaniki
+engineering|Gas Technician|Qaz təchizatı ustası|Газовик|qaz xidməti ustası
+engineering|Boiler Operator|Qazanxana operatoru|Оператор котельной|kotelçi;кочегар
+engineering|Maintenance Electrician|Elektrik təmir ustası|Электрик по ремонту|
+engineering|Auto Electrician|Avtoelektrik|Автоэлектрик|
+engineering|Car Body Repairer|Avtomobil kuzov ustası|Кузовщик|kuzovçu
+engineering|Car Painter|Avtomobil boyaqçısı|Автомаляр|
+engineering|Tire Fitter|Təkər ustası|Шиномонтажник|vulkanizatorçu
+engineering|Vehicle Inspector|Avtomobil texniki baxışı inspektoru|Инспектор по техосмотру|
+engineering|Equipment Installer|Avadanlıq quraşdırıcısı|Монтажник оборудования|
+engineering|Locksmith|Açarçı|Слесарь-замочник|
+engineering|CCTV Technician|Video müşahidə texniki|Техник систем видеонаблюдения|
+engineering|Fire Alarm Technician|Yanğın siqnalizasiyası texniki|Техник пожарной сигнализации|
+engineering|BIM Specialist|BIM mütəxəssisi|BIM-специалист|BIM modelçisi
+engineering|Interior Fit-out Specialist|İnteryer işləri mütəxəssisi|Специалист по отделочным работам|
+engineering|Renovation Manager|Təmir-bərpa işləri meneceri|Руководитель ремонтных работ|
+engineering|Facility Manager|Obyektlərin idarə edilməsi meneceri|Менеджер по эксплуатации зданий|facility manager
+engineering|Building Superintendent|Bina baxıcısı|Управдом|
+engineering|Janitor|Həyətyanı sahə işçisi|Дворник|

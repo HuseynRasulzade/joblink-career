@@ -1,0 +1,175 @@
+transport|Airline Pilot|Təyyarə pilotu|Пилот гражданской авиации|pilot
+transport|Helicopter Pilot|Helikopter pilotu|Пилот вертолёта|
+transport|First Officer|İkinci pilot|Второй пилот|
+transport|Air Traffic Controller|Aviadispetçer|Авиадиспетчер|
+transport|Aircraft Maintenance Engineer|Təyyarə texniki mühəndisi|Авиационный инженер-техник|
+transport|Aircraft Mechanic|Təyyarə mexaniki|Авиамеханик|
+transport|Airport Operations Manager|Hava limanı əməliyyatları meneceri|Руководитель аэропортовых операций|
+transport|Airport Ground Handler|Hava limanı yer xidməti işçisi|Работник наземного обслуживания в аэропорту|
+transport|Check-in Agent|Qeydiyyat agenti|Агент по регистрации пассажиров|
+transport|Cabin Crew Member|Salon heyəti üzvü|Член кабинного экипажа|
+transport|Aviation Security Officer|Aviasiya təhlükəsizliyi əməkdaşı|Специалист по авиационной безопасности|
+transport|Train Driver|Qatar maşinisti|Машинист поезда|maşinist;машинист
+transport|Railway Signalman|Dəmiryol siqnalçısı|Сигналист железной дороги|
+transport|Railway Station Attendant|Dəmiryol stansiyası növbətçisi|Дежурный по станции|
+transport|Railway Conductor|Qatar bələdçisi|Проводник поезда|
+transport|Railway Engineer|Dəmiryol mühəndisi|Инженер железнодорожного транспорта|
+transport|Railway Track Worker|Dəmiryol yolu işçisi|Монтёр пути|
+transport|Metro Driver|Metro maşinisti|Машинист метро|
+transport|Metro Station Attendant|Metro stansiyası növbətçisi|Дежурный по станции метро|
+transport|Tram Driver|Tramvay sürücüsü|Водитель трамвая|
+transport|Ship Captain|Gəmi kapitanı|Капитан судна|kapitan
+transport|Mate|Kapitan köməkçisi|Помощник капитана|
+transport|Seafarer|Dənizçi|Моряк|
+transport|Marine Engineer Officer|Gəmi mexaniki|Судовой механик|
+transport|Ship Electrician|Gəmi elektriki|Судовой электрик|
+transport|Deckhand|Matros|Матрос|
+transport|Ship Cook|Gəmi aşpazı|Судовой повар|
+transport|Port Manager|Liman meneci|Руководитель порта|
+transport|Port Operator|Liman operatoru|Оператор порта|
+transport|Stevedore|Liman yükləyicisi|Стивидор|
+transport|Harbor Pilot|Liman locmanı|Лоцман|
+transport|Ship Agent|Gəmi agenti|Судовой агент|
+transport|Vessel Dispatcher|Gəmi dispetçeri|Диспетчер флота|
+transport|Container Terminal Operator|Konteyner terminalı operatoru|Оператор контейнерного терминала|
+transport|Transport Dispatcher|Nəqliyyat dispetçeri|Диспетчер транспорта|
+transport|Logistics Driver-Forwarder|Sürücü-ekspeditor|Водитель-экспедитор|
+transport|International Truck Driver|Beynəlxalq yük avtomobili sürücüsü|Водитель-международник|TIR sürücüsü
+transport|Tow Truck Driver|Evakuator sürücüsü|Водитель эвакуатора|
+transport|Car Rental Agent|Avtomobil icarəsi mütəxəssisi|Менеджер по прокату автомобилей|
+transport|Parking Attendant|Parkinq işçisi|Работник парковки|
+transport|Car Wash Attendant|Avtomobil yuyucusu|Мойщик автомобилей|
+transport|Road Traffic Specialist|Yol hərəkəti mütəxəssisi|Специалист по организации дорожного движения|
+transport|Transport Planner|Nəqliyyat planlaşdırıcısı|Транспортный планировщик|
+science|Researcher|Tədqiqatçı|Исследователь|
+science|Senior Researcher|Baş elmi işçi|Старший научный сотрудник|
+science|Research Assistant|Elmi köməkçi|Научный ассистент|
+science|Junior Researcher|Kiçik elmi işçi|Младший научный сотрудник|
+science|Research and Development Engineer|Tədqiqat və inkişaf mühəndisi|Инженер-исследователь|R&D engineer
+science|Chemist|Kimyaçı|Химик|
+science|Analytical Chemist|Analitik kimyaçı|Химик-аналитик|
+science|Physicist|Fizik|Физик|
+science|Biologist|Bioloq|Биолог|
+science|Microbiologist|Mikrobioloq|Микробиолог|
+science|Biotechnologist|Biotexnoloq|Биотехнолог|
+science|Geneticist|Genetik|Генетик|
+science|Biochemist|Biokimyaçı|Биохимик|
+science|Mathematician|Riyaziyyatçı|Математик|
+science|Statistician|Statistik|Статистик|
+science|Astronomer|Astronom|Астроном|
+science|Meteorologist|Meteoroloq|Метеоролог|
+science|Hydrologist|Hidroloq|Гидролог|
+science|Ecologist|Ekoloq|Эколог-исследователь|
+science|Oceanographer|Okeanoqraf|Океанограф|
+science|Seismologist|Seysmoloq|Сейсмолог|
+science|Archaeologist|Arxeoloq|Археолог|
+science|Historian|Tarixçi|Историк|
+science|Philologist|Filoloq|Филолог|
+science|Linguist|Dilçi|Лингвист|
+science|Sociologist|Sosioloq|Социолог|
+science|Political Scientist|Politoloq|Политолог|
+science|Anthropologist|Antropoloq|Антрополог|
+science|Philosopher|Filosof|Философ|
+science|Museum Curator|Muzey kuratoru|Куратор музея|
+science|Museum Guide|Muzey bələdçisi|Экскурсовод музея|
+science|Museum Specialist|Muzey işçisi|Научный сотрудник музея|
+science|Art Restorer|Bərpaçı|Реставратор|
+science|Laboratory Manager|Laboratoriya müdiri|Заведующий лабораторией|
+science|Laboratory Analyst|Laboratoriya analitiki|Лаборант-аналитик|
+science|Metrologist|Metroloq|Метролог|
+science|Patent Specialist|Patent mütəxəssisi|Патентовед|
+science|Scientific Editor|Elmi redaktor|Научный редактор|
+science|Science Communicator|Elmi kommunikasiya mütəxəssisi|Научный коммуникатор|
+social|Social Worker|Sosial işçi|Социальный работник|
+social|Social Services Specialist|Sosial xidmətlər mütəxəssisi|Специалист по социальной работе|
+social|Case Manager|Hal meneceri|Кейс-менеджер|
+social|Child Protection Specialist|Uşaqların müdafiəsi mütəxəssisi|Специалист по защите детей|
+social|Youth Worker|Gənclərlə iş üzrə mütəxəssis|Специалист по работе с молодёжью|
+social|Community Organizer|İcma təşkilatçısı|Организатор сообщества|
+social|NGO Program Manager|QHT proqram meneci|Менеджер программы НКО|
+social|Project Officer (NGO)|QHT layihə əməkdaşı|Сотрудник проекта НКО|
+social|Humanitarian Aid Worker|Humanitar yardım işçisi|Сотрудник гуманитарной помощи|
+social|Fundraiser|Vəsait cəlbetmə mütəxəssisi|Фандрайзер|
+social|Volunteer Coordinator|Könüllülər koordinatoru|Координатор волонтёров|
+social|Monitoring and Evaluation Specialist|Monitorinq və qiymətləndirmə mütəxəssisi|Специалист по мониторингу и оценке|M&E
+social|Policy Analyst|Siyasət analitiki|Аналитик по вопросам политики|
+social|Public Policy Researcher|Dövlət siyasəti tədqiqatçısı|Исследователь государственной политики|
+social|Gender Specialist|Gender mütəxəssisi|Специалист по гендерным вопросам|
+social|Disability Support Worker|Əlilliyi olan şəxslərlə iş üzrə mütəxəssis|Специалист по работе с людьми с инвалидностью|
+social|Elder Care Worker|Yaşlılara qulluq işçisi|Сиделка по уходу за пожилыми|
+social|Orphanage Caregiver|Uşaq evi tərbiyəçisi|Воспитатель детского дома|
+social|Family Counselor|Ailə məsləhətçisi|Семейный консультант|
+social|Addiction Counselor|Asılılıq üzrə məsləhətçi|Консультант по зависимостям|
+social|Refugee Support Officer|Qaçqın və məcburi köçkünlərlə iş mütəxəssisi|Специалист по работе с беженцами|
+social|Clergy|Dini xadim|Священнослужитель|
+social|Religious Teacher|Dini təhsil müəllimi|Преподаватель религиозных дисциплин|
+personal|Hairdresser|Bərbər-kosmetoloq (saç ustası)|Парикмахер|saç ustası;saç dizayneri
+personal|Barber|Kişi bərbəri|Барбер|bərbər
+personal|Hair Colorist|Saç boyama ustası|Колорист-парикмахер|
+personal|Makeup Artist|Makiyaj ustası|Визажист|vizajist
+personal|Manicurist|Manikür ustası|Мастер маникюра|
+personal|Pedicurist|Pedikür ustası|Мастер педикюра|
+personal|Eyebrow and Lash Specialist|Qaş və kirpik ustası|Бровист-лэшмейкер|
+personal|Cosmetologist|Kosmetoloq|Косметолог|
+personal|Aesthetician|Estetik kosmetoloq|Косметолог-эстетист|
+personal|Tattoo Artist|Dəri üzərində naxış ustası|Тату-мастер|
+personal|Beauty Salon Manager|Gözəllik salonu meneceri|Управляющий салоном красоты|
+personal|Fitness Trainer|Fitnes məşqçisi|Фитнес-тренер|
+personal|Personal Trainer|Fərdi məşqçi|Персональный тренер|
+personal|Yoga Instructor|Yoqa təlimatçısı|Инструктор по йоге|
+personal|Gym Manager|İdman zalı meneceri|Управляющий спортзалом|
+personal|Group Fitness Instructor|Qrup məşqləri təlimatçısı|Инструктор групповых программ|
+personal|Swimming Coach|Üzgüçülük məşqçisi|Тренер по плаванию|
+personal|Martial Arts Instructor|Döyüş sənətləri məşqçisi|Тренер по единоборствам|
+personal|Sports Referee|İdman hakimi|Спортивный судья|
+personal|Professional Athlete|Peşəkar idmançı|Профессиональный спортсмен|
+personal|Sports Manager|İdman meneceri|Спортивный менеджер|
+personal|Stylist|Stilist|Стилист|
+personal|Personal Shopper|Şəxsi alış-veriş məsləhətçisi|Персональный шоппер|
+personal|Image Consultant|İmic məsləhətçisi|Имидж-консультант|
+personal|Pet Groomer|Heyvan bərbəri|Грумер|
+personal|Dog Trainer|İt təlimçisi|Кинолог|kinoloq
+personal|Housekeeper (Domestic)|Ev işçisi|Домработница|
+personal|Private Chef|Şəxsi aşpaz|Личный повар|
+personal|Home Tutor|Ev müəllimi|Домашний учитель|
+personal|Florist|Florist|Флорист|gül satıcısı
+personal|Event Decorator|Tədbir dekoratoru|Декоратор мероприятий|
+personal|Wedding Photographer|Toy fotoqrafı|Свадебный фотограф|
+personal|DJ|Disk-coki (DJ)|Диджей|
+personal|Musician|Musiqiçi|Музыкант|
+personal|Singer|Müğənni|Певец|
+personal|Actor|Aktyor|Актёр|
+personal|Dancer|Rəqqas|Танцор|
+personal|Choreographer|Xoreoqraf|Хореограф|
+personal|Composer|Bəstəkar|Композитор|
+personal|Artist (Painter)|Rəssam|Художник|
+personal|Sculptor|Heykəltəraş|Скульптор|
+personal|Theatre Director|Teatr rejissoru|Театральный режиссёр|
+personal|Stage Manager|Səhnə meneceri|Режиссёр-постановщик|
+personal|Funeral Director|Dəfn xidməti işçisi|Работник ритуальных услуг|
+personal|Tailoring Master|Atelye ustası|Мастер ателье|
+public|Civil Servant|Dövlət qulluqçusu|Государственный служащий|
+public|Municipality Specialist|Bələdiyyə mütəxəssisi|Специалист муниципалитета|
+public|Government Relations Specialist|Dövlət orqanları ilə iş mütəxəssisi|Специалист по взаимодействию с госорганами|
+public|Tax Inspector|Vergi inspektoru|Налоговый инспектор|
+public|Customs Officer|Gömrük əməkdaşı|Сотрудник таможни|
+public|Customs Inspector|Gömrük müfəttişi|Таможенный инспектор|
+public|Police Officer|Polis əməkdaşı|Сотрудник полиции|
+public|Border Guard|Sərhəd mühafizəçisi|Пограничник|
+public|Military Officer|Hərbi qulluqçu|Военнослужащий|
+public|Diplomat|Diplomat|Дипломат|
+public|Consular Officer|Konsulluq əməkdaşı|Консульский сотрудник|
+public|Member of Parliament Assistant|Deputat köməkçisi|Помощник депутата|
+public|Public Procurement Officer|Dövlət satınalmaları əməkdaşı|Специалист по госзакупкам|
+public|Registry Officer|Qeydiyyat orqanı əməkdaşı|Сотрудник органа регистрации|
+public|ASAN Service Operator|ASAN xidmət operatoru|Оператор центра обслуживания населения|
+public|Labor Inspector|Əmək müfəttişi|Инспектор по труду|
+public|Social Insurance Inspector|Sosial sığorta müfəttişi|Инспектор социального страхования|
+public|Pension Specialist|Pensiya mütəxəssisi|Специалист по пенсиям|
+public|State Statistics Specialist|Dövlət statistikası mütəxəssisi|Специалист государственной статистики|
+public|Urban Development Specialist|Şəhər inkişafı mütəxəssisi|Специалист по городскому развитию|
+public|Public Relations Officer (Government)|Dövlət qurumunun mətbuat xidməti əməkdaşı|Сотрудник пресс-службы госоргана|
+public|Election Commission Officer|Seçki komissiyası əməkdaşı|Сотрудник избирательной комиссии|
+public|Penitentiary Officer|Penitensiar xidmət əməkdaşı|Сотрудник пенитенциарной службы|
+public|Probation Officer|Probasiya xidməti əməkdaşı|Инспектор службы пробации|
+public|Rescue Service Officer|Fövqəladə hallar xidməti əməkdaşı|Сотрудник службы спасения|

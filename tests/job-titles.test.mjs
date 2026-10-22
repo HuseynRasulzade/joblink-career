@@ -59,3 +59,27 @@ test("seniority variants are one profession and career context groups fields", a
   assert.ok(ctx.fields.length >= 1);
   assert.ok(ctx.fields[0].months >= 8);
 });
+
+test("the catalog covers many professions and carries Russian names", () => {
+  const all = fullJobTitleCatalog();
+  assert.ok(all.length >= 1000, `only ${all.length} titles`);
+  assert.equal(canonicalJobTitle("Roughneck")?.family, "oilgas");
+  assert.equal(canonicalJobTitle("Aqronom")?.family, "agriculture");
+  assert.equal(canonicalJobTitle("Dərzi")?.family, "trades");
+  assert.equal(canonicalJobTitle("Бухгалтер")?.id, "accountant");
+  assert.equal(canonicalJobTitle("Accountant")?.labelRu, "Бухгалтер");
+  const withoutRu = all.filter((t) => !t.base && !t.labelRu);
+  assert.equal(withoutRu.length, 0, `no Russian name: ${withoutRu.map((t) => t.id).join(", ")}`);
+});
+
+test("titles typed in Russian, Azerbaijani or with typos are found", () => {
+  assert.equal(searchJobTitles("водитель такси")[0].id, "taxi-driver");
+  assert.equal(searchJobTitles("qazmaçı")[0].id, "driller");
+  assert.equal(searchJobTitles("kosmetoloq")[0].id, "cosmetologist");
+  assert.equal(searchJobTitles("fermr")[0].id, "farmer");
+});
+
+test("new fields relate titles in the same family", () => {
+  assert.equal(roleRelevance("Qazmaçı", job("Neft emalı zavodu operatoru")), 0.7);
+  assert.equal(roleRelevance("Dərzi", job("Baş mühasib", "Maliyyə")), 0.1);
+});

@@ -1,0 +1,139 @@
+# family|English|Azərbaycanca|Русский|aliases
+finance|Accounting Manager|Mühasibatlıq meneceri|Руководитель бухгалтерии|mühasibatlıq şöbəsinin müdiri
+finance|Deputy Chief Accountant|Baş mühasibin müavini|Заместитель главного бухгалтера|
+finance|Accounting Specialist|Mühasibatlıq üzrə mütəxəssis|Специалист по бухгалтерскому учёту|mühasibatlıq mütəxəssisi
+finance|Accounting Clerk|Mühasibatlıq işçisi|Учётчик|
+finance|Primary Documents Accountant|İlkin sənədlər üzrə mühasib|Бухгалтер по первичной документации|
+finance|Inventory Accountant|Material mühasibi|Материальный бухгалтер|material uçotu mühasibi
+finance|Warehouse Accountant|Anbar mühasibi|Складской бухгалтер|
+finance|Sales Accountant|Satış üzrə mühasib|Бухгалтер по продажам|
+finance|Bank and Cash Accountant|Bank və kassa üzrə mühasib|Бухгалтер по банку и кассе|
+finance|Consolidation Accountant|Konsolidasiya üzrə mühasib|Бухгалтер по консолидации|
+finance|IFRS Specialist|MHBS mütəxəssisi|Специалист по МСФО|IFRS reporting specialist;IFRS mütəxəssisi
+finance|Financial Reporting Specialist|Maliyyə hesabatlılığı mütəxəssisi|Специалист по финансовой отчётности|maliyyə hesabatları mütəxəssisi
+finance|Management Accountant|İdarəetmə mühasibi|Управленческий бухгалтер|
+finance|Accountant-Economist|Mühasib-iqtisadçı|Бухгалтер-экономист|
+finance|Tax Specialist|Vergi üzrə mütəxəssis|Налоговый специалист|vergi mütəxəssisi;tax consultant
+finance|Tax Manager|Vergi meneceri|Налоговый менеджер|
+finance|Customs Accountant|Gömrük mühasibi|Бухгалтер по таможенным операциям|
+finance|Budget Accountant|Büdcə mühasibi|Бухгалтер бюджетной организации|büdcə təşkilatı mühasibi
+finance|Financial Manager|Maliyyə üzrə menecer|Менеджер по финансам|
+finance|Financial Planner|Maliyyə planlaşdırıcısı|Финансовый планировщик|
+finance|Financial Advisor|Maliyyə məsləhətçisi|Финансовый консультант|
+finance|Financial Modeler|Maliyyə modelləşdirmə mütəxəssisi|Специалист по финансовому моделированию|
+finance|Treasurer|Xəzinədar|Казначей|
+finance|Cash Management Specialist|Pul vəsaitlərinin idarə edilməsi mütəxəssisi|Специалист по управлению денежными средствами|
+finance|Accounts Receivable Specialist|Debitor borclar üzrə mütəxəssis|Специалист по дебиторской задолженности|debitor mütəxəssisi
+finance|Accounts Payable Specialist|Kreditor borclar üzrə mütəxəssis|Специалист по кредиторской задолженности|kreditor mütəxəssisi
+finance|Credit Controller|Kredit nəzarətçisi|Кредитный контролёр|
+finance|Credit Manager|Kredit meneceri|Кредитный менеджер|
+finance|Loan Officer|Kredit mütəxəssisi (fiziki şəxslər)|Кредитный инспектор|kredit inspektoru;loan specialist
+finance|Mortgage Specialist|İpoteka mütəxəssisi|Специалист по ипотеке|ipoteka məsləhətçisi
+finance|Corporate Banking Manager|Korporativ bankçılıq meneceri|Менеджер по корпоративным клиентам банка|korporativ müştərilər meneceri
+finance|Retail Banking Specialist|Pərakəndə bankçılıq mütəxəssisi|Специалист розничного банкинга|
+finance|Bank Branch Manager|Bank filialının müdiri|Управляющий отделением банка|
+finance|Customer Service Officer (Bank)|Bank müştəri xidmətləri üzrə mütəxəssis|Специалист по обслуживанию клиентов банка|müştəri xidmətləri mütəxəssisi
+finance|Cash Collection Specialist|İnkassasiya mütəxəssisi|Инкассатор|inkassator
+finance|Treasury Dealer|Xəzinə dilleri|Трейдер казначейства|
+finance|Trader|Treyder|Трейдер|
+finance|Broker|Broker|Брокер|birja brokeri
+finance|Portfolio Manager|Portfel meneceri|Портфельный управляющий|
+finance|Private Banker|Özəl bankçılıq meneceri|Приватный банкир|
+finance|Risk Manager|Risk meneceri|Риск-менеджер|
+finance|Credit Risk Analyst|Kredit risk analitiki|Аналитик по кредитным рискам|
+finance|Operational Risk Specialist|Əməliyyat riskləri mütəxəssisi|Специалист по операционным рискам|
+finance|Internal Control Specialist|Daxili nəzarət mütəxəssisi|Специалист по внутреннему контролю|
+finance|Financial Monitoring Specialist|Maliyyə monitorinqi mütəxəssisi|Специалист по финансовому мониторингу|
+finance|KYC Specialist|KYC mütəxəssisi|Специалист по KYC|müştəri tanıma mütəxəssisi
+finance|Fraud Analyst|Fırıldaqçılığın qarşısının alınması analitiki|Аналитик по борьбе с мошенничеством|
+finance|Insurance Manager|Sığorta meneceri|Страховой менеджер|
+finance|Insurance Claims Adjuster|Sığorta iddiaları üzrə mütəxəssis|Специалист по урегулированию убытков|zərərin tənzimlənməsi mütəxəssisi
+finance|Insurance Broker|Sığorta brokeri|Страховой брокер|
+finance|Leasing Specialist|Lizinq mütəxəssisi|Специалист по лизингу|
+finance|Pension Fund Specialist|Pensiya fondu mütəxəssisi|Специалист пенсионного фонда|
+finance|Financial Accountant|Maliyyə mühasibi|Финансовый бухгалтер|
+finance|Billing Specialist|Hesab-faktura mütəxəssisi|Специалист по выставлению счетов|faktura mütəxəssisi
+finance|Pricing Analyst|Qiymətləndirmə analitiki|Аналитик по ценообразованию|qiymət analitiki
+finance|Valuation Specialist|Qiymətləndirmə mütəxəssisi|Оценщик|appraiser;qiymətləndirici
+finance|Property Appraiser|Əmlak qiymətləndiricisi|Оценщик недвижимости|
+finance|Grants Manager|Qrant meneceri|Менеджер по грантам|
+finance|Economic Analyst|İqtisadi analitik|Экономический аналитик|
+finance|Planning Economist|Planlaşdırma iqtisadçısı|Экономист-плановик|
+finance|Labor Economist|Əmək iqtisadçısı|Экономист по труду|
+hr|HR Coordinator|HR koordinatoru|Координатор по персоналу|kadr koordinatoru
+hr|HR Administrator|HR administratoru|HR-администратор|
+hr|HR Officer|HR üzrə mütəxəssis|Специалист отдела кадров|kadrlar üzrə mütəxəssis
+hr|Head of HR Department|Kadrlar şöbəsinin müdiri|Начальник отдела кадров|kadrlar şöbəsinin rəisi
+hr|Payroll Specialist|Əməkhaqqı mütəxəssisi|Специалист по расчёту заработной платы|
+hr|Payroll Manager|Əməkhaqqı meneceri|Руководитель расчёта заработной платы|
+hr|Labor Relations Specialist|Əmək münasibətləri mütəxəssisi|Специалист по трудовым отношениям|
+hr|Employee Relations Manager|İşçi münasibətləri meneceri|Менеджер по работе с персоналом|
+hr|Onboarding Specialist|Adaptasiya mütəxəssisi|Специалист по адаптации персонала|
+hr|Talent Manager|Talent meneceri|Менеджер по талантам|
+hr|Sourcing Specialist|Sourcing mütəxəssisi|Сорсер|
+hr|Recruitment Coordinator|Rekrutinq koordinatoru|Координатор по подбору персонала|
+hr|Executive Search Consultant|Üst səviyyəli kadr axtarışı məsləhətçisi|Консультант по подбору руководителей|headhunter;хедхантер
+hr|Recruitment Manager|Rekrutinq meneceri|Руководитель по подбору персонала|
+hr|Mass Recruitment Specialist|Kütləvi işə qəbul mütəxəssisi|Специалист по массовому подбору|
+hr|Training Manager|Təlim meneceri|Менеджер по обучению|
+hr|Corporate Trainer|Korporativ təlimçi|Корпоративный тренер|
+hr|Career Counselor|Karyera məsləhətçisi|Карьерный консультант|karyera konsultantı
+hr|Performance Management Specialist|Performansın idarə edilməsi mütəxəssisi|Специалист по оценке эффективности персонала|
+hr|HR Information Systems Specialist|HR informasiya sistemləri mütəxəssisi|Специалист по HR-системам|HRIS specialist
+hr|Employer Branding Specialist|İşəgötürən brendi mütəxəssisi|Специалист по HR-бренду|
+hr|Internal Communications Specialist|Daxili kommunikasiya mütəxəssisi|Специалист по внутренним коммуникациям|
+hr|Culture Manager|Korporativ mədəniyyət meneceri|Менеджер по корпоративной культуре|
+hr|Occupational Psychologist|Təşkilati psixoloq|Организационный психолог|
+hr|Staff Administrator|Kadr işləri üzrə inspektor|Инспектор по кадрам|kadr inspektoru
+hr|Work Permit Specialist|İş icazələri üzrə mütəxəssis|Специалист по разрешениям на работу|
+hr|Visa and Migration Specialist|Viza və miqrasiya mütəxəssisi|Специалист по визам и миграции|
+sales|Sales Representative|Satış nümayəndəsi|Торговый представитель|
+sales|Field Sales Representative|Ərazi satış nümayəndəsi|Региональный торговый представитель|
+sales|Sales Assistant|Satış köməkçisi|Помощник по продажам|
+sales|Sales Associate|Satıcı-məsləhətçi|Продавец-консультант|satıcı;продавец
+sales|Retail Sales Manager|Pərakəndə satış meneceri|Менеджер розничных продаж|
+sales|Regional Sales Manager|Regional satış meneceri|Региональный менеджер по продажам|
+sales|Area Sales Manager|Ərazi satış meneceri|Менеджер по продажам территории|
+sales|Export Manager|İxrac meneceri|Менеджер по экспорту|
+sales|Import Manager|İdxal meneceri|Менеджер по импорту|
+sales|Foreign Trade Specialist|Xarici ticarət mütəxəssisi|Специалист по внешней торговле|
+sales|Distribution Manager|Distribusiya meneceri|Менеджер по дистрибуции|
+sales|Trade Marketing Manager|Ticarət marketinqi meneceri|Трейд-маркетинг менеджер|
+sales|Category Manager|Kateqoriya meneceri|Категорийный менеджер|
+sales|Pre-sales Engineer|Satışönü mühəndis|Инженер предпродажной поддержки|presales
+sales|Sales Engineer|Satış mühəndisi|Инженер по продажам|
+sales|Sales Analyst|Satış analitiki|Аналитик по продажам|
+sales|Sales Operations Specialist|Satış əməliyyatları mütəxəssisi|Специалист по операциям продаж|
+sales|Sales Administrator|Satış administratoru|Администратор по продажам|
+sales|Tender Sales Manager|Tender satışları meneceri|Менеджер по тендерным продажам|
+sales|Franchise Manager|Françayzinq meneceri|Менеджер по франшизе|
+sales|Retail Store Supervisor|Mağaza supervayzeri|Старший продавец|
+sales|Senior Cashier|Baş kassir|Старший кассир|
+sales|Cash Register Operator|Kassa aparatı operatoru|Кассир-операционист|
+sales|Shop Assistant|Mağaza işçisi|Продавец магазина|
+sales|Showroom Consultant|Şou-rum məsləhətçisi|Консультант шоурума|
+sales|Auto Sales Manager|Avtomobil satışı meneceri|Менеджер по продаже автомобилей|
+sales|Auto Parts Seller|Ehtiyat hissələri satıcısı|Продавец автозапчастей|
+sales|Pharmacy Sales Assistant|Aptek satıcısı|Продавец аптеки|
+sales|Optician|Optik|Оптик|
+sales|Jewelry Sales Consultant|Zərgərlik məsləhətçisi|Консультант ювелирного магазина|
+sales|Mobile Phone Sales Consultant|Mobil telefon satış məsləhətçisi|Консультант по продаже мобильных телефонов|
+sales|Insurance Sales Manager|Sığorta satış meneceri|Менеджер по страховым продажам|
+sales|Banking Sales Specialist|Bank satışı mütəxəssisi|Специалист по банковским продажам|
+sales|Cold Call Specialist|Soyuq zəng mütəxəssisi|Специалист по холодным звонкам|
+sales|Inbound Sales Specialist|Gələn zənglər üzrə satış mütəxəssisi|Специалист по входящим звонкам|
+sales|Call Center Supervisor|Çağrı mərkəzi supervayzeri|Супервайзер колл-центра|
+sales|Call Center Manager|Çağrı mərkəzi meneceri|Руководитель колл-центра|
+sales|Customer Support Specialist|Müştəri dəstəyi mütəxəssisi|Специалист клиентской поддержки|
+sales|Customer Experience Manager|Müştəri təcrübəsi meneceri|Менеджер по клиентскому опыту|
+sales|Customer Service Manager|Müştəri xidmətləri meneceri|Руководитель службы клиентского сервиса|
+sales|Complaints Specialist|Şikayətlərlə iş üzrə mütəxəssis|Специалист по работе с претензиями|
+sales|Online Chat Operator|Onlayn çat operatoru|Оператор онлайн-чата|
+sales|Technical Support Operator|Texniki dəstək operatoru|Оператор технической поддержки|
+sales|Loyalty Program Manager|Loyallıq proqramı meneceri|Менеджер по программе лояльности|
+sales|Partnership Manager|Tərəfdaşlıq meneceri|Менеджер по партнёрствам|
+sales|Business Development Specialist|Biznesin inkişafı mütəxəssisi|Специалист по развитию бизнеса|
+sales|Real Estate Broker|Daşınmaz əmlak brokeri|Брокер по недвижимости|rieltor
+sales|Real Estate Manager|Daşınmaz əmlak meneceri|Менеджер по недвижимости|
+sales|Property Manager|Əmlakın idarə edilməsi meneceri|Управляющий недвижимостью|
+sales|Franchise Sales Manager|Françayzinq satış meneceri|Менеджер по продаже франшиз|

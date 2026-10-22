@@ -1,0 +1,185 @@
+it|Web Developer|Veb developer|Веб-разработчик|
+it|WordPress Developer|WordPress developer|WordPress-разработчик|
+it|React Developer|React developer|React-разработчик|
+it|Angular Developer|Angular developer|Angular-разработчик|
+it|Vue.js Developer|Vue.js developer|Vue.js-разработчик|
+it|JavaScript Developer|JavaScript developer|JavaScript-разработчик|
+it|TypeScript Developer|TypeScript developer|TypeScript-разработчик|
+it|Node.js Developer|Node.js developer|Node.js-разработчик|
+it|Go Developer|Go developer|Go-разработчик|golang developer
+it|Rust Developer|Rust developer|Rust-разработчик|
+it|C++ Developer|C++ developer|C++-разработчик|
+it|C# Developer|C# developer|C#-разработчик|
+it|Ruby Developer|Ruby developer|Ruby-разработчик|
+it|Kotlin Developer|Kotlin developer|Kotlin-разработчик|
+it|Swift Developer|Swift developer|Swift-разработчик|
+it|iOS Developer|iOS developer|iOS-разработчик|
+it|Android Developer|Android developer|Android-разработчик|
+it|Flutter Developer|Flutter developer|Flutter-разработчик|
+it|React Native Developer|React Native developer|React Native-разработчик|
+it|Game Developer|Oyun developeri|Разработчик игр|
+it|Unity Developer|Unity developer|Unity-разработчик|
+it|Embedded Software Engineer|Embedded proqram mühəndisi|Инженер-программист встраиваемых систем|
+it|Firmware Engineer|Firmware mühəndisi|Инженер по прошивкам|
+it|Blockchain Developer|Blockchain developer|Блокчейн-разработчик|
+it|Software Architect|Proqram arxitektoru|Архитектор программного обеспечения|
+it|Solutions Architect|Həll arxitektoru|Архитектор решений|
+it|Enterprise Architect|Korporativ arxitektor|Корпоративный архитектор|
+it|Cloud Engineer|Bulud mühəndisi|Облачный инженер|
+it|Cloud Architect|Bulud arxitektoru|Облачный архитектор|
+it|Site Reliability Engineer|Sayt etibarlılığı mühəndisi|SRE-инженер|SRE
+it|Platform Engineer|Platforma mühəndisi|Инженер платформы|
+it|Build and Release Engineer|Release mühəndisi|Инженер по релизам|
+it|Test Automation Engineer|Test avtomatlaşdırma mühəndisi|Инженер по автоматизации тестирования|automation QA
+it|Manual QA Tester|Manual test mühəndisi|Тестировщик ПО|tester;тестировщик
+it|Performance Test Engineer|Performans test mühəndisi|Инженер по нагрузочному тестированию|
+it|Security Engineer|Təhlükəsizlik mühəndisi|Инженер по безопасности|
+it|Penetration Tester|Penetrasiya test mütəxəssisi|Специалист по тестированию на проникновение|pentester
+it|SOC Analyst|SOC analitiki|Аналитик SOC|
+it|Information Security Manager|İnformasiya təhlükəsizliyi meneceri|Руководитель по информационной безопасности|CISO
+it|Network Administrator|Şəbəkə administratoru|Сетевой администратор|
+it|Network Security Engineer|Şəbəkə təhlükəsizliyi mühəndisi|Инженер по сетевой безопасности|
+it|Telecom Network Engineer|Telekom şəbəkə mühəndisi|Инженер телекоммуникационных сетей|
+it|Linux Administrator|Linux administratoru|Linux-администратор|
+it|Windows Administrator|Windows administratoru|Windows-администратор|
+it|Systems Engineer|Sistem mühəndisi|Системный инженер|
+it|Infrastructure Engineer|İnfrastruktur mühəndisi|Инженер инфраструктуры|
+it|VoIP Engineer|VoIP mühəndisi|Инженер VoIP|IP telefoniya mühəndisi
+it|IT Helpdesk Specialist|Helpdesk mütəxəssisi|Специалист службы поддержки|help desk
+it|Technical Support Engineer|Texniki dəstək mühəndisi|Инженер технической поддержки|
+it|Computer Technician|Kompüter texniki|Компьютерный техник|
+it|IT Infrastructure Manager|İT infrastruktur meneceri|Руководитель ИТ-инфраструктуры|
+it|IT Director|İT direktoru|ИТ-директор|CIO;chief information officer
+it|Head of Engineering|Mühəndislik rəhbəri|Руководитель разработки|
+it|Engineering Manager|Mühəndislik meneceri|Руководитель команды разработки|
+it|Technical Lead|Texniki lider|Технический лидер|tech lead
+it|Scrum Master|Scrum master|Скрам-мастер|
+it|Agile Coach|Agile məşqçisi|Agile-коуч|
+it|Product Owner|Məhsul sahibi|Владелец продукта|
+it|Technical Product Manager|Texniki məhsul meneceri|Технический менеджер продукта|
+it|Delivery Manager|Delivery meneceri|Менеджер по поставке проектов|
+it|Program Manager|Proqram meneceri|Руководитель программы|
+it|PMO Specialist|PMO mütəxəssisi|Специалист проектного офиса|
+it|Technical Writer|Texniki yazıçı|Технический писатель|
+it|Requirements Analyst|Tələblər analitiki|Аналитик требований|
+it|BI Developer|BI developer|BI-разработчик|
+it|BI Analyst|BI analitiki|BI-аналитик|
+it|Power BI Specialist|Power BI mütəxəssisi|Специалист по Power BI|
+it|Data Warehouse Developer|Data warehouse developeri|Разработчик хранилищ данных|
+it|ETL Developer|ETL developeri|ETL-разработчик|
+it|SQL Developer|SQL developer|SQL-разработчик|
+it|Big Data Engineer|Big data mühəndisi|Инженер больших данных|
+it|AI Engineer|Süni intellekt mühəndisi|Инженер по искусственному интеллекту|
+it|NLP Engineer|NLP mühəndisi|Инженер по NLP|
+it|Computer Vision Engineer|Kompüter görmə mühəndisi|Инженер по компьютерному зрению|
+it|Prompt Engineer|Prompt mühəndisi|Промпт-инженер|
+it|Research Scientist (AI)|Süni intellekt tədqiqatçısı|Исследователь в области ИИ|
+it|SAP Consultant|SAP məsləhətçisi|SAP-консультант|
+it|SAP ABAP Developer|SAP ABAP developeri|SAP ABAP-разработчик|
+it|Oracle Developer|Oracle developeri|Oracle-разработчик|
+it|Oracle DBA|Oracle administratoru|Администратор Oracle|
+it|1C Administrator|1C administratoru|Администратор 1С|
+it|1C Consultant|1C məsləhətçisi|Консультант 1С|
+it|CRM Specialist|CRM mütəxəssisi|CRM-специалист|
+it|Salesforce Developer|Salesforce developeri|Salesforce-разработчик|
+it|Dynamics 365 Consultant|Dynamics 365 məsləhətçisi|Консультант Dynamics 365|
+it|Odoo Developer|Odoo developeri|Odoo-разработчик|
+it|Low-code Developer|Low-code developer|Low-code разработчик|
+it|Web Designer|Veb dizayner|Веб-дизайнер|
+it|UX Researcher|UX tədqiqatçısı|UX-исследователь|
+it|Product Designer|Məhsul dizayneri|Продуктовый дизайнер|
+it|Front-end Layout Designer|Maket (HTML) ustası|Верстальщик|верстальщик;HTML coder
+it|SEO Developer|SEO developer|SEO-разработчик|
+it|IT Auditor|İT auditoru|ИТ-аудитор|
+it|IT Procurement Specialist|İT satınalma mütəxəssisi|Специалист по ИТ-закупкам|
+it|Data Center Engineer|Data mərkəz mühəndisi|Инженер центра обработки данных|
+it|Hardware Engineer|Hardware mühəndisi|Инженер по аппаратному обеспечению|
+it|IoT Engineer|IoT mühəndisi|Инженер IoT|
+it|GIS Specialist|CİS mütəxəssisi|Специалист по ГИС|GIS analyst
+it|Data Labeling Specialist|Məlumat etiketləmə mütəxəssisi|Специалист по разметке данных|
+marketing|Marketing Coordinator|Marketinq koordinatoru|Координатор по маркетингу|
+marketing|Marketing Assistant|Marketinq köməkçisi|Помощник по маркетингу|
+marketing|Marketing Analyst|Marketinq analitiki|Маркетинговый аналитик|
+marketing|Head of Marketing|Marketinq şöbəsinin rəhbəri|Руководитель отдела маркетинга|CMO;marketinq direktoru
+marketing|Product Marketing Manager|Məhsul marketinqi meneceri|Менеджер по продуктовому маркетингу|
+marketing|Growth Marketing Manager|Growth marketinq meneceri|Менеджер по маркетингу роста|growth hacker
+marketing|Email Marketing Specialist|E-poçt marketinqi mütəxəssisi|Специалист по email-маркетингу|
+marketing|CRM Marketing Specialist|CRM marketinq mütəxəssisi|CRM-маркетолог|
+marketing|Social Media Manager|Sosial media meneceri|Менеджер по социальным сетям|
+marketing|Community Manager|Komyuniti meneceri|Комьюнити-менеджер|
+marketing|Influencer Marketing Manager|İnfluenser marketinqi meneceri|Менеджер по influencer-маркетингу|
+marketing|Targetologist|Hədəfləmə mütəxəssisi (targetoloq)|Таргетолог|targetoloq
+marketing|Google Ads Specialist|Google Ads mütəxəssisi|Специалист по Google Ads|
+marketing|Media Buyer|Media alıcı|Медиабайер|
+marketing|Media Planner|Media planlaşdırıcısı|Медиапланер|
+marketing|Web Analyst|Veb analitik|Веб-аналитик|
+marketing|Conversion Rate Optimization Specialist|Konversiya optimallaşdırma mütəxəssisi|Специалист по оптимизации конверсии|CRO
+marketing|Marketplace Manager|Marketplace meneceri|Менеджер маркетплейса|
+marketing|Brand Strategist|Brend strateqi|Бренд-стратег|
+marketing|Creative Director|Kreativ direktor|Креативный директор|
+marketing|Art Director|Art direktor|Арт-директор|
+marketing|Creative Producer|Kreativ prodüser|Креативный продюсер|
+marketing|Copy Editor|Korrektor|Корректор|redaktor-korrektor
+marketing|Content Writer|Kontent yazıçısı|Контент-райтер|
+marketing|Content Creator|Kontent yaradıcısı|Контент-мейкер|
+marketing|Blogger|Bloger|Блогер|
+marketing|Scriptwriter|Ssenarist|Сценарист|
+marketing|Speechwriter|Nitq yazıçısı|Спичрайтер|
+marketing|Press Secretary|Mətbuat katibi|Пресс-секретарь|
+marketing|Public Relations Manager|PR meneceri|PR-менеджер|
+marketing|Communications Manager|Kommunikasiya meneceri|Менеджер по коммуникациям|
+marketing|Media Relations Specialist|Media ilə əlaqələr mütəxəssisi|Специалист по связям со СМИ|
+marketing|Government Relations Manager|Dövlət orqanları ilə əlaqələr meneceri|Менеджер по связям с органами власти|GR manager
+marketing|Sponsorship Manager|Sponsorluq meneceri|Менеджер по спонсорству|
+marketing|Exhibition Manager|Sərgi meneceri|Менеджер по выставкам|
+marketing|Promoter|Promouter|Промоутер|
+marketing|Brand Ambassador|Brend səfiri|Амбассадор бренда|
+marketing|Presenter|Aparıcı|Ведущий|televiziya aparıcısı;ведущий
+marketing|Radio Host|Radio aparıcısı|Радиоведущий|
+marketing|TV Reporter|Televiziya müxbiri|Телерепортёр|
+marketing|Correspondent|Müxbir|Корреспондент|
+marketing|News Editor|Xəbər redaktoru|Редактор новостей|
+marketing|Producer|Prodüser|Продюсер|
+marketing|Director (Film/TV)|Rejissor|Режиссёр|
+marketing|Cameraman|Operator (kinooperator)|Кинооператор|
+marketing|Sound Engineer|Səs rejissoru|Звукорежиссёр|звукорежиссер
+marketing|Lighting Technician|İşıq operatoru|Осветитель|
+marketing|Colorist|Kolorist|Колорист|
+marketing|3D Artist|3D rəssam|3D-художник|3D modeler
+marketing|3D Animator|3D animator|3D-аниматор|
+marketing|2D Animator|2D animator|2D-аниматор|
+marketing|Illustrator|İllüstrator|Иллюстратор|
+marketing|Fashion Designer|Moda dizayneri|Модельер|
+marketing|Industrial Designer|Sənaye dizayneri|Промышленный дизайнер|
+marketing|Packaging Designer|Qablaşdırma dizayneri|Дизайнер упаковки|
+marketing|Layout Designer|Dizayner-maketçi|Дизайнер-верстальщик|
+marketing|Visual Merchandiser|Vizual merçendayzer|Визуальный мерчандайзер|
+marketing|Translator (English)|İngilis dili tərcüməçisi|Переводчик английского языка|
+marketing|Translator (Russian)|Rus dili tərcüməçisi|Переводчик русского языка|
+marketing|Interpreter|Sinxron tərcüməçi|Синхронный переводчик|
+marketing|Localization Specialist|Lokalizasiya mütəxəssisi|Специалист по локализации|
+legal|Corporate Lawyer|Korporativ hüquqşünas|Корпоративный юрист|
+legal|Legal Advisor|Hüquq məsləhətçisi|Юрисконсульт|yurist;hüquqşünas
+legal|Legal Assistant|Hüquqşünas köməkçisi|Помощник юриста по правовым вопросам|
+legal|Legal Manager|Hüquq meneceri|Менеджер по правовым вопросам|
+legal|In-house Counsel|Daxili hüquqşünas|Внутренний юрист|
+legal|Contract Lawyer|Müqavilələr üzrə hüquqşünas|Юрист по договорной работе|
+legal|Labor Law Specialist|Əmək hüququ mütəxəssisi|Специалист по трудовому праву|
+legal|Tax Lawyer|Vergi hüququ üzrə hüquqşünas|Налоговый юрист|
+legal|Litigation Lawyer|Məhkəmə işləri üzrə hüquqşünas|Юрист по судебным спорам|
+legal|Criminal Defense Lawyer|Cinayət işləri üzrə vəkil|Адвокат по уголовным делам|
+legal|Intellectual Property Lawyer|Əqli mülkiyyət hüquqşünası|Юрист по интеллектуальной собственности|
+legal|Real Estate Lawyer|Daşınmaz əmlak hüququ üzrə hüquqşünas|Юрист по недвижимости|
+legal|Customs Lawyer|Gömrük hüququ üzrə hüquqşünas|Юрист по таможенному праву|
+legal|Legal Counsel (Banking)|Bank hüquqşünası|Банковский юрист|
+legal|Migration Lawyer|Miqrasiya hüququ üzrə hüquqşünas|Юрист по миграционному праву|
+legal|Arbitration Specialist|Arbitraj mütəxəssisi|Специалист по арбитражу|
+legal|Court Clerk|Məhkəmə katibi|Секретарь суда|
+legal|Judge|Hakim|Судья|
+legal|Prosecutor|Prokuror|Прокурор|
+legal|Investigator|Müstəntiq|Следователь|
+legal|Bailiff|Məhkəmə icraçısı|Судебный пристав|
+legal|Legal Translator|Hüquqi tərcüməçi|Юридический переводчик|
+legal|Data Protection Officer|Şəxsi məlumatların mühafizəsi üzrə məsul şəxs|Специалист по защите персональных данных|DPO
+legal|Regulatory Affairs Specialist|Normativ-hüquqi uyğunluq mütəxəssisi|Специалист по нормативно-правовому регулированию|
+legal|Corporate Secretary|Korporativ katib|Корпоративный секретарь|

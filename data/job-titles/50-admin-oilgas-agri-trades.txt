@@ -1,0 +1,163 @@
+admin|Executive Director|İcraçı direktor|Исполнительный директор|
+admin|Chief Operating Officer (COO)|Əməliyyat direktoru|Операционный директор|COO
+admin|Deputy General Director|Baş direktorun müavini|Заместитель генерального директора|
+admin|Regional Manager|Regional menecer|Региональный менеджер|
+admin|Area Manager|Ərazi meneceri|Территориальный менеджер|
+admin|Team Leader|Komanda lideri|Руководитель группы|qrup rəhbəri
+admin|Supervisor|Supervayzer|Супервайзер|
+admin|Division Head|Bölmə rəhbəri|Руководитель подразделения|
+admin|Business Process Manager|Biznes proseslər meneceri|Менеджер по бизнес-процессам|
+admin|Process Improvement Specialist|Proseslərin təkmilləşdirilməsi mütəxəssisi|Специалист по оптимизации процессов|lean specialist
+admin|Business Process Analyst|Biznes proses analitiki|Аналитик бизнес-процессов|
+admin|Risk and Compliance Manager|Risk və uyğunluq meneceri|Менеджер по рискам и комплаенсу|
+admin|Executive Assistant|Direktorun katibi|Помощник руководителя|direktor katibi;референт
+admin|Receptionist-Secretary|Katib-resepşn|Секретарь-администратор|
+admin|Administrative Assistant|İnzibati köməkçi|Административный помощник|
+admin|Administrative Manager|İnzibati işlər meneceri|Менеджер по административной работе|административный менеджер
+admin|Office Administrator|Ofis administratoru|Офис-администратор|
+admin|Facilities Coordinator|Təsərrüfat işləri koordinatoru|Координатор по хозяйственным вопросам|
+admin|Supply Manager (Administrative)|Təsərrüfat işləri müdiri|Заведующий хозяйством|
+admin|Records Manager|Qeydiyyat və arxiv meneceri|Менеджер по документообороту|
+admin|Clerk|Kargüzar|Делопроизводитель|
+admin|Courier-Messenger|Poçt-kuryer|Курьер-делопроизводитель|
+admin|Translator-Secretary|Katib-tərcüməçi|Секретарь-переводчик|
+admin|Data Operator|Operator|Оператор ПК|kompüter operatoru
+admin|Project Management Officer|Layihə ofisi mütəxəssisi|Специалист проектного офиса|
+admin|Construction Project Manager|Tikinti layihələri meneceri|Руководитель строительных проектов|
+admin|Technical Director|Texniki direktor|Технический директор (производство)|
+admin|Commercial Director|Kommersiya direktoru|Коммерческий директор|
+admin|Logistics Director|Logistika direktoru|Директор по логистике|
+admin|Production Director|İstehsal direktoru|Директор по производству|
+admin|Founder|Təsisçi|Основатель|
+admin|Entrepreneur|Sahibkar|Предприниматель|
+admin|Individual Entrepreneur Assistant|Fərdi sahibkarın köməkçisi|Помощник индивидуального предпринимателя|
+oilgas|Drilling Engineer|Qazma mühəndisi|Инженер по бурению|
+oilgas|Driller|Qazmaçı|Бурильщик|buruqçu
+oilgas|Assistant Driller|Qazmaçı köməkçisi|Помощник бурильщика|
+oilgas|Derrickman|Vışkaçı|Верховой рабочий|
+oilgas|Roughneck|Buruq işçisi|Рабочий буровой бригады|
+oilgas|Drilling Supervisor|Qazma işləri üzrə nəzarətçi|Буровой супервайзер|
+oilgas|Mud Engineer|Palçıq mühəndisi|Инженер по буровым растворам|
+oilgas|Well Control Specialist|Quyuya nəzarət mütəxəssisi|Специалист по контролю скважин|
+oilgas|Well Logging Engineer|Geofiziki tədqiqat mühəndisi|Инженер по каротажу|
+oilgas|Reservoir Engineer|Lay mühəndisi|Инженер-разработчик месторождений|
+oilgas|Production Engineer (Oil)|Neft hasilatı mühəndisi|Инженер по добыче нефти|
+oilgas|Oil and Gas Operator|Neft-qaz hasilatı operatoru|Оператор по добыче нефти и газа|
+oilgas|Pipeline Engineer|Boru kəməri mühəndisi|Инженер-трубопроводчик|
+oilgas|Pipeline Operator|Boru kəməri operatoru|Оператор трубопровода|
+oilgas|Refinery Operator|Neft emalı zavodu operatoru|Оператор нефтеперерабатывающего завода|
+oilgas|Gas Processing Operator|Qaz emalı operatoru|Оператор газоперерабатывающей установки|
+oilgas|Offshore Platform Operator|Dəniz platforması operatoru|Оператор морской платформы|
+oilgas|Offshore Installation Manager|Dəniz qurğusunun rəhbəri|Руководитель морской установки|OIM
+oilgas|Marine Engineer|Gəmi mühəndisi|Судовой инженер|
+oilgas|Geophysicist|Geofizik|Геофизик|
+oilgas|Petrophysicist|Petrofizik|Петрофизик|
+oilgas|Geologist (Oil and Gas)|Neft-qaz geoloqu|Геолог-нефтяник|
+oilgas|Geoscientist|Yer elmləri mütəxəssisi|Специалист по наукам о Земле|
+oilgas|Mining Engineer|Mədən mühəndisi|Горный инженер|
+oilgas|Mine Surveyor|Mədən markşeyderi|Маркшейдер|
+oilgas|Blaster|Partlayış işləri ustası|Взрывник|
+oilgas|Miner|Mədənçi|Шахтёр|
+oilgas|Power Plant Operator|Elektrik stansiyası operatoru|Оператор электростанции|
+oilgas|Power Plant Engineer|Elektrik stansiyası mühəndisi|Инженер электростанции|
+oilgas|Dispatcher (Power Grid)|Enerji sistemi dispetçeri|Диспетчер энергосистемы|
+oilgas|Solar Energy Engineer|Günəş enerjisi mühəndisi|Инженер по солнечной энергетике|
+oilgas|Wind Energy Engineer|Külək enerjisi mühəndisi|Инженер по ветроэнергетике|
+oilgas|Renewable Energy Specialist|Bərpaolunan enerji mütəxəssisi|Специалист по возобновляемой энергетике|
+oilgas|Energy Efficiency Specialist|Enerji səmərəliliyi mütəxəssisi|Специалист по энергоэффективности|
+oilgas|Energy Auditor|Enerji auditoru|Энергоаудитор|
+oilgas|Hydropower Engineer|Hidroenergetika mühəndisi|Инженер-гидроэнергетик|
+oilgas|Welder (Pipeline)|Boru kəməri qaynaqçısı|Сварщик трубопроводов|
+oilgas|NDT Technician|Dağıtmayan nəzarət texniki|Дефектоскопист|NDT inspector
+oilgas|Oilfield Services Manager|Neft-qaz xidmətləri meneceri|Менеджер нефтесервисных услуг|
+oilgas|Logistics Coordinator (Offshore)|Dəniz logistikası koordinatoru|Координатор морской логистики|
+oilgas|Tank Farm Operator|Rezervuar parkı operatoru|Оператор резервуарного парка|
+oilgas|Gas Station Attendant|Yanacaqdoldurma məntəqəsi operatoru|Оператор АЗС|benzin doldurucu
+oilgas|Gas Station Manager|Yanacaqdoldurma məntəqəsi meneceri|Управляющий АЗС|
+agriculture|Agronomist|Aqronom|Агроном|
+agriculture|Agricultural Engineer|Kənd təsərrüfatı mühəndisi|Инженер-агроном|
+agriculture|Farm Manager|Ferma meneceri|Управляющий фермой|
+agriculture|Farmer|Fermer|Фермер|
+agriculture|Farm Worker|Kənd təsərrüfatı işçisi|Сельскохозяйственный рабочий|
+agriculture|Tractor Driver|Traktor sürücüsü|Тракторист|traktorçu
+agriculture|Combine Operator|Kombayn operatoru|Комбайнёр|kombaynçı
+agriculture|Gardener|Bağban|Садовник|
+agriculture|Greenhouse Worker|Istixana işçisi|Работник теплицы|
+agriculture|Greenhouse Manager|Istixana meneceri|Руководитель тепличного хозяйства|
+agriculture|Horticulturist|Bağçılıq mütəxəssisi|Плодовод|
+agriculture|Viticulturist|Üzümçülük mütəxəssisi|Виноградарь|
+agriculture|Winemaker|Şərabçı|Винодел|
+agriculture|Beekeeper|Arıçı|Пчеловод|
+agriculture|Livestock Specialist|Maldarlıq mütəxəssisi|Животновод|zootexnik;зоотехник
+agriculture|Zootechnician|Zootexnik|Зоотехник|
+agriculture|Shepherd|Çoban|Пастух|
+agriculture|Dairy Farm Worker|Südçü|Доярка|
+agriculture|Poultry Farm Worker|Quşçu|Птицевод|
+agriculture|Fish Farmer|Balıqçı-yetişdirici|Рыбовод|
+agriculture|Fisherman|Balıqçı|Рыбак|
+agriculture|Agricultural Machinery Mechanic|Kənd təsərrüfatı texnikası mexaniki|Механик сельхозтехники|
+agriculture|Irrigation Specialist|Suvarma mütəxəssisi|Специалист по ирригации|meliorator;мелиоратор
+agriculture|Soil Scientist|Torpaqşünas|Почвовед|
+agriculture|Plant Protection Specialist|Bitki mühafizəsi mütəxəssisi|Специалист по защите растений|
+agriculture|Seed Specialist|Toxumçuluq mütəxəssisi|Семеновод|
+agriculture|Forester|Meşəçi|Лесник|
+agriculture|Forestry Engineer|Meşə mühəndisi|Инженер лесного хозяйства|
+agriculture|Agricultural Economist|Aqrar iqtisadçı|Экономист-аграрий|
+agriculture|Agribusiness Manager|Aqrobiznes meneceri|Менеджер агробизнеса|
+agriculture|Food Quality Inspector|Qida keyfiyyəti inspektoru|Инспектор по качеству пищевой продукции|
+agriculture|Food Safety Specialist|Qida təhlükəsizliyi mütəxəssisi|Специалист по безопасности пищевой продукции|
+agriculture|Dairy Technologist|Süd texnoloqu|Технолог молочного производства|
+agriculture|Meat Processing Worker|Ət emalı işçisi|Рабочий мясоперерабатывающего производства|
+agriculture|Canning Worker|Konserv istehsalı işçisi|Рабочий консервного производства|
+agriculture|Fruit and Vegetable Sorter|Meyvə-tərəvəz çeşidləyicisi|Сортировщик плодов и овощей|
+agriculture|Tea Grower|Çay yetişdiricisi|Чаевод|
+agriculture|Cotton Grower|Pambıqçı|Хлопковод|
+agriculture|Tobacco Grower|Tütünçü|Табаковод|
+trades|Tailor|Dərzi|Портной|
+trades|Seamstress|Tikişçi|Швея|
+trades|Garment Pattern Maker|Biçici (konstruktor-modelyer)|Закройщик|
+trades|Sewing Machine Operator|Tikiş maşını operatoru|Оператор швейной машины|
+trades|Dressmaker|Qadın geyimi dərzisi|Портниха|
+trades|Embroiderer|Naxışçı|Вышивальщица|
+trades|Carpet Weaver|Xalçaçı|Ковровщица|xalça toxuyan
+trades|Textile Worker|Toxuculuq işçisi|Текстильщик|
+trades|Spinner|Əyirici|Прядильщик|
+trades|Knitter|Trikotaj işçisi|Вязальщица|
+trades|Shoemaker|Çəkməçi|Сапожник|
+trades|Leather Worker|Dəri işçisi|Кожевник|
+trades|Upholsterer|Mebel üzləyicisi|Обойщик мебели|
+trades|Furniture Maker|Mebel ustası|Мебельщик|
+trades|Furniture Assembler|Mebel yığıcısı|Сборщик мебели|
+trades|Cabinet Maker|Dülgər-mebelçi|Краснодеревщик|
+trades|Woodworker|Taxta emalı ustası|Столяр-краснодеревщик|
+trades|Sawmill Operator|Mişar dəzgahı operatoru|Оператор лесопильного станка|
+trades|Jeweler|Zərgər|Ювелир|
+trades|Goldsmith|Qızıl ustası|Золотых дел мастер|
+trades|Watchmaker|Saat ustası|Часовщик|
+trades|Potter|Dulusçu|Гончар|
+trades|Ceramist|Keramika ustası|Керамист|
+trades|Stonemason|Daş ustası|Каменотёс|
+trades|Coppersmith|Misgər|Медник|misgərlik
+trades|Blacksmith|Dəmirçi|Кузнец|
+trades|Engraver|Həkkak|Гравёр|
+trades|Printing Operator|Mətbəə operatoru|Печатник|
+trades|Offset Printer|Ofset çap operatoru|Офсетчик|
+trades|Bookbinder|Cildçi|Переплётчик|
+trades|Signmaker|Reklam lövhəsi ustası|Мастер по изготовлению вывесок|
+trades|Laser Cutting Operator|Lazer kəsim operatoru|Оператор лазерной резки|
+trades|3D Printing Specialist|3D çap mütəxəssisi|Специалист по 3D-печати|
+trades|Glass Worker|Şüşə emalı ustası|Стеклодув|
+trades|Packaging Operator|Qablaşdırma xətti operatoru|Оператор упаковочной линии|
+trades|Production Line Operator|İstehsal xətti operatoru|Оператор производственной линии|
+trades|Bottling Line Operator|Şüşələmə xətti operatoru|Оператор линии розлива|
+trades|Cement Plant Operator|Sement zavodu operatoru|Оператор цементного завода|
+trades|Plastic Molding Operator|Plastik qəlibləmə operatoru|Оператор термопластавтомата|
+trades|Chemical Plant Operator|Kimya zavodu operatoru|Оператор химического производства|
+trades|Pharmaceutical Production Operator|Əczaçılıq istehsalı operatoru|Оператор фармацевтического производства|
+trades|Dry Cleaner|Kimyəvi təmizləmə işçisi|Работник химчистки|
+trades|Laundry Worker|Camaşırxana işçisi|Работник прачечной|
+trades|Shoe Repairer|Ayaqqabı təmiri ustası|Ремонтник обуви|
+trades|Appliance Repair Technician|Məişət texnikası təmiri ustası|Мастер по ремонту бытовой техники|
+trades|Phone Repair Technician|Telefon təmiri ustası|Мастер по ремонту телефонов|
+trades|Computer Repair Technician|Kompüter təmiri ustası|Мастер по ремонту компьютеров|
+trades|Handyman|Universal usta|Мастер на все руки|

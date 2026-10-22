@@ -1,4 +1,5 @@
 import { normalizeSkillKey } from "./skill-catalog.ts";
+import { EXTRA_JOB_TITLES, RU_LABELS_OF_BASE } from "./job-title-catalog-extra.ts";
 
 // Shared list of job titles used by vacancies and candidate experience.
 // `family` matches ROLE_FAMILIES in model.ts and drives role relevance.
@@ -6,6 +7,8 @@ export type JobTitleDefinition = {
   id: string;
   label: string;
   labelEn: string;
+  // Russian display name; optional because admin-added titles may not have one.
+  labelRu?: string;
   family: string;
   aliases: string[];
   // Seniority variants point at the plain profession they were derived from.
@@ -35,9 +38,17 @@ export const JOB_TITLE_FAMILIES: Record<string, { az: string; en: string }> = {
   health: { az: "Səhiyyə və əczaçılıq", en: "Healthcare and pharmacy" },
   security: { az: "Təhlükəsizlik və əməyin mühafizəsi", en: "Security and HSE" },
   admin: { az: "İnzibati və idarəetmə", en: "Administration and management" },
+  oilgas: { az: "Neft-qaz, energetika və mədənçıxarma", en: "Oil, gas, energy and mining" },
+  agriculture: { az: "Kənd təsərrüfatı və qida istehsalı", en: "Agriculture and food production" },
+  trades: { az: "Peşə və istehsal işçiləri", en: "Skilled trades and production workers" },
+  transport: { az: "Nəqliyyat və aviasiya", en: "Transport and aviation" },
+  science: { az: "Elm, tədqiqat və laboratoriya", en: "Science, research and laboratory" },
+  social: { az: "Sosial xidmət və qeyri-kommersiya", en: "Social services and non-profit" },
+  personal: { az: "Gözəllik, idman və şəxsi xidmət", en: "Beauty, sports and personal services" },
+  public: { az: "Dövlət və bələdiyyə xidməti", en: "Public service and government" },
 };
 
-export const JOB_TITLE_CATALOG: JobTitleDefinition[] = [
+export const BASE_JOB_TITLES: JobTitleDefinition[] = [
   // Finance, accounting and banking
   title("accountant", "Mühasib", "Accountant", "finance", ["mühasib", "бухгалтер"]),
   title("chief-accountant", "Baş mühasib", "Chief Accountant", "finance", ["baş mühasib", "главный бухгалтер", "head accountant"]),
@@ -291,7 +302,10 @@ export const JOB_TITLE_CATALOG: JobTitleDefinition[] = [
   title("consultant", "Məsləhətçi", "Consultant", "admin", ["konsultant", "management consultant"]),
   title("data-entry-operator", "Məlumat daxiletmə operatoru", "Data Entry Operator", "admin", ["operator (PC)"]),
   title("intern", "Təcrübəçi", "Intern", "admin", ["internship", "stajor", "təcrübə proqramı iştirakçısı"]),
-];
+].map((t) => (RU_LABELS_OF_BASE[t.id] ? { ...t, labelRu: RU_LABELS_OF_BASE[t.id], aliases: [...t.aliases, RU_LABELS_OF_BASE[t.id]] } : t));
+
+// Hand-written core titles plus the large generated list.
+export const JOB_TITLE_CATALOG: JobTitleDefinition[] = [...BASE_JOB_TITLES, ...EXTRA_JOB_TITLES];
 
 export const normalizeJobTitleKey = (value: string) =>
   normalizeSkillKey(value).replace(/ə/g, "e");

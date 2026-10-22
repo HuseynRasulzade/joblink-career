@@ -405,6 +405,14 @@ export const ROLE_FAMILIES: { family: string; words: string[] }[] = [
   { family: "health", words: ["hekim", "eczaci", "tibb", "pharma", "doctor", "nurse", "feldser", "stomatoloq"] },
   { family: "security", words: ["tehlukesizlik", "muhafize", "hse", "security", "safety"] },
   { family: "admin", words: ["ofis", "office", "katib", "sekretar", "assistant", "inzibati", "administrator", "resepsion"] },
+  { family: "oilgas", words: ["neft", "petroleum", "drilling", "qazma", "buruq", "refiner", "offshore", "boru kemeri", "pipeline", "energetik", "madenci", "mining"] },
+  { family: "agriculture", words: ["agronom", "fermer", "farm", "kend teserrufat", "agricultur", "heyvandarliq", "baytar", "bagban", "arici"] },
+  { family: "trades", words: ["derzi", "tikis", "tailor", "seamstress", "zergher", "jewel", "dulger", "carpenter", "mebel", "furniture", "xalca", "dulus"] },
+  { family: "transport", words: ["pilot", "aviadispet", "aviation", "qatar", "railway", "gemi", "kapitan", "denizci", "seafarer", "liman", "port operator", "dispetcer"] },
+  { family: "science", words: ["tedqiqatci", "researcher", "scientist", "elmi", "laborator", "kimyaci", "chemist", "fizik", "bioloq", "biolog", "riyaziyyat", "mathematic"] },
+  { family: "social", words: ["sosial isci", "social worker", "qht", "ngo", "humanitar", "humanitarian", "konullu", "volunteer", "fundrais"] },
+  { family: "personal", words: ["berber", "barber", "hairdress", "kosmetolog", "cosmetolog", "makiyaj", "makeup", "manikur", "fitnes", "fitness", "yoqa", "yoga", "stilist", "stylist"] },
+  { family: "public", words: ["dovlet qulluqcu", "civil servant", "belediyye", "municipal", "vergi inspektor", "gomruk emekdas", "polis", "diplomat", "konsul"] },
 ];
 // Folds Azerbaijani letters to plain Latin so "öyrənmək" matches "oyren".
 const fold = (s: string) => normalize(s).replace(/ə/g, "e");

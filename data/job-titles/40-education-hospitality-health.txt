@@ -1,0 +1,177 @@
+education|Azerbaijani Language Teacher|Azərbaycan dili müəllimi|Учитель азербайджанского языка|
+education|Russian Language Teacher|Rus dili müəllimi|Учитель русского языка|
+education|Literature Teacher|Ədəbiyyat müəllimi|Учитель литературы|
+education|History Teacher|Tarix müəllimi|Учитель истории|
+education|Geography Teacher|Coğrafiya müəllimi|Учитель географии|
+education|Physics Teacher|Fizika müəllimi|Учитель физики|
+education|Chemistry Teacher|Kimya müəllimi|Учитель химии|
+education|Biology Teacher|Biologiya müəllimi|Учитель биологии|
+education|Informatics Teacher|İnformatika müəllimi|Учитель информатики|
+education|Physical Education Teacher|Bədən tərbiyəsi müəllimi|Учитель физкультуры|
+education|Music Teacher|Musiqi müəllimi|Учитель музыки|
+education|Art Teacher|Təsviri incəsənət müəllimi|Учитель изобразительного искусства|
+education|Turkish Language Teacher|Türk dili müəllimi|Учитель турецкого языка|
+education|German Teacher|Alman dili müəllimi|Учитель немецкого языка|
+education|French Teacher|Fransız dili müəllimi|Учитель французского языка|
+education|Arabic Teacher|Ərəb dili müəllimi|Учитель арабского языка|
+education|Speech Therapist|Loqoped|Логопед|
+education|Special Education Teacher|Xüsusi təhsil müəllimi|Учитель специального образования|defektoloq;дефектолог
+education|School Psychologist|Məktəb psixoloqu|Школьный психолог|
+education|Social Pedagogue|Sosial pedaqoq|Социальный педагог|
+education|Class Teacher|Sinif rəhbəri|Классный руководитель|
+education|Deputy School Principal|Məktəb direktorunun müavini|Заместитель директора школы|
+education|Kindergarten Director|Uşaq bağçası müdiri|Заведующий детским садом|
+education|Kindergarten Assistant|Uşaq bağçası dayəsi|Помощник воспитателя|dayə
+education|Nanny|Dayə|Няня|
+education|Babysitter|Uşaq baxıcısı|Приходящая няня|
+education|Private Tutor|Fərdi repetitor|Частный репетитор|
+education|IELTS Instructor|IELTS müəllimi|Преподаватель IELTS|
+education|Language Instructor|Dil kursu müəllimi|Преподаватель иностранных языков|
+education|University Professor|Universitet professoru|Профессор университета|
+education|Associate Professor|Dosent|Доцент|
+education|Senior Lecturer|Baş müəllim|Старший преподаватель|
+education|Assistant Lecturer|Müəllim-assistent|Ассистент преподавателя|
+education|Dean|Dekan|Декан|
+education|Department Chair|Kafedra müdiri|Заведующий кафедрой|
+education|University Rector|Universitet rektoru|Ректор университета|
+education|Admissions Officer|Qəbul üzrə mütəxəssis|Специалист приёмной комиссии|
+education|Education Consultant|Təhsil məsləhətçisi|Образовательный консультант|study abroad consultant
+education|Curriculum Developer|Tədris proqramı hazırlayan mütəxəssis|Разработчик учебных программ|
+education|Instructional Designer|Təlim dizayneri|Методист-дизайнер обучения|
+education|Methodologist|Metodist|Методист|
+education|E-learning Specialist|E-təlim mütəxəssisi|Специалист по электронному обучению|
+education|Online Teacher|Onlayn müəllim|Онлайн-преподаватель|
+education|Coding Instructor|Proqramlaşdırma təlimçisi|Преподаватель программирования|
+education|Driving Instructor|Sürücülük təlimatçısı|Инструктор по вождению|avtomobil təlimatçısı
+education|Sports Coach|İdman məşqçisi|Спортивный тренер|
+education|Football Coach|Futbol məşqçisi|Тренер по футболу|
+education|Swimming Instructor|Üzgüçülük təlimatçısı|Инструктор по плаванию|
+education|Dance Teacher|Rəqs müəllimi|Преподаватель танцев|
+education|Chess Coach|Şahmat məşqçisi|Тренер по шахматам|
+education|Life Coach|Həyat məşqçisi (koç)|Лайф-коуч|koç
+education|Business Coach|Biznes koçu|Бизнес-тренер|
+education|Librarian|Kitabxanaçı|Библиотекарь|
+education|Laboratory Assistant|Laborant|Лаборант|
+education|Education Manager|Təhsil meneceri|Менеджер по образованию|
+education|Teaching Assistant|Müəllim köməkçisi|Ассистент учителя|
+hospitality|Head Waiter|Baş ofisiant|Старший официант|metrdotel;метрдотель
+hospitality|Sommelier|Sommelye|Сомелье|
+hospitality|Hostess|Hostes|Хостес|
+hospitality|Barback|Barmen köməkçisi|Помощник бармена|
+hospitality|Head Bartender|Baş barmen|Старший бармен|
+hospitality|Sous Chef|Su-şef|Су-шеф|
+hospitality|Executive Chef|Baş aşpaz|Шеф-повар|aşpaz;kulinar
+hospitality|Line Cook|Aşpaz köməkçisi|Повар линии|
+hospitality|Kitchen Helper|Mətbəx işçisi|Помощник повара|
+hospitality|Grill Cook|Manqal ustası|Мангальщик|şaşlıqçı
+hospitality|Pizza Maker|Pizza ustası|Пиццайоло|pizzaiolo
+hospitality|Sushi Chef|Suşi ustası|Суши-повар|
+hospitality|Baker|Çörəkbişirən|Пекарь|çörək ustası
+hospitality|Confectioner|Qənnadçı|Кондитер-кулинар|
+hospitality|Butcher|Qəssab|Мясник|
+hospitality|Fast Food Worker|Fast-food işçisi|Работник фастфуда|
+hospitality|Catering Manager|Keyterinq meneceri|Менеджер по кейтерингу|
+hospitality|Banquet Manager|Banket meneceri|Менеджер банкетов|
+hospitality|Food and Beverage Manager|Yeməkiçmə üzrə menecer|Менеджер по питанию и напиткам|F&B manager
+hospitality|Restaurant Administrator|Restoran administratoru|Администратор ресторана|
+hospitality|Cafe Manager|Kafe meneceri|Управляющий кафе|
+hospitality|Hotel Administrator|Otel administratoru|Администратор отеля|
+hospitality|Front Office Manager|Qəbul şöbəsinin meneceri|Руководитель службы приёма и размещения|
+hospitality|Night Auditor|Gecə auditoru|Ночной аудитор|
+hospitality|Concierge|Konsyerj|Консьерж|
+hospitality|Bellboy|Baqaj daşıyıcısı|Носильщик|bellman
+hospitality|Doorman|Qapıçı|Швейцар|
+hospitality|Reservation Agent|Rezervasiya mütəxəssisi|Специалист по бронированию|
+hospitality|Revenue Manager|Gəlirlərin idarə edilməsi meneceri|Ревеню-менеджер|
+hospitality|Housekeeping Manager|Mehmanxana təmizlik xidməti rəhbəri|Руководитель службы housekeeping|
+hospitality|Laundry Attendant|Camaşırxana işçisi|Работник прачечной|
+hospitality|Spa Manager|Spa meneceri|Менеджер спа|
+hospitality|Spa Therapist|Spa terapevti|Спа-терапевт|
+hospitality|Massage Therapist|Masajçı|Массажист|
+hospitality|Animator|Animator|Аниматор|
+hospitality|Tour Operator|Tur operator|Туроператор|
+hospitality|Tourism Manager|Turizm meneceri|Менеджер по туризму|
+hospitality|Tour Manager|Tur meneceri|Менеджер туров|
+hospitality|Ticketing Agent|Bilet satışı agenti|Кассир по продаже билетов|
+hospitality|Flight Attendant|Bortselyar|Бортпроводник|stüardessa;стюардесса
+hospitality|Event Coordinator|Tədbir koordinatoru|Координатор мероприятий|
+hospitality|Wedding Planner|Toy təşkilatçısı|Свадебный организатор|
+hospitality|Toastmaster|Tamada|Тамада|
+hospitality|Resort Manager|Kurort meneceri|Управляющий курортом|
+hospitality|Hostel Manager|Hostel meneceri|Управляющий хостелом|
+hospitality|Cinema Operator|Kinoteatr operatoru|Киномеханик|
+hospitality|Casino Dealer|Kazino krupyesi|Крупье|
+health|General Practitioner|Ümumi praktik həkim|Врач общей практики|terapevt;терапевт
+health|Therapist|Terapevt|Врач-терапевт|
+health|Surgeon|Cərrah|Хирург|
+health|Cardiologist|Kardioloq|Кардиолог|
+health|Neurologist|Nevroloq|Невролог|
+health|Gynecologist|Ginekoloq|Гинеколог|
+health|Obstetrician|Mama-ginekoloq (mamaça)|Акушер-гинеколог|
+health|Urologist|Uroloq|Уролог|
+health|Dermatologist|Dermatoloq|Дерматолог|
+health|Ophthalmologist|Oftalmoloq|Офтальмолог|göz həkimi
+health|ENT Specialist|Otorinolarinqoloq (LOR)|Отоларинголог|LOR həkimi;ЛОР
+health|Endocrinologist|Endokrinoloq|Эндокринолог|
+health|Gastroenterologist|Qastroenteroloq|Гастроэнтеролог|
+health|Oncologist|Onkoloq|Онколог|
+health|Orthopedist|Ortoped|Ортопед|travmatoloq
+health|Psychiatrist|Psixiatr|Психиатр|
+health|Anesthesiologist|Anestezioloq|Анестезиолог|reanimatoloq
+health|Pathologist|Patoloq|Патолог|
+health|Allergist|Allerqoloq|Аллерголог|
+health|Infectious Disease Doctor|İnfeksionist həkim|Инфекционист|
+health|Family Doctor|Ailə həkimi|Семейный врач|
+health|Emergency Doctor|Təcili yardım həkimi|Врач скорой помощи|
+health|Paramedic|Feldşer|Фельдшер|
+health|Orthodontist|Ortodont|Ортодонт|
+health|Dental Hygienist|Diş gigiyenisti|Гигиенист стоматологический|
+health|Dental Technician|Diş texniki|Зубной техник|
+health|Dental Assistant|Stomatoloq köməkçisi|Ассистент стоматолога|
+health|Head Nurse|Baş tibb bacısı|Старшая медсестра|
+health|Surgical Nurse|Cərrahiyyə tibb bacısı|Операционная медсестра|
+health|Medical Assistant|Tibb köməkçisi|Помощник врача|
+health|Caregiver|Xəstəyə qulluq işçisi|Сиделка|sanitar;санитар
+health|Orderly|Sanitar|Санитар|
+health|Ambulance Driver|Təcili yardım sürücüsü|Водитель скорой помощи|
+health|Medical Laboratory Scientist|Tibbi laboratoriya mütəxəssisi|Специалист клинической лаборатории|
+health|Clinical Research Associate|Klinik tədqiqatlar üzrə mütəxəssis|Специалист по клиническим исследованиям|CRA
+health|Clinical Pharmacist|Klinik əczaçı|Клинический фармацевт|
+health|Pharmacy Manager|Aptek müdiri|Заведующий аптекой|
+health|Pharmaceutical Technologist|Əczaçılıq texnoloqu|Фармацевтический технолог|
+health|Nutritionist|Qidalanma mütəxəssisi|Нутрициолог|dietoloq;диетолог
+health|Speech-Language Pathologist|Nitq terapevti|Логопед-афазиолог|
+health|Occupational Therapist|Əməklə müalicə terapevti|Эрготерапевт|
+health|Rehabilitation Specialist|Reabilitasiya mütəxəssisi|Специалист по реабилитации|
+health|Chiropractor|Manual terapevt|Мануальный терапевт|
+health|Optometrist|Optometrist|Оптометрист|
+health|Audiologist|Odioloq|Сурдолог|
+health|Medical Director|Tibbi direktor|Медицинский директор|
+health|Hospital Manager|Xəstəxana rəhbəri|Руководитель больницы|baş həkim;главный врач
+health|Clinic Manager|Klinika meneceri|Управляющий клиникой|
+health|Public Health Specialist|İctimai səhiyyə mütəxəssisi|Специалист общественного здравоохранения|
+health|Epidemiologist|Epidemioloq|Эпидемиолог|
+health|Medical Statistician|Tibbi statistik|Медицинский статистик|
+health|Medical Coder|Tibbi kodlaşdırma mütəxəssisi|Специалист по медицинскому кодированию|
+health|Medical Equipment Technician|Tibbi cihazlar mühəndisi|Инженер по медицинскому оборудованию|
+health|Veterinary Technician|Baytar texniki|Ветеринарный техник|
+health|Veterinary Assistant|Baytar köməkçisi|Ассистент ветеринара|
+security|Security Officer|Təhlükəsizlik əməkdaşı|Сотрудник службы безопасности|
+security|Security Supervisor|Mühafizə növbə rəisi|Начальник смены охраны|
+security|Bodyguard|Cangüdən|Телохранитель|
+security|Security Inspector|Təhlükəsizlik inspektoru|Инспектор по безопасности|
+security|Surveillance Operator|Video müşahidə operatoru|Оператор видеонаблюдения|
+security|Alarm Monitoring Operator|Siqnalizasiya pultu operatoru|Оператор пульта охраны|
+security|Checkpoint Officer|Buraxılış məntəqəsi əməkdaşı|Контролёр на пропускном пункте|
+security|OHS Specialist|Əməyin mühafizəsi mütəxəssisi|Специалист по охране труда|
+security|Industrial Safety Engineer|Sənaye təhlükəsizliyi mühəndisi|Инженер по промышленной безопасности|
+security|Occupational Health Specialist|Peşə sağlamlığı mütəxəssisi|Специалист по профессиональному здоровью|
+security|Environmental Specialist|Ətraf mühitin mühafizəsi mütəxəssisi|Специалист по охране окружающей среды|ekoloq;эколог
+security|Emergency Response Coordinator|Fövqəladə hallar üzrə koordinator|Координатор по чрезвычайным ситуациям|
+security|Fire Inspector|Yanğın müfəttişi|Пожарный инспектор|
+security|Firefighter|Yanğınsöndürən|Пожарный|
+security|Rescuer|Xilasedici|Спасатель|
+security|Lifeguard|Xilasedici (hovuz, çimərlik)|Спасатель на воде|
+security|Corporate Security Manager|Korporativ təhlükəsizlik meneceri|Менеджер корпоративной безопасности|
+security|Security Analyst|Təhlükəsizlik analitiki|Аналитик безопасности|
+security|Loss Prevention Officer|İtkilərin qarşısının alınması mütəxəssisi|Специалист по предотвращению потерь|
