@@ -76,3 +76,19 @@ test("degree strings split into programme and level and back", () => {
   assert.equal(composeDegree("Marketinq", null), "Marketinq");
   assert.deepEqual(parseDegree(composeDegree("Marketinq", level)).major, "Marketinq");
 });
+
+test("administrator-added programmes are found like catalog ones and can be cleared", async () => {
+  const { setCustomMajors } = await import("../lib/major-catalog.ts");
+  const added = { id: "custom:9", label: "Kosmik mühəndislik sınağı", labelEn: "Space engineering test", labelRu: "Космическая инженерия тест", field: "engineering", aliases: ["Kosmik mühəndislik sınağı", "Space engineering test", "Космическая инженерия тест", "KMS-test"] };
+  assert.equal(canonicalMajor("KMS-test"), null);
+  setCustomMajors([added]);
+  assert.equal(canonicalMajor("kosmik muhendislik sinagi")?.id, "custom:9");
+  assert.equal(searchMajors("space engineering")[0].id, "custom:9");
+  setCustomMajors([]);
+  assert.equal(canonicalMajor("KMS-test"), null);
+});
+
+test("a slip in a partly typed programme still finds it", () => {
+  assert.equal(searchMajors("proqram muhendislk")[0].id, "software-engineering");
+  assert.equal(searchMajors("beynelxalq munasibet")[0].id, "international-relations");
+});

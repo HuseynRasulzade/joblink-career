@@ -78,6 +78,8 @@ import NotificationBell from "./NotificationBell";
 import { JobCertificationList } from "./CertificationPickers";
 import { setCustomCertifications } from "@/lib/certification-catalog";
 import { setCustomJobTitles } from "@/lib/job-title-catalog";
+import { setCustomUniversities } from "@/lib/university-catalog";
+import { setCustomMajors } from "@/lib/major-catalog";
 import { CompaniesPage, CompanyView, VerifiedBadge, type CompanyInfo } from "./CompaniesPage";
 import { SalaryCalculator } from "./SalaryCalculator";
 import { FitReviewPanel } from "./FitReview";
@@ -128,6 +130,7 @@ const adminNav = [
   { id: "admin-skills", label: "Bacarıqlar kataloqu", icon: Tags },
   { id: "admin-certifications", label: "Sertifikatlar kataloqu", icon: Award },
   { id: "admin-job-titles", label: "Vəzifələr kataloqu", icon: ListChecks },
+  { id: "admin-education", label: "Təhsil kataloqu", icon: Award },
   { id: "admin-support", label: "Sorğular və mesajlar", icon: Inbox },
   { id: "admin-relations", label: "İzləmə və bloklar", icon: UserCheck },
   { id: "admin-companies", label: "Şirkət yoxlaması", icon: BadgeCheck },
@@ -614,6 +617,8 @@ export default function Joblink() {
           .catch(() => setOffers({}));
       setCustomCertifications(b.customCertifications || []);
       setCustomJobTitles(b.customJobTitles || []);
+      setCustomUniversities(b.customUniversities || []);
+      setCustomMajors(b.customMajors || []);
       setJobs(b.jobs);
       setApplications(b.applications);
       setSaved(b.saved);

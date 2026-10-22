@@ -111,6 +111,8 @@ const normalizedProfileRecord = (value: unknown, customSkills: string[] = []): P
 // and its application deadline (when set) has not passed.
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
 import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
+import { COUNTRIES, canonicalUniversity, setCustomUniversities, type University } from "@/lib/university-catalog";
+import { MAJOR_FIELDS, canonicalMajor, setCustomMajors, type Major } from "@/lib/major-catalog";
 import { PLANS, addPeriod, azn as aznCents, planById } from "@/lib/plans";
 import { cardLabel, parseCard, providerFor } from "@/lib/payments";
 import { buildServiceContract } from "@/lib/contracts";
@@ -193,6 +195,28 @@ async function notifyFollowers(db: D1Database, companyId: string, j: Job) {
     if (enforced && !(await planOf(db, follower.actor_id, providerFor(runtime().PAYMENT_PROVIDER))).limits.digestEmail) continue;
     await sendUserEmail(db, follower.actor_id, `${j.company}: yeni vakansiya — ${j.title}`, `İzlədiyiniz ${j.company} şirkəti yeni vakansiya paylaşdı: ${j.title} (${j.city}). Joblink-də baxın.`);
   }
+}
+// Universities and programmes the administrator added from candidates' requests.
+async function readCustomEducation(db: D1Database) {
+  const rows = await db
+    .prepare("SELECT id,kind,label,label_en,label_ru,extra,aliases FROM custom_education_items ORDER BY created DESC")
+    .all<{ id: string; kind: string; label: string; label_en: string; label_ru: string; extra: string; aliases: string }>()
+    .catch(() => ({ results: [] as { id: string; kind: string; label: string; label_en: string; label_ru: string; extra: string; aliases: string }[] }));
+  const universities: University[] = [];
+  const majors: Major[] = [];
+  for (const r of rows.results) {
+    const aliases = (() => {
+      try {
+        return (JSON.parse(r.aliases) as unknown[]).filter((a): a is string => typeof a === "string");
+      } catch {
+        return [];
+      }
+    })();
+    const names = [r.label, r.label_en || r.label, r.label_ru || r.label];
+    if (r.kind === "university") universities.push({ id: `custom:${r.id}`, label: r.label, labelEn: names[1], labelRu: names[2], country: r.extra, aliases: [...names, ...aliases] });
+    else if (r.kind === "major") majors.push({ id: `custom:${r.id}`, label: r.label, labelEn: names[1], labelRu: names[2], field: r.extra, aliases: [...names, ...aliases] });
+  }
+  return { universities, majors };
 }
 // Company-side records of who did what (team, approvals, salaries, files).
 async function companyAudit(db: D1Database, companyId: string, actorId: string, action: string, target = "", detail = "") {
@@ -929,6 +953,10 @@ async function route(request: Request) {
       saved,
       customCertifications: customCerts,
       customJobTitles: customTitles,
+      ...(await (async () => {
+        const education = await readCustomEducation(db);
+        return { customUniversities: education.universities, customMajors: education.majors };
+      })()),
       signedIn: !!user,
       aiEnabled:
         runtime().AI_PROVIDER === "openai"
@@ -1583,6 +1611,62 @@ async function route(request: Request) {
       if (!SUPPORT_STATUSES[status]) throw new HttpError(400, "Status yanlışdır.");
       await db.prepare("UPDATE support_threads SET status=?,updated=? WHERE id=?")
         .bind(status, new Date().toISOString(), str(body.id, 100)).run();
+      return ok({ ok: true });
+    }
+    if (request.method === "GET" && path === "admin/education") {
+      const education = await readCustomEducation(db);
+      return ok({ ...education, countries: COUNTRIES, fields: MAJOR_FIELDS });
+    }
+    if (request.method === "POST" && path === "admin/education") {
+      const body = await jsonBody(request);
+      const kind = body.kind === "major" ? "major" : body.kind === "university" ? "university" : "";
+      const label = str(body.label, 160).replace(/\s+/g, " ");
+      const labelEn = str(body.labelEn, 160).replace(/\s+/g, " ") || label;
+      const labelRu = str(body.labelRu, 160).replace(/\s+/g, " ") || label;
+      const extra = str(body.extra, 40);
+      const aliases = (Array.isArray(body.aliases) ? body.aliases : str(body.aliases, 800).split(/[,;\n]/))
+        .map((value: unknown) => str(value, 160).replace(/\s+/g, " "))
+        .filter(Boolean)
+        .slice(0, 15);
+      if (!kind) throw new HttpError(400, "Növü seçin: universitet və ya ixtisas.");
+      if (label.length < 2) throw new HttpError(400, "Azərbaycanca adı yazın.");
+      if (kind === "university" ? !COUNTRIES[extra] : !MAJOR_FIELDS[extra])
+        throw new HttpError(400, kind === "university" ? "Ölkəni seçin." : "Sahəni seçin.");
+      const education = await readCustomEducation(db);
+      setCustomUniversities(education.universities);
+      setCustomMajors(education.majors);
+      const names = [label, labelEn, labelRu, ...aliases];
+      const duplicate = names.map((value) => (kind === "university" ? canonicalUniversity(value) : canonicalMajor(value))).find(Boolean);
+      if (duplicate) throw new HttpError(409, `Bu ad artıq siyahıdadır: ${duplicate.label}.`);
+      const itemId = crypto.randomUUID();
+      const now = new Date().toISOString();
+      const threadId = str(body.threadId, 100);
+      const statements = [
+        db.prepare("INSERT INTO custom_education_items(id,kind,label,label_en,label_ru,extra,aliases,created_by,created) VALUES(?,?,?,?,?,?,?,?,?)")
+          .bind(itemId, kind, label, labelEn, labelRu, extra, JSON.stringify(aliases), id, now),
+        db.prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), id, `${kind}-created`, kind, itemId, JSON.stringify({ label, labelEn, extra }), now),
+      ];
+      if (threadId)
+        statements.push(
+          db.prepare("UPDATE support_threads SET status='done',updated=? WHERE id=?").bind(now, threadId),
+          db.prepare("INSERT INTO support_messages(id,thread_id,author_id,author_role,body,created) VALUES(?,?,?,?,?,?)")
+            .bind(crypto.randomUUID(), threadId, id, "admin", `“${label}” siyahıya əlavə edildi. İndi onu siyahıdan seçə bilərsiniz.`, now),
+        );
+      try {
+        await db.batch(statements);
+      } catch {
+        throw new HttpError(409, "Bu adda qeyd artıq mövcuddur.");
+      }
+      return ok({ ok: true, id: `custom:${itemId}` }, 201);
+    }
+    if (request.method === "POST" && path === "admin/education/delete") {
+      const body = await jsonBody(request);
+      const itemId = str(body.id, 100).replace(/^custom:/, "");
+      const result = await db.prepare("DELETE FROM custom_education_items WHERE id=?").bind(itemId).run();
+      if (!result.meta.changes) throw new HttpError(404, "Qeyd tapılmadı.");
+      await db.prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), id, "education-item-deleted", "education", itemId, "{}", new Date().toISOString()).run();
       return ok({ ok: true });
     }
     if (request.method === "POST" && path === "admin/job-titles") {

@@ -75,3 +75,22 @@ test("the wider world list is searchable and does not repeat the curated list", 
   assert.equal(searchWorldUniversities(list, hit[0])[0][0], hit[0]);
   assert.deepEqual(searchWorldUniversities(list, "x"), []);
 });
+
+test("administrator-added universities are found like catalog ones and can be cleared", async () => {
+  const { setCustomUniversities, customUniversities } = await import("../lib/university-catalog.ts");
+  const added = { id: "custom:1", label: "Yeni Sınaq Universiteti", labelEn: "New Test University", labelRu: "Новый тестовый университет", country: "AZ", aliases: ["Yeni Sınaq Universiteti", "New Test University", "Новый тестовый университет", "YSU-test"] };
+  assert.equal(canonicalUniversity("YSU-test"), null);
+  setCustomUniversities([added]);
+  assert.equal(canonicalUniversity("yeni sinaq universiteti")?.id, "custom:1");
+  assert.equal(canonicalUniversity("YSU-test")?.id, "custom:1");
+  assert.equal(searchUniversities("new test univ")[0].id, "custom:1");
+  assert.equal(customUniversities().length, 1);
+  setCustomUniversities([]);
+  assert.equal(canonicalUniversity("YSU-test"), null);
+});
+
+test("a slip in a partly typed name still finds the university", () => {
+  assert.equal(searchUniversities("sabancy univers")[0].labelEn, "Sabancı University");
+  assert.equal(searchUniversities("harvrd univ")[0].labelEn, "Harvard University");
+  assert.equal(searchUniversities("xezr universit")[0].id, "az-khazar-university");
+});

@@ -69,6 +69,13 @@ export const COUNTRIES: Record<string, { az: string; en: string; ru: string }> =
 
 export const UNIVERSITIES: University[] = UNIVERSITY_DATA;
 
+// Institutions added by the administrator (from candidates' requests), loaded at runtime.
+let customRegistry: University[] = [];
+export function setCustomUniversities(list: University[]) {
+  customRegistry = Array.isArray(list) ? list : [];
+}
+export const customUniversities = () => customRegistry;
+
 export const normalizeUniversityKey = (value: string) => normalizeSkillKey(value).replace(/ə/g, "e");
 
 const keyCache = new WeakMap<University, string[]>();
@@ -96,7 +103,8 @@ function indexed() {
 // The catalog entry a typed or stored name refers to, in any language.
 export function canonicalUniversity(value: string) {
   const key = normalizeUniversityKey(value);
-  return key ? indexed().get(value) || indexed().get(key) || null : null;
+  if (!key) return null;
+  return indexed().get(value) || indexed().get(key) || customRegistry.find((u) => u.id === value || aliasKeys(u).includes(key)) || null;
 }
 
 function distance(a: string, b: string) {
@@ -120,7 +128,7 @@ export function searchUniversities(query: string, limit = 8) {
   const needle = normalizeUniversityKey(query);
   if (needle.length < 2) return [] as University[];
   const tolerance = needle.length >= 8 ? 2 : needle.length >= 5 ? 1 : 0;
-  return UNIVERSITIES.map((u) => {
+  return [...customRegistry, ...UNIVERSITIES].map((u) => {
     const keys = aliasKeys(u);
     let rank = 9;
     if (keys.includes(needle)) rank = 0;
@@ -128,7 +136,8 @@ export function searchUniversities(query: string, limit = 8) {
     else if (keys.some((k) => k.split(" ").some((w) => w.startsWith(needle)))) rank = 2;
     else if (needle.length >= 3 && keys.some((k) => k.includes(needle))) rank = 3;
     else if (tolerance) {
-      const best = Math.min(...keys.map((k) => distance(k, needle)));
+      // A slip in the first letters of a longer name counts too ("sabancy univers").
+      const best = Math.min(...keys.map((k) => Math.min(distance(k, needle), distance(k.slice(0, needle.length), needle))));
       if (best <= tolerance) rank = 4 + best;
     }
     return { u, rank };
@@ -178,7 +187,7 @@ export function searchWorldUniversities(list: WorldUniversity[], query: string, 
     const tolerance = needle.length >= 8 ? 2 : 1;
     for (let i = 0; i < list.length; i++) {
       if (ranked.some((r) => r.i === i)) continue;
-      const best = distance(keys[i], needle);
+      const best = Math.min(distance(keys[i], needle), distance(keys[i].slice(0, needle.length), needle));
       if (best <= tolerance) ranked.push({ i, rank: 4 + best });
     }
   }

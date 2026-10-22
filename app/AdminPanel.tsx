@@ -30,6 +30,7 @@ import { localizeTree } from "./i18n";
 import { invalidateRuntimeSkills } from "./components";
 import AdminCertifications, { type AdminCertificationData } from "./AdminCertifications";
 import AdminJobTitles from "./AdminJobTitles";
+import AdminEducation from "./AdminEducation";
 import type { JobTitleDefinition } from "@/lib/job-title-catalog";
 
 type AdminData = {
@@ -461,6 +462,7 @@ export default function AdminPanel({
                     page === "admin-skills" ? "Bacarıqlar kataloqu" :
                     page === "admin-certifications" ? "Sertifikatlar kataloqu" :
                     page === "admin-job-titles" ? "Vəzifələr kataloqu" :
+                    page === "admin-education" ? "Təhsil kataloqu" :
                     page === "admin-relations" ? "İzləmə və bloklar" :
                   page === "admin-system" ? "Sistem və audit" : "Platforma icmalı"}
           </h1>
@@ -703,6 +705,8 @@ export default function AdminPanel({
           language={language}
         />
       )}
+
+      {page === "admin-education" && <AdminEducation api={api} notify={notify} language={language} />}
 
       {page === "admin-relations" && (
         <>

@@ -659,3 +659,19 @@ export const contracts = sqliteTable(
   },
   (t) => [index("contracts_account").on(t.accountId, t.created)],
 );
+
+export const customEducationItems = sqliteTable(
+  "custom_education_items",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    label: text("label").notNull(),
+    labelEn: text("label_en").notNull().default(""),
+    labelRu: text("label_ru").notNull().default(""),
+    extra: text("extra").notNull().default(""),
+    aliases: text("aliases").notNull().default("[]"),
+    createdBy: text("created_by").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [uniqueIndex("custom_education_items_label").on(t.kind, t.label)],
+);

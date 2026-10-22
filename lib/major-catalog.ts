@@ -42,6 +42,13 @@ export const normalizeMajorKey = (value: string) => normalizeSkillKey(value).rep
 
 export const MAJORS: Major[] = MAJOR_DATA;
 
+// Programmes added by the administrator (from candidates' requests), loaded at runtime.
+let customRegistry: Major[] = [];
+export function setCustomMajors(list: Major[]) {
+  customRegistry = Array.isArray(list) ? list : [];
+}
+export const customMajors = () => customRegistry;
+
 const keyCache = new WeakMap<Major, string[]>();
 const aliasKeys = (m: Major) => {
   let keys = keyCache.get(m);
@@ -65,7 +72,8 @@ function indexed() {
 
 export function canonicalMajor(value: string) {
   const key = normalizeMajorKey(value);
-  return key ? indexed().get(value) || indexed().get(key) || null : null;
+  if (!key) return null;
+  return indexed().get(value) || indexed().get(key) || customRegistry.find((m) => m.id === value || aliasKeys(m).includes(key)) || null;
 }
 
 function distance(a: string, b: string) {
@@ -88,7 +96,7 @@ export function searchMajors(query: string, limit = 8) {
   const needle = normalizeMajorKey(query);
   if (needle.length < 2) return [] as Major[];
   const tolerance = needle.length >= 8 ? 2 : needle.length >= 5 ? 1 : 0;
-  return MAJORS.map((m) => {
+  return [...customRegistry, ...MAJORS].map((m) => {
     const keys = aliasKeys(m);
     let rank = 9;
     if (keys.includes(needle)) rank = 0;
@@ -96,7 +104,8 @@ export function searchMajors(query: string, limit = 8) {
     else if (keys.some((k) => k.split(" ").some((w) => w.startsWith(needle)))) rank = 2;
     else if (needle.length >= 3 && keys.some((k) => k.includes(needle))) rank = 3;
     else if (tolerance) {
-      const best = Math.min(...keys.map((k) => distance(k, needle)));
+      // A slip in the first letters of a longer name counts too ("sabancy univers").
+      const best = Math.min(...keys.map((k) => Math.min(distance(k, needle), distance(k.slice(0, needle.length), needle))));
       if (best <= tolerance) rank = 4 + best;
     }
     return { m, rank };

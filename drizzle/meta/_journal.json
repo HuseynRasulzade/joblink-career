@@ -169,6 +169,13 @@
       "when": 1792954800000,
       "tag": "0023_plans_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1793041200000,
+      "tag": "0024_custom_education_items",
+      "breakpoints": true
     }
   ]
 }
