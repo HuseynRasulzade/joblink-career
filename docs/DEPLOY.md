@@ -36,6 +36,8 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0038_headcount_plan` | Ştat planı: şöbə üzrə planlanan say |
 | `0039_interview_panel_slots` | Müsahibədə `panel` (aparanlar) və `slots` (namizədin seçəcəyi 2-3 vaxt variantı) |
 | `0040_offer_templates` | Təklif şablonları (`offer_templates`): müqavilə növü, sınaq, qrafik, imkanlar, mətn; maaş və tarix şablona yazılmır |
+| `0041_message_templates` | Şirkətin ortaq mesaj şablonları (`message_templates`) |
+| `0042_saved_searches` | Namizəd siyahısının saxlanmış axtarışları (`saved_searches`) |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 

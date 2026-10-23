@@ -85,6 +85,13 @@ export default function MessagesPage({
   onRead: () => void;
   notify: (message: string) => void;
 }) {
+  const [saved, setSaved] = useState<{ id: string; body: string }[]>([]);
+  const loadSaved = () => {
+    if (role !== "company") return Promise.resolve();
+    return request<{ templates: { id: string; body: string }[] }>("messages/templates").then((d) => setSaved(d.templates)).catch(() => {});
+  };
+  useEffect(() => { void loadSaved(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [active, setActive] = useState<string>("");
   const [pending, setPending] = useState<MessageTarget | null>(null);
@@ -411,6 +418,17 @@ export default function MessagesPage({
               )}
             </div>
             <div className="quick-replies" aria-label={t("Tez cavablar")}>
+              {role === "company" && saved.map((tpl) => (
+                <span key={tpl.id} className="quick-saved">
+                  <button type="button" onClick={() => setText(tpl.body)} title={tpl.body}>{tpl.body.length > 60 ? `${tpl.body.slice(0, 57)}…` : tpl.body}</button>
+                  <button type="button" aria-label={t("Şablonu sil")} onClick={async () => { await request("messages/templates/delete", { id: tpl.id }).catch(() => {}); void loadSaved(); }}><X size={12} /></button>
+                </span>
+              ))}
+              {role === "company" && text.trim().length >= 5 && (
+                <button type="button" className="text-button" onClick={async () => { try { await request("messages/templates/save", { body: text }); notify(t("Şablon saxlanıldı.")); void loadSaved(); } catch (error) { notify((error as Error).message); } }}>
+                  {t("Mətni şablon kimi saxla")}
+                </button>
+              )}
               {QUICK_REPLIES[role].map((reply) => (
                 <button key={reply} type="button" onClick={() => setText(reply)}>
                   {t(reply)}

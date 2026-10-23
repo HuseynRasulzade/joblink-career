@@ -30,6 +30,7 @@ import PipelineBoard from "./PipelineBoard";
 import { AssignTestModal } from "./AssessmentsPage";
 import { ScheduleInterviewModal } from "./Interviews";
 import { BulkModal, SaveTalentModal } from "./BulkTalent";
+import { SavedSearches } from "./SavedSearches";
 import { SaveTemplateModal, TemplatesModal, duplicateJob } from "./JobTemplates";
 import { CloseJobModal, EditJobModal } from "./JobsManage";
 import { closeReasonLabel, daysLeft, extendedDeadline } from "@/lib/job-edit";
@@ -932,6 +933,13 @@ export default function HrPanel({
               </select>
             </Field>
           </div>
+          {!demo && (
+            <SavedSearches
+              current={{ minScore, minYears, requiredSkills, certFilter, onlyFollowed, query }}
+              onApply={(f) => { setMinScore(f.minScore); setMinYears(f.minYears); setRequiredSkills(f.requiredSkills); setCertFilter(f.certFilter); setOnlyFollowed(f.onlyFollowed); setQuery(f.query); }}
+              notify={notify}
+            />
+          )}
           <div className="tabs" role="tablist" aria-label="Namizəd siyahısı">
             {["Uyğun namizədlər", "Müraciət edənlər"].map((t) => (
               <button

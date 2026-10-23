@@ -166,6 +166,7 @@ export type Application = {
   job?: Job;
   auto?: boolean;
   stage?: string;
+  duplicate?: { otherVacancies: number; sameContactAs: string[] } | null;
   events?: { type: string; from_value: string; to_value: string; created: string }[];
 };
 export const blankProfile: Profile = {

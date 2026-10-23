@@ -56,6 +56,7 @@ import {
   type SkillDefinition,
 } from "@/lib/skill-catalog";
 import { createXlsx, excelDateSerial } from "@/lib/xlsx";
+import { findDuplicates } from "@/lib/duplicates";
 import {
   CERTIFICATION_CATALOG,
   CERTIFICATION_CATEGORIES,
@@ -1607,6 +1608,60 @@ async function route(request: Request) {
     await notifyNewMessage(db, { threadId: thread.id, recipientId: accountRole === "company" ? candidateId : companyId, senderName: await senderLabel(db, accountRole, id, userId), unreadBefore, preview: text });
     return ok({ ok: true, threadId: thread.id }, 201);
   }
+  // ---- Saved candidate searches: the filter set of the candidates page, kept by name ----
+  if (path.startsWith("hr/saved-searches") && accountRole !== "company") throw new HttpError(403, "Bu əməliyyat şirkət hesabı üçündür.");
+  if (request.method === "GET" && path === "hr/saved-searches") {
+    const rows = await db.prepare("SELECT id,name,filters FROM saved_searches WHERE company_id=? ORDER BY created DESC LIMIT 30").bind(id).all<{ id: string; name: string; filters: string }>();
+    return ok({ searches: rows.results.flatMap((r) => { try { return [{ id: r.id, name: r.name, filters: JSON.parse(r.filters) }]; } catch { return []; } }) });
+  }
+  if (request.method === "POST" && path === "hr/saved-searches/save") {
+    const b = await jsonBody(request);
+    const name = str(b.name, 60);
+    if (name.length < 2) throw new HttpError(400, "Axtarışın adını yazın.");
+    const f = (b.filters && typeof b.filters === "object" ? b.filters : {}) as Record<string, unknown>;
+    const filters = {
+      minScore: Math.max(0, Math.min(100, Math.round(Number(f.minScore) || 0))),
+      minYears: Math.max(0, Math.min(60, Math.round(Number(f.minYears) || 0))),
+      requiredSkills: str(f.requiredSkills, 300),
+      certFilter: str(f.certFilter, 100),
+      onlyFollowed: f.onlyFollowed === true,
+      query: str(f.query, 100),
+    };
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM saved_searches WHERE company_id=?").bind(id).first<{ n: number }>();
+    const existing = await db.prepare("SELECT id FROM saved_searches WHERE company_id=? AND name=?").bind(id, name).first<{ id: string }>();
+    if (!existing && (Number(count?.n) || 0) >= 30) throw new HttpError(409, "Ən çoxu 30 axtarış saxlamaq olar.");
+    if (existing) await db.prepare("UPDATE saved_searches SET filters=? WHERE id=?").bind(JSON.stringify(filters), existing.id).run();
+    else await db.prepare("INSERT INTO saved_searches(id,company_id,name,filters,created_by,created) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), id, name, JSON.stringify(filters), userId, new Date().toISOString()).run();
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "hr/saved-searches/delete") {
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM saved_searches WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    return ok({ ok: true });
+  }
+  // ---- Message templates: ready replies the company's team shares ----
+  if (path.startsWith("messages/templates")) {
+    if (accountRole !== "company") throw new HttpError(403, "Mesaj şablonları şirkət hesabı üçündür.");
+    if (request.method === "GET" && path === "messages/templates") {
+      const rows = await db.prepare("SELECT id,body FROM message_templates WHERE company_id=? ORDER BY created DESC LIMIT 30").bind(id).all<{ id: string; body: string }>();
+      return ok({ templates: rows.results });
+    }
+    if (request.method === "POST" && path === "messages/templates/save") {
+      const b = await jsonBody(request);
+      const body = str(b.body, 1000);
+      if (body.length < 5) throw new HttpError(400, "Şablon mətni çox qısadır.");
+      const count = await db.prepare("SELECT COUNT(*) AS n FROM message_templates WHERE company_id=?").bind(id).first<{ n: number }>();
+      if ((Number(count?.n) || 0) >= 30) throw new HttpError(409, "Ən çoxu 30 şablon saxlamaq olar.");
+      const same = await db.prepare("SELECT 1 FROM message_templates WHERE company_id=? AND body=?").bind(id, body).first();
+      if (!same) await db.prepare("INSERT INTO message_templates(id,company_id,body,created_by,created) VALUES(?,?,?,?,?)").bind(crypto.randomUUID(), id, body, userId, new Date().toISOString()).run();
+      return ok({ ok: true }, 201);
+    }
+    if (request.method === "POST" && path === "messages/templates/delete") {
+      const b = await jsonBody(request);
+      await db.prepare("DELETE FROM message_templates WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+      return ok({ ok: true });
+    }
+  }
   if (request.method === "POST" && path === "messages/send") {
     const body = await jsonBody(request);
     const text = str(body.body, 4000);
@@ -2485,7 +2540,7 @@ async function route(request: Request) {
     "plan/methods/default",
     "plan/contract",
   ]);
-  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessment-export", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/test-results", "hr/question-bank", "hr/question-bank/add", "hr/question-bank/delete", "hr/assessments/ai-parse", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views", "hr/job-repost"]);
+  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessment-export", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/test-results", "hr/question-bank", "hr/question-bank/add", "hr/question-bank/delete", "hr/assessments/ai-parse", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views", "hr/job-repost", "hr/saved-searches", "hr/saved-searches/save", "hr/saved-searches/delete"]);
   if (accountRole === "company" && candidatePaths.has(path))
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
@@ -5152,6 +5207,12 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       experience: verifiedRows.results.filter((v) => v.user_id === userId && v.kind === "experience").map((v) => v.item_key),
       certification: verifiedRows.results.filter((v) => v.user_id === userId && v.kind === "certification").map((v) => v.item_key),
     });
+    const duplicateMap = findDuplicates(
+      appRows.results.map((r) => {
+        const p = JSON.parse(r.data) as { name?: string; email?: string; phone?: string };
+        return { id: String(r.id), candidateId: String(r.candidate_id), jobId: String(r.job_id), name: String(p.name || ""), email: String(p.email || ""), phone: String(p.phone || "") };
+      }),
+    );
     return ok({
       jobs: jobRows.results.map((r) => ({
         ...normalizedJobRecord(JSON.parse(r.data), customSkillLabels),
@@ -5169,6 +5230,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         stage: (r as Row & { stage?: string }).stage || "",
         created: r.created,
         auto: r.auto === 1,
+        duplicate: duplicateMap[String(r.id)] || null,
       })),
       candidates: active.results.map((r) => {
         const p = normalizedProfileRecord(JSON.parse(r.data), customSkillLabels);

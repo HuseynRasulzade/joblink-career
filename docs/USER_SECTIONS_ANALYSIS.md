@@ -36,7 +36,7 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 | Komanda və rollar | 5 rol, əlavə icazələr (`tests`, `reports`), jurnal | Rol şablonları (dəvət formasında hazır rol + icazə kombinasiyaları) hazırdır. Qalır: üzvün fəaliyyət hesabatı, SSO |
 | Şirkət məlumatları | Sənəd yoxlaması, VÖEN | İşəgötürən səhifəsi (lokal/şəkil/video), ofis ünvanı xəritə |
 | Hesablar və ödənişlər | Faktura, ödəniş | Real provayder, avtomatik faktura e-poçtu, ƏDV |
-| Mesajlar | Şirkət qutusu, müəllif adı, bildiriş, limit | Şablonlar, qoşma, mesajı komanda üzvünə təyin etmək |
+| Mesajlar | Şirkət qutusu, müəllif adı, bildiriş, limit | Şirkət mesaj şablonları (saxla/istifadə/sil) hazırdır. Qalır: qoşma, mesajı komanda üzvünə təyin etmək |
 | **Müsahibə** | Var: pipeline kartından təyin etmə (Bakı vaxtı, ofis/onlayn/telefon), namizədin təsdiqi və ya imtinası, vaxt dəyişmə və ləğv, "keçirildi/gəlmədi", 1–5 rəy və tövsiyə, `.ics` təqvim faylı, bildiriş və e-poçt, gündəlik xatırlatma (cron) | Namizədə 2-3 vaxt variantı təklif etmə (namizəd seçir) və müsahibə aparanlar (panel) hazırdır. Qalır: müsahibə sual şablonları |
 | **Təklif** | Var (status, qəbul) | Təklif şablonları (saxla/doldur), təklif sənədində gross/net qarşılığı (təxmini), qəbul edildikdə təklifdəki sınaq müddətindən işçinin sınaq sonu avtomatik hesablanır. Qalır: ASAN e-imza (xarici inteqrasiya, bizdən asılı deyil) |
 
@@ -76,3 +76,8 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 4. AI xərc paneli və şikayət növbəsi (admin).
 5. Vakansiya xəbərdarlığı, istedad bazası, toplu əməliyyat.
 6. Qalan yarımçıq funksiyalar (Word/Excel test, mesaj qoşması, təsdiq xatırlatması, ESCO, rus dili, ASAN, SMS, real ödəniş).
+
+## Əlavə (işəgötürən): saxlanmış axtarışlar və dublikat aşkarlama
+
+- **Saxlanmış axtarışlar:** namizəd siyahısındakı filtr dəsti (minimum uyğunluq, təcrübə, bacarıqlar, sertifikat, izlədiklərim, mətn) adla saxlanır və bir kliklə tətbiq olunur (30 ədədə qədər).
+- **Dublikat aşkarlama:** pipeline kartında namizədin eyni şirkətin başqa vakansiyasına müraciət etməsi və fərqli hesabların eyni e-poçt/telefonu paylaşması göstərilir (`lib/duplicates.ts`). Namizəd silinmir və ya bloklanmır, qərar HR-dadır.

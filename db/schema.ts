@@ -562,6 +562,29 @@ export const companyEmployees = sqliteTable(
   },
   (t) => [index("company_employees_company").on(t.companyId, t.status)],
 );
+export const savedSearches = sqliteTable(
+  "saved_searches",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    name: text("name").notNull(),
+    filters: text("filters").notNull(),
+    createdBy: text("created_by").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [index("saved_searches_company").on(t.companyId, t.created)],
+);
+export const messageTemplates = sqliteTable(
+  "message_templates",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    body: text("body").notNull(),
+    createdBy: text("created_by").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [index("message_templates_company").on(t.companyId, t.created)],
+);
 export const offerTemplates = sqliteTable(
   "offer_templates",
   {

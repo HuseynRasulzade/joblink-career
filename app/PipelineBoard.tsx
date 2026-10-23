@@ -138,6 +138,13 @@ export default function PipelineBoard({
                   >
                     {columns.map((c) => <option key={c.key} value={c.key}>{t(c.title)}</option>)}
                   </select>
+                  {app.duplicate && (
+                    <small className="skill-description" style={{ color: "#b45309" }} title={app.duplicate.sameContactAs.length ? `Eyni e-poçt/telefon: ${app.duplicate.sameContactAs.join(", ")}` : undefined}>
+                      {app.duplicate.otherVacancies > 0 && `${t("Başqa vakansiyaya da müraciət edib")} (${app.duplicate.otherVacancies})`}
+                      {app.duplicate.otherVacancies > 0 && app.duplicate.sameContactAs.length > 0 && " · "}
+                      {app.duplicate.sameContactAs.length > 0 && `${t("Eyni əlaqə məlumatı")}: ${app.duplicate.sameContactAs.join(", ")}`}
+                    </small>
+                  )}
                   {testResults[app.id] && (
                     <span className={`offer-chip ${testResults[app.id].state === "passed" ? "accepted" : testResults[app.id].state === "failed" ? "declined" : ""}`}>
                       {t("Test")}: {t(TEST_STATE[testResults[app.id].state] || "—")}
