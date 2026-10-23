@@ -151,6 +151,20 @@ export const sessions = sqliteTable(
   },
   (t) => [index("sessions_expiry").on(t.expires)],
 );
+export const jobAlerts = sqliteTable(
+  "job_alerts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    filters: text("filters").notNull(),
+    lastCheck: text("last_check").notNull(),
+    // Ids of vacancies already reported or present when the alert was made.
+    seen: text("seen").notNull().default("[]"),
+    created: text("created").notNull(),
+  },
+  (t) => [index("job_alerts_user").on(t.userId)],
+);
 export const authTokens = sqliteTable(
   "auth_tokens",
   {

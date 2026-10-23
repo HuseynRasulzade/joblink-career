@@ -103,6 +103,11 @@ export default function AccountSettings({
           Şifrəni yenilə
         </button>
       </form>
+      <section className="account-settings-section">
+        <h3>Məlumatlarımı yüklə</h3>
+        <p className="muted">Profil, müraciətlər, mesajlar, testlər, bildirişlər və s. bir JSON faylında (iş axtaran hesabı üçün).</p>
+        <a className="secondary" href="/api/joblink/account/export" download>Faylı yüklə</a>
+      </section>
       <form className="account-settings-section danger" onSubmit={deleteAccount}>
         <h3>
           <Trash2 size={17} /> Hesabı sil

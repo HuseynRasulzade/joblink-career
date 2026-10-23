@@ -1323,6 +1323,14 @@ export default function HrPanel({
                 <p>{e.description}</p>
               </div>
             ))}
+            {!!candidate.references?.length && (
+              <>
+                <h3>İstinad şəxsləri</h3>
+                {candidate.references.map((r, i) => (
+                  <p key={i}>{r.name}{r.position ? ` · ${r.position}` : ""}{r.company ? ` · ${r.company}` : ""}{r.contact ? ` · ${r.contact}` : ""}</p>
+                ))}
+              </>
+            )}
             <h3>Təhsil</h3>
             {candidate.education.map((e) => (
               <p key={e.id}>

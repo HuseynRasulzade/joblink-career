@@ -337,6 +337,13 @@
       "when": 1795028400000,
       "tag": "0047_account_security",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1795114800000,
+      "tag": "0048_job_alerts",
+      "breakpoints": true
     }
   ]
 }

@@ -73,6 +73,7 @@ export type CvParserRecord = {
   reviewReasons: string[];
   ocrUsed: boolean;
 };
+export type Reference = { name: string; position: string; company: string; contact: string };
 export type Profile = {
   name: string;
   title: string;
@@ -101,6 +102,8 @@ export type Profile = {
   cvFieldConfidence: CvFieldConfidence[];
   cvParserMetadata: CvParserRecord | null;
   certifications?: CandidateCertification[];
+  // People who can vouch for the candidate; shown only to employers the candidate applied to.
+  references?: Reference[];
   // Set by the server for employers: experience ids and certification ids
   // whose documents were checked and confirmed.
   verified?: { experience: string[]; certification: string[] };
@@ -180,6 +183,7 @@ export const blankProfile: Profile = {
   languages: "",
   certificates: "",
   links: "",
+  references: [],
   active: false,
   salary: 1200,
   salaryMax: 0,

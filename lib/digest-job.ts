@@ -1,5 +1,6 @@
 // The daily job that sends the scheduled summaries. It is called by the Worker's cron trigger
 // and by the admin "send now" action.
+import { jobMatchesAlert, sanitizeAlertFilters, type AlertJob } from "./job-alerts.ts";
 import { digestSubject, digestText, isDue, normalizeFrequency, type DigestData } from "./digest.ts";
 
 export type Mailer = { send(message: { to: string[]; from: { email: string; name: string }; subject: string; text: string }): Promise<unknown> } | null | undefined;
@@ -167,6 +168,58 @@ export async function runProbationReminders(db: D1Database, mail: Mailer, fromEm
       sent++;
     } catch {
       // One failing reminder must not stop the others.
+    }
+  }
+  return sent;
+}
+
+// Tells each candidate about vacancies published since their alert last ran (at most 5 titles per alert).
+export async function runJobAlerts(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+  const alerts = await db
+    .prepare("SELECT id,user_id,name,filters,seen FROM job_alerts LIMIT 2000")
+    .all<{ id: string; user_id: string; name: string; filters: string; seen: string }>()
+    .catch(() => ({ results: [] as { id: string; user_id: string; name: string; filters: string; seen: string }[] }));
+  if (!alerts.results.length) return 0;
+  const jobs = await db
+    .prepare("SELECT id,owner,created,data FROM jobs WHERE status='published' AND created>? ORDER BY created DESC LIMIT 1000")
+    .bind(new Date(now.getTime() - 45 * DAY).toISOString())
+    .all<{ id: string; owner: string; created: string; data: string }>()
+    .catch(() => ({ results: [] as { id: string; owner: string; created: string; data: string }[] }));
+  const today = now.toISOString().slice(0, 10);
+  const parsed = jobs.results.flatMap((r) => {
+    try {
+      const d = JSON.parse(r.data) as AlertJob & { deadline?: string; demo?: boolean };
+      if (d.demo || (d.deadline && d.deadline < today)) return [];
+      return [{ id: r.id, owner: r.owner, created: r.created, job: { ...d, skills: Array.isArray(d.skills) ? d.skills : [] } }];
+    } catch {
+      return [];
+    }
+  });
+  let sent = 0;
+  for (const alert of alerts.results) {
+    try {
+      const filters = sanitizeAlertFilters(JSON.parse(alert.filters));
+      const blocked = await db.prepare("SELECT target_id FROM relations WHERE kind='block' AND actor_id=?").bind(alert.user_id).all<{ target_id: string }>().catch(() => ({ results: [] as { target_id: string }[] }));
+      const hidden = new Set(blocked.results.map((b) => b.target_id));
+      let seen: string[] = [];
+      try { seen = JSON.parse(alert.seen) as string[]; } catch { seen = []; }
+      const known = new Set(seen);
+      const fresh = parsed.filter((p) => !known.has(p.id) && p.owner !== alert.user_id && !hidden.has(p.owner) && jobMatchesAlert(p.job, filters));
+      await db.prepare("UPDATE job_alerts SET last_check=?,seen=? WHERE id=?").bind(now.toISOString(), JSON.stringify([...fresh.map((p) => p.id), ...seen].slice(0, 300)), alert.id).run();
+      if (!fresh.length) continue;
+      const titles = fresh.slice(0, 5).map((p) => `${p.job.title} — ${p.job.company}${p.job.city ? ` (${p.job.city})` : ""}`);
+      const text = `“${alert.name}” xəbərdarlığınıza uyğun ${fresh.length} yeni vakansiya var:\n${titles.join("\n")}${fresh.length > 5 ? `\n… və daha ${fresh.length - 5} vakansiya` : ""}\n\nJoblink-də baxın.`;
+      await db
+        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
+        .bind(crypto.randomUUID(), alert.user_id, "job-alert", `Yeni vakansiya: ${alert.name}`, text.slice(0, 600), "jobs", now.toISOString())
+        .run();
+      if (mail && fromEmail) {
+        const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(alert.user_id).first<{ email: string }>();
+        if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject: `Yeni vakansiya: ${alert.name}`, text }).catch(() => {});
+      }
+      sent++;
+    } catch {
+      // One failing alert must not stop the others.
     }
   }
   return sent;

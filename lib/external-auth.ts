@@ -352,6 +352,7 @@ export async function authRoute(request: Request, path: string) {
       db.prepare("DELETE FROM assessments WHERE company_id=?").bind(userId),
       db.prepare("DELETE FROM job_views WHERE job_id IN (SELECT id FROM jobs WHERE owner=?)").bind(userId),
       db.prepare("DELETE FROM verifications WHERE user_id=?").bind(userId),
+      db.prepare("DELETE FROM job_alerts WHERE user_id=?").bind(userId),
       db.prepare("DELETE FROM passkeys WHERE user_id=?").bind(userId),
       db.prepare("DELETE FROM auth_challenges WHERE user_id=?").bind(userId),
       db.prepare("DELETE FROM auth_tokens WHERE user_id=?").bind(userId),

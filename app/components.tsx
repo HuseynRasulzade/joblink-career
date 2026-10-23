@@ -1354,6 +1354,27 @@ export function ProfileEditor({
                     onChange={(e) => set("links", e.target.value)}
                   />
                 </Field>
+                <fieldset className="field">
+                  <legend>İstinad şəxsləri (ən çoxu 3, yalnız müraciət etdiyiniz işəgötürənlərə görünür)</legend>
+                  {(p.references || []).map((ref, index) => (
+                    <div className="form-grid" key={index}>
+                      {([["name", "Ad Soyad"], ["position", "Vəzifə"], ["company", "Şirkət"], ["contact", "Telefon və ya e-poçt"]] as const).map(([key, label]) => (
+                        <input
+                          key={key}
+                          aria-label={`${label} (${index + 1}-ci istinad)`}
+                          placeholder={label}
+                          value={ref[key]}
+                          maxLength={160}
+                          onChange={(e) => set("references", (p.references || []).map((r, i) => (i === index ? { ...r, [key]: e.target.value } : r)))}
+                        />
+                      ))}
+                      <button type="button" className="text-button" onClick={() => set("references", (p.references || []).filter((_, i) => i !== index))}>Sil</button>
+                    </div>
+                  ))}
+                  {(p.references || []).length < 3 && (
+                    <button type="button" className="secondary" onClick={() => set("references", [...(p.references || []), { name: "", position: "", company: "", contact: "" }])}>+ İstinad şəxsi əlavə et</button>
+                  )}
+                </fieldset>
                 <label className="switch-row">
                   <input
                     type="checkbox"

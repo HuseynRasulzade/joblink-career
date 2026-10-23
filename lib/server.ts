@@ -118,6 +118,9 @@ export function profileInput(
     mode: ["Hibrid", "Ofisdə", "Uzaqdan"].includes(p.mode) ? p.mode : "Hibrid",
     salary: Math.max(0, Math.min(100000, Number(p.salary) || 0)),
     salaryMax: Math.max(0, Math.min(100000, Number(p.salaryMax) || 0)),
+    references: Array.isArray(p.references)
+      ? p.references.slice(0, 3).map((r) => ({ name: str(r?.name, 120), position: str(r?.position, 120), company: str(r?.company, 120), contact: str(r?.contact, 160) })).filter((r) => r.name)
+      : [],
     autoApply: p.autoApply === true,
     autoApplyScope: p.autoApplyScope === "followed" ? "followed" : "all",
     autoApplyMinScore: Math.max(

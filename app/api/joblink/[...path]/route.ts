@@ -58,6 +58,7 @@ import {
 import { createXlsx, excelDateSerial } from "@/lib/xlsx";
 import { findDuplicates } from "@/lib/duplicates";
 import { normalizeVat, vatParts } from "@/lib/vat";
+import { alertIsEmpty, describeAlert, jobMatchesAlert, sanitizeAlertFilters, type AlertJob } from "@/lib/job-alerts";
 import {
   CERTIFICATION_CATALOG,
   CERTIFICATION_CATEGORIES,
@@ -1659,6 +1660,31 @@ async function route(request: Request) {
     await db.prepare("DELETE FROM saved_searches WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
     return ok({ ok: true });
   }
+  // ---- Job alerts (candidate): a saved filter set; the daily job tells about new matching vacancies ----
+  if (path.startsWith("alerts") && accountRole !== "candidate") throw new HttpError(403, "Vakansiya xəbərdarlığı iş axtaran hesabı üçündür.");
+  if (request.method === "GET" && path === "alerts") {
+    const rows = await db.prepare("SELECT id,name,filters FROM job_alerts WHERE user_id=? ORDER BY created DESC").bind(id).all<{ id: string; name: string; filters: string }>();
+    return ok({ alerts: rows.results.map((r) => ({ id: r.id, name: r.name, filters: sanitizeAlertFilters((() => { try { return JSON.parse(r.filters); } catch { return {}; } })()) })) });
+  }
+  if (request.method === "POST" && path === "alerts/save") {
+    const b = await jsonBody(request);
+    const filters = sanitizeAlertFilters(b.filters);
+    if (alertIsEmpty(filters)) throw new HttpError(400, "Ən azı bir filtr seçin və ya söz yazın.");
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM job_alerts WHERE user_id=?").bind(id).first<{ n: number }>();
+    if ((Number(count?.n) || 0) >= 10) throw new HttpError(409, "Ən çoxu 10 xəbərdarlıq saxlamaq olar.");
+    const now = new Date().toISOString();
+    // Vacancies that already match are marked seen, so the first message is about new ones only.
+    const current = await db.prepare("SELECT id,data FROM jobs WHERE status='published' AND created>? ORDER BY created DESC LIMIT 1000").bind(new Date(Date.now() - 45 * 86400000).toISOString()).all<{ id: string; data: string }>();
+    const seen = current.results.flatMap((r) => { try { const d = JSON.parse(r.data) as AlertJob; return jobMatchesAlert({ ...d, skills: Array.isArray(d.skills) ? d.skills : [] }, filters) ? [r.id] : []; } catch { return []; } }).slice(0, 300);
+    await db.prepare("INSERT INTO job_alerts(id,user_id,name,filters,last_check,seen,created) VALUES(?,?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(), id, str(b.name, 60) || describeAlert(filters).slice(0, 60), JSON.stringify(filters), now, JSON.stringify(seen), now).run();
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "alerts/delete") {
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM job_alerts WHERE id=? AND user_id=?").bind(str(b.id, 100), id).run();
+    return ok({ ok: true });
+  }
   // ---- Message templates: ready replies the company's team shares ----
   if (path.startsWith("messages/templates")) {
     if (accountRole !== "company") throw new HttpError(403, "Mesaj şablonları şirkət hesabı üçündür.");
@@ -1762,6 +1788,42 @@ async function route(request: Request) {
       .bind(id)
       .first<{ count: number }>();
     return ok({ messages: Number(unread?.count) || 0, support: Number(support?.count) || 0 });
+  }
+  // The candidate downloads everything the platform holds about them (documents are listed, not included).
+  if (request.method === "GET" && path === "account/export") {
+    if (accountRole !== "candidate") throw new HttpError(403, "Məlumat ixracı iş axtaran hesabı üçündür.");
+    const rows = async (sql: string, ...bind: unknown[]) => (await db.prepare(sql).bind(...bind).all()).results;
+    const parse = (value: unknown) => { try { return JSON.parse(String(value)); } catch { return value; } };
+    const account = await db.prepare("SELECT a.id,a.name,a.role,a.created,p.email FROM accounts a LEFT JOIN password_accounts p ON p.user_id=a.id WHERE a.id=?").bind(id).first();
+    const profile = await db.prepare("SELECT data,updated FROM profiles WHERE user_id=?").bind(id).first<{ data: string; updated: string }>();
+    const applications = (await rows("SELECT a.id,a.job_id,a.status,a.stage,a.created,a.updated,a.auto,a.source,a.data,json_extract(j.data,'$.title') AS job_title,json_extract(j.data,'$.company') AS company FROM applications a LEFT JOIN jobs j ON j.id=a.job_id WHERE a.candidate_id=? ORDER BY a.created DESC", id))
+      .map((a) => ({ ...a, data: parse(a.data) }));
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      note: "Bu fayl Joblink-də sizin haqqınızda saxlanan məlumatlardır. Yüklənmiş sənəd faylları daxil edilmir, yalnız adları göstərilir.",
+      account,
+      profile: profile ? { ...profile, data: parse(profile.data) } : null,
+      applications,
+      applicationEvents: await rows("SELECT e.application_id,e.type,e.actor_role,e.from_value,e.to_value,e.note,e.created FROM application_events e WHERE e.application_id IN (SELECT id FROM applications WHERE candidate_id=?) ORDER BY e.created", id),
+      savedJobs: await rows("SELECT job_id FROM saved WHERE user_id=?", id),
+      jobAlerts: (await rows("SELECT name,filters,created FROM job_alerts WHERE user_id=?", id)).map((r) => ({ ...r, filters: parse(r.filters) })),
+      interviews: await rows("SELECT scheduled_at,duration_min,kind,location,note,status,candidate_note,created FROM interviews WHERE candidate_id=?", id),
+      offers: (await rows("SELECT data,status,created,updated FROM offers WHERE candidate_id=?", id)).map((r) => ({ ...r, data: parse(r.data) })),
+      tests: await rows("SELECT assigned_at,started_at,submitted_at,status,score,max_score,answers FROM assessment_assignments WHERE candidate_id=?", id),
+      messages: await rows("SELECT m.created,m.sender_role,m.body,m.attachment_name FROM messages m JOIN message_threads t ON t.id=m.thread_id WHERE t.candidate_id=? ORDER BY m.created", id),
+      notifications: await rows("SELECT type,title,body,created FROM notifications WHERE user_id=? ORDER BY created DESC LIMIT 500", id),
+      follows: await rows("SELECT target_id,kind,created FROM relations WHERE actor_id=?", id),
+      documentChecks: await rows("SELECT kind,item_label,doc_name,status,created FROM verifications WHERE user_id=?", id),
+      support: await rows("SELECT t.subject,t.topic,t.status,t.created FROM support_threads t WHERE t.user_id=?", id),
+      aiConversations: await rows("SELECT id,title,context_type,created FROM ai_conversations WHERE user_id=?", id),
+    };
+    return new Response(JSON.stringify(exportData, null, 2), {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": `attachment; filename="joblink-melumatlarim-${new Date().toISOString().slice(0, 10)}.json"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
   }
   if (request.method === "GET" && path === "notifications") {
     // Company members see the shared company inbox and their own notifications.
@@ -2562,6 +2624,9 @@ async function route(request: Request) {
     throw new HttpError(403, "Administrator hesabı yalnız idarəetmə panelindən istifadə edə bilər.");
   }
   const candidatePaths = new Set([
+    "alerts",
+    "alerts/save",
+    "alerts/delete",
     "profile",
     "save",
     "apply",
@@ -5337,6 +5402,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
             email: "",
             phone: "",
             links: "",
+            references: [],
             cvText: "",
             cvName: "",
           },

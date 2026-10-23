@@ -66,6 +66,7 @@ import HrPanel from "./HrPanel";
 import AccountLogin from "./AccountLogin";
 import AdminPanel from "./AdminPanel";
 import AccountSettings from "./AccountSettings";
+import { JobAlerts } from "./JobAlerts";
 import CvRewrite from "./CvRewrite";
 import CareerAssistant from "./CareerAssistant";
 import MessagesPage, { type MessageTarget } from "./MessagesPage";
@@ -2355,6 +2356,9 @@ export default function Joblink() {
               )}
               {page === "jobs" && (
                 <>
+                  {signedIn && accountRole === "candidate" && (
+                    <JobAlerts current={{ query, city, mode, category, type, minSalary: salary }} notify={notify} />
+                  )}
                   <div className="jobs-toolbar">
                     <div className="search-input">
                       <Search size={18} />
