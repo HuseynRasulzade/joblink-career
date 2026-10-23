@@ -1,5 +1,7 @@
 # Joblink: kompüterdə lokal işlətmək
 
+**Ən sadə yol (Windows):** zip-i tam açın və qovluqdakı **`Joblink.bat`** faylına iki dəfə klikləyin. İlk dəfə masaüstünə **Joblink** qısayolu qoyulur, sonra hər dəfə ona klikləməyiniz kifayətdir: sayt qalxır və brauzer özü açılır. Qara pəncərəni bağlamayın.
+
 1. **Node.js 20+** qurun: https://nodejs.org (LTS). 
 2. Zip-i **tam açın** (Extract All). Sonra:
    - Windows: `local\start.bat` faylına iki dəfə klikləyin

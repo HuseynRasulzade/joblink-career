@@ -12,6 +12,19 @@ const PORT = process.env.PORT || "3000";
 const PASSWORD = "Demo-12345-local";
 const run = (command, env = {}) => spawnSync(command, { shell: true, stdio: "inherit", env: { ...process.env, ...env } }).status === 0;
 
+// Already running (for example started by an earlier click): just open the browser.
+try {
+  const res = await fetch(`http://127.0.0.1:${PORT}/`, { signal: AbortSignal.timeout(2000) });
+  if (res.ok) {
+    const url = `http://localhost:${PORT}`;
+    console.log(`Sayt artıq işləyir: ${url}`);
+    spawnSync(process.platform === "win32" ? `start "" "${url}"` : process.platform === "darwin" ? `open "${url}"` : `xdg-open "${url}"`, { shell: true, stdio: "ignore" });
+    process.exit(0);
+  }
+} catch {
+  // Not running yet: continue with the normal start.
+}
+
 if (Number(process.versions.node.split(".")[0]) < 20) {
   console.error(`Node.js 20 və ya yuxarı lazımdır (sizdə ${process.versions.node}). https://nodejs.org saytından qurun.`);
   process.exit(1);
