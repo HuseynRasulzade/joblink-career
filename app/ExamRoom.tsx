@@ -15,6 +15,7 @@ type Exam = {
   assigned_at: string;
   deadline_at: string;
   submitted_at: string;
+  result?: { score: number; max: number; percent: number; passed: boolean } | null;
 };
 type Session = {
   title: string;
@@ -59,7 +60,9 @@ export function ExamList({ notify }: { notify: (message: string) => void }) {
             <small>{exam.company} · {exam.duration_min} dəqiqə · göndərilib {formatDate(exam.assigned_at, siteLanguage(), { year: false })}</small>
           </div>
           {exam.status === "submitted" ? (
-            <span className="admin-status active">Təhvil verilib</span>
+            <span className="admin-status active">
+              Təhvil verilib{exam.result ? ` · ${exam.result.score}/${exam.result.max} (${exam.result.percent}%) — ${exam.result.passed ? "keçdiniz" : "keçmədiniz"}` : ""}
+            </span>
           ) : exam.status === "expired" ? (
             <span className="admin-status">Vaxt bitib</span>
           ) : (

@@ -33,6 +33,8 @@ function columnOf(app: Application, columns: Column[]) {
   return columns.find((c) => c.status === app.status)?.key || "";
 }
 
+const TEST_STATE: Record<string, string> = { passed: "keçdi", failed: "keçmədi", pending: "yoxlanır", assigned: "göndərilib", started: "davam edir" };
+
 export default function PipelineBoard({
   applications,
   stages,
@@ -47,6 +49,7 @@ export default function PipelineBoard({
   onAssignTest,
   onSchedule,
   onBulk,
+  testResults = {},
 }: {
   applications: Application[];
   stages: string[] | undefined;
@@ -61,6 +64,7 @@ export default function PipelineBoard({
   onAssignTest: (application: Application) => void;
   onSchedule?: (application: Application) => void;
   onBulk?: (ids: string[], action: "status" | "message" | "pool" | "test") => void;
+  testResults?: Record<string, { state: string; percent: number | null }>;
 }) {
   const lastStage = (stages || [])[(stages || []).length - 1] || "";
   // Offers follow the last selection stage.
@@ -134,6 +138,12 @@ export default function PipelineBoard({
                   >
                     {columns.map((c) => <option key={c.key} value={c.key}>{t(c.title)}</option>)}
                   </select>
+                  {testResults[app.id] && (
+                    <span className={`offer-chip ${testResults[app.id].state === "passed" ? "accepted" : testResults[app.id].state === "failed" ? "declined" : ""}`}>
+                      {t("Test")}: {t(TEST_STATE[testResults[app.id].state] || "—")}
+                      {testResults[app.id].percent !== null && ["passed", "failed", "pending"].includes(testResults[app.id].state) ? ` ${testResults[app.id].percent}%` : ""}
+                    </span>
+                  )}
                   {offers[app.id] && (
                     <span className={`offer-chip ${offers[app.id].status}`}>
                       {t("Təklif")}: {t(OFFER_STATUS[offers[app.id].status])}

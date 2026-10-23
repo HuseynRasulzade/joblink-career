@@ -422,6 +422,7 @@ export const assessments = sqliteTable(
     instructions: text("instructions").notNull().default(""),
     durationMin: integer("duration_min").notNull().default(30),
     passingScore: integer("passing_score").notNull().default(0),
+    showResult: integer("show_result").notNull().default(0),
     questions: text("questions").notNull().default("[]"),
     attachmentName: text("attachment_name").notNull().default(""),
     attachmentType: text("attachment_type").notNull().default(""),

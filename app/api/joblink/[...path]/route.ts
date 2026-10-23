@@ -78,7 +78,7 @@ import { SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/suppo
 import { APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, VACANCY_REASONS, WITHDRAWN_STATUS } from "@/lib/recruitment";
 import { COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval, sanitizeTaxCheck, taxNameMatches, type TaxCheck } from "@/lib/company";
 import { DOCUMENT_CHECK_PROMPT, VERIFICATION_LABELS, normalizeAiCheck, statusFromAi, type AiDocumentCheck } from "@/lib/verification";
-import { GRACE_MS, resultState, summarizeResults, shuffleQuestions, cleanAnswers, combinedScore, isExpired, parseSnapshot, publicQuestions, reviewState, sanitizeGrades, sanitizeQuestions, textQuestions, type Question } from "@/lib/assessments";
+import { GRACE_MS, percentOf, resultState, summarizeResults, shuffleQuestions, cleanAnswers, combinedScore, isExpired, parseSnapshot, publicQuestions, reviewState, sanitizeGrades, sanitizeQuestions, textQuestions, type Question } from "@/lib/assessments";
 export const dynamic = "force-dynamic";
 type Row = {
   id: string;
@@ -2459,7 +2459,7 @@ async function route(request: Request) {
     "plan/methods/default",
     "plan/contract",
   ]);
-  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views", "hr/job-repost"]);
+  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/test-results", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views", "hr/job-repost"]);
   if (accountRole === "company" && candidatePaths.has(path))
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
@@ -3463,7 +3463,13 @@ async function route(request: Request) {
     return ok({
       exams: rows.results.map(({ snapshot, ...row }) => {
         const copy = parseSnapshot(snapshot);
-        return copy ? { ...row, title: copy.title, instructions: copy.instructions, duration_min: copy.durationMin } : row;
+        const { score, max_score, review_status, ...rest } = row as Record<string, unknown> & { score: number; max_score: number; review_status: string; status: string };
+        // The result is shown only when the employer allowed it and every answer is graded.
+        const percent = percentOf(score, max_score);
+        const result = copy?.showResult && ["submitted", "expired"].includes(rest.status) && review_status !== "pending" && percent !== null
+          ? { score, max: max_score, percent, passed: percent >= copy.passingScore }
+          : null;
+        return { ...rest, result, ...(copy ? { title: copy.title, instructions: copy.instructions, duration_min: copy.durationMin } : {}) };
       }),
     });
   }
@@ -5351,12 +5357,28 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     }));
     return ok({ assessments: withStats });
   }
+  // Latest test result per application, for the chip on pipeline cards.
+  if (request.method === "GET" && path === "hr/test-results") {
+    requirePermission("tests", testsDenied);
+    await closeExpiredAssignments(db, { companyId: id });
+    const rows = await db
+      .prepare(`SELECT application_id,status,score,max_score,review_status,COALESCE(json_extract(snapshot,'$.passingScore'),0) AS passing
+        FROM assessment_assignments WHERE company_id=? AND status<>'cancelled' ORDER BY assigned_at ASC`)
+      .bind(id)
+      .all<{ application_id: string; status: string; score: number; max_score: number; review_status: string; passing: number }>();
+    const results: Record<string, { state: string; percent: number | null }> = {};
+    for (const r of rows.results) {
+      const state = ["submitted", "expired"].includes(r.status) ? resultState({ status: r.status, score: r.score, max_score: r.max_score, review_status: r.review_status, passingScore: r.passing }) : r.status;
+      results[r.application_id] = { state, percent: percentOf(r.score, r.max_score) };
+    }
+    return ok({ results });
+  }
   if (request.method === "GET" && path === "hr/assessment") {
     requirePermission("tests", testsDenied);
     const assessmentId = str(requestUrl.searchParams.get("id"), 100);
     await closeExpiredAssignments(db, { companyId: id });
     const row = await db
-      .prepare("SELECT id,job_id,title,instructions,duration_min,passing_score,questions,attachment_name,attachment_type,updated FROM assessments WHERE id=? AND company_id=?")
+      .prepare("SELECT id,job_id,title,instructions,duration_min,passing_score,show_result,questions,attachment_name,attachment_type,updated FROM assessments WHERE id=? AND company_id=?")
       .bind(assessmentId, id)
       .first<Record<string, unknown> & { questions: string; passing_score: number }>();
     if (!row) throw new HttpError(404, "Test tapılmadı.");
@@ -5420,6 +5442,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       instructions: str(b.instructions, 3000),
       duration: Math.max(5, Math.min(240, Math.round(Number(b.durationMin) || 30))),
       passing: Math.max(0, Math.min(100, Math.round(Number(b.passingScore) || 0))),
+      showResult: b.showResult === true ? 1 : 0,
     };
     const existingId = str(b.id, 100);
     if (existingId) {
@@ -5443,10 +5466,10 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         attachmentData || b.removeAttachment === true ? "fayl" : "",
       ].filter(Boolean);
       await db.batch([
-        db.prepare(`UPDATE assessments SET title=?,instructions=?,duration_min=?,passing_score=?,questions=?,job_id=?,updated=?
+        db.prepare(`UPDATE assessments SET title=?,instructions=?,duration_min=?,passing_score=?,show_result=?,questions=?,job_id=?,updated=?
             ${attachmentData ? ",attachment_name=?,attachment_type=?,attachment_data=?" : b.removeAttachment === true ? ",attachment_name='',attachment_type='',attachment_data=''" : ""}
             WHERE id=? AND company_id=?`)
-          .bind(...[fields.title, fields.instructions, fields.duration, fields.passing, JSON.stringify(questions), jobId, now,
+          .bind(...[fields.title, fields.instructions, fields.duration, fields.passing, fields.showResult, JSON.stringify(questions), jobId, now,
             ...(attachmentData ? [str(attachment?.name, 160), attachmentType, attachmentData] : []), existingId, id]),
         db.prepare("INSERT INTO assessment_revisions(id,assessment_id,actor_id,action,reason,summary,created) VALUES(?,?,?,?,?,?,?)")
           .bind(crypto.randomUUID(), existingId, userId, "updated", reason, changes.length ? `Dəyişdi: ${changes.join(", ")}` : "Dəyişiklik yoxdur", now),
@@ -5455,9 +5478,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     }
     const newId = crypto.randomUUID();
     await db.batch([
-      db.prepare(`INSERT INTO assessments(id,company_id,job_id,title,instructions,duration_min,passing_score,questions,attachment_name,attachment_type,attachment_data,created_by,created,updated)
-          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(newId, id, jobId, fields.title, fields.instructions, fields.duration, fields.passing, JSON.stringify(questions),
+      db.prepare(`INSERT INTO assessments(id,company_id,job_id,title,instructions,duration_min,passing_score,show_result,questions,attachment_name,attachment_type,attachment_data,created_by,created,updated)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .bind(newId, id, jobId, fields.title, fields.instructions, fields.duration, fields.passing, fields.showResult, JSON.stringify(questions),
           attachmentData ? str(attachment?.name, 160) : "", attachmentData ? attachmentType : "", attachmentData, userId, now, now),
       db.prepare("INSERT INTO assessment_revisions(id,assessment_id,actor_id,action,reason,summary,created) VALUES(?,?,?,?,?,?,?)")
         .bind(crypto.randomUUID(), newId, userId, "created", str(b.reason, 500), `${questions.length} sual${attachmentData ? ", fayl" : ""}`, now),
@@ -5475,7 +5498,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
   }
   // Sends a copy of the test to one application; returns a reason when it cannot be sent.
   const assignTest = async (
-    assessment: { id: string; title: string; instructions: string; duration_min: number; passing_score: number; questions: string },
+    assessment: { id: string; title: string; instructions: string; duration_min: number; passing_score: number; show_result: number; questions: string },
     application: { id: string; candidate_id: string; status: string },
   ): Promise<string> => {
     if (["Uyğun deyil", WITHDRAWN_STATUS].includes(application.status)) return "müraciət bağlanıb";
@@ -5484,7 +5507,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     if (open) return "test artıq göndərilib";
     const now = new Date().toISOString();
     // The candidate gets a copy: later edits of the test do not reach this attempt.
-    const snapshot = JSON.stringify({ title: assessment.title, instructions: assessment.instructions, durationMin: assessment.duration_min, passingScore: assessment.passing_score, questions: JSON.parse(assessment.questions) });
+    const snapshot = JSON.stringify({ title: assessment.title, instructions: assessment.instructions, durationMin: assessment.duration_min, passingScore: assessment.passing_score, showResult: assessment.show_result === 1, questions: JSON.parse(assessment.questions) });
     await db.prepare("INSERT INTO assessment_assignments(id,assessment_id,application_id,candidate_id,company_id,status,assigned_at,snapshot) VALUES(?,?,?,?,?,'assigned',?,?)")
       .bind(crypto.randomUUID(), assessment.id, application.id, application.candidate_id, id, now, snapshot).run();
     await recordApplicationEvent(db, { applicationId: application.id, actorId: id, actorRole: "company", type: "test", to: assessment.title });
@@ -5494,8 +5517,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
   if (request.method === "POST" && path === "hr/assessments/assign") {
     requirePermission("tests", testsDenied);
     const b = await jsonBody(request);
-    const assessment = await db.prepare("SELECT id,title,instructions,duration_min,passing_score,questions FROM assessments WHERE id=? AND company_id=?").bind(str(b.assessmentId, 100), id)
-      .first<{ id: string; title: string; instructions: string; duration_min: number; passing_score: number; questions: string }>();
+    const assessment = await db.prepare("SELECT id,title,instructions,duration_min,passing_score,show_result,questions FROM assessments WHERE id=? AND company_id=?").bind(str(b.assessmentId, 100), id)
+      .first<{ id: string; title: string; instructions: string; duration_min: number; passing_score: number; show_result: number; questions: string }>();
     const application = await db
       .prepare("SELECT a.id,a.candidate_id,a.status FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND j.owner=?")
       .bind(str(b.applicationId, 100), id)
@@ -5848,8 +5871,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       }
     } else if (action === "test") {
       requirePermission("tests", testsDenied);
-      const assessment = await db.prepare("SELECT id,title,instructions,duration_min,passing_score,questions FROM assessments WHERE id=? AND company_id=?").bind(str(b.assessmentId, 100), id)
-        .first<{ id: string; title: string; instructions: string; duration_min: number; passing_score: number; questions: string }>();
+      const assessment = await db.prepare("SELECT id,title,instructions,duration_min,passing_score,show_result,questions FROM assessments WHERE id=? AND company_id=?").bind(str(b.assessmentId, 100), id)
+        .first<{ id: string; title: string; instructions: string; duration_min: number; passing_score: number; show_result: number; questions: string }>();
       if (!assessment) throw new HttpError(404, "Test tapılmadı.");
       for (const r of rows.results) {
         const problem = await assignTest(assessment, { id: r.id, candidate_id: r.candidate_id, status: r.status });

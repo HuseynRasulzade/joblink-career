@@ -62,7 +62,7 @@ export function scoreAnswers(questions: Question[], answers: Record<string, unkn
 // ---- Snapshot, answers and manual review ----
 // A test is copied into the assignment when it is sent, so editing the test
 // afterwards never changes what a candidate sees or how it is scored.
-export type TestSnapshot = { title: string; instructions: string; durationMin: number; passingScore: number; questions: Question[] };
+export type TestSnapshot = { title: string; instructions: string; durationMin: number; passingScore: number; questions: Question[]; showResult?: boolean };
 
 export function parseSnapshot(raw: string): TestSnapshot | null {
   try {

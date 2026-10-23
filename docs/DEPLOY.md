@@ -28,6 +28,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0030_talent_pool` | İstedad bazası (`talent_pool`): etiket, qeyd, şirkət üzrə unikal |
 | `0031_job_templates` | Vakansiya şablonları (`job_templates`) |
 | `0032_job_views` | Vakansiya baxışları (`job_views`): vakansiya, baxanın birtərəfli hash-ı, gün; 180 gündən sonra silinir |
+| `0033_assessment_show_result` | Testdə `show_result`: nəticə (bal, keçdi/keçmədi) namizədə yalnız işəgötürən icazə verdikdə və açıq suallar yoxlandıqdan sonra göstərilir |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 

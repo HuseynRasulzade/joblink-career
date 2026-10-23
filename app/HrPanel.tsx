@@ -155,6 +155,7 @@ export default function HrPanel({
   const [aiRanking, setAiRanking] = useState(false);
   const [applicantsView, setApplicantsView] = useState<"board" | "list">("board");
   const [offers, setOffers] = useState<Record<string, Offer>>({});
+  const [testResults, setTestResults] = useState<Record<string, { state: string; percent: number | null }>>({});
   const [offerFor, setOfferFor] = useState<Application | null>(null);
   const [testFor, setTestFor] = useState<Application | null>(null);
   const [interviewFor, setInterviewFor] = useState<Application | null>(null);
@@ -215,6 +216,7 @@ export default function HrPanel({
       } catch {
         setOffers({});
       }
+      api("hr/test-results").then((d) => setTestResults(d.results || {})).catch(() => setTestResults({}));
       if (!loaded && next.jobs.length) setDemo(false);
 
       setError("");
@@ -1098,6 +1100,7 @@ export default function HrPanel({
                   }
                   onHistory={showHistory}
                   offers={offers}
+                  testResults={testResults}
                   onOffer={setOfferFor}
                   onAssignTest={setTestFor}
                   onSchedule={setInterviewFor}

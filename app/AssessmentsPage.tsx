@@ -2,7 +2,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { ClipboardCheck, FileText, History, Plus, Trash2, X } from "lucide-react";
 import type { Application, Job } from "@/lib/model";
-import { parseQuestionCsv, type Question, type QuestionType } from "@/lib/assessments";
+import type { Question, QuestionType } from "@/lib/assessments";
+import { QUESTION_FILE_ACCEPT, readQuestionFile } from "@/lib/question-file";
 import { Field, Modal } from "./components";
 import { formatDate } from "@/lib/dates";
 import { siteLanguage } from "./i18n";
@@ -29,6 +30,7 @@ type Detail = {
     instructions: string;
     duration_min: number;
     passing_score: number;
+    show_result?: number;
     questions: Question[];
     attachment_name: string;
     attachment_type: string;
@@ -58,6 +60,7 @@ type Draft = {
   instructions: string;
   durationMin: number;
   passingScore: number;
+  showResult?: boolean;
   jobId: string;
   questions: Question[];
   attachment?: { name: string; type: string; data: string };
@@ -76,6 +79,11 @@ const VIOLATIONS: Record<string, string> = {
   "camera-off": "Kamera bağlandı",
   "devtools-key": "Qadağan olunmuş düymə",
 };
+const FILE_FORMAT_HELP = "Word/PDF/TXT: “1. Sual? (2 bal)”, sonra “A) …  B) …” və “Cavab: B” (bir neçə cavab: “A, C”; cavabsız sual açıq sual sayılır). Excel/CSV: başlıq sətri “Sual, Variant A, Variant B…, Düzgün cavab, Bal”.";
+function importMessage(r: { questions: unknown[]; skipped: { label: string; reason: string }[] }) {
+  const skipped = r.skipped.length ? ` ${r.skipped.length} sual atlandı: ${r.skipped.slice(0, 3).map((x) => `${x.label} — ${x.reason}`).join("; ")}${r.skipped.length > 3 ? "…" : ""}` : "";
+  return r.questions.length ? `${r.questions.length} sual əlavə edildi.${skipped}` : `Sual tapılmadı.${skipped}`;
+}
 const blankQuestion = (): Question => ({ id: crypto.randomUUID().slice(0, 8), type: "single", text: "", options: ["", ""], correct: [0], points: 1 });
 
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -137,6 +145,7 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
       instructions: d.assessment.instructions,
       durationMin: d.assessment.duration_min,
       passingScore: d.assessment.passing_score,
+      showResult: d.assessment.show_result === 1,
       jobId: d.assessment.job_id,
       questions: d.assessment.questions,
       attachmentName: d.assessment.attachment_name,
@@ -152,6 +161,7 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
       instructions: d.assessment.instructions,
       durationMin: d.assessment.duration_min,
       passingScore: d.assessment.passing_score,
+      showResult: d.assessment.show_result === 1,
       jobId: d.assessment.job_id,
       questions: d.assessment.questions.map((q) => ({ ...q, id: crypto.randomUUID().slice(0, 8) })),
       attachmentName: "",
@@ -189,6 +199,34 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
         >
           <Plus size={16} /> Yeni test
         </button>
+        <label className="secondary conversation-new" title={FILE_FORMAT_HELP}>
+          <FileText size={16} /> Fayldan test yarat
+          <input
+            type="file"
+            hidden
+            accept={QUESTION_FILE_ACCEPT}
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file) return;
+              try {
+                const imported = await readQuestionFile(file);
+                if (!imported.questions.length) return notify(importMessage(imported));
+                const title = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim().slice(0, 160) || "Yeni test";
+                const result = await request<{ id: string }>("hr/assessments/save", {
+                  id: "", title: title.length < 3 ? `Test ${title}` : title, instructions: "", jobId: "", passingScore: 60,
+                  durationMin: Math.max(10, Math.min(240, Math.ceil(imported.questions.length * 1.5))), questions: imported.questions,
+                });
+                notify(importMessage(imported) + " Test bazaya yüklənib; müddəti və keçid balını yoxlayın.");
+                setDraft(null);
+                await load();
+                await open(result.id);
+              } catch (error) {
+                notify((error as Error).message);
+              }
+            }}
+          />
+        </label>
         <nav aria-label="Testlər">
           {list.map((item) => (
             <div key={item.id} className={`conversation-item ${detail?.assessment.id === item.id ? "active" : ""}`}>
@@ -217,6 +255,7 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
               </Field>
               <Field label="Müddət (dəqiqə)"><input type="number" min={5} max={240} value={draft.durationMin} onChange={(e) => setDraft({ ...draft, durationMin: Number(e.target.value) })} /></Field>
               <Field label="Keçid balı (%)"><input type="number" min={0} max={100} value={draft.passingScore} onChange={(e) => setDraft({ ...draft, passingScore: Number(e.target.value) })} /></Field>
+              <label className="checkbox-row"><input type="checkbox" checked={!!draft.showResult} onChange={(e) => setDraft({ ...draft, showResult: e.target.checked })} /> Nəticəni namizədə göstər (açıq suallar yoxlandıqdan sonra)</label>
             </div>
             <Field label="Təlimat"><textarea rows={3} value={draft.instructions} onChange={(e) => setDraft({ ...draft, instructions: e.target.value })} /></Field>
             <div className="field">
@@ -290,24 +329,25 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
             ))}
             <button type="button" className="secondary" onClick={() => setDraft({ ...draft, questions: [...draft.questions, blankQuestion()] })}><Plus size={14} /> Sual əlavə et</button>
             <div className="field">
-              <span>Sualları CSV ilə yüklə</span>
+              <span>Sualları fayldan yüklə (Word, Excel, PDF, CSV, TXT)</span>
               <input
                 type="file"
-                accept=".csv,text/csv,text/plain"
+                accept={QUESTION_FILE_ACCEPT}
                 onChange={async (event) => {
                   const file = event.target.files?.[0];
                   event.target.value = "";
                   if (!file) return;
-                  const imported = parseQuestionCsv(await file.text());
-                  if (!imported.length) {
-                    notify("Faylda düzgün sual tapılmadı.");
-                    return;
+                  try {
+                    const imported = await readQuestionFile(file);
+                    if (imported.questions.length)
+                      setDraft((d) => (d ? { ...d, questions: [...d.questions.filter((q) => q.text.trim()), ...imported.questions].slice(0, 60) } : d));
+                    notify(importMessage(imported));
+                  } catch (error) {
+                    notify((error as Error).message);
                   }
-                  setDraft((d) => (d ? { ...d, questions: [...d.questions.filter((q) => q.text.trim()), ...imported].slice(0, 60) } : d));
-                  notify(`${imported.length} sual əlavə edildi.`);
                 }}
               />
-              <small className="skill-picker-help">Format (nöqtəli vergül): tip;sual;variant1|variant2;düzgün nömrə (1-dən, bir neçəsi | ilə);bal. Tip: single, multiple və ya text.</small>
+              <small className="skill-picker-help">{FILE_FORMAT_HELP}</small>
             </div>
             {list.some((x) => x.id !== draft.id) && (
               <div className="field">
