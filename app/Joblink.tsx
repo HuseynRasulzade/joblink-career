@@ -2130,6 +2130,7 @@ export default function Joblink() {
               language={language}
               signedIn={signedIn}
               onPublished={refresh}
+              canPublish={!companyMe || companyMe.permissions.includes("publish")}
               onMessage={(target) => {
                 setMessageTarget(target);
                 go("hr-messages");

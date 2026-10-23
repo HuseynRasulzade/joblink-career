@@ -31,6 +31,8 @@ import { AssignTestModal } from "./AssessmentsPage";
 import { ScheduleInterviewModal } from "./Interviews";
 import { BulkModal, SaveTalentModal } from "./BulkTalent";
 import { SaveTemplateModal, TemplatesModal, duplicateJob } from "./JobTemplates";
+import { CloseJobModal, EditJobModal } from "./JobsManage";
+import { closeReasonLabel, daysLeft, extendedDeadline } from "@/lib/job-edit";
 import { OfferComposer, type Offer } from "./Offers";
 import { CandidateComparison, CompareBar } from "./Comparison";
 import { VACANCY_REASONS } from "@/lib/recruitment";
@@ -117,6 +119,7 @@ export default function HrPanel({
   signedIn,
   onPublished,
   onMessage,
+  canPublish = true,
 }: {
   page: string;
   go: (s: string) => void;
@@ -128,6 +131,7 @@ export default function HrPanel({
   signedIn: boolean;
   onPublished: () => void;
   onMessage: (target: { candidateId: string; jobId?: string; name: string; jobTitle?: string }) => void;
+  canPublish?: boolean;
 }) {
   const [linkSource, setLinkSource] = useState<Record<string, string>>({});
   const [attention, setAttention] = useState<{ key: string; count: number; label: string; link: string }[]>([]);
@@ -154,6 +158,11 @@ export default function HrPanel({
   const [offerFor, setOfferFor] = useState<Application | null>(null);
   const [testFor, setTestFor] = useState<Application | null>(null);
   const [interviewFor, setInterviewFor] = useState<Application | null>(null);
+  const [editJob, setEditJob] = useState<Job | null>(null);
+  const [closeJob, setCloseJob] = useState<Job | null>(null);
+  const [jobQuery, setJobQuery] = useState("");
+  const [jobFilter, setJobFilter] = useState("all");
+  const [jobSort, setJobSort] = useState("new");
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [saveTemplate, setSaveTemplate] = useState<{ jobId?: string; job?: Job; name: string } | null>(null);
   const [saveTalent, setSaveTalent] = useState<{ candidateId: string; name: string } | null>(null);
@@ -405,6 +414,24 @@ export default function HrPanel({
       setBusy(false);
     }
   }
+  // Per-vacancy numbers shown on the card and the list filter / sort.
+  const jobNumbers = (jobId: string) => {
+    const list = applications.filter((a) => a.jobId === jobId && a.status !== WITHDRAWN_STATUS);
+    return {
+      total: list.length,
+      fresh: list.filter((a) => a.status === "Göndərildi").length,
+      interview: list.filter((a) => a.status === "Müsahibə").length,
+      hired: list.filter((a) => a.status === "İşə qəbul edildi").length,
+    };
+  };
+  const visibleJobs = ownJobs
+    .filter((j) => (jobFilter === "all" ? true : jobStatus(j) === jobFilter))
+    .filter((j) => !jobQuery.trim() || `${j.title} ${j.city} ${j.category}`.toLocaleLowerCase("az").includes(jobQuery.trim().toLocaleLowerCase("az")))
+    .sort((a, b) =>
+      jobSort === "applications" ? jobNumbers(b.id).total - jobNumbers(a.id).total
+        : jobSort === "deadline" ? (a.deadline || "9999").localeCompare(b.deadline || "9999")
+          : (b.created || "").localeCompare(a.created || ""),
+    );
   return localizeTree(
     <>
       <div className="page-heading">
@@ -501,7 +528,30 @@ export default function HrPanel({
               }
             />
           ) : (
-            ownJobs.map((j) => (
+            <>
+            <div className="form-grid">
+              <Field label="Axtarış">
+                <input value={jobQuery} placeholder="Vəzifə, şəhər, kateqoriya" onChange={(e) => setJobQuery(e.target.value)} />
+              </Field>
+              <Field label="Status">
+                <select value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
+                  <option value="all">Hamısı ({ownJobs.length})</option>
+                  {[["published", "Yayımlanıb"], ["paused", "Dayandırılıb"], ["expired", "Müddəti bitib"], ["pending_approval", "Təsdiq gözləyir"], ["rejected", "Təsdiqlənmədi"], ["archived", "Bağlanıb"]].map(([value, label]) => {
+                    const n = ownJobs.filter((j) => jobStatus(j) === value).length;
+                    return n ? <option key={value} value={value}>{label} ({n})</option> : null;
+                  })}
+                </select>
+              </Field>
+              <Field label="Sıralama">
+                <select value={jobSort} onChange={(e) => setJobSort(e.target.value)}>
+                  <option value="new">Ən yenilər</option>
+                  <option value="applications">Ən çox müraciət</option>
+                  <option value="deadline">Son tarixə görə</option>
+                </select>
+              </Field>
+            </div>
+            {!visibleJobs.length && <p className="admin-empty">Axtarışa uyğun vakansiya yoxdur.</p>}
+            {visibleJobs.map((j) => (
               <article className="job-card" key={j.id}>
                 <div className="section-heading">
                   <div>
@@ -519,6 +569,24 @@ export default function HrPanel({
                   )}
                 </div>
                 <p className="job-description">{j.description}</p>
+                {!j.demo && (() => {
+                  const n = jobNumbers(j.id);
+                  const left = daysLeft(j.deadline);
+                  return (
+                    <p className="job-internal">
+                      <span><b>{n.total}</b> müraciət</span>
+                      {n.fresh > 0 && <span><b>{n.fresh}</b> yeni</span>}
+                      {n.interview > 0 && <span><b>{n.interview}</b> müsahibə</span>}
+                      {n.hired > 0 && <span><b>{n.hired}</b> işə qəbul</span>}
+                      {j.status === "published" && left !== null && (
+                        <span>{left < 0 ? `son tarix ${-left} gün əvvəl bitib` : left === 0 ? "son tarix bu gündür" : `son tarixə ${left} gün qalıb`}</span>
+                      )}
+                      {j.status === "archived" && (j as Job & { closeReason?: string }).closeReason && (
+                        <span>Bağlanma səbəbi: {closeReasonLabel((j as Job & { closeReason?: string }).closeReason)}</span>
+                      )}
+                    </p>
+                  );
+                })()}
                 {!j.demo && (j.reason || (j.stages || []).length > 0) && (
                   <p className="job-internal">
                     {j.reason && <span title="Yalnız şirkət daxili">Səbəb: {VACANCY_REASONS.find((r) => r.id === j.reason)?.label || j.reason}</span>}
@@ -544,6 +612,32 @@ export default function HrPanel({
                         Kopyala
                       </button>
                       <button onClick={() => setSaveTemplate({ jobId: j.id, name: j.title })}>Şablon kimi saxla</button>
+                      {canPublish && ["published", "paused"].includes(j.status || "published") && (
+                        <>
+                          <button disabled={busy} onClick={() => setEditJob(j)}>Redaktə et</button>
+                          <select
+                            aria-label="Son tarixi uzat"
+                            value=""
+                            onChange={async (e) => {
+                              const days = Number(e.target.value);
+                              if (!days) return;
+                              try {
+                                const deadline = extendedDeadline(j.deadline, days);
+                                await api("hr/job-update", { jobId: j.id, changes: { deadline } });
+                                await refresh();
+                                notify(`Son tarix ${deadline} tarixinə uzadıldı.`);
+                              } catch (err) {
+                                notify((err as Error).message);
+                              }
+                            }}
+                          >
+                            <option value="">Son tarixi uzat…</option>
+                            <option value={7}>+7 gün</option>
+                            <option value={14}>+14 gün</option>
+                            <option value={30}>+30 gün</option>
+                          </select>
+                        </>
+                      )}
                     </div>
                   )}
                   {!j.demo && jobStatus(j) === "published" && (
@@ -582,7 +676,7 @@ export default function HrPanel({
                           Yenidən aç
                         </button>
                       )}
-                      <button disabled={busy} onClick={() => changeJobStatus(j, "archive")}>
+                      <button disabled={busy} onClick={() => setCloseJob(j)}>
                         Bağla
                       </button>
                     </div>
@@ -599,7 +693,8 @@ export default function HrPanel({
                   </button>
                 </div>
               </article>
-            ))
+            ))}
+            </>
           )}
         </div>
       ) : page === "hr-ai" ? (
@@ -1095,6 +1190,8 @@ export default function HrPanel({
         />
       )}
       {testFor && <AssignTestModal application={testFor} onClose={() => setTestFor(null)} notify={notify} />}
+      {editJob && <EditJobModal job={editJob} api={api} onClose={() => setEditJob(null)} onSaved={() => void refresh()} notify={notify} />}
+      {closeJob && <CloseJobModal job={closeJob} api={api} onClose={() => setCloseJob(null)} onClosed={() => { void refresh(); onPublished(); }} notify={notify} />}
       {templatesOpen && <TemplatesModal onClose={() => setTemplatesOpen(false)} onUse={(d) => loadDraft(d, "Şablondan layihə yaradıldı. Son tarixi və yaranma səbəbini daxil edin.")} notify={notify} />}
       {saveTemplate && <SaveTemplateModal jobId={saveTemplate.jobId} job={saveTemplate.job} defaultName={saveTemplate.name} onClose={() => setSaveTemplate(null)} notify={notify} />}
       {saveTalent && <SaveTalentModal candidateId={saveTalent.candidateId} name={saveTalent.name} onClose={() => setSaveTalent(null)} notify={notify} />}
