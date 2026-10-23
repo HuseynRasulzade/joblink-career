@@ -76,7 +76,7 @@ import {
 } from "@/lib/job-title-catalog";
 import { SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
 import { APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, VACANCY_REASONS, WITHDRAWN_STATUS } from "@/lib/recruitment";
-import { COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval } from "@/lib/company";
+import { COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval, sanitizeTaxCheck, taxNameMatches, type TaxCheck } from "@/lib/company";
 import { DOCUMENT_CHECK_PROMPT, VERIFICATION_LABELS, normalizeAiCheck, statusFromAi, type AiDocumentCheck } from "@/lib/verification";
 import { GRACE_MS, shuffleQuestions, cleanAnswers, combinedScore, isExpired, parseSnapshot, publicQuestions, reviewState, sanitizeGrades, sanitizeQuestions, textQuestions, type Question } from "@/lib/assessments";
 export const dynamic = "force-dynamic";
@@ -2343,11 +2343,29 @@ async function route(request: Request) {
     }
     if (request.method === "GET" && path === "admin/company-verifications") {
       const rows = await db
-        .prepare(`SELECT p.company_id,p.data,p.doc_name,p.verification_status,p.verification_note,p.submitted_at,p.reviewed_at,a.name
+        .prepare(`SELECT p.company_id,p.data,p.doc_name,p.verification_status,p.verification_note,p.submitted_at,p.reviewed_at,p.tax_check,a.name
           FROM company_profiles p JOIN accounts a ON a.id=p.company_id
           ORDER BY CASE p.verification_status WHEN 'pending' THEN 0 ELSE 1 END, p.submitted_at DESC LIMIT 300`)
-        .all<{ company_id: string; data: string; doc_name: string; verification_status: string; verification_note: string; submitted_at: string; reviewed_at: string; name: string }>();
-      return ok({ companies: rows.results.map((r) => ({ ...r, data: companyDetailsInput(JSON.parse(r.data)) })) });
+        .all<{ company_id: string; data: string; doc_name: string; verification_status: string; verification_note: string; submitted_at: string; reviewed_at: string; tax_check: string; name: string }>();
+      return ok({
+        companies: rows.results.map(({ tax_check, ...r }) => {
+          const data = companyDetailsInput(JSON.parse(r.data));
+          let taxCheck: TaxCheck | null = null;
+          try {
+            taxCheck = tax_check ? (JSON.parse(tax_check) as TaxCheck) : null;
+          } catch {
+            taxCheck = null;
+          }
+          return {
+            ...r,
+            data,
+            taxCheck,
+            // A result recorded for another VÖEN is outdated; the name is compared with the declared legal name.
+            taxStale: !!taxCheck && taxCheck.voen !== data.voen,
+            taxNameMatch: !!taxCheck && taxNameMatches(data.legalName, taxCheck.name),
+          };
+        }),
+      });
     }
     if (request.method === "GET" && path === "admin/company-doc") {
       const row = await db.prepare("SELECT doc_type,doc_data FROM company_profiles WHERE company_id=?").bind(str(requestUrl.searchParams.get("id"), 100)).first<{ doc_type: string; doc_data: string }>();
@@ -2355,6 +2373,18 @@ async function route(request: Request) {
       return new Response(Uint8Array.from(atob(row.doc_data), (c) => c.charCodeAt(0)), {
         headers: { "Content-Type": row.doc_type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
       });
+    }
+    if (request.method === "POST" && path === "admin/company-tax-check") {
+      const b = await jsonBody(request);
+      const companyId = str(b.companyId, 100);
+      const row = await db.prepare("SELECT data FROM company_profiles WHERE company_id=?").bind(companyId).first<{ data: string }>();
+      if (!row) throw new HttpError(404, "Şirkət tapılmadı.");
+      const details = companyDetailsInput(JSON.parse(row.data));
+      const check = sanitizeTaxCheck(b, details.voen, id);
+      if (!check) throw new HttpError(400, "VÖEN düzgün deyil və ya vergi ödəyicisinin adı yazılmayıb.");
+      await db.prepare("UPDATE company_profiles SET tax_check=? WHERE company_id=?").bind(JSON.stringify(check), companyId).run();
+      await companyAudit(db, companyId, id, "tax-check", details.voen, `${check.payerType === "legal" ? "hüquqi" : "fiziki"} şəxs · ${check.active ? "aktiv" : "qeyri-aktiv"}`);
+      return ok({ ok: true, taxNameMatch: taxNameMatches(details.legalName, check.name) });
     }
     if (request.method === "POST" && path === "admin/company-verify") {
       const b = await jsonBody(request);

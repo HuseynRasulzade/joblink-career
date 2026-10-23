@@ -509,6 +509,8 @@ export const companyProfiles = sqliteTable(
     submittedAt: text("submitted_at").notNull().default(""),
     reviewedAt: text("reviewed_at").notNull().default(""),
     reviewedBy: text("reviewed_by").notNull().default(""),
+    // Result of the official taxpayer search (e-taxes), recorded by an admin.
+    taxCheck: text("tax_check").notNull().default(""),
     updated: text("updated").notNull(),
   },
   (t) => [index("company_profiles_verification").on(t.verificationStatus, t.submittedAt)],

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Building2, CheckCircle2, Download, FileText, Plus, Receipt, Trash2, UserPlus, Users, XCircle } from "lucide-react";
-import { COMPANY_SIZES, VOEN_LOOKUP_URL, VOEN_TYPE_LABEL, validVoen, voenType, type CompanyDetails, type CompanyPermission, type JobApproval } from "@/lib/company";
+import { COMPANY_SIZES, VOEN_LOOKUP_URL, VOEN_TYPE_LABEL, validVoen, voenType, type CompanyDetails, type TaxCheck, type CompanyPermission, type JobApproval } from "@/lib/company";
 import { Field, Modal } from "./components";
 import { formatDate } from "@/lib/dates";
 import { VACANCY_REASONS } from "@/lib/recruitment";
@@ -682,10 +682,25 @@ export function BillingPage({ notify }: { notify: Notify }) {
 }
 
 // ---------- Admin: company verification queue ----------
-type VerificationRow = { company_id: string; name: string; data: CompanyDetails; doc_name: string; verification_status: string; verification_note: string; submitted_at: string; reviewed_at: string };
+type VerificationRow = { company_id: string; name: string; data: CompanyDetails; doc_name: string; verification_status: string; verification_note: string; submitted_at: string; reviewed_at: string
+  taxCheck?: TaxCheck | null; taxStale?: boolean; taxNameMatch?: boolean;
+};
 export function AdminCompanies({ notify }: { notify: Notify }) {
   const [data, load] = useLoad<{ companies: VerificationRow[] }>("admin/company-verifications", notify);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [taxFor, setTaxFor] = useState<VerificationRow | null>(null);
+  const [tax, setTax] = useState({ payerType: "legal", name: "", active: true, vat: false, risky: false, debt: 0 });
+  async function saveTax() {
+    if (!taxFor) return;
+    try {
+      const result = await request<{ taxNameMatch: boolean }>("admin/company-tax-check", { companyId: taxFor.company_id, ...tax });
+      notify(result.taxNameMatch ? "e-taxes nəticəsi yazıldı, ad uyğun gəlir." : "e-taxes nəticəsi yazıldı, ad şirkətin yazdığı adla uyğun gəlmir.");
+      setTaxFor(null);
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   async function decide(companyId: string, decision: "verified" | "rejected") {
     try {
       await request("admin/company-verify", { companyId, decision, note: notes[companyId] || "" });
@@ -712,6 +727,25 @@ export function AdminCompanies({ notify }: { notify: Notify }) {
                       <a href={VOEN_LOOKUP_URL} target="_blank" rel="noreferrer">e-taxes-də yoxla</a>
                     </small>
                   )}
+                  {c.taxCheck && (
+                    <div className="skill-description" style={{ whiteSpace: "normal", lineHeight: 1.5, margin: "6px 0" }}>
+                      <b>e-taxes:</b> {c.taxCheck.name}
+                      <br />
+                      {c.taxCheck.payerType === "legal" ? "Hüquqi" : "Fiziki"} şəxs · {c.taxCheck.active ? "aktiv" : "qeyri-aktiv"} · {c.taxCheck.vat ? "ƏDV qeydiyyatındadır" : "ƏDV qeydiyyatında deyil"}
+                      <br />
+                      {c.taxCheck.risky ? "Riskli vergi ödəyicisi" : "Riskli deyil"} · borc {azn(c.taxCheck.debt)} · {day(c.taxCheck.checkedAt)}
+                      <br />
+                      <b>{c.taxStale ? "⚠ Nəticə başqa VÖEN üçün yazılıb, yenidən yoxlayın" : c.taxNameMatch ? "✓ Ad şirkətin yazdığı adla uyğundur" : "⚠ Ad şirkətin yazdığı adla uyğun gəlmir"}</b>
+                    </div>
+                  )}
+                  {validVoen(c.data.voen) && (
+                    <button type="button" className="text-button" onClick={() => {
+                      setTaxFor(c);
+                      setTax(c.taxCheck && !c.taxStale
+                        ? { payerType: c.taxCheck.payerType, name: c.taxCheck.name, active: c.taxCheck.active, vat: c.taxCheck.vat, risky: c.taxCheck.risky, debt: c.taxCheck.debt }
+                        : { payerType: voenType(c.data.voen) === "individual" ? "individual" : "legal", name: "", active: true, vat: false, risky: false, debt: 0 });
+                    }}>{c.taxCheck ? "e-taxes nəticəsini yenilə" : "e-taxes nəticəsini yaz"}</button>
+                  )}
                   <small className="skill-description">{c.data.director}{c.data.legalAddress ? ` · ${c.data.legalAddress}` : ""}</small></td>
                 <td>{c.doc_name ? <a href={`/api/joblink/admin/company-doc?id=${encodeURIComponent(c.company_id)}`} target="_blank" rel="noreferrer"><FileText size={13} /> {c.doc_name}</a> : "—"}<small className="skill-description">{c.submitted_at ? when(c.submitted_at) : ""}</small></td>
                 <td><span className={`admin-status ${c.verification_status === "verified" ? "active" : c.verification_status === "pending" ? "paused" : "archived"}`}>{c.verification_status}</span>{c.verification_note && <small className="skill-description">{c.verification_note}</small>}</td>
@@ -730,6 +764,35 @@ export function AdminCompanies({ notify }: { notify: Notify }) {
           </tbody>
         </table>
       </div>
+      {taxFor && (
+        <Modal title={`e-taxes nəticəsi: ${taxFor.data.legalName || taxFor.name}`} onClose={() => setTaxFor(null)}>
+          <div className="offer-composer">
+            <p className="muted fine-print">
+              <a href={VOEN_LOOKUP_URL} target="_blank" rel="noreferrer">Rəsmi vergi ödəyicisi səhifəsində</a> VÖEN <b>{taxFor.data.voen}</b> ilə sorğu edin və nəticəni aşağıya köçürün.
+            </p>
+            <div className="form-grid">
+              <Field label="Vergi ödəyicisinin növü">
+                <select value={tax.payerType} onChange={(e) => setTax({ ...tax, payerType: e.target.value })}>
+                  <option value="legal">Hüquqi şəxs</option>
+                  <option value="individual">Fiziki şəxs</option>
+                </select>
+              </Field>
+              <Field label="Vergi ödəyicisinin adı"><input value={tax.name} onChange={(e) => setTax({ ...tax, name: e.target.value })} /></Field>
+              <Field label="Aktiv olub-olmaması">
+                <select value={tax.active ? "1" : "0"} onChange={(e) => setTax({ ...tax, active: e.target.value === "1" })}><option value="1">Aktiv</option><option value="0">Aktiv deyil</option></select>
+              </Field>
+              <Field label="ƏDV qeydiyyatı">
+                <select value={tax.vat ? "1" : "0"} onChange={(e) => setTax({ ...tax, vat: e.target.value === "1" })}><option value="1">ƏDV qeydiyyatındadır</option><option value="0">Qeydiyyatda deyil</option></select>
+              </Field>
+              <Field label="Riskli vergi ödəyicisi">
+                <select value={tax.risky ? "1" : "0"} onChange={(e) => setTax({ ...tax, risky: e.target.value === "1" })}><option value="0">Riskli deyil</option><option value="1">Riskli</option></select>
+              </Field>
+              <Field label="Borc (AZN)"><input type="number" min={0} step="0.01" value={tax.debt} onChange={(e) => setTax({ ...tax, debt: Number(e.target.value) })} /></Field>
+            </div>
+            <button className="primary" disabled={tax.name.trim().length < 2} onClick={saveTax}>Yadda saxla</button>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }

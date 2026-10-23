@@ -112,3 +112,56 @@ export const VERIFICATION_STATUS: Record<string, string> = {
   verified: "Təsdiqlənib",
   rejected: "Rədd edilib",
 };
+
+// ---- Official taxpayer search result (e-taxes "Vergi ödəyicisi haqqında məlumat") ----
+export type TaxCheck = {
+  payerType: "legal" | "individual";
+  voen: string;
+  name: string;
+  active: boolean;
+  vat: boolean;
+  risky: boolean;
+  debt: number;
+  checkedAt: string;
+  checkedBy: string;
+  source: "manual" | "auto";
+};
+const one = (value: unknown, max: number) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "");
+export function sanitizeTaxCheck(input: unknown, voen: string, checkedBy: string, now = new Date().toISOString()): TaxCheck | null {
+  const v = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const name = one(v.name, 240);
+  if (!validVoen(voen) || name.length < 2) return null;
+  const debt = Math.max(0, Math.round(Number(v.debt) * 100) / 100);
+  return {
+    payerType: v.payerType === "individual" ? "individual" : "legal",
+    voen,
+    name,
+    active: v.active === true,
+    vat: v.vat === true,
+    risky: v.risky === true,
+    debt: Number.isFinite(debt) ? debt : 0,
+    checkedAt: now,
+    checkedBy,
+    source: "manual",
+  };
+}
+const LEGAL_FORMS = ["mehdud mesuliyyetli cemiyyeti", "mehdud mesuliyyetli cemiyyet", "mmc", "qapali sehmdar cemiyyeti", "qsc", "acik sehmdar cemiyyeti", "asc", "sehmdar cemiyyeti", "ictimai birlik", "ib", "fondu", "ltd", "llc", "limited"];
+const fold = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/ə/g, "e").replace(/ı/g, "i").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ç/g, "c").replace(/ş/g, "s").replace(/ğ/g, "g")
+    .normalize("NFKD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+// The declared legal name and the registered name match when their core words are the same
+// (quotes, case, diacritics and the legal form such as MMC are ignored).
+export function taxNameMatches(declared: string, registered: string) {
+  const core = (value: string) => {
+    let text = ` ${fold(value)} `;
+    for (const form of [...LEGAL_FORMS].sort((a, b) => b.length - a.length)) text = text.replaceAll(` ${form} `, " ");
+    return text.trim();
+  };
+  const a = core(declared);
+  const b = core(registered);
+  return !!a && !!b && a === b;
+}
