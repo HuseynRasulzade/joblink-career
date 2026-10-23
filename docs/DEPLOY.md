@@ -32,6 +32,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0034_question_bank` | Sual bankı (`question_bank`): şirkətin təkrar istifadə etdiyi suallar, etiket, eyni mətnli sualın təkrarı bloklanır |
 | `0035_test_outcome` | Testdə `on_pass`/`on_fail` (nəticəyə görə müraciət statusu, defolt söndürülü), göndərilmiş testdə `outcome_applied` (nəticə yalnız bir dəfə tətbiq olunur) |
 | `0036_test_reminder` | Göndərilmiş testdə `reminded_at`: başlanmayan test üçün namizədə 2 gündən sonra bir dəfə xatırlatma (gündəlik cron, e-poçt binding varsa e-poçtla da) |
+| `0037_employee_probation_documents` | İşçidə `probation_end`, `probation_reminded` (gündəlik cron xatırlatması) və `employee_documents` (sənəd qovluğu) |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 

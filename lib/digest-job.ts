@@ -141,6 +141,37 @@ export async function runTestReminders(db: D1Database, mail: Mailer, fromEmail: 
   return sent;
 }
 
+// One reminder to the company when an employee's probation ends within a week.
+export async function runProbationReminders(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+  const today = now.toISOString().slice(0, 10);
+  const rows = await db
+    .prepare("SELECT id,company_id,name,position,probation_end FROM company_employees WHERE status='active' AND probation_reminded=0 AND probation_end<>'' AND probation_end<=? LIMIT 200")
+    .bind(new Date(now.getTime() + 7 * DAY).toISOString().slice(0, 10))
+    .all<{ id: string; company_id: string; name: string; position: string; probation_end: string }>()
+    .catch(() => ({ results: [] as { id: string; company_id: string; name: string; position: string; probation_end: string }[] }));
+  let sent = 0;
+  for (const row of rows.results) {
+    try {
+      const claimed = await db.prepare("UPDATE company_employees SET probation_reminded=1 WHERE id=? AND probation_reminded=0").bind(row.id).run();
+      if (!claimed.meta.changes) continue;
+      const ended = row.probation_end < today;
+      const text = `${row.name}${row.position ? ` (${row.position})` : ""} üçün sınaq müddəti ${ended ? "bitib" : "bitir"}: ${row.probation_end}. Qərarı (davam, uzatma və ya xitam) verin.`;
+      await db
+        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
+        .bind(crypto.randomUUID(), row.company_id, "employee", `Sınaq müddəti: ${row.name}`, text.slice(0, 600), "hr-employees", now.toISOString())
+        .run();
+      if (mail && fromEmail) {
+        const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(row.company_id).first<{ email: string }>();
+        if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject: `Sınaq müddəti: ${row.name}`, text }).catch(() => {});
+      }
+      sent++;
+    } catch {
+      // One failing reminder must not stop the others.
+    }
+  }
+  return sent;
+}
+
 // Vacancy views are kept for a limited time only.
 export async function purgeOldJobViews(db: D1Database, now = new Date()) {
   const cutoff = new Date(now.getTime() - 180 * DAY).toISOString().slice(0, 10);

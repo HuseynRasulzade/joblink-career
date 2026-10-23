@@ -55,7 +55,7 @@ import {
   SKILL_CATALOG_LABELS,
   type SkillDefinition,
 } from "@/lib/skill-catalog";
-import { createXlsx } from "@/lib/xlsx";
+import { createXlsx, excelDateSerial } from "@/lib/xlsx";
 import {
   CERTIFICATION_CATALOG,
   CERTIFICATION_CATEGORIES,
@@ -2765,7 +2765,7 @@ async function route(request: Request) {
   if (request.method === "GET" && path === "company/employees") {
     const showSalary = can(memberRole, "salaries");
     const rows = await db.prepare("SELECT * FROM company_employees WHERE company_id=? AND status<>'removed' ORDER BY name").bind(id)
-      .all<{ id: string; name: string; position: string; department: string; email: string; phone: string; start_date: string; salary_cents: number; status: string; source: string; end_date?: string; exit_type?: string; exit_reason?: string; exit_note?: string }>();
+      .all<{ id: string; name: string; position: string; department: string; email: string; phone: string; start_date: string; salary_cents: number; status: string; source: string; end_date?: string; exit_type?: string; exit_reason?: string; exit_note?: string; probation_end?: string }>();
     return ok({
       showSalary,
       canEdit: showSalary,
@@ -2775,6 +2775,7 @@ async function route(request: Request) {
         id: r.id, name: r.name, position: r.position, department: r.department, email: r.email, phone: r.phone,
         startDate: r.start_date, status: r.status, source: r.source,
         endDate: r.end_date || "",
+        probationEnd: r.probation_end || "",
         // Salaries and the way and reason people left stay with HR, the director and the owner.
         exitType: showSalary ? r.exit_type || "" : "",
         exitReason: showSalary ? r.exit_reason || "" : "",
@@ -2782,6 +2783,54 @@ async function route(request: Request) {
         salary: showSalary ? r.salary_cents / 100 : null,
       })),
     });
+  }
+  // ---- Employee document folder (contracts, orders, IDs): HR, director and owner only ----
+  const EMPLOYEE_DOC_CATEGORIES = ["contract", "order", "id", "diploma", "medical", "other"];
+  const employeeDocsDenied = "İşçi sənədlərini yalnız HR, direktor və hesab sahibi idarə edə bilər.";
+  if (request.method === "GET" && path === "company/employee-docs") {
+    requirePermission("salaries", employeeDocsDenied);
+    const rows = await db.prepare("SELECT id,category,name,type,size,created FROM employee_documents WHERE company_id=? AND employee_id=? ORDER BY created DESC")
+      .bind(id, str(requestUrl.searchParams.get("employeeId"), 100)).all();
+    return ok({ documents: rows.results, categories: EMPLOYEE_DOC_CATEGORIES });
+  }
+  if (request.method === "POST" && path === "company/employee-docs/upload") {
+    requirePermission("salaries", employeeDocsDenied);
+    const raw = await request.text();
+    if (raw.length > 1_600_000) throw new HttpError(413, "Fayl çox böyükdür (maksimum 1 MB).");
+    let b: Record<string, unknown>;
+    try { b = JSON.parse(raw); } catch { throw new HttpError(400, "Məlumat oxunmadı."); }
+    const employee = await db.prepare("SELECT id,name FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(str(b.employeeId, 100), id).first<{ id: string; name: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const type = str(b.type, 80);
+    if (!["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(type)) throw new HttpError(400, "Fayl PDF, PNG, JPG və ya WEBP olmalıdır.");
+    const data = str(b.data, 1_500_000);
+    if (!data || !/^[A-Za-z0-9+/=]+$/.test(data)) throw new HttpError(400, "Fayl oxunmadı.");
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM employee_documents WHERE company_id=? AND employee_id=?").bind(id, employee.id).first<{ n: number }>();
+    if ((Number(count?.n) || 0) >= 30) throw new HttpError(409, "Bir işçi üçün ən çoxu 30 sənəd saxlamaq olar.");
+    const name = str(b.name, 160) || "sənəd";
+    const category = EMPLOYEE_DOC_CATEGORIES.includes(str(b.category, 20)) ? str(b.category, 20) : "other";
+    await db.prepare("INSERT INTO employee_documents(id,company_id,employee_id,category,name,type,data,size,uploaded_by,created) VALUES(?,?,?,?,?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(), id, employee.id, category, name, type, data, Math.floor(data.length * 0.75), userId, new Date().toISOString()).run();
+    await companyAudit(db, id, userId, "employee-doc-added", employee.id, `${employee.name}: ${name}`);
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "GET" && path === "company/employee-doc") {
+    requirePermission("salaries", employeeDocsDenied);
+    const row = await db.prepare("SELECT employee_id,name,type,data FROM employee_documents WHERE id=? AND company_id=?").bind(str(requestUrl.searchParams.get("id"), 100), id)
+      .first<{ employee_id: string; name: string; type: string; data: string }>();
+    if (!row) throw new HttpError(404, "Sənəd tapılmadı.");
+    await companyAudit(db, id, userId, "employee-doc-viewed", row.employee_id, row.name);
+    return new Response(Uint8Array.from(atob(row.data), (c) => c.charCodeAt(0)), {
+      headers: { "Content-Type": row.type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
+    });
+  }
+  if (request.method === "POST" && path === "company/employee-docs/delete") {
+    requirePermission("salaries", employeeDocsDenied);
+    const b = await jsonBody(request);
+    const result = await db.prepare("DELETE FROM employee_documents WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    if (!result.meta.changes) throw new HttpError(404, "Sənəd tapılmadı.");
+    await companyAudit(db, id, userId, "employee-doc-deleted", str(b.id, 100));
+    return ok({ ok: true });
   }
   if (request.method === "GET" && path === "company/employee-events") {
     requirePermission("salaries", "İşçinin hərəkət tarixçəsini yalnız HR, direktor və hesab sahibi görə bilər.");
@@ -2822,6 +2871,9 @@ async function route(request: Request) {
     const salary = Math.max(0, Math.min(1_000_000, Number(b.salary) || 0));
     const status = ["active", "leave", "left"].includes(str(b.status, 10)) ? str(b.status, 10) : "active";
     const position = str(b.position, 120), department = str(b.department, 120), email = str(b.email, 160), phone = str(b.phone, 40), startDate = str(b.startDate, 10);
+    const probationRaw = str(b.probationEnd, 10);
+    const probationEnd = excelDateSerial(probationRaw) !== null ? probationRaw : "";
+    if (probationEnd && startDate && probationEnd < startDate) throw new HttpError(400, "Sınaq müddətinin sonu işə başlama tarixindən əvvəl ola bilməz.");
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
     const exit = normalizeExit({ status, endDate: b.endDate, exitType: b.exitType, exitReason: b.exitReason, exitNote: b.exitNote }, startDate, today);
@@ -2845,8 +2897,8 @@ async function route(request: Request) {
       // The amounts stay in the audit log, which only HR, the director and the owner can read.
       if (old.salary_cents !== Math.round(salary * 100)) events.push(event(existingId, "salary", "", "", "", today));
       await db.batch([
-        db.prepare("UPDATE company_employees SET name=?,position=?,department=?,email=?,phone=?,start_date=?,salary_cents=?,status=?,end_date=?,exit_type=?,exit_reason=?,exit_note=?,updated=? WHERE id=? AND company_id=?")
-          .bind(name, position, department, email, phone, startDate, Math.round(salary * 100), status, exit.endDate, exit.exitType, exit.exitReason, exit.exitNote, now, existingId, id),
+        db.prepare("UPDATE company_employees SET name=?,position=?,department=?,email=?,phone=?,start_date=?,salary_cents=?,status=?,end_date=?,exit_type=?,exit_reason=?,exit_note=?,probation_end=?,probation_reminded=CASE WHEN probation_end<>? THEN 0 ELSE probation_reminded END,updated=? WHERE id=? AND company_id=?")
+          .bind(name, position, department, email, phone, startDate, Math.round(salary * 100), status, exit.endDate, exit.exitType, exit.exitReason, exit.exitNote, probationEnd, probationEnd, now, existingId, id),
         ...events,
       ]);
       if (old.salary_cents !== Math.round(salary * 100)) await companyAudit(db, id, userId, "salary-changed", existingId, `${name}: ${old.salary_cents / 100} → ${salary} AZN`);
@@ -2857,8 +2909,8 @@ async function route(request: Request) {
     const events = [event(newId, "hired", "", "", "manual", startDate || today)];
     if (status === "left") events.push(event(newId, "left", "active", exit.exitType, exit.exitReason, exit.endDate));
     await db.batch([
-      db.prepare("INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,end_date,exit_type,exit_reason,exit_note,job_id,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,'manual','',?,?,?,?,'',?,?)")
-        .bind(newId, id, name, position, department, email, phone, startDate, Math.round(salary * 100), status, exit.endDate, exit.exitType, exit.exitReason, exit.exitNote, now, now),
+      db.prepare("INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,end_date,exit_type,exit_reason,exit_note,job_id,probation_end,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,'manual','',?,?,?,?,'',?,?,?)")
+        .bind(newId, id, name, position, department, email, phone, startDate, Math.round(salary * 100), status, exit.endDate, exit.exitType, exit.exitReason, exit.exitNote, probationEnd, now, now),
       ...events,
     ]);
     await companyAudit(db, id, userId, "employee-added", newId, name);
@@ -2869,6 +2921,8 @@ async function route(request: Request) {
     const b = await jsonBody(request);
     const result = await db.prepare("UPDATE company_employees SET status='removed',updated=? WHERE id=? AND company_id=?").bind(new Date().toISOString(), str(b.id, 100), id).run();
     if (!result.meta.changes) throw new HttpError(404, "İşçi tapılmadı.");
+    // Personal documents are deleted together with the employee entry.
+    await db.prepare("DELETE FROM employee_documents WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run();
     await companyAudit(db, id, userId, "employee-removed", str(b.id, 100));
     return ok({ ok: true });
   }
@@ -2961,6 +3015,10 @@ async function route(request: Request) {
     if (can(memberRole, "offers", memberGrants)) {
       const offers = await db.prepare("SELECT COUNT(*) AS n FROM offers WHERE company_id=? AND status='sent' AND created<?").bind(id, new Date(Date.now() - 5 * 86400000).toISOString()).first<{ n: number }>().catch(() => null);
       add("offers", Number(offers?.n) || 0, "təklifə 5 gündən çoxdur cavab verilməyib", "hr-candidates");
+    }
+    if (can(memberRole, "salaries", memberGrants)) {
+      const probation = await db.prepare("SELECT COUNT(*) AS n FROM company_employees WHERE company_id=? AND status='active' AND probation_end<>'' AND probation_end<=?").bind(id, weekAhead).first<{ n: number }>().catch(() => null);
+      add("probation", Number(probation?.n) || 0, "işçinin sınaq müddəti 7 gündən az qalıb və ya bitib", "hr-employees");
     }
     const expiring = await db
       .prepare("SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND id IN (SELECT value FROM json_each(?)) AND status='published' AND json_extract(data,'$.deadline')<>'' AND json_extract(data,'$.deadline')>=? AND json_extract(data,'$.deadline')<=?")

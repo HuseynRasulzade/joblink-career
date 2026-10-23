@@ -592,7 +592,7 @@ export function CompanyProfilePage({ notify, onChange }: { notify: Notify; onCha
 }
 
 // ---------- Current employees ----------
-type Employee = { id: string; name: string; position: string; department: string; email: string; phone: string; startDate: string; status: string; source: string; salary: number | null; endDate?: string; exitType?: string; exitReason?: string; exitNote?: string };
+type Employee = { id: string; name: string; position: string; department: string; email: string; phone: string; startDate: string; status: string; source: string; salary: number | null; endDate?: string; exitType?: string; exitReason?: string; exitNote?: string; probationEnd?: string };
 type Option = { id: string; label: string };
 const EVENT_LABEL: Record<string, string> = { hired: "İşə qəbul", left: "İşdən ayrıldı", returned: "İşə qayıtdı", "leave-start": "Məzuniyyətə çıxdı", "leave-end": "Məzuniyyətdən qayıtdı", position: "Vəzifə dəyişikliyi", department: "Şöbə dəyişikliyi", salary: "Maaş dəyişikliyi" };
 const EMPLOYEE_STATUS: Record<string, string> = { active: "İşləyir", leave: "Məzuniyyətdə", left: "İşdən çıxıb" };
@@ -637,7 +637,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                 <td><strong>{e.name}</strong><small className="skill-description">{e.email}{e.source === "hired" ? " · Joblink ilə işə qəbul" : ""}</small></td>
                 <td>{e.position || "—"}</td>
                 <td>{e.department || "—"}</td>
-                <td>{day(e.startDate)}</td>
+                <td>{day(e.startDate)}{e.status === "active" && e.probationEnd && <small className="skill-description" style={{ color: e.probationEnd < new Date().toISOString().slice(0, 10) ? "#b45309" : undefined }}>Sınaq: {day(e.probationEnd)}</small>}</td>
                 <td>{EMPLOYEE_STATUS[e.status] || e.status}{e.status === "left" && e.endDate ? <small className="skill-description">{day(e.endDate)}</small> : null}</td>
                 {data.showSalary && <td>{e.salary ? azn(e.salary) : "—"}</td>}
                 {data.canEdit && (
@@ -660,6 +660,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
               <Field label="Vəzifə"><input value={editing.position || ""} onChange={(e) => setEditing({ ...editing, position: e.target.value })} /></Field>
               <Field label="Şöbə"><input value={editing.department || ""} onChange={(e) => setEditing({ ...editing, department: e.target.value })} /></Field>
               <Field label="İşə başlama"><input type="date" value={editing.startDate || ""} onChange={(e) => setEditing({ ...editing, startDate: e.target.value })} /></Field>
+              <Field label="Sınaq müddətinin sonu"><input type="date" value={editing.probationEnd || ""} onChange={(e) => setEditing({ ...editing, probationEnd: e.target.value })} /></Field>
               <Field label="E-poçt"><input value={editing.email || ""} onChange={(e) => setEditing({ ...editing, email: e.target.value })} /></Field>
               <Field label="Telefon"><input value={editing.phone || ""} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} /></Field>
               <Field label="Aylıq maaş (AZN)"><input type="number" min={0} value={editing.salary ?? ""} onChange={(e) => setEditing({ ...editing, salary: Number(e.target.value) })} /></Field>
@@ -687,6 +688,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                 </>
               )}
             </div>
+            {editing.id && <EmployeeDocuments employeeId={editing.id} notify={notify} />}
             {!!history.length && (
               <div className="employee-history">
                 <h4>Hərəkət tarixçəsi</h4>
@@ -1037,6 +1039,72 @@ export function WorkforcePage({ me, notify }: { me: CompanyMe | null; notify: No
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+// ---------- Employee document folder ----------
+const DOC_CATEGORY: Record<string, string> = { contract: "Əmək müqaviləsi", order: "Əmr", id: "Şəxsiyyət vəsiqəsi", diploma: "Diplom / sertifikat", medical: "Tibbi arayış", other: "Digər" };
+type EmployeeDoc = { id: string; category: string; name: string; type: string; size: number; created: string };
+function EmployeeDocuments({ employeeId, notify }: { employeeId: string; notify: Notify }) {
+  const [docs, setDocs] = useState<EmployeeDoc[] | null>(null);
+  const [category, setCategory] = useState("contract");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => request<{ documents: EmployeeDoc[] }>(`company/employee-docs?employeeId=${employeeId}`).then((r) => setDocs(r.documents)).catch((e) => notify((e as Error).message)), [employeeId, notify]);
+  useEffect(() => { void load(); }, [load]);
+  return (
+    <div className="employee-history">
+      <h4>Sənəd qovluğu</h4>
+      <ul>
+        {(docs || []).map((d) => (
+          <li key={d.id}>
+            <a href={`/api/joblink/company/employee-doc?id=${d.id}`} target="_blank" rel="noreferrer">{d.name}</a>
+            <small className="skill-description"> {DOC_CATEGORY[d.category] || d.category} · {Math.max(1, Math.round(d.size / 1024))} KB · {day(d.created)}</small>
+            <button
+              type="button"
+              aria-label="Sənədi sil"
+              onClick={async () => {
+                if (!window.confirm(`“${d.name}” silinsin?`)) return;
+                try { await request("company/employee-docs/delete", { id: d.id }); await load(); } catch (error) { notify((error as Error).message); }
+              }}
+            >
+              <Trash2 size={13} />
+            </button>
+          </li>
+        ))}
+        {docs && !docs.length && <li className="muted">Sənəd yoxdur.</li>}
+      </ul>
+      <div className="admin-actions">
+        <select value={category} aria-label="Sənəd növü" onChange={(e) => setCategory(e.target.value)}>
+          {Object.entries(DOC_CATEGORY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <input
+          type="file"
+          accept="application/pdf,image/png,image/jpeg,image/webp"
+          disabled={busy}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (!file) return;
+            if (file.size > 1_000_000) return notify("Fayl 1 MB-dan kiçik olmalıdır.");
+            const reader = new FileReader();
+            reader.onload = async () => {
+              setBusy(true);
+              try {
+                await request("company/employee-docs/upload", { employeeId, category, name: file.name, type: file.type, data: String(reader.result).split(",")[1] || "" });
+                notify("Sənəd əlavə edildi.");
+                await load();
+              } catch (error) {
+                notify((error as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            };
+            reader.readAsDataURL(file);
+          }}
+        />
+      </div>
+      <small className="skill-picker-help">PDF və ya şəkil, 1 MB-a qədər. Yalnız HR, direktor və hesab sahibi görür; hər açılış jurnala yazılır. İşçi siyahıdan silinəndə sənədləri də silinir.</small>
     </div>
   );
 }

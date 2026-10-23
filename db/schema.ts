@@ -555,10 +555,28 @@ export const companyEmployees = sqliteTable(
     exitReason: text("exit_reason").notNull().default(""),
     exitNote: text("exit_note").notNull().default(""),
     jobId: text("job_id").notNull().default(""),
+    probationEnd: text("probation_end").notNull().default(""),
+    probationReminded: integer("probation_reminded").notNull().default(0),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
   },
   (t) => [index("company_employees_company").on(t.companyId, t.status)],
+);
+export const employeeDocuments = sqliteTable(
+  "employee_documents",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    category: text("category").notNull().default("other"),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    data: text("data").notNull(),
+    size: integer("size").notNull().default(0),
+    uploadedBy: text("uploaded_by").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [index("employee_documents_employee").on(t.companyId, t.employeeId)],
 );
 export const employeeEvents = sqliteTable(
   "employee_events",
