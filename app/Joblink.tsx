@@ -67,6 +67,7 @@ import AccountLogin from "./AccountLogin";
 import AdminPanel from "./AdminPanel";
 import AccountSettings from "./AccountSettings";
 import { JobAlerts } from "./JobAlerts";
+import { AdminReviews } from "./CompanyReviews";
 import { similarJobs } from "@/lib/similar-jobs";
 import CvRewrite from "./CvRewrite";
 import CareerAssistant from "./CareerAssistant";
@@ -141,6 +142,7 @@ const adminNav = [
   { id: "admin-education", label: "Təhsil kataloqu", icon: Award },
   { id: "admin-matching", label: "Uyğunluq balı", icon: Sparkles },
   { id: "admin-support", label: "Sorğular və mesajlar", icon: Inbox },
+  { id: "admin-reviews", label: "Şirkət rəyləri", icon: UserCheck },
   { id: "admin-relations", label: "İzləmə və bloklar", icon: UserCheck },
   { id: "admin-companies", label: "Şirkət yoxlaması", icon: BadgeCheck },
   { id: "admin-verifications", label: "Sənəd yoxlaması", icon: ShieldCheck },
@@ -2079,6 +2081,8 @@ export default function Joblink() {
               jobs={jobs.filter((x) => x.owner === company.id)}
               following={relations.following.includes(company.id)}
               signedIn={signedIn}
+              isCandidate={accountRole === "candidate"}
+              onNotify={notify}
               onOpenJob={openJob}
               onFollow={async (on) => {
                 try {
@@ -2100,6 +2104,11 @@ export default function Joblink() {
                 }
               }}
             />
+          ) : admin && page === "admin-reviews" ? (
+            <>
+              <section className="page-heading"><div className="heading-row"><div><h1>Şirkət rəyləri</h1><p>Namizədlərin yazdığı rəylər dərc olunmazdan əvvəl burada yoxlanılır</p></div></div></section>
+              <AdminReviews notify={notify} />
+            </>
           ) : admin && page === "admin-support" ? (
             <>
               <section className="page-heading"><div className="heading-row"><div><h1>Sorğular və mesajlar</h1><p>Şirkət və işçilərin şikayət, təklif və sorğuları</p></div></div></section>

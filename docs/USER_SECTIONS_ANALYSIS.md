@@ -9,7 +9,7 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 |---|---|---|
 | Ümumi baxış | İşləyir | Profilin dolğunluq göstəricisi ("CV 70% hazırdır, nə əlavə edin"), növbəti addım kartı |
 | Vakansiyalar | Filtr, saxlama, müqayisə, qayda % və AI balı (admin seçimi ilə) | Vakansiya xəbərdarlığı (saxlanmış axtarış + gündəlik cron bildirişi/e-poçt) və “oxşar vakansiyalar” hazırdır |
-| Şirkətlər | İzləmə və bloklama | Şirkət səhifəsi (təsvir, açıq vakansiyalar, işəgötürən brendi), rəy/reytinq (moderasiya ilə) |
+| Şirkətlər | İzləmə və bloklama | Şirkət səhifəsi (loqo, təsvir, açıq vakansiyalar) və moderasiyalı rəy/reytinq hazırdır |
 | CV analizi | AI analiz, sübut yoxlaması, struktur CV | CV-ni PDF kimi yükləmək/şablonla yaratmaq (CV builder), versiya tarixçəsi, vakansiyaya uyğunlaşdırılmış CV variantı |
 | AI tövsiyələri / AI köməkçi | İşləyir (AI açarı tələb edir) | Müsahibəyə hazırlıq rejimi (sual-cavab məşqi), öyrənmə planı (çatışan bacarıqlar üçün), söhbət tarixçəsi var |
 | Mənim profilim | Təcrübə, təhsil (universitet/ixtisas siyahıları), sertifikat, sənəd təsdiqi, avtomatik müraciət | Portfolio linki və “iş təkliflərinə açığam” seçimi var; istinad şəxsləri (3-ə qədər, yalnız müraciət edilən işəgötürənə görünür) və məlumat ixracı (JSON) əlavə olundu. Qalır: maaş gözləntisində gross/net və əsas/əlavə iş yeri (vakansiyada maaş növü göstərilmədiyi üçün) |

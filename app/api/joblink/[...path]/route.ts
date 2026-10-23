@@ -58,6 +58,7 @@ import {
 import { createXlsx, excelDateSerial } from "@/lib/xlsx";
 import { findDuplicates } from "@/lib/duplicates";
 import { normalizeVat, vatParts } from "@/lib/vat";
+import { sanitizeReview, summarizeRatings } from "@/lib/reviews";
 import { alertIsEmpty, describeAlert, jobMatchesAlert, sanitizeAlertFilters, type AlertJob } from "@/lib/job-alerts";
 import {
   CERTIFICATION_CATALOG,
@@ -1080,6 +1081,20 @@ async function route(request: Request) {
       }),
     });
   }
+  // Approved reviews of a company are public; the reviewer is never named.
+  if (request.method === "GET" && path === "companies/reviews") {
+    const companyId = str(requestUrl.searchParams.get("companyId"), 100);
+    const rows = await db.prepare("SELECT rating,title,body,created FROM company_reviews WHERE company_id=? AND status='approved' ORDER BY created DESC LIMIT 50")
+      .bind(companyId).all<{ rating: number; title: string; body: string; created: string }>().catch(() => ({ results: [] as { rating: number; title: string; body: string; created: string }[] }));
+    const all = await db.prepare("SELECT rating FROM company_reviews WHERE company_id=? AND status='approved'").bind(companyId).all<{ rating: number }>().catch(() => ({ results: [] as { rating: number }[] }));
+    let mine: { rating: number; title: string; body: string; status: string; admin_note: string } | null = null;
+    let canReview = false;
+    if (user) {
+      mine = await db.prepare("SELECT rating,title,body,status,admin_note FROM company_reviews WHERE company_id=? AND user_id=?").bind(companyId, user).first<{ rating: number; title: string; body: string; status: string; admin_note: string }>().catch(() => null);
+      canReview = !!(await db.prepare("SELECT 1 FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.candidate_id=? AND j.owner=? LIMIT 1").bind(user, companyId).first().catch(() => null));
+    }
+    return ok({ reviews: rows.results, summary: summarizeRatings(all.results.map((r) => r.rating)), mine, canReview });
+  }
   if (request.method === "GET" && path === "companies/logo") {
     const row = await db.prepare("SELECT logo_type,logo_data FROM company_profiles WHERE company_id=?").bind(str(requestUrl.searchParams.get("id"), 100))
       .first<{ logo_type: string; logo_data: string }>().catch(() => null);
@@ -1661,6 +1676,21 @@ async function route(request: Request) {
     await db.prepare("DELETE FROM saved_searches WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
     return ok({ ok: true });
   }
+  // A candidate who applied to the company may leave one review; it waits for an admin's approval.
+  if (request.method === "POST" && path === "companies/review") {
+    if (accountRole !== "candidate") throw new HttpError(403, "Rəyi yalnız iş axtaran hesabı yaza bilər.");
+    const b = await jsonBody(request);
+    const companyId = str(b.companyId, 100);
+    const applied = await db.prepare("SELECT 1 FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.candidate_id=? AND j.owner=? LIMIT 1").bind(id, companyId).first();
+    if (!applied) throw new HttpError(403, "Rəyi yalnız müraciət etdiyiniz şirkət üçün yaza bilərsiniz.");
+    const review = sanitizeReview(b);
+    if ("error" in review) throw new HttpError(400, review.error);
+    const now = new Date().toISOString();
+    await db.prepare(`INSERT INTO company_reviews(id,company_id,user_id,rating,title,body,status,created) VALUES(?,?,?,?,?,?,'pending',?)
+        ON CONFLICT(company_id,user_id) DO UPDATE SET rating=excluded.rating,title=excluded.title,body=excluded.body,status='pending',admin_note='',created=excluded.created,reviewed_at=''`)
+      .bind(crypto.randomUUID(), companyId, id, review.rating, review.title, review.body, now).run();
+    return ok({ ok: true, status: "pending" }, 201);
+  }
   // ---- Job alerts (candidate): a saved filter set; the daily job tells about new matching vacancies ----
   if (path.startsWith("alerts") && accountRole !== "candidate") throw new HttpError(403, "Vakansiya xəbərdarlığı iş axtaran hesabı üçündür.");
   if (request.method === "GET" && path === "alerts") {
@@ -2046,6 +2076,29 @@ async function route(request: Request) {
     return ok({ ok: true, status: nextStatus });
   }
   if (accountRole === "admin") {
+    if (request.method === "GET" && path === "admin/reviews") {
+      const status = ["pending", "approved", "rejected"].includes(str(requestUrl.searchParams.get("status"), 10)) ? str(requestUrl.searchParams.get("status"), 10) : "pending";
+      const rows = await db.prepare(`SELECT r.id,r.rating,r.title,r.body,r.status,r.admin_note,r.created,COALESCE(c.name,'') AS company FROM company_reviews r LEFT JOIN accounts c ON c.id=r.company_id WHERE r.status=? ORDER BY r.created DESC LIMIT 200`).bind(status).all();
+      return ok({ reviews: rows.results, status });
+    }
+    if (request.method === "POST" && path === "admin/reviews/decide") {
+      const origin = request.headers.get("origin");
+      if (origin && origin !== new URL(request.url).origin) throw new HttpError(403, "Bu sorğuya icazə verilmir.");
+      const body = await jsonBody(request);
+      const decision = body.decision === "approve" ? "approved" : body.decision === "reject" ? "rejected" : "";
+      if (!decision) throw new HttpError(400, "Qərar yanlışdır.");
+      const note = str(body.note, 300);
+      if (decision === "rejected" && note.length < 3) throw new HttpError(400, "Rədd səbəbini yazın.");
+      const row = await db.prepare("SELECT user_id FROM company_reviews WHERE id=?").bind(str(body.id, 100)).first<{ user_id: string }>();
+      if (!row) throw new HttpError(404, "Rəy tapılmadı.");
+      const now = new Date().toISOString();
+      await db.batch([
+        db.prepare("UPDATE company_reviews SET status=?,admin_note=?,reviewed_at=? WHERE id=?").bind(decision, note, now, str(body.id, 100)),
+        db.prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, `review-${decision}`, "review", str(body.id, 100), JSON.stringify({ note }), now),
+      ]);
+      await notify(db, { userId: row.user_id, type: "review", title: decision === "approved" ? "Rəyiniz dərc edildi" : "Rəyiniz dərc edilmədi", body: decision === "approved" ? "Şirkət haqqında rəyiniz təsdiqləndi." : `Səbəb: ${note}`, link: "companies" });
+      return ok({ ok: true });
+    }
     if (request.method === "POST" && path === "admin/support/status") {
       const body = await jsonBody(request);
       const status = str(body.status, 20);

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BadgeCheck, Building2, Globe } from "lucide-react";
 import type { Job } from "@/lib/model";
+import { CompanyReviews } from "./CompanyReviews";
 
 export type CompanyInfo = {
   id: string;
@@ -93,6 +94,8 @@ export function CompanyView({
   onOpenJob,
   onFollow,
   onBlock,
+  onNotify,
+  isCandidate = false,
 }: {
   company: CompanyInfo;
   jobs: Job[];
@@ -101,6 +104,8 @@ export function CompanyView({
   onOpenJob: (job: Job) => void;
   onFollow: (on: boolean) => void;
   onBlock: () => void;
+  onNotify?: (message: string) => void;
+  isCandidate?: boolean;
 }) {
   return (
     <div className="company-view">
@@ -140,6 +145,7 @@ export function CompanyView({
           <button className="text-button" onClick={onBlock}>Blokla</button>
         </div>
       )}
+      <CompanyReviews companyId={company.id} signedIn={signedIn} isCandidate={isCandidate} notify={onNotify || (() => {})} />
       <h3>Açıq vakansiyalar ({jobs.length})</h3>
       <div className="company-jobs-list">
         {jobs.map((j) => (

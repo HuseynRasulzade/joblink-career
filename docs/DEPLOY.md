@@ -45,6 +45,9 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0047_account_security` | Şifrə sıfırlama və e-poçt təsdiqi (`auth_tokens`, `password_accounts.verified`), cihaz siyahısı (`sessions.created/agent`), iki mərhələli giriş (`totp_secrets`) |
 | `0048_job_alerts` | Namizədin vakansiya xəbərdarlıqları (`job_alerts`); gündəlik cron yeni uyğun vakansiyaları bildirir (`seen` siyahısı təkrarın qarşısını alır) |
 | `0049_support_attachments` | Dəstək sorğusuna və cavaba fayl əlavəsi (`support_messages.attachment_*`) |
+| `0050_plan_reminder` | Paket dövrü bitməzdən 3 gün əvvəl bir dəfə xatırlatma (`subscriptions.renewal_reminded`) |
+| `0051_thread_archive` | Yazışmanı hər tərəf üçün ayrıca arxivləmə (`candidate_archived`, `company_archived`) |
+| `0052_company_reviews` | Şirkət rəyləri (`company_reviews`): müraciət etmiş namizəd yazır, admin təsdiq edir, ad göstərilmir |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 

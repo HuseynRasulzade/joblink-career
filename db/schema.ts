@@ -151,6 +151,22 @@ export const sessions = sqliteTable(
   },
   (t) => [index("sessions_expiry").on(t.expires)],
 );
+export const companyReviews = sqliteTable(
+  "company_reviews",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    userId: text("user_id").notNull(),
+    rating: integer("rating").notNull(),
+    title: text("title").notNull().default(""),
+    body: text("body").notNull(),
+    status: text("status").notNull().default("pending"),
+    adminNote: text("admin_note").notNull().default(""),
+    created: text("created").notNull(),
+    reviewedAt: text("reviewed_at").notNull().default(""),
+  },
+  (t) => [uniqueIndex("company_reviews_unique").on(t.companyId, t.userId), index("company_reviews_status").on(t.status, t.created)],
+);
 export const jobAlerts = sqliteTable(
   "job_alerts",
   {
