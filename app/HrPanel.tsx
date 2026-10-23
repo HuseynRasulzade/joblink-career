@@ -624,6 +624,29 @@ export default function HrPanel({
                       >
                         Kopyala
                       </button>
+                      {(jobStatus(j) === "expired" || j.status === "archived") && (
+                        <button
+                          className="primary"
+                          disabled={busy}
+                          onClick={async () => {
+                            const until = extendedDeadline("", 30);
+                            if (!window.confirm(`“${j.title}” eyni məzmunla yeni elan kimi yayımlansın? Son tarix ${until} olacaq${j.status === "archived" ? "" : ", köhnə elan bağlanacaq"}. Müraciətlər köhnə elanda qalır.`)) return;
+                            setBusy(true);
+                            try {
+                              const result = (await api("hr/job-repost", { jobId: j.id, days: 30 })) as { pendingApproval?: boolean };
+                              await refresh();
+                              onPublished();
+                              notify(result.pendingApproval ? "Yeni elan təsdiqə göndərildi." : `Vakansiya təkrar yayımlandı. Son tarix: ${until}.`);
+                            } catch (e) {
+                              notify((e as Error).message);
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        >
+                          Təkrar yayımla
+                        </button>
+                      )}
                       <button onClick={() => setSaveTemplate({ jobId: j.id, name: j.title })}>Şablon kimi saxla</button>
                       {canPublish && ["published", "paused"].includes(j.status || "published") && (
                         <>

@@ -75,3 +75,33 @@ test("conversion is applications per unique viewer, capped at 100", () => {
   assert.equal(conversionPercent(5, 0), null);
   assert.equal(conversionPercent(9, 4), 100);
 });
+
+import { REPOST_DAYS, isEndedJob, repostedJob } from "../lib/job-edit.ts";
+
+test("a vacancy has ended when it is closed or past its deadline", () => {
+  assert.equal(isEndedJob("archived", "", TODAY), true);
+  assert.equal(isEndedJob("published", "2026-10-20", TODAY), true);
+  assert.equal(isEndedJob("published", "2026-10-23", TODAY), false);
+  assert.equal(isEndedJob("published", "", TODAY), false);
+  assert.equal(isEndedJob("paused", "2026-10-01", TODAY), false);
+  assert.equal(isEndedJob("pending_approval", "2026-10-01", TODAY), false);
+});
+test("a reposted vacancy keeps content and reason, gets a new id and deadline, and drops old closing data", () => {
+  const old = {
+    id: "old", owner: "c1", title: "Mühasib", company: "FBCO", city: "Bakı", mode: "Ofisdə", type: "Tam ştat", category: "Maliyyə", minSalary: 900, maxSalary: 1100,
+    minYears: 1, maxYears: 3, skills: ["Excel"], description: "T", requirements: "R", reason: "replacement", reasonNote: "Ayrılan işçi", deadline: "2026-09-01",
+    status: "archived", closeReason: "filled", closeNote: "tapıldı", closedAt: "2026-09-02", moderated: true, approval: { requestedBy: "u" }, createdBy: "u1",
+  };
+  const n = repostedJob(old, { id: "new", owner: "c1", createdBy: "u2", now: "2026-10-23T00:00:00Z", today: TODAY, days: 30 });
+  assert.equal(n.id, "new");
+  assert.equal(n.repostOf, "old");
+  assert.equal(n.status, "published");
+  assert.equal(n.deadline, "2026-11-22");
+  assert.equal(n.title, "Mühasib");
+  assert.equal(n.reason, "replacement");
+  assert.equal(n.createdBy, "u2");
+  for (const key of ["closeReason", "closeNote", "closedAt", "moderated", "approval"]) assert.equal(key in n, false, key);
+  assert.equal(repostedJob(old, { id: "n", owner: "c1", createdBy: "u", now: "x", today: TODAY, days: 999 }).deadline, "2026-11-22");
+  assert.deepEqual(REPOST_DAYS, [14, 30, 60]);
+  assert.equal(closeReasonLabel("reposted"), "Təkrar yayımlandı");
+});

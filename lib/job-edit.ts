@@ -1,6 +1,6 @@
 // Editing a live vacancy, extending its deadline and recording why it was closed.
 import type { Job } from "./model.ts";
-import { TEMPLATE_FIELDS } from "./job-templates.ts";
+import { TEMPLATE_FIELDS, copyableJob } from "./job-templates.ts";
 
 // Everything the company may change on a published or paused vacancy.
 export const EDITABLE_FIELDS = [...TEMPLATE_FIELDS, "deadline", "reason", "reasonNote"] as const;
@@ -10,7 +10,8 @@ export const CLOSE_REASONS: { id: string; label: string }[] = [
   { id: "cancelled", label: "Ehtiyac qalmadı / ləğv edildi" },
   { id: "other", label: "Digər səbəb" },
 ];
-export const closeReasonLabel = (id: string | undefined) => CLOSE_REASONS.find((r) => r.id === id)?.label || "";
+// "reposted" is set by the system when an ended vacancy is published again; it is not offered in the close dialog.
+export const closeReasonLabel = (id: string | undefined) => (id === "reposted" ? "Təkrar yayımlandı" : CLOSE_REASONS.find((r) => r.id === id)?.label || "");
 
 // A vacancy that is closed, waiting for approval or rejected is not edited in place.
 export const isEditableStatus = (status: string) => status === "published" || status === "paused";
@@ -55,4 +56,33 @@ export function describeMaterialChanges(before: Partial<Job>, after: Partial<Job
     if (a !== b) lines.push(`${FIELD_NAMES[key]}: ${a || "göstərilməyib"} → ${b || "göstərilməyib"}`);
   }
   return lines;
+}
+
+// ---- Publishing an ended vacancy again ----
+export const REPOST_DAYS = [14, 30, 60];
+export const DEFAULT_REPOST_DAYS = 30;
+// Ended = closed, or still "published" but past its deadline.
+export const isEndedJob = (status: string, deadline: string | undefined, today = new Date().toISOString().slice(0, 10)) =>
+  status === "archived" || (status === "published" && !!deadline && deadline < today);
+
+// A new opening with the same content and reason, a fresh deadline and none of the old
+// closing, approval or moderation data. Applications stay with the old vacancy.
+export function repostedJob(
+  job: Partial<Job> & { id: string },
+  input: { id: string; owner: string; createdBy: string; now: string; today: string; days: number },
+): Job & { repostOf: string; createdBy: string } {
+  const days = REPOST_DAYS.includes(input.days) ? input.days : DEFAULT_REPOST_DAYS;
+  return {
+    ...(copyableJob(job) as Job),
+    reason: job.reason || "",
+    reasonNote: job.reasonNote || "",
+    id: input.id,
+    owner: input.owner,
+    created: input.now,
+    demo: false,
+    status: "published",
+    deadline: new Date(Date.parse(`${input.today}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10),
+    repostOf: job.id,
+    createdBy: input.createdBy,
+  };
 }

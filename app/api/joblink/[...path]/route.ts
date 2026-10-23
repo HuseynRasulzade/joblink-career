@@ -116,7 +116,7 @@ import { ACTIVE_INTERVIEW, INTERVIEW_KINDS, INTERVIEW_STATUS_LABEL, bakuLocal, i
 import { normalizeFrequency } from "@/lib/digest";
 import { matchesTalent, sanitizeNote, sanitizeTags } from "@/lib/talent";
 import { TEMPLATE_LIMIT, cleanTemplateName, copyableJob, draftFromContent } from "@/lib/job-templates";
-import { CLOSE_REASONS, changedFields, describeMaterialChanges, isEditableStatus, pickEditable, validDeadline } from "@/lib/job-edit";
+import { CLOSE_REASONS, changedFields, describeMaterialChanges, isEditableStatus, isEndedJob, pickEditable, repostedJob, validDeadline } from "@/lib/job-edit";
 import { conversionPercent, viewerKey } from "@/lib/job-views";
 import { purgeOldJobViews, runDigests, runInterviewReminders } from "@/lib/digest-job";
 import { MATCHING_KEY, normalizeMatching, ratingHash, type MatchingSettings } from "@/lib/matching-settings";
@@ -2459,7 +2459,7 @@ async function route(request: Request) {
     "plan/methods/default",
     "plan/contract",
   ]);
-  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views"]);
+  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views", "hr/job-repost"]);
   if (accountRole === "company" && candidatePaths.has(path))
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
@@ -5940,6 +5940,40 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .all<{ job_id: string; views: number; uniq: number; last7: number | null }>()
       .catch(() => ({ results: [] as { job_id: string; views: number; uniq: number; last7: number | null }[] }));
     return ok({ views: Object.fromEntries(rows.results.map((r) => [r.job_id, { views: Number(r.views) || 0, unique: Number(r.uniq) || 0, last7: Number(r.last7) || 0 }])) });
+  }
+  if (request.method === "POST" && path === "hr/job-repost") {
+    // One click: an ended vacancy (closed or past its deadline) is published again as a new opening.
+    const b = await jsonBody(request);
+    const jobIds = (await reportScope()).jobIds;
+    const row = await db
+      .prepare("SELECT id,data,status FROM jobs WHERE id=? AND owner=? AND id IN (SELECT value FROM json_each(?))")
+      .bind(str(b.jobId, 100), id, JSON.stringify(jobIds))
+      .first<Row>();
+    if (!row) throw new HttpError(404, "Vakansiya tapılmadı.");
+    const current = JSON.parse(String(row.data)) as Job & { moderated?: boolean };
+    const today = new Date().toISOString().slice(0, 10);
+    if (!isEndedJob(String(row.status), current.deadline, today)) throw new HttpError(409, "Təkrar yayım yalnız bağlanmış və ya müddəti bitmiş vakansiya üçündür.");
+    if (current.moderated) throw new HttpError(403, "Bu vakansiya administrator tərəfindən dayandırılıb. Dəstək ilə əlaqə saxlayın.");
+    const now = new Date().toISOString();
+    const fresh = repostedJob(normalizedJobRecord(current, customSkillLabels), { id: crypto.randomUUID(), owner: id, createdBy: userId, now, today, days: Number(b.days) });
+    const original = { ...current, status: "archived", closeReason: (current as Job & { closeReason?: string }).closeReason || "reposted", closeNote: (current as Job & { closeNote?: string }).closeNote || "Təkrar yayımlandı", closedAt: (current as Job & { closedAt?: string }).closedAt || now };
+    if (!can(memberRole, "publish")) {
+      // Roles without "publish" send the new opening for HR and director approval, like any new vacancy.
+      const me = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(userId).first<{ name: string }>();
+      const pending = { ...fresh, status: "pending_approval", approval: newApproval(userId, me?.name || "") };
+      await db.prepare("INSERT INTO jobs(id,owner,data,status,created) VALUES(?,?,?,'pending_approval',?)").bind(fresh.id, id, JSON.stringify(pending), now).run();
+      await companyAudit(db, id, userId, "job-reposted", String(row.id), `${fresh.title} (təsdiqə göndərildi)`);
+      await notifyCompanyRoles(db, id, "approve-hr", { type: "approval", title: `Təsdiq gözləyir: ${fresh.title}`, body: `${me?.name || ""} vakansiyanı təkrar yayım üçün təsdiqə göndərdi.`, link: "hr-approvals" });
+      return ok({ job: pending, pendingApproval: true }, 201);
+    }
+    await db.batch([
+      db.prepare("INSERT INTO jobs(id,owner,data,status,created) VALUES(?,?,?,'published',?)").bind(fresh.id, id, JSON.stringify(fresh), now),
+      // The old opening is closed so the same vacancy is not listed twice.
+      db.prepare("UPDATE jobs SET status='archived',data=? WHERE id=?").bind(JSON.stringify(original), row.id),
+    ]);
+    await companyAudit(db, id, userId, "job-reposted", String(row.id), `${fresh.title}, son tarix ${fresh.deadline}`);
+    await notifyFollowers(db, id, fresh);
+    return ok({ job: fresh }, 201);
   }
   if (request.method === "POST" && path === "hr/job-update") {
     requirePermission("publish", "Vakansiyanı redaktə etmək üçün HR və ya direktor icazəsi lazımdır.");
