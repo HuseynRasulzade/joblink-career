@@ -150,3 +150,30 @@ export function parseQuestionCsv(input: string): Question[] {
   }
   return out.slice(0, 60);
 }
+
+// ---- Results: percent, pass / fail and a summary for one test ----
+export const percentOf = (score: number, max: number) => (max > 0 ? Math.round((score / max) * 100) : null);
+
+export type ResultRow = { status: string; score: number; max_score: number; review_status: string; passingScore: number };
+// Pass or fail is decided only after open answers are graded and the test was handed in.
+export function resultState(row: ResultRow): "pending" | "passed" | "failed" | "none" {
+  if (!["submitted", "expired"].includes(row.status)) return "none";
+  if (row.review_status === "pending") return "pending";
+  const percent = percentOf(row.score, row.max_score);
+  if (percent === null) return "none";
+  return percent >= row.passingScore ? "passed" : "failed";
+}
+
+export function summarizeResults(rows: ResultRow[]) {
+  const states = rows.map(resultState);
+  const finished = rows.filter((_, i) => states[i] === "passed" || states[i] === "failed");
+  const percents = finished.map((r) => percentOf(r.score, r.max_score) as number);
+  return {
+    assigned: rows.length,
+    submitted: rows.filter((r) => ["submitted", "expired"].includes(r.status)).length,
+    pending: states.filter((s) => s === "pending").length,
+    passed: states.filter((s) => s === "passed").length,
+    failed: states.filter((s) => s === "failed").length,
+    average: percents.length ? Math.round(percents.reduce((a, b) => a + b, 0) / percents.length) : null,
+  };
+}

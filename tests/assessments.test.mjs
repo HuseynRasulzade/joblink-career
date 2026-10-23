@@ -87,3 +87,26 @@ test("csv import builds valid questions and skips broken rows", () => {
   assert.equal(qs[2].type, "text");
   assert.equal(qs[2].points, 5);
 });
+
+import { percentOf, resultState, summarizeResults } from "../lib/assessments.ts";
+
+const row = (status, score, max, review = "", passingScore = 60) => ({ status, score, max_score: max, review_status: review, passingScore });
+
+test("percent is empty without a maximum", () => {
+  assert.equal(percentOf(3, 4), 75);
+  assert.equal(percentOf(0, 0), null);
+});
+test("pass or fail waits for graded open answers and a handed-in test", () => {
+  assert.equal(resultState(row("assigned", 0, 0)), "none");
+  assert.equal(resultState(row("started", 0, 0)), "none");
+  assert.equal(resultState(row("submitted", 2, 7, "pending")), "pending");
+  assert.equal(resultState(row("submitted", 6, 7, "done")), "passed");
+  assert.equal(resultState(row("submitted", 3, 10, "")), "failed");
+  assert.equal(resultState(row("expired", 6, 10, "")), "passed"); // exactly the passing score
+  assert.equal(resultState(row("submitted", 0, 0, "")), "none");
+});
+test("the summary counts states and averages only decided results", () => {
+  const s = summarizeResults([row("submitted", 8, 10), row("submitted", 4, 10), row("submitted", 1, 10, "pending"), row("assigned", 0, 0), row("expired", 6, 10)]);
+  assert.deepEqual(s, { assigned: 5, submitted: 4, pending: 1, passed: 2, failed: 1, average: 60 });
+  assert.deepEqual(summarizeResults([]), { assigned: 0, submitted: 0, pending: 0, passed: 0, failed: 0, average: null });
+});

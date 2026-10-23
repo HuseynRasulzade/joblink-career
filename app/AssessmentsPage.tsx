@@ -19,6 +19,7 @@ type Summary = {
   assigned: number;
   submitted: number;
   updated: string;
+  stats?: { assigned: number; submitted: number; pending: number; passed: number; failed: number; average: number | null };
 };
 type Detail = {
   assessment: {
@@ -142,6 +143,21 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
       reason: "",
     });
   }
+  // A copy starts as an unsaved draft: new question ids, no attachment, no history.
+  function duplicate(d: Detail) {
+    setDetail(null);
+    setDraft({
+      id: "",
+      title: `${d.assessment.title} (kopya)`.slice(0, 200),
+      instructions: d.assessment.instructions,
+      durationMin: d.assessment.duration_min,
+      passingScore: d.assessment.passing_score,
+      jobId: d.assessment.job_id,
+      questions: d.assessment.questions.map((q) => ({ ...q, id: crypto.randomUUID().slice(0, 8) })),
+      attachmentName: "",
+      reason: "",
+    });
+  }
   async function save() {
     if (!draft) return;
     setBusy(true);
@@ -179,7 +195,8 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
               <button type="button" className="conversation-open" onClick={() => open(item.id)}>
                 <strong>{item.title}</strong>
                 <small>{item.job_title || "Ümumi"} · {item.question_count} sual · {item.duration_min} dəq</small>
-                <small>{item.submitted}/{item.assigned} təhvil verilib</small>
+                <small>{item.submitted}/{item.assigned} təhvil verilib{item.stats && item.stats.average !== null ? ` · orta ${item.stats.average}%` : ""}</small>
+                {item.stats && (item.stats.passed + item.stats.failed > 0) && <small>{item.stats.passed} keçdi · {item.stats.failed} keçmədi{item.stats.pending ? ` · ${item.stats.pending} yoxlanır` : ""}</small>}
               </button>
             </div>
           ))}
@@ -292,6 +309,29 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
               />
               <small className="skill-picker-help">Format (nöqtəli vergül): tip;sual;variant1|variant2;düzgün nömrə (1-dən, bir neçəsi | ilə);bal. Tip: single, multiple və ya text.</small>
             </div>
+            {list.some((x) => x.id !== draft.id) && (
+              <div className="field">
+                <span>Başqa testdən sualları götür</span>
+                <select
+                  value=""
+                  onChange={async (event) => {
+                    const sourceId = event.target.value;
+                    if (!sourceId) return;
+                    try {
+                      const source = await request<Detail>(`hr/assessment?id=${encodeURIComponent(sourceId)}`);
+                      const copied = source.assessment.questions.map((q) => ({ ...q, id: crypto.randomUUID().slice(0, 8) }));
+                      setDraft((d) => (d ? { ...d, questions: [...d.questions.filter((q) => q.text.trim()), ...copied].slice(0, 60) } : d));
+                      notify(`${copied.length} sual əlavə edildi.`);
+                    } catch (error) {
+                      notify((error as Error).message);
+                    }
+                  }}
+                >
+                  <option value="">Test seçin…</option>
+                  {list.filter((x) => x.id !== draft.id).map((x) => <option key={x.id} value={x.id}>{x.title} ({x.question_count} sual)</option>)}
+                </select>
+              </div>
+            )}
             {draft.id && (
               <Field label="Dəyişikliyin səbəbi (məcburi, tarixçədə saxlanılır)">
                 <input value={draft.reason} placeholder="Məsələn: 3-cü sualın cavab variantı düzəldildi" onChange={(e) => setDraft({ ...draft, reason: e.target.value })} />
@@ -316,6 +356,7 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                   </a>
                 )}
                 <button onClick={() => edit(detail)}>Redaktə et</button>
+                <button onClick={() => duplicate(detail)}>Kopyala</button>
                 {!detail.assignments.length && (
                   <button
                     onClick={async () => {
@@ -348,6 +389,9 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                     <td>
                       <span className={`admin-status ${a.status === "submitted" ? "active" : a.status === "started" ? "paused" : "archived"}`}>{statusText}</span>
                       {a.review_status === "pending" && <small className="skill-description">açıq suallar yoxlanmalıdır</small>}
+                      {closed && a.review_status !== "pending" && percent !== null && (
+                        <small className={`skill-description ${percent >= a.passingScore ? "compare-best" : ""}`}>{percent >= a.passingScore ? "Keçdi" : "Keçmədi"} (keçid {a.passingScore}%)</small>
+                      )}
                       {a.review_status === "done" && a.reviewer_name && <small className="skill-description">yoxladı: {a.reviewer_name}</small>}
                     </td>
                     <td>

@@ -22,7 +22,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 // Status change, one message to several candidates, or saving them to the talent pool.
 export function BulkModal({ ids, action, onClose, onDone, notify }: {
   ids: string[];
-  action: "status" | "message" | "pool";
+  action: "status" | "message" | "pool" | "test";
   onClose: () => void;
   onDone: () => void;
   notify: Notify;
@@ -31,13 +31,21 @@ export function BulkModal({ ids, action, onClose, onDone, notify }: {
   const [body, setBody] = useState("");
   const [tags, setTags] = useState("");
   const [note, setNote] = useState("");
+  const [tests, setTests] = useState<{ id: string; title: string; duration_min: number }[]>([]);
+  const [assessmentId, setAssessmentId] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<BulkResult | null>(null);
-  const title = { status: "Statusu dəyiş", message: "Mesaj göndər", pool: "İstedad bazasına əlavə et" }[action];
+  const title = { status: "Statusu dəyiş", message: "Mesaj göndər", pool: "İstedad bazasına əlavə et", test: "Test göndər" }[action];
+  useEffect(() => {
+    if (action !== "test") return;
+    request<{ assessments: { id: string; title: string; duration_min: number }[] }>("hr/assessments")
+      .then((d) => { setTests(d.assessments); setAssessmentId(d.assessments[0]?.id || ""); })
+      .catch((error) => notify((error as Error).message));
+  }, [action, notify]);
   async function run() {
     setBusy(true);
     try {
-      const data = await request<BulkResult>("hr/applications/bulk", { ids, action, status, body, tags, note });
+      const data = await request<BulkResult>("hr/applications/bulk", { ids, action, status, body, tags, note, assessmentId });
       setResult(data);
       notify(`${data.done} namizəd üçün əməliyyat tamamlandı${data.skipped.length ? `, ${data.skipped.length} atlandı` : ""}.`);
       onDone();
@@ -81,6 +89,17 @@ export function BulkModal({ ids, action, onClose, onDone, notify }: {
               <p className="muted fine-print">Ən çoxu 20 namizəd. Bloklanmış yazışmalar atlanır.</p>
             </>
           )}
+          {action === "test" && (
+            <>
+              <Field label="Test">
+                <select value={assessmentId} onChange={(e) => setAssessmentId(e.target.value)}>
+                  {tests.map((x) => <option key={x.id} value={x.id}>{x.title} ({x.duration_min} dəq)</option>)}
+                </select>
+              </Field>
+              {!tests.length && <p className="muted fine-print">Əvvəlcə “Testlər” bölməsində test yaradın.</p>}
+              <p className="muted fine-print">Hər namizədə testin cari nüsxəsi göndərilir. Bağlanmış müraciətlər və testi artıq almış namizədlər atlanır.</p>
+            </>
+          )}
           {action === "pool" && (
             <>
               <Field label="Etiketlər (vergüllə, məsələn: Bakı, 1C, gələcək üçün)">
@@ -92,7 +111,7 @@ export function BulkModal({ ids, action, onClose, onDone, notify }: {
               <p className="muted fine-print">Namizəd bazada olduğunu görmür. Hesabını silsə, qeyd də silinir.</p>
             </>
           )}
-          <button className="primary" disabled={busy || (action === "message" && !body.trim())} onClick={run}>Təsdiqlə</button>
+          <button className="primary" disabled={busy || (action === "message" && !body.trim()) || (action === "test" && !assessmentId)} onClick={run}>Təsdiqlə</button>
         </div>
       )}
     </Modal>

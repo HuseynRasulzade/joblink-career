@@ -60,7 +60,7 @@ export default function PipelineBoard({
   onWithdrawOffer: (offer: Offer) => void;
   onAssignTest: (application: Application) => void;
   onSchedule?: (application: Application) => void;
-  onBulk?: (ids: string[], action: "status" | "message" | "pool") => void;
+  onBulk?: (ids: string[], action: "status" | "message" | "pool" | "test") => void;
 }) {
   const lastStage = (stages || [])[(stages || []).length - 1] || "";
   // Offers follow the last selection stage.
@@ -80,6 +80,7 @@ export default function PipelineBoard({
             <button type="button" onClick={() => onBulk(selected, "status")}>{t("Status dəyiş")}</button>
             <button type="button" onClick={() => onBulk(selected, "message")}>{t("Mesaj göndər")}</button>
             <button type="button" onClick={() => onBulk(selected, "pool")}>{t("Bazaya əlavə et")}</button>
+            <button type="button" onClick={() => onBulk(selected, "test")}>{t("Test göndər")}</button>
             <button type="button" className="text-button" onClick={() => setSelected([])}>{t("Seçimi təmizlə")}</button>
           </div>
         </div>

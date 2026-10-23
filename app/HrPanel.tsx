@@ -167,7 +167,7 @@ export default function HrPanel({
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [saveTemplate, setSaveTemplate] = useState<{ jobId?: string; job?: Job; name: string } | null>(null);
   const [saveTalent, setSaveTalent] = useState<{ candidateId: string; name: string } | null>(null);
-  const [bulk, setBulk] = useState<{ ids: string[]; action: "status" | "message" | "pool" } | null>(null);
+  const [bulk, setBulk] = useState<{ ids: string[]; action: "status" | "message" | "pool" | "test" } | null>(null);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [relations, setRelations] = useState<{ following: string[]; blocked: string[] }>({ following: [], blocked: [] });
   const [onlyFollowed, setOnlyFollowed] = useState(false);
