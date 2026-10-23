@@ -79,6 +79,14 @@ const VIOLATIONS: Record<string, string> = {
   "camera-off": "Kamera bağlandı",
   "devtools-key": "Qadağan olunmuş düymə",
 };
+// Standard layouts are read on the device; a free-form file can be read with AI after the employer agrees.
+async function loadQuestions(file: File) {
+  const result = await readQuestionFile(file);
+  if (result.questions.length || !result.rawText || result.rawText.length < 20) return result;
+  if (!window.confirm("Fayl standart formatda deyil. Mətn AI ilə oxunub suallara çevrilsin? (Fayl mətni OpenAI-yə göndərilir.)")) return result;
+  const ai = await request<{ questions: Question[] }>("hr/assessments/ai-parse", { text: result.rawText });
+  return { questions: ai.questions, skipped: ai.questions.length ? [] : [{ label: "Fayl", reason: "AI sual tapmadı" }] };
+}
 const FILE_FORMAT_HELP = "Word/PDF/TXT: “1. Sual? (2 bal)”, sonra “A) …  B) …” və “Cavab: B” (bir neçə cavab: “A, C”; cavabsız sual açıq sual sayılır). Excel/CSV: başlıq sətri “Sual, Variant A, Variant B…, Düzgün cavab, Bal”.";
 function importMessage(r: { questions: unknown[]; skipped: { label: string; reason: string }[] }) {
   const skipped = r.skipped.length ? ` ${r.skipped.length} sual atlandı: ${r.skipped.slice(0, 3).map((x) => `${x.label} — ${x.reason}`).join("; ")}${r.skipped.length > 3 ? "…" : ""}` : "";
@@ -210,7 +218,7 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
               event.target.value = "";
               if (!file) return;
               try {
-                const imported = await readQuestionFile(file);
+                const imported = await loadQuestions(file);
                 if (!imported.questions.length) return notify(importMessage(imported));
                 const title = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim().slice(0, 160) || "Yeni test";
                 const result = await request<{ id: string }>("hr/assessments/save", {
@@ -338,7 +346,7 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                   event.target.value = "";
                   if (!file) return;
                   try {
-                    const imported = await readQuestionFile(file);
+                    const imported = await loadQuestions(file);
                     if (imported.questions.length)
                       setDraft((d) => (d ? { ...d, questions: [...d.questions.filter((q) => q.text.trim()), ...imported.questions].slice(0, 60) } : d));
                     notify(importMessage(imported));
@@ -349,6 +357,11 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
               />
               <small className="skill-picker-help">{FILE_FORMAT_HELP}</small>
             </div>
+            <QuestionBank
+              notify={notify}
+              current={draft.questions.filter((q) => q.text.trim())}
+              onPick={(picked) => setDraft((d) => (d ? { ...d, questions: [...d.questions.filter((q) => q.text.trim()), ...picked].slice(0, 60) } : d))}
+            />
             {list.some((x) => x.id !== draft.id) && (
               <div className="field">
                 <span>Başqa testdən sualları götür</span>
@@ -578,5 +591,82 @@ export function AssignTestModal({ application, onClose, notify }: { application:
         <p className="muted">Bu vakansiya üçün test yoxdur. Əvvəlcə “Testlər” bölməsində test yaradın.</p>
       )}
     </Modal>
+  );
+}
+
+type BankItem = { id: string; tag: string; question: Question };
+// Reusable questions of the company: save the ones in the form, pick others into it.
+function QuestionBank({ notify, current, onPick }: { notify: (message: string) => void; current: Question[]; onPick: (questions: Question[]) => void }) {
+  const [items, setItems] = useState<BankItem[] | null>(null);
+  const [tag, setTag] = useState("");
+  const [filter, setFilter] = useState("");
+  const [chosen, setChosen] = useState<string[]>([]);
+  const load = () => request<{ items: BankItem[] }>("hr/question-bank").then((d) => setItems(d.items)).catch((e) => notify((e as Error).message));
+  const shown = (items || []).filter((i) => (!filter || i.tag === filter) );
+  const tags = [...new Set((items || []).map((i) => i.tag).filter(Boolean))];
+  return (
+    <details className="field" onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && !items && void load()}>
+      <summary>Sual bankı</summary>
+      <div className="admin-actions">
+        <input value={tag} placeholder="Etiket (məsələn: Excel)" aria-label="Etiket" onChange={(e) => setTag(e.target.value)} />
+        <button
+          type="button"
+          disabled={!current.length}
+          onClick={async () => {
+            try {
+              const r = await request<{ added: number; duplicates: number }>("hr/question-bank/add", { questions: current, tag });
+              notify(`${r.added} sual banka əlavə edildi${r.duplicates ? `, ${r.duplicates} təkrar atlandı` : ""}.`);
+              await load();
+            } catch (error) {
+              notify((error as Error).message);
+            }
+          }}
+        >
+          Formadakı sualları banka yaz
+        </button>
+      </div>
+      {tags.length > 0 && (
+        <select value={filter} aria-label="Etiket filtri" onChange={(e) => setFilter(e.target.value)}>
+          <option value="">Bütün etiketlər</option>
+          {tags.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      )}
+      {items && !items.length && <p className="muted fine-print">Bank boşdur.</p>}
+      <ul className="bank-list">
+        {shown.map((i) => (
+          <li key={i.id}>
+            <label>
+              <input type="checkbox" checked={chosen.includes(i.id)} onChange={(e) => setChosen(e.target.checked ? [...chosen, i.id] : chosen.filter((x) => x !== i.id))} />
+              {i.question.text} {i.tag && <small>· {i.tag}</small>}
+            </label>
+            <button
+              type="button"
+              aria-label="Bankdan sil"
+              onClick={async () => {
+                if (!window.confirm("Sual bankdan silinsin? Mövcud testlərə təsir etmir.")) return;
+                await request("hr/question-bank/delete", { id: i.id }).catch((e) => notify((e as Error).message));
+                setChosen(chosen.filter((x) => x !== i.id));
+                await load();
+              }}
+            >
+              <Trash2 size={13} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      {chosen.length > 0 && (
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => {
+            onPick((items || []).filter((i) => chosen.includes(i.id)).map((i) => ({ ...i.question, id: crypto.randomUUID().slice(0, 8) })));
+            notify(`${chosen.length} sual formaya əlavə edildi.`);
+            setChosen([]);
+          }}
+        >
+          Seçilmiş {chosen.length} sualı əlavə et
+        </button>
+      )}
+    </details>
   );
 }

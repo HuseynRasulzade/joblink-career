@@ -433,6 +433,19 @@ export const assessments = sqliteTable(
   },
   (t) => [index("assessments_company").on(t.companyId, t.updated)],
 );
+export const questionBank = sqliteTable(
+  "question_bank",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    question: text("question").notNull(),
+    tag: text("tag").notNull().default(""),
+    textKey: text("text_key").notNull(),
+    createdBy: text("created_by").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [index("question_bank_company").on(t.companyId, t.created), uniqueIndex("question_bank_unique").on(t.companyId, t.textKey)],
+);
 export const assessmentRevisions = sqliteTable(
   "assessment_revisions",
   {

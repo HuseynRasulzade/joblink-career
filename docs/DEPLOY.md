@@ -29,6 +29,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0031_job_templates` | Vakansiya şablonları (`job_templates`) |
 | `0032_job_views` | Vakansiya baxışları (`job_views`): vakansiya, baxanın birtərəfli hash-ı, gün; 180 gündən sonra silinir |
 | `0033_assessment_show_result` | Testdə `show_result`: nəticə (bal, keçdi/keçmədi) namizədə yalnız işəgötürən icazə verdikdə və açıq suallar yoxlandıqdan sonra göstərilir |
+| `0034_question_bank` | Sual bankı (`question_bank`): şirkətin təkrar istifadə etdiyi suallar, etiket, eyni mətnli sualın təkrarı bloklanır |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 

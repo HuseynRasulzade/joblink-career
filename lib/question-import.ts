@@ -1,7 +1,7 @@
 import { parseQuestionCsv, type Question, type QuestionType } from "./assessments.ts";
 
 export type ImportSkip = { label: string; reason: string };
-export type ImportResult = { questions: Question[]; skipped: ImportSkip[] };
+export type ImportResult = { questions: Question[]; skipped: ImportSkip[]; rawText?: string };
 
 const MAX_QUESTIONS = 60;
 const LETTERS = "ABCDEFGH";

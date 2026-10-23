@@ -61,8 +61,10 @@ export async function readQuestionFile(file: File): Promise<ImportResult> {
     else if (ext === "txt") text = new TextDecoder().decode(bytes);
     else throw new Error("DOCX, XLSX, PDF, RTF, CSV və ya TXT faylı seçin.");
     result = parseQuestionText(text);
+    const plain = text;
     // A text file may also use the semicolon layout.
     if (!result.questions.length && !result.skipped.length) result = parseQuestionRows(csvRows(text));
+    if (!result.questions.length) result.rawText = plain.replace(/\n{3,}/g, "\n\n").trim().slice(0, 30000);
   }
   if (!result.questions.length && !result.skipped.length) result.skipped.push({ label: "Fayl", reason: "sual tapılmadı. Nümunə: “1. Sual?  A) …  B) …  Cavab: B”" });
   return result;
