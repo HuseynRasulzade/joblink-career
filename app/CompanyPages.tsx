@@ -362,6 +362,7 @@ export function TeamPage({ me, notify, onJoined }: { me: CompanyMe | null; notif
   const [team, load] = useLoad<Team>("company/team", notify);
   const [invites, loadInvites] = useLoad<{ invites: Invite[] }>("company/invites", notify);
   const [form, setForm] = useState<{ email: string; role: string; department: string; grants: string[] }>({ email: "", role: "manager", department: "", grants: [] });
+  const [activity, setActivity] = useState<{ actor: string; actor_id: string; actions: number; last: string; kinds: number }[] | null>(null);
   const [audit, setAudit] = useState<{ action: string; target: string; detail: string; created: string; actor: string }[] | null>(null);
   const roleName = (id: string) => team?.roles.find((r) => r.id === id)?.label || id;
   async function invite(event: React.FormEvent) {
@@ -479,8 +480,22 @@ export function TeamPage({ me, notify, onJoined }: { me: CompanyMe | null; notif
         <section className="panel">
           <div className="section-heading">
             <h3>Fəaliyyət jurnalı</h3>
-            <button onClick={() => request<{ events: NonNullable<typeof audit> }>("company/audit").then((d) => setAudit(d.events)).catch((e) => notify((e as Error).message))}>Göstər</button>
+            <div className="admin-actions">
+              <button onClick={() => request<{ members: NonNullable<typeof activity> }>("company/audit-summary?days=30").then((d) => setActivity(d.members)).catch((e) => notify((e as Error).message))}>Üzv fəaliyyəti (30 gün)</button>
+              <button onClick={() => request<{ events: NonNullable<typeof audit> }>("company/audit").then((d) => setAudit(d.events)).catch((e) => notify((e as Error).message))}>Göstər</button>
+            </div>
           </div>
+          {activity && (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead><tr><th>Üzv</th><th>Əməliyyat</th><th>Fərqli növ</th><th>Son fəaliyyət</th></tr></thead>
+                <tbody>
+                  {activity.map((m) => <tr key={m.actor_id}><td>{m.actor || "Hesab sahibi"}</td><td>{m.actions}</td><td>{m.kinds}</td><td>{when(m.last)}</td></tr>)}
+                  {!activity.length && <tr><td colSpan={4}><p className="admin-empty">Son 30 gündə qeyd yoxdur.</p></td></tr>}
+                </tbody>
+              </table>
+            </div>
+          )}
           {audit && (
             <ol className="event-timeline">
               {audit.map((e, i) => (
@@ -495,6 +510,13 @@ export function TeamPage({ me, notify, onJoined }: { me: CompanyMe | null; notif
   );
 }
 const AUDIT_LABELS: Record<string, string> = {
+  "test-results-exported": "test nəticələrini Excel-ə yüklədi",
+  "test-ai-parse": "test faylını AI ilə oxudu",
+  "employee-doc-added": "işçi sənədi əlavə etdi",
+  "employee-doc-viewed": "işçi sənədini açdı",
+  "employee-doc-deleted": "işçi sənədini sildi",
+  "headcount-plan": "ştat planını dəyişdi",
+  "offer-template-saved": "təklif şablonu saxladı",
   "member-invited": "üzv dəvət etdi",
   "member-role": "rolu dəyişdi",
   "member-removed": "üzvü çıxardı",

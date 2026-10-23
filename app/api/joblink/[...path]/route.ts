@@ -3372,6 +3372,18 @@ async function route(request: Request) {
       },
     });
   }
+  // How active each member was: number of logged actions per person in the last days.
+  if (request.method === "GET" && path === "company/audit-summary") {
+    requirePermission("team");
+    const days = Math.max(1, Math.min(180, Math.round(Number(requestUrl.searchParams.get("days"))) || 30));
+    const rows = await db
+      .prepare(`SELECT COALESCE(a.name,'') AS actor,c.actor_id,COUNT(*) AS actions,MAX(c.created) AS last,
+          COUNT(DISTINCT c.action) AS kinds FROM company_audit c LEFT JOIN accounts a ON a.id=c.actor_id
+        WHERE c.company_id=? AND c.created>? GROUP BY c.actor_id ORDER BY actions DESC LIMIT 50`)
+      .bind(id, new Date(Date.now() - days * 86400000).toISOString())
+      .all<{ actor: string; actor_id: string; actions: number; last: string; kinds: number }>();
+    return ok({ days, members: rows.results });
+  }
   if (request.method === "GET" && path === "company/audit") {
     requirePermission("team");
     const rows = await db
