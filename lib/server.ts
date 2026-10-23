@@ -25,6 +25,8 @@ export function runtime() {
       }) => Promise<unknown>;
     };
     EXTERNAL_AUTH?: string;
+    // "1" prints account e-mails (reset and verification links) to the log; for local checks only.
+    DEV_MAIL_LOG?: string;
     // "1" turns on package limits; without it everyone keeps full access.
     BILLING_ENFORCED?: string;
     PAYMENT_PROVIDER?: string;

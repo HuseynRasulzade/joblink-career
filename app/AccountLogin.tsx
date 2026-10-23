@@ -6,9 +6,18 @@ import { localizeTree } from "./i18n";
 
 export default function AccountLogin({
   onComplete,
+  resetToken = "",
+  onResetDone,
 }: {
   onComplete: (role: "candidate" | "company" | "admin") => Promise<void>;
+  resetToken?: string;
+  onResetDone?: () => void;
 }) {
+  // "forgot" asks for a reset link by e-mail; "reset" sets the new password from that link.
+  const [view, setView] = useState<"" | "forgot" | "reset">(resetToken ? "reset" : "");
+  const [code, setCode] = useState("");
+  const [twoFactor, setTwoFactor] = useState(false);
+  const [info, setInfo] = useState("");
   const [register, setRegister] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -18,6 +27,35 @@ export default function AccountLogin({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  async function submitSpecial() {
+    setError("");
+    setInfo("");
+    setBusy(true);
+    try {
+      if (view === "forgot") {
+        await post("forgot", { email });
+        setInfo("Bu e-poçtla hesab varsa, şifrəni yeniləmək üçün link göndərildi. Qutunuzu (və spam qovluğunu) yoxlayın.");
+      } else {
+        if (password !== passwordConfirmation) throw new Error("Şifrələr uyğun gəlmir.");
+        await post("reset", { token: resetToken, password });
+        setPassword("");
+        setPasswordConfirmation("");
+        setInfo("Şifrə yeniləndi. İndi yeni şifrə ilə daxil ola bilərsiniz.");
+        setView("");
+        onResetDone?.();
+      }
+    } catch (caught) {
+      setError((caught as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function post(action: string, payload: unknown) {
+    const response = await fetch(`/api/joblink/auth/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) throw new Error(body.error || "Əməliyyat tamamlanmadı.");
+    return body;
+  }
   async function submit() {
     setError("");
     if (register && password !== passwordConfirmation) {
@@ -31,13 +69,15 @@ export default function AccountLogin({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password, role }),
+          body: JSON.stringify({ name, email, password, role, code }),
         },
       );
       const body = (await response.json()) as {
         error?: string;
+        twoFactor?: boolean;
         role?: "candidate" | "company" | "admin";
       };
+      if (body.twoFactor) setTwoFactor(true);
       if (!response.ok) throw new Error(body.error || "Giriş tamamlanmadı.");
       await onComplete(body.role || role);
     } catch (caught) {
@@ -58,6 +98,35 @@ export default function AccountLogin({
       <p>
         E-poçt və şifrənizlə istənilən müasir brauzerdən daxil ola bilərsiniz.
       </p>
+      {view ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitSpecial();
+          }}
+        >
+          {view === "forgot" ? (
+            <Field label="E-poçt">
+              <input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} />
+            </Field>
+          ) : (
+            <>
+              <Field label="Yeni şifrə">
+                <input type="password" autoComplete="new-password" required minLength={10} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} />
+              </Field>
+              <Field label="Yeni şifrəni təkrar yazın">
+                <input type="password" autoComplete="new-password" required minLength={10} maxLength={128} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} />
+              </Field>
+            </>
+          )}
+          {info && <div className="notice" role="status">{info}</div>}
+          {error && <div className="notice error" role="alert">{error}</div>}
+          <button className="primary wide" disabled={busy}>
+            {busy ? "Gözləyin…" : view === "forgot" ? "Sıfırlama linki göndər" : "Şifrəni yenilə"}
+          </button>
+          <button type="button" className="text-button" onClick={() => { setView(""); setError(""); setInfo(""); }}>Girişə qayıt</button>
+        </form>
+      ) : (
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -121,6 +190,11 @@ export default function AccountLogin({
             onChange={(event) => setPassword(event.target.value)}
           />
         </Field>
+        {!register && twoFactor && (
+          <Field label="Doğrulama kodu (autentifikator və ya ehtiyat kod)">
+            <input autoComplete="one-time-code" inputMode="numeric" required maxLength={20} value={code} onChange={(event) => setCode(event.target.value)} />
+          </Field>
+        )}
         {register && (
           <>
             <Field label="Şifrəni təkrar yazın">
@@ -141,6 +215,7 @@ export default function AccountLogin({
             </p>
           </>
         )}
+        {info && <div className="notice" role="status">{info}</div>}
         {error && (
           <div className="notice error" role="alert">
             {error}
@@ -151,7 +226,13 @@ export default function AccountLogin({
           {busy ? "Gözləyin…" : register ? "Hesab yarat" : "Daxil ol"}
           <ArrowRight size={16} />
         </button>
+        {!register && (
+          <button type="button" className="text-button" onClick={() => { setView("forgot"); setError(""); setInfo(""); }}>
+            Şifrəni unutmusunuz?
+          </button>
+        )}
       </form>
+      )}
       <button
         type="button"
         className="text-button"

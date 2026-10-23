@@ -286,6 +286,7 @@ export default function Joblink() {
   const [matchOnly, setMatchOnly] = useState(false);
   const [applyConfirm, setApplyConfirm] = useState(false);
   const [accountSettings, setAccountSettings] = useState(false);
+  const [resetToken, setResetToken] = useState("");
   const [rewriteSuggestions, setRewriteSuggestions] = useState<string[] | null>(null);
   const [assistantJob, setAssistantJob] = useState<Job | null>(null);
   const [messageTarget, setMessageTarget] = useState<MessageTarget | null>(null);
@@ -555,6 +556,21 @@ export default function Joblink() {
     setProfileFocus({ tab, elementId, token: Date.now() });
     go("profile");
   }
+  // Links from account e-mails: #reset=… opens the new-password form, #verify=… confirms the e-mail address.
+  useEffect(() => {
+    const link = /^#(reset|verify)=([\w-]{43})$/.exec(window.location.hash);
+    if (!link) return;
+    window.history.replaceState(null, "", "#");
+    if (link[1] === "reset") {
+      setResetToken(link[2]);
+      setLogin(true);
+    } else {
+      api("auth/verify", { token: link[2] })
+        .then(() => notify("E-poçt ünvanınız təsdiqləndi."))
+        .catch((error) => notify((error as Error).message));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const sync = () => {
       const requested = window.location.hash.slice(1);
@@ -1434,6 +1450,8 @@ export default function Joblink() {
           </div>
           {authMode === "password" ? (
             <AccountLogin
+              resetToken={resetToken}
+              onResetDone={() => setResetToken("")}
               onComplete={async (role) => {
                 await refresh(false);
                 setLogin(false);
@@ -3194,6 +3212,8 @@ export default function Joblink() {
         >
           {authMode === "password" ? (
             <AccountLogin
+              resetToken={resetToken}
+              onResetDone={() => setResetToken("")}
               onComplete={async (role) => {
                 await refresh(false);
                 setLogin(false);

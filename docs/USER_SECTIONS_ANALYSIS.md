@@ -18,7 +18,7 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 | Maaş kalkulyatoru | 2026 qaydaları | Vakansiya maaşını gross/net kimi göstərmək və gözləntiylə müqayisə (`lib/tax.ts` hazırdır) |
 | Paketlər | Planlar, kart, müqavilə (mock provayder) | Real ödəniş provayderi, faktura PDF, planın yenilənməsi xatırlatması |
 | Dəstək | Sorğular və cavablar | Tez-tez verilən suallar, sorğuya fayl əlavəsi |
-| Hesab | Giriş, qeydiyyat, hesabın silinməsi | **Parol sıfırlama yoxdur**, **e-poçt təsdiqi yoxdur**, iki mərhələli giriş (2FA) yoxdur, aktiv sessiyalar siyahısı |
+| Hesab | Giriş, qeydiyyat, hesabın silinməsi, şifrə sıfırlama (e-poçt linki), e-poçt təsdiqi, iki mərhələli giriş (TOTP + ehtiyat kodlar), aktiv cihazlar və uzaqdan çıxış | Hesab silinəndə bütün şəxsi məlumat cədvəlləri təmizlənir. E-poçt göndərilməsi üçün `EMAIL` binding lazımdır |
 
 Ən vacib 3: parol sıfırlama və e-poçt təsdiqi, vakansiya xəbərdarlığı, müsahibə təyinatı və xatırlatma.
 

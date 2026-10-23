@@ -125,6 +125,7 @@ export const passwordAccounts = sqliteTable(
     userId: text("user_id").notNull(),
     passwordHash: text("password_hash").notNull(),
     passwordSalt: text("password_salt").notNull(),
+    verified: integer("verified").notNull().default(0),
   },
   (t) => [uniqueIndex("password_accounts_user").on(t.userId)],
 );
@@ -145,9 +146,28 @@ export const sessions = sqliteTable(
     id: text("id").primaryKey(),
     userId: text("user_id").notNull(),
     expires: integer("expires").notNull(),
+    created: integer("created").notNull().default(0),
+    agent: text("agent").notNull().default(""),
   },
   (t) => [index("sessions_expiry").on(t.expires)],
 );
+export const authTokens = sqliteTable(
+  "auth_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    kind: text("kind").notNull(),
+    expires: integer("expires").notNull(),
+  },
+  (t) => [index("auth_tokens_user").on(t.userId, t.kind)],
+);
+export const totpSecrets = sqliteTable("totp_secrets", {
+  userId: text("user_id").primaryKey(),
+  secret: text("secret").notNull(),
+  enabled: integer("enabled").notNull().default(0),
+  backupCodes: text("backup_codes").notNull().default("[]"),
+  created: text("created").notNull(),
+});
 export const challenges = sqliteTable(
   "auth_challenges",
   {

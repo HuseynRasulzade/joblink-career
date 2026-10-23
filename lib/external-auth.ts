@@ -1,4 +1,5 @@
 import { runtime, store, HttpError, jsonBody, str } from "./server";
+import { base32Decode, generateSecret, otpauthUri, verifyTotp } from "./totp";
 
 type PasswordAccount = {
   user_id: string;
@@ -125,15 +126,67 @@ async function limit(request: Request, kind: string, maximum: number) {
   ]);
 }
 
-async function issueSession(userId: string) {
+async function issueSession(userId: string, request?: Request) {
   const token = random();
   await (
     await store()
   )
-    .prepare("INSERT INTO sessions(id,user_id,expires) VALUES(?,?,?)")
-    .bind(await hash(token), userId, now() + 7 * 86400)
+    .prepare("INSERT INTO sessions(id,user_id,expires,created,agent) VALUES(?,?,?,?,?)")
+    .bind(await hash(token), userId, now() + 7 * 86400, now(), (request?.headers.get("user-agent") || "").slice(0, 160))
     .run();
   return setCookie(sessionCookie, token, 7 * 86400);
+}
+
+// E-mail for account security (reset and verification links). Without a mailer nothing is sent;
+// DEV_MAIL_LOG=1 prints the message for local checks.
+async function sendAuthMail(to: string, subject: string, text: string) {
+  const settings = runtime();
+  if (settings.EMAIL && settings.EMAIL_FROM) {
+    try {
+      await settings.EMAIL.send({ to: [to], from: { email: settings.EMAIL_FROM, name: "Joblink" }, subject, text });
+    } catch {
+      /* the link can be requested again */
+    }
+  } else if (settings.DEV_MAIL_LOG === "1") console.log(`[mail] to=${to} subject=${subject}\n${text}`);
+}
+
+// One-time links are stored hashed and expire; only the e-mailed token opens them.
+async function issueToken(userId: string, kind: "reset" | "verify", seconds: number) {
+  const db = await store();
+  const token = random();
+  await db.batch([
+    db.prepare("DELETE FROM auth_tokens WHERE user_id=? AND kind=?").bind(userId, kind),
+    db.prepare("INSERT INTO auth_tokens(id,user_id,kind,expires) VALUES(?,?,?,?)").bind(await hash(token), userId, kind, now() + seconds),
+  ]);
+  return token;
+}
+async function takeToken(token: string, kind: "reset" | "verify") {
+  if (!/^[\w-]{43}$/.test(token)) return null;
+  const db = await store();
+  const row = await db.prepare("DELETE FROM auth_tokens WHERE id=? AND kind=? AND expires>? RETURNING user_id").bind(await hash(token), kind, now()).first<{ user_id: string }>();
+  return row?.user_id || null;
+}
+async function sendVerification(request: Request, userId: string, email: string) {
+  const token = await issueToken(userId, "verify", 3 * 86400);
+  await sendAuthMail(email, "Joblink: e-poçtunuzu təsdiqləyin", `E-poçt ünvanınızı təsdiqləmək üçün linkə keçin (3 gün qüvvədədir):\n${new URL(request.url).origin}/#verify=${token}\n\nBu sorğunu siz etməmisinizsə, məktuba məhəl qoymayın.`);
+}
+
+// A current authenticator code, or one unused backup code (spent when used).
+async function secondFactorOk(db: D1Database, userId: string, row: { secret: string; backup_codes: string }, code: string) {
+  const given = code.trim().toLowerCase();
+  if (!given) return false;
+  if (await verifyTotp(row.secret, given)) return true;
+  let hashes: string[] = [];
+  try { hashes = JSON.parse(row.backup_codes) as string[]; } catch { hashes = []; }
+  const digest = await hash(given);
+  if (!hashes.includes(digest)) return false;
+  await db.prepare("UPDATE totp_secrets SET backup_codes=? WHERE user_id=?").bind(JSON.stringify(hashes.filter((h) => h !== digest)), userId).run();
+  return true;
+}
+
+const backupCodeCount = 8;
+function newBackupCodes() {
+  return Array.from({ length: backupCodeCount }, () => random(6).replace(/[-_]/g, "x").slice(0, 8).toLowerCase());
 }
 
 function normalizeEmail(value: unknown) {
@@ -169,6 +222,98 @@ export async function authRoute(request: Request, path: string) {
         .run();
     return response({ ok: true }, [setCookie(sessionCookie, "", 0)]);
   }
+  // Forgotten password: always the same answer, so the form cannot be used to find out who has an account.
+  if (kind === "forgot") {
+    await limit(request, "forgot", 5);
+    const body = await jsonBody(request);
+    const email = normalizeEmail(body.email);
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      const account = await db.prepare("SELECT user_id FROM password_accounts WHERE email=?").bind(email).first<{ user_id: string }>();
+      if (account) {
+        const token = await issueToken(account.user_id, "reset", 3600);
+        await sendAuthMail(email, "Joblink: şifrənin sıfırlanması", `Şifrəni yeniləmək üçün linkə keçin (1 saat qüvvədədir):\n${new URL(request.url).origin}/#reset=${token}\n\nBu sorğunu siz etməmisinizsə, məktuba məhəl qoymayın; şifrəniz dəyişməyib.`);
+      }
+    }
+    return response({ ok: true });
+  }
+  if (kind === "reset") {
+    await limit(request, "reset", 10);
+    const body = await jsonBody(request);
+    const password = typeof body.password === "string" ? body.password : "";
+    validatePassword(password);
+    const userId = await takeToken(str(body.token, 80), "reset");
+    if (!userId) throw new HttpError(400, "Link etibarsızdır və ya vaxtı bitib. Yeni link istəyin.");
+    const salt = random(16);
+    // The e-mailed link proves the e-mail address too; every device is signed out.
+    await db.batch([
+      db.prepare("UPDATE password_accounts SET password_hash=?,password_salt=?,verified=1 WHERE user_id=?").bind(await derivePassword(password, salt), salt, userId),
+      db.prepare("DELETE FROM sessions WHERE user_id=?").bind(userId),
+      db.prepare("DELETE FROM auth_tokens WHERE user_id=?").bind(userId),
+    ]);
+    return response({ ok: true });
+  }
+  if (kind === "verify") {
+    await limit(request, "verify", 20);
+    const body = await jsonBody(request);
+    const userId = await takeToken(str(body.token, 80), "verify");
+    if (!userId) throw new HttpError(400, "Link etibarsızdır və ya vaxtı bitib. Hesab təhlükəsizliyindən yenisini istəyin.");
+    await db.prepare("UPDATE password_accounts SET verified=1 WHERE user_id=?").bind(userId).run();
+    return response({ ok: true });
+  }
+  if (["resend-verification", "sessions", "revoke-session", "2fa-status", "2fa-setup", "2fa-enable", "2fa-disable"].includes(kind)) {
+    const userId = await sessionIdentity(request);
+    if (!userId) throw new HttpError(401, "Davam etmək üçün hesabınıza daxil olun.");
+    const body = await jsonBody(request);
+    const mine = await hash(cookie(request, sessionCookie));
+    if (kind === "resend-verification") {
+      await limit(request, "resend", 3);
+      const account = await db.prepare("SELECT email,verified FROM password_accounts WHERE user_id=?").bind(userId).first<{ email: string; verified: number }>();
+      if (account && !account.verified) await sendVerification(request, userId, account.email);
+      return response({ ok: true, verified: !!account?.verified });
+    }
+    if (kind === "sessions") {
+      const rows = await db.prepare("SELECT id,created,expires,agent FROM sessions WHERE user_id=? AND expires>? ORDER BY created DESC").bind(userId, now()).all<{ id: string; created: number; expires: number; agent: string }>();
+      return response({ sessions: rows.results.map((r) => ({ id: r.id.slice(0, 16), current: r.id === mine, created: r.created ? new Date(r.created * 1000).toISOString() : "", agent: r.agent })) });
+    }
+    if (kind === "revoke-session") {
+      // "others" signs out every other device; an id signs out one.
+      if (body.all === true) await db.prepare("DELETE FROM sessions WHERE user_id=? AND id<>?").bind(userId, mine).run();
+      else {
+        const prefix = str(body.id, 32).replace(/[^0-9a-f]/g, "");
+        if (prefix.length < 16) throw new HttpError(400, "Sessiya tapılmadı.");
+        await db.prepare("DELETE FROM sessions WHERE user_id=? AND id<>? AND substr(id,1,16)=?").bind(userId, mine, prefix).run();
+      }
+      return response({ ok: true });
+    }
+    const totpRow = await db.prepare("SELECT secret,enabled,backup_codes FROM totp_secrets WHERE user_id=?").bind(userId).first<{ secret: string; enabled: number; backup_codes: string }>();
+    if (kind === "2fa-status") {
+      const account = await db.prepare("SELECT email,verified FROM password_accounts WHERE user_id=?").bind(userId).first<{ email: string; verified: number }>();
+      return response({ enabled: !!totpRow?.enabled, verified: !!account?.verified, email: account?.email || "" });
+    }
+    if (kind === "2fa-setup") {
+      if (totpRow?.enabled) throw new HttpError(409, "İki mərhələli giriş artıq aktivdir.");
+      const secret = generateSecret();
+      const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(userId).first<{ email: string }>();
+      await db.prepare("INSERT INTO totp_secrets(user_id,secret,enabled,created) VALUES(?,?,0,?) ON CONFLICT(user_id) DO UPDATE SET secret=excluded.secret,enabled=0,backup_codes='[]'").bind(userId, secret, new Date().toISOString()).run();
+      return response({ secret, uri: otpauthUri(account?.email || "hesab", secret) });
+    }
+    if (kind === "2fa-enable") {
+      await limit(request, "2fa", 10);
+      if (!totpRow || totpRow.enabled) throw new HttpError(409, "Əvvəl qurulumu başladın.");
+      if (!(await verifyTotp(totpRow.secret, str(body.code, 10)))) throw new HttpError(400, "Kod yanlışdır. Tətbiqdəki cari kodu yazın.");
+      const codes = newBackupCodes();
+      await db.prepare("UPDATE totp_secrets SET enabled=1,backup_codes=? WHERE user_id=?").bind(JSON.stringify(await Promise.all(codes.map((c) => hash(c)))), userId).run();
+      return response({ ok: true, backupCodes: codes });
+    }
+    // 2fa-disable needs the password and a current code (or an unused backup code).
+    await limit(request, "2fa", 10);
+    if (!totpRow?.enabled) throw new HttpError(409, "İki mərhələli giriş aktiv deyil.");
+    const account = await db.prepare("SELECT p.user_id,p.password_hash,p.password_salt,COALESCE(a.role,'candidate') AS role,COALESCE(a.status,'active') AS status FROM password_accounts p LEFT JOIN accounts a ON a.id=p.user_id WHERE p.user_id=?").bind(userId).first<PasswordAccount>();
+    if (!account || !(await passwordsMatch(typeof body.currentPassword === "string" ? body.currentPassword : "", account))) throw new HttpError(403, "Hazırkı şifrə yanlışdır.");
+    if (!(await secondFactorOk(db, userId, totpRow, str(body.code, 20)))) throw new HttpError(400, "Kod yanlışdır.");
+    await db.prepare("DELETE FROM totp_secrets WHERE user_id=?").bind(userId).run();
+    return response({ ok: true });
+  }
   if (kind === "password" || kind === "delete") {
     const userId = await sessionIdentity(request);
     if (!userId) throw new HttpError(401, "Davam etmək üçün hesabınıza daxil olun.");
@@ -193,16 +338,34 @@ export async function authRoute(request: Request, path: string) {
         db
           .prepare("UPDATE password_accounts SET password_hash=?,password_salt=? WHERE user_id=?")
           .bind(await derivePassword(next, salt), salt, userId),
-        db.prepare("UPDATE company_members SET status='removed' WHERE user_id=? OR company_id=?").bind(userId, userId),
-      db.prepare("DELETE FROM company_profiles WHERE company_id=?").bind(userId),
-      db.prepare("DELETE FROM company_employees WHERE company_id=?").bind(userId),
-      db.prepare("DELETE FROM sessions WHERE user_id=?").bind(userId),
+        db.prepare("DELETE FROM sessions WHERE user_id=?").bind(userId),
       ]);
-      return response({ ok: true }, [await issueSession(userId)]);
+      return response({ ok: true }, [await issueSession(userId, request)]);
     }
     if (account.role === "admin")
       throw new HttpError(403, "Administrator hesabı bu yolla silinə bilməz.");
     await db.batch([
+      db.prepare("DELETE FROM application_events WHERE application_id IN (SELECT id FROM applications WHERE candidate_id=? OR job_id IN (SELECT id FROM jobs WHERE owner=?))").bind(userId, userId),
+      db.prepare("DELETE FROM offers WHERE candidate_id=? OR company_id=?").bind(userId, userId),
+      db.prepare("DELETE FROM assessment_assignments WHERE candidate_id=? OR company_id=?").bind(userId, userId),
+      db.prepare("DELETE FROM assessment_revisions WHERE assessment_id IN (SELECT id FROM assessments WHERE company_id=?)").bind(userId),
+      db.prepare("DELETE FROM assessments WHERE company_id=?").bind(userId),
+      db.prepare("DELETE FROM job_views WHERE job_id IN (SELECT id FROM jobs WHERE owner=?)").bind(userId),
+      db.prepare("DELETE FROM verifications WHERE user_id=?").bind(userId),
+      db.prepare("DELETE FROM passkeys WHERE user_id=?").bind(userId),
+      db.prepare("DELETE FROM auth_challenges WHERE user_id=?").bind(userId),
+      db.prepare("DELETE FROM auth_tokens WHERE user_id=?").bind(userId),
+      db.prepare("DELETE FROM totp_secrets WHERE user_id=?").bind(userId),
+      db.prepare("DELETE FROM ai_job_ratings WHERE user_id=?").bind(userId),
+      db.prepare("DELETE FROM employee_events WHERE company_id=?").bind(userId),
+      db.prepare("DELETE FROM employee_documents WHERE company_id=?").bind(userId),
+      db.prepare("DELETE FROM company_audit WHERE company_id=?").bind(userId),
+      db.prepare("DELETE FROM headcount_plan WHERE company_id=?").bind(userId),
+      db.prepare("DELETE FROM message_templates WHERE company_id=?").bind(userId),
+      db.prepare("DELETE FROM offer_templates WHERE company_id=?").bind(userId),
+      db.prepare("DELETE FROM question_bank WHERE company_id=?").bind(userId),
+      db.prepare("DELETE FROM saved_searches WHERE company_id=?").bind(userId),
+      db.prepare("DELETE FROM interview_templates WHERE company_id=?").bind(userId),
       db.prepare("DELETE FROM applications WHERE candidate_id=? OR job_id IN (SELECT id FROM jobs WHERE owner=?)").bind(userId, userId),
       db.prepare("DELETE FROM jobs WHERE owner=?").bind(userId),
       db.prepare("DELETE FROM drafts WHERE owner=?").bind(userId),
@@ -273,7 +436,8 @@ export async function authRoute(request: Request, path: string) {
     } catch {
       throw new HttpError(409, "Bu e-poçtla hesab artıq mövcuddur.");
     }
-    return response({ ok: true, name, role }, [await issueSession(userId)], 201);
+    await sendVerification(request, userId, email);
+    return response({ ok: true, name, role }, [await issueSession(userId, request)], 201);
   }
 
   const account = await db
@@ -286,8 +450,14 @@ export async function authRoute(request: Request, path: string) {
     throw new HttpError(401, "E-poçt və ya şifrə yanlışdır.");
   if (account.status === "suspended")
     throw new HttpError(403, "Bu hesab administrator tərəfindən dayandırılıb.");
+  const second = await db.prepare("SELECT secret,backup_codes FROM totp_secrets WHERE user_id=? AND enabled=1").bind(account.user_id).first<{ secret: string; backup_codes: string }>();
+  if (second) {
+    const code = str(body.code, 20);
+    if (!code) return response({ error: "Doğrulama kodunu yazın (autentifikator tətbiqindən və ya ehtiyat kod).", twoFactor: true }, [], 401);
+    if (!(await secondFactorOk(db, account.user_id, second, code))) return response({ error: "Doğrulama kodu yanlışdır.", twoFactor: true }, [], 401);
+  }
   return response(
     { ok: true, role: account.role || "candidate" },
-    [await issueSession(account.user_id)],
+    [await issueSession(account.user_id, request)],
   );
 }

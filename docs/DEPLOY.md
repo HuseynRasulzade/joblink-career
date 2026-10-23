@@ -42,6 +42,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0044_interview_templates` | Müsahibə sual şablonları (`interview_templates`) |
 | `0045_invoice_vat` | Fakturada `vat_percent` (0 və ya 18, məbləğə daxil); yeni faktura şirkətə bildiriş və e-poçt göndərir |
 | `0046_message_attachments_assignee` | Mesaja qoşma (`messages.attachment_*`, PDF/şəkil 500 KB-a qədər) və yazışmanı komanda üzvünə təyin etmə (`message_threads.assignee_id`) |
+| `0047_account_security` | Şifrə sıfırlama və e-poçt təsdiqi (`auth_tokens`, `password_accounts.verified`), cihaz siyahısı (`sessions.created/agent`), iki mərhələli giriş (`totp_secrets`) |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 
@@ -74,3 +75,7 @@ Cloudflare → D1 → `joblink-career-db` → Console-da `scripts/seed-demo-acco
 - Namizəd vakansiyanı açanda gündə bir dəfə sayılır. Bazada namizədin kimliyi yox, `vakansiya + namizəd` üçün birtərəfli hash saxlanır; şirkət yalnız say görür.
 - Qeydlər 180 gündən sonra gündəlik cron ilə silinir (`purgeOldJobViews`). Admin üçün "indi göndər" əməliyyatı da təmizləməni işlədir.
 - Şirkətin öz baxışı və qeydiyyatsız ziyarətçilər sayılmır.
+
+## Hesab təhlükəsizliyi: e-poçt tələbi
+
+Şifrə sıfırlama və e-poçt təsdiq linkləri yalnız Cloudflare `EMAIL` binding və `EMAIL_FROM` qurulubsa göndərilir (şifrə sıfırlama linki başqa yolla çatdırılmır). Qurulmayıbsa istifadəçi linki ala bilməz: “Şifrəni unutmusunuz?” formu yenə “göndərildi” cavabı verir (hesabın olub-olmadığı açılmasın deyə). Lokal yoxlama üçün `DEV_MAIL_LOG=1` linkləri jurnala yazır; canlı mühitdə bunu qoymayın. İki mərhələli giriş e-poçt tələb etmir.

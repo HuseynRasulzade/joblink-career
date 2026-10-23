@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { KeyRound, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { KeyRound, MailCheck, MonitorSmartphone, ShieldCheck, Trash2 } from "lucide-react";
 import { Field, Modal } from "./components";
 
 export default function AccountSettings({
@@ -63,6 +63,7 @@ export default function AccountSettings({
   return (
     <Modal title="Hesab təhlükəsizliyi" onClose={onClose} className="account-settings">
       {error && <div className="notice error">{error}</div>}
+      <SecurityPanel api={api} notify={notify} />
       <form className="account-settings-section" onSubmit={changePassword}>
         <h3>
           <KeyRound size={17} /> Şifrəni dəyiş
@@ -134,5 +135,87 @@ export default function AccountSettings({
         </button>
       </form>
     </Modal>
+  );
+}
+
+type Session = { id: string; current: boolean; created: string; agent: string };
+const deviceName = (agent: string) => {
+  const os = /Windows/.test(agent) ? "Windows" : /Android/.test(agent) ? "Android" : /iPhone|iPad/.test(agent) ? "iOS" : /Mac OS/.test(agent) ? "macOS" : /Linux/.test(agent) ? "Linux" : "Naməlum cihaz";
+  const browser = /Edg\//.test(agent) ? "Edge" : /Chrome\//.test(agent) ? "Chrome" : /Firefox\//.test(agent) ? "Firefox" : /Safari\//.test(agent) ? "Safari" : "brauzer";
+  return `${browser} · ${os}`;
+};
+
+// E-mail confirmation, two-step sign-in and the list of signed-in devices.
+function SecurityPanel({ api, notify }: { api: (path: string, body?: unknown) => Promise<unknown>; notify: (s: string) => void }) {
+  const [status, setStatus] = useState<{ enabled: boolean; verified: boolean; email: string } | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [setup, setSetup] = useState<{ secret: string; uri: string } | null>(null);
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [backup, setBackup] = useState<string[]>([]);
+  const load = useCallback(async () => {
+    try {
+      setStatus((await api("auth/2fa-status", {})) as typeof status);
+      setSessions(((await api("auth/sessions", {})) as { sessions: Session[] }).sessions);
+    } catch {
+      /* the panel stays empty */
+    }
+  }, [api]);
+  useEffect(() => { void load(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const run = async (action: () => Promise<void>) => {
+    try { await action(); } catch (err) { notify((err as Error).message); }
+  };
+  if (!status) return null;
+  return (
+    <section className="account-settings-section">
+      <h3><MailCheck size={17} /> E-poçt</h3>
+      <p className="muted">
+        {status.email}: {status.verified ? "təsdiqlənib" : "təsdiqlənməyib. Şifrəni unutsanız, bərpa linki bu ünvana gedir."}
+      </p>
+      {!status.verified && (
+        <button type="button" className="secondary" onClick={() => run(async () => { await api("auth/resend-verification", {}); notify("Təsdiq linki göndərildi."); })}>
+          Təsdiq linkini yenidən göndər
+        </button>
+      )}
+      <h3><ShieldCheck size={17} /> İki mərhələli giriş (autentifikator)</h3>
+      {backup.length > 0 && (
+        <div className="notice">
+          <b>Ehtiyat kodlar (yalnız indi göstərilir, hər biri bir dəfə işləyir):</b>
+          <p style={{ fontFamily: "monospace" }}>{backup.join("  ")}</p>
+        </div>
+      )}
+      {status.enabled ? (
+        <>
+          <p className="muted">Aktivdir: girişdə şifrədən sonra tətbiqdəki kod soruşulur.</p>
+          <Field label="Söndürmək üçün hazırkı şifrə"><input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+          <Field label="Tətbiq kodu və ya ehtiyat kod"><input value={code} onChange={(e) => setCode(e.target.value)} /></Field>
+          <button type="button" className="secondary" onClick={() => run(async () => { await api("auth/2fa-disable", { currentPassword: password, code }); setPassword(""); setCode(""); setBackup([]); notify("İki mərhələli giriş söndürüldü."); await load(); })}>Söndür</button>
+        </>
+      ) : setup ? (
+        <>
+          <p className="muted">Google Authenticator, Microsoft Authenticator və ya oxşar tətbiqdə “açar daxil et” seçin və bu açarı yazın:</p>
+          <p style={{ fontFamily: "monospace", wordBreak: "break-all" }}><b>{setup.secret}</b></p>
+          <p className="muted fine-print">Telefondan quraşdırırsınızsa: <a href={setup.uri}>tətbiqdə aç</a></p>
+          <Field label="Tətbiqdəki 6 rəqəmli kod"><input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} /></Field>
+          <button type="button" className="primary" onClick={() => run(async () => { const r = (await api("auth/2fa-enable", { code })) as { backupCodes: string[] }; setBackup(r.backupCodes); setSetup(null); setCode(""); notify("İki mərhələli giriş aktivdir. Ehtiyat kodları saxlayın."); await load(); })}>Təsdiqlə və aktiv et</button>
+        </>
+      ) : (
+        <button type="button" className="secondary" onClick={() => run(async () => setSetup((await api("auth/2fa-setup", {})) as { secret: string; uri: string }))}>Qur</button>
+      )}
+      <h3><MonitorSmartphone size={17} /> Aktiv cihazlar</h3>
+      <ul>
+        {sessions.map((s) => (
+          <li key={s.id}>
+            {deviceName(s.agent)}{s.current ? " (bu cihaz)" : ""}
+            {s.created && <small className="muted"> · {new Date(s.created).toLocaleString("az-AZ")}</small>}
+            {!s.current && <button type="button" className="text-button" onClick={() => run(async () => { await api("auth/revoke-session", { id: s.id }); await load(); })}>Çıxart</button>}
+          </li>
+        ))}
+      </ul>
+      {sessions.length > 1 && (
+        <button type="button" className="secondary" onClick={() => run(async () => { await api("auth/revoke-session", { all: true }); notify("Digər cihazlardan çıxış edildi."); await load(); })}>Digər bütün cihazlardan çıx</button>
+      )}
+    </section>
   );
 }
