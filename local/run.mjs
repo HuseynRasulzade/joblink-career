@@ -25,7 +25,8 @@ try {
   if (res.ok) {
     const url = `http://localhost:${PORT}`;
     console.log(`Sayt artıq işləyir: ${url}`);
-    spawnSync(process.platform === "win32" ? `start "" "${url}"` : process.platform === "darwin" ? `open "${url}"` : `xdg-open "${url}"`, { shell: true, stdio: "ignore" });
+    if (!process.env.JOBLINK_NO_BROWSER)
+      spawnSync(process.platform === "win32" ? `start "" "${url}"` : process.platform === "darwin" ? `open "${url}"` : `xdg-open "${url}"`, { shell: true, stdio: "ignore" });
     process.exit(0);
   }
 } catch {
@@ -88,8 +89,8 @@ const opener = process.platform === "win32" ? `start "" "${openUrl}"` : process.
     try {
       const res = await fetch(`http://127.0.0.1:${PORT}/`, { signal: AbortSignal.timeout(3000) });
       if (res.ok) {
-        console.log(`\n>>> Sayt hazırdır: ${openUrl} (brauzer açılır)\n`);
-        spawnSync(opener, { shell: true, stdio: "ignore" });
+        console.log(`\n>>> Sayt hazırdır: ${openUrl}\n`);
+        if (!process.env.JOBLINK_NO_BROWSER) spawnSync(opener, { shell: true, stdio: "ignore" });
         return;
       }
     } catch {
