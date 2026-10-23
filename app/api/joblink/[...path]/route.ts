@@ -1500,6 +1500,7 @@ async function route(request: Request) {
           CASE WHEN ?='company' THEN t.candidate_id ELSE t.company_id END AS other_id,
           COALESCE(other.name,'İstifadəçi') AS other_name,
           COALESCE(json_extract(j.data,'$.title'),'') AS job_title,
+          CASE WHEN ?='company' THEN t.company_archived ELSE t.candidate_archived END AS archived,
           CASE WHEN ?='company' THEN t.assignee_id ELSE '' END AS assignee_id,
           CASE WHEN ?='company' THEN COALESCE((SELECT name FROM accounts WHERE id=t.assignee_id),'') ELSE '' END AS assignee_name,
           (SELECT CASE WHEN body<>'' THEN body ELSE '📎 '||attachment_name END FROM messages m WHERE m.thread_id=t.id ORDER BY created DESC LIMIT 1) AS last_message,
@@ -1508,7 +1509,7 @@ async function route(request: Request) {
         LEFT JOIN accounts other ON other.id = CASE WHEN ?='company' THEN t.candidate_id ELSE t.company_id END
         LEFT JOIN jobs j ON j.id=t.job_id
         WHERE t.${mine}=? ORDER BY t.updated DESC LIMIT 200`)
-      .bind(accountRole, accountRole, accountRole, id, accountRole, id)
+      .bind(accountRole, accountRole, accountRole, accountRole, id, accountRole, id)
       .all();
     return ok({ threads: rows.results });
   }
@@ -1719,6 +1720,31 @@ async function route(request: Request) {
       headers: { "Content-Type": row.attachment_type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
     });
   }
+  // Archiving hides a conversation from one's own list only; a new message from the other side brings it back.
+  if (request.method === "POST" && path === "messages/archive") {
+    if (accountRole === "admin") throw new HttpError(403, "Bu əməliyyat yalnız namizəd və şirkət üçündür.");
+    const b = await jsonBody(request);
+    const column = accountRole === "company" ? "company_archived" : "candidate_archived";
+    const result = await db.prepare(`UPDATE message_threads SET ${column}=? WHERE id=? AND ${accountRole === "company" ? "company_id" : "candidate_id"}=?`).bind(b.archived === false ? 0 : 1, str(b.threadId, 100), id).run();
+    if (!result.meta.changes) throw new HttpError(404, "Yazışma tapılmadı.");
+    return ok({ ok: true });
+  }
+  // A conversation can be reported: it reaches the admin inbox as a complaint with the conversation attached by id.
+  if (request.method === "POST" && path === "messages/report") {
+    if (accountRole === "admin") throw new HttpError(403, "Bu əməliyyat yalnız namizəd və şirkət üçündür.");
+    const b = await jsonBody(request);
+    const thread = await db
+      .prepare("SELECT t.id,t.company_id,t.candidate_id,COALESCE(o.name,'') AS other_name FROM message_threads t LEFT JOIN accounts o ON o.id=CASE WHEN t.company_id=? THEN t.candidate_id ELSE t.company_id END WHERE t.id=? AND (t.company_id=? OR t.candidate_id=?)")
+      .bind(id, str(b.threadId, 100), id, id)
+      .first<{ id: string; company_id: string; candidate_id: string; other_name: string }>();
+    if (!thread) throw new HttpError(404, "Yazışma tapılmadı.");
+    const reason = str(b.reason, 1000);
+    if (reason.length < 5) throw new HttpError(400, "Şikayətin səbəbini yazın.");
+    const recent = await db.prepare("SELECT COUNT(*) AS count FROM support_threads WHERE user_id=? AND topic='complaint' AND created>=datetime('now','-1 day')").bind(id).first<{ count: number }>();
+    if (Number(recent?.count) >= 5) throw new HttpError(429, "Gündə ən çox 5 şikayət göndərmək olar.");
+    await createSupportThread(db, { userId: id, role: accountRole, topic: "complaint", subject: `Yazışma şikayəti: ${thread.other_name || "istifadəçi"}`.slice(0, 160), body: reason, meta: { threadId: thread.id, reportedUser: thread.company_id === id ? thread.candidate_id : thread.company_id } });
+    return ok({ ok: true }, 201);
+  }
   // The company assigns a conversation to one team member, who is notified.
   if (request.method === "POST" && path === "messages/assign") {
     if (accountRole !== "company") throw new HttpError(403, "Yazışmanı yalnız şirkət təyin edə bilər.");
@@ -1765,7 +1791,7 @@ async function route(request: Request) {
     await db.batch([
       db.prepare("INSERT INTO messages(id,thread_id,sender_id,sender_role,body,reply_to,author_id,attachment_name,attachment_type,attachment_data,created) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
         .bind(crypto.randomUUID(), thread.id, id, accountRole, text, replyTo, userId, file ? str(file.name, 160) || "fayl" : "", file ? fileType : "", file ? fileData : "", now),
-      db.prepare(`UPDATE message_threads SET updated=?,${thread.company_id === id ? "company_read" : "candidate_read"}=? WHERE id=?`).bind(now, now, thread.id),
+      db.prepare(`UPDATE message_threads SET updated=?,${thread.company_id === id ? "company_read" : "candidate_read"}=?,${thread.company_id === id ? "candidate_archived" : "company_archived"}=0 WHERE id=?`).bind(now, now, thread.id),
     ]);
     if (other) await notifyNewMessage(db, { threadId: thread.id, recipientId: other.other, senderName: await senderLabel(db, accountRole, id, userId), unreadBefore, preview: text || `📎 ${str(file?.name, 80)}` });
     return ok({ ok: true });
@@ -3681,7 +3707,7 @@ async function route(request: Request) {
       .prepare("UPDATE applications SET status=?,updated=? WHERE id=? AND candidate_id=?")
       .bind(WITHDRAWN_STATUS, new Date().toISOString(), row.id, id)
       .run();
-    await recordApplicationEvent(db, { applicationId: row.id, actorId: id, actorRole: "candidate", type: "withdrawn", from: row.status, to: WITHDRAWN_STATUS });
+    await recordApplicationEvent(db, { applicationId: row.id, actorId: id, actorRole: "candidate", type: "withdrawn", from: row.status, to: WITHDRAWN_STATUS, note: str(b.reason, 200) });
     return ok({ ok: true, status: WITHDRAWN_STATUS });
   }
   if (request.method === "GET" && path === "verifications") {

@@ -225,6 +225,35 @@ export async function runJobAlerts(db: D1Database, mail: Mailer, fromEmail: stri
   return sent;
 }
 
+// One reminder three days before a paid plan period ends.
+export async function runPlanReminders(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+  const rows = await db
+    .prepare("SELECT s.id,s.account_id,s.plan_id,s.period_end,s.auto_renew,COALESCE(a.role,'candidate') AS role FROM subscriptions s LEFT JOIN accounts a ON a.id=s.account_id WHERE s.status='active' AND s.renewal_reminded=0 AND s.period_end>? AND s.period_end<=? LIMIT 500")
+    .bind(now.toISOString(), new Date(now.getTime() + 3 * DAY).toISOString())
+    .all<{ id: string; account_id: string; plan_id: string; period_end: string; auto_renew: number; role: string }>()
+    .catch(() => ({ results: [] as { id: string; account_id: string; plan_id: string; period_end: string; auto_renew: number; role: string }[] }));
+  let sent = 0;
+  for (const row of rows.results) {
+    try {
+      const claimed = await db.prepare("UPDATE subscriptions SET renewal_reminded=1 WHERE id=? AND renewal_reminded=0").bind(row.id).run();
+      if (!claimed.meta.changes) continue;
+      const text = `Paketinizin dövrü ${row.period_end.slice(0, 10)} tarixində bitir. ${row.auto_renew ? "Avtomatik yenilənmə aktivdir, kartınızdan ödəniş götürüləcək." : "Avtomatik yenilənmə söndürülüdür; davam etmək üçün paketi yeniləyin."}`;
+      await db
+        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
+        .bind(crypto.randomUUID(), row.account_id, "plan", "Paketin müddəti bitir", text, row.role === "company" ? "hr-billing" : "packages", now.toISOString())
+        .run();
+      if (mail && fromEmail) {
+        const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(row.account_id).first<{ email: string }>();
+        if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject: "Joblink: paketin müddəti bitir", text }).catch(() => {});
+      }
+      sent++;
+    } catch {
+      // One failing reminder must not stop the others.
+    }
+  }
+  return sent;
+}
+
 // Vacancy views are kept for a limited time only.
 export async function purgeOldJobViews(db: D1Database, now = new Date()) {
   const cutoff = new Date(now.getTime() - 180 * DAY).toISOString().slice(0, 10);

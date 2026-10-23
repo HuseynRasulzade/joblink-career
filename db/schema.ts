@@ -363,6 +363,8 @@ export const messageThreads = sqliteTable(
     candidateRead: text("candidate_read").notNull().default(""),
     // Team member who handles this conversation (company side only).
     assigneeId: text("assignee_id").notNull().default(""),
+    candidateArchived: integer("candidate_archived").notNull().default(0),
+    companyArchived: integer("company_archived").notNull().default(0),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
   },
@@ -763,6 +765,7 @@ export const subscriptions = sqliteTable(
     autoRenew: integer("auto_renew").notNull().default(0),
     methodId: text("method_id").notNull().default(""),
     cancelledAt: text("cancelled_at").notNull().default(""),
+    renewalReminded: integer("renewal_reminded").notNull().default(0),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
   },

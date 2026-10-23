@@ -51,3 +51,27 @@ test("a vacancy of the candidate's own company never alerts them", async () => {
   assert.equal(rows[0].user_id, "c2");
   assert.doesNotMatch(rows[0].body, /Baş mühasib/);
 });
+
+test("plan reminder goes out once, three days before the period ends", async () => {
+  const { runPlanReminders } = await import("../lib/digest-job.ts");
+  const db = memoryD1(`
+    CREATE TABLE subscriptions(id text primary key,account_id text,plan_id text,status text,period_end text,auto_renew integer,renewal_reminded integer default 0);
+    CREATE TABLE notifications(id text primary key,user_id text,type text,title text,body text,link text,read integer,created text);
+    CREATE TABLE accounts(id text primary key,role text);
+    INSERT INTO accounts VALUES('u1','company');
+    CREATE TABLE password_accounts(email text,user_id text);`);
+  const insert = db.raw.prepare("INSERT INTO subscriptions(id,account_id,plan_id,status,period_end,auto_renew) VALUES(?,?,?,?,?,?)");
+  insert.run("s1", "u1", "pro", "active", "2026-10-25T00:00:00Z", 0);
+  insert.run("s2", "u2", "pro", "active", "2026-12-25T00:00:00Z", 1);
+  insert.run("s3", "u3", "pro", "cancelled", "2026-10-25T00:00:00Z", 0);
+  insert.run("s4", "u4", "pro", "active", "2026-10-01T00:00:00Z", 0);
+  const now = new Date("2026-10-23T05:00:00Z");
+  assert.equal(await runPlanReminders(db, null, undefined, now), 1);
+  assert.equal(await runPlanReminders(db, null, undefined, now), 0);
+  const rows = db.raw.prepare("SELECT user_id,body,link FROM notifications").all();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].user_id, "u1");
+  assert.equal(rows[0].link, "hr-billing");
+  assert.match(rows[0].body, /2026-10-25/);
+  assert.match(rows[0].body, /söndürülüdür/);
+});

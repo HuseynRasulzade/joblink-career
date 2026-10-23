@@ -11,6 +11,7 @@ type Thread = {
   job_title: string;
   other_name: string;
   last_message: string | null;
+  archived?: number;
   assignee_id?: string;
   assignee_name?: string;
   unread: number;
@@ -91,6 +92,7 @@ export default function MessagesPage({
   const [file, setFile] = useState<{ name: string; type: string; data: string } | null>(null);
   const [team, setTeam] = useState<{ id: string; name: string }[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [saved, setSaved] = useState<{ id: string; body: string }[]>([]);
   const loadSaved = () => {
     if (role !== "company") return Promise.resolve();
@@ -312,6 +314,9 @@ export default function MessagesPage({
             {team.map((m) => <option key={m.id} value={m.id}>{m.name || t("Hesab sahibi")}</option>)}
           </select>
         )}
+        <button type="button" className="text-button" aria-pressed={showArchived} onClick={() => setShowArchived(!showArchived)}>
+          {showArchived ? t("Gələn qutusuna qayıt") : `${t("Arxiv")} (${threads.filter((x) => x.archived).length})`}
+        </button>
         <label className="conversation-search">
           <Search size={15} />
           <input
@@ -342,6 +347,7 @@ export default function MessagesPage({
           {threads
             .filter((thread) => {
               const q = search.trim().toLocaleLowerCase("az");
+              if (!!thread.archived !== showArchived && thread.id !== active) return false;
               if (assigneeFilter === "none" && thread.assignee_id) return false;
               if (assigneeFilter && assigneeFilter !== "none" && thread.assignee_id !== assigneeFilter) return false;
               return !q || `${thread.other_name} ${thread.job_title}`.toLocaleLowerCase("az").includes(q);
@@ -372,6 +378,41 @@ export default function MessagesPage({
           <>
             <div className="messages-heading">
               <MessageCircle size={18} /> <strong>{heading}</strong>
+              {current && (
+                <>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={async () => {
+                      try {
+                        await request("messages/archive", { threadId: current.id, archived: !current.archived });
+                        notify(current.archived ? t("Yazışma arxivdən çıxarıldı.") : t("Yazışma arxivə köçürüldü."));
+                        await loadThreads();
+                      } catch (error) {
+                        notify((error as Error).message);
+                      }
+                    }}
+                  >
+                    {current.archived ? t("Arxivdən çıxar") : t("Arxivlə")}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={async () => {
+                      const reason = window.prompt(t("Şikayətin səbəbini yazın (administrator baxacaq):"));
+                      if (!reason) return;
+                      try {
+                        await request("messages/report", { threadId: current.id, reason });
+                        notify(t("Şikayət administratora göndərildi."));
+                      } catch (error) {
+                        notify((error as Error).message);
+                      }
+                    }}
+                  >
+                    {t("Şikayət et")}
+                  </button>
+                </>
+              )}
               {role === "company" && current && team.length > 0 && (
                 <select
                   aria-label={t("Yazışmanı təyin et")}

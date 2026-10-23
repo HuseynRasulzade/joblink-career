@@ -1270,7 +1270,7 @@ export default function HrPanel({
                   {event.type === "applied"
                     ? "Müraciət göndərildi"
                     : event.type === "withdrawn"
-                      ? "Namizəd müraciəti geri götürdü"
+                      ? `Namizəd müraciəti geri götürdü${event.note ? `: ${event.note}` : ""}`
                       : event.type === "stage"
                         ? `Mərhələ: ${event.to_value}`
                         : event.type === "offer"

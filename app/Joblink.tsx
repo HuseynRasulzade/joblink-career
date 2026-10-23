@@ -1050,11 +1050,12 @@ export default function Joblink() {
     await refresh();
   }
   async function withdraw(applicationId: string) {
-    if (!window.confirm("Bu müraciəti geri götürmək istəyirsiniz? İşəgötürən statusu görəcək."))
-      return;
+    // The reason is optional; the employer sees it in the application history.
+    const reason = window.prompt("Bu müraciəti geri götürmək istəyirsiniz? İşəgötürən statusu görəcək.\nSəbəbi qısa yaza bilərsiniz (istəyə bağlı):", "");
+    if (reason === null) return;
     setBusy(true);
     try {
-      await api("withdraw", { id: applicationId });
+      await api("withdraw", { id: applicationId, reason });
       await refresh();
       notify("Müraciət geri götürüldü.");
     } catch (e) {
