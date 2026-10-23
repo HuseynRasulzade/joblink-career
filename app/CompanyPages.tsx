@@ -62,7 +62,16 @@ type Dashboard = {
   perJob: { id: string; title: string; status: string; applications: number; interview: number; offered: number; hired: number }[];
   scope?: { from: string; to: string; jobId: string; ownOnly: boolean };
   jobsList?: { id: string; title: string }[];
+  funnel?: { stage: string; reached: number; fromPrevious: number | null }[];
+  sources?: { candidate: number; auto: number };
+  trend?: { month: string; applications: number; hires: number; avgDaysToHire: number | null }[];
+  delta?: {
+    period: { current: { from: string; to: string }; previous: { from: string; to: string }; days: number };
+    applications: { current: number; previous: number; change: number | null };
+    hired: { current: number; previous: number; change: number | null };
+  };
 };
+const changeText = (change: number | null | undefined) => (change === null || change === undefined ? "əvvəlki dövrdə məlumat yoxdur" : `${change > 0 ? "+" : ""}${change}% əvvəlki dövrə görə`);
 const FUNNEL = ["Göndərildi", "Baxışda", "Müsahibə", "Təklif edildi", "İşə qəbul edildi", "Uyğun deyil"];
 export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify: Notify }) {
   const [filter, setFilter] = useState({ from: "", to: "", jobId: "" });
@@ -78,8 +87,8 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
   const reports = me?.permissions.includes("reports");
   const cards: [string, string | number, string?][] = [
     ["Aktiv vakansiyalar", t.activeJobs, t.pendingJobs ? `${t.pendingJobs} təsdiq gözləyir` : undefined],
-    ["Müraciətlər", t.applications, t.autoApplications ? `${t.autoApplications} AI avtomatik` : undefined],
-    ["İşə qəbul", t.hired, t.avgDaysToHire !== null ? `orta ${t.avgDaysToHire} gün` : undefined],
+    ["Müraciətlər", t.applications, [t.autoApplications ? `${t.autoApplications} AI avtomatik` : "", data.delta ? `son ${data.delta.period.days} gün: ${data.delta.applications.current} (${changeText(data.delta.applications.change)})` : ""].filter(Boolean).join(" · ") || undefined],
+    ["İşə qəbul", t.hired, [t.avgDaysToHire !== null ? `orta ${t.avgDaysToHire} gün` : "", data.delta ? `son ${data.delta.period.days} gün: ${data.delta.hired.current} (${changeText(data.delta.hired.change)})` : ""].filter(Boolean).join(" · ") || undefined],
     ["Təkliflərin qəbulu", t.offerAcceptance === null ? "—" : `${t.offerAcceptance}%`],
     ["Güclü namizədlər", t.scoredApplicants ? `${Math.round(((t.strongApplicants || 0) / t.scoredApplicants) * 100)}%` : "—", t.scoredApplicants ? `${t.strongApplicants}/${t.scoredApplicants} müraciət, uyğunluq 70% və yuxarı` : undefined],
     ["Testlər", `${t.testsSubmitted}/${t.testsAssigned}`, "təhvil / göndərilib"],
@@ -114,22 +123,51 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
             <span key={d.date} title={`${day(d.date)}: ${d.count}`} style={{ height: `${Math.max(3, (d.count / peak) * 100)}%` }} />
           ))}
         </div>
+        <div className="muted fine-print" style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>{day(data.days[0]?.date || "")}</span>
+          <span>ən çox: {peak > 1 || data.days.some((d) => d.count) ? peak : 0} müraciət / gün</span>
+          <span>{day(data.days[data.days.length - 1]?.date || "")}</span>
+        </div>
       </section>
       <section className="panel">
         <h3>Müraciət mərhələləri</h3>
+        <p className="muted fine-print">Hər müraciət çatdığı ən son mərhələdə sayılır (işə qəbul olunan müraciət əvvəlki mərhələlərdən də keçib). “Uyğun deyil” statusu mərhələyə daxil edilmir.</p>
         <div className="funnel">
-          {FUNNEL.map((status) => {
-            const value = data.byStatus[status] || 0;
+          {(data.funnel || FUNNEL.slice(0, 5).map((stage) => ({ stage, reached: data.byStatus[stage] || 0, fromPrevious: null }))).map((row) => {
+            const total = data.funnel?.[0]?.reached || t.applications;
             return (
-              <div key={status} className="funnel-row">
-                <span>{status}</span>
-                <div><i style={{ width: `${t.applications ? (value / t.applications) * 100 : 0}%` }} /></div>
-                <b>{value}</b>
+              <div key={row.stage} className="funnel-row">
+                <span>{row.stage}</span>
+                <div><i style={{ width: `${total ? (row.reached / total) * 100 : 0}%` }} /></div>
+                <b>{row.reached}{row.fromPrevious !== null ? ` · ${row.fromPrevious}%` : ""}</b>
               </div>
             );
           })}
+          <div className="funnel-row">
+            <span>Uyğun deyil</span>
+            <div><i style={{ width: `${t.applications ? ((data.byStatus["Uyğun deyil"] || 0) / t.applications) * 100 : 0}%` }} /></div>
+            <b>{data.byStatus["Uyğun deyil"] || 0}</b>
+          </div>
         </div>
+        {data.sources && (
+          <p className="muted fine-print">Mənbə: {data.sources.candidate} namizəd özü müraciət etdi, {data.sources.auto} AI avtomatik müraciəti.</p>
+        )}
       </section>
+      {data.trend && (
+        <section className="panel">
+          <h3>Aylar üzrə trend (son 6 ay)</h3>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead><tr><th>Ay</th><th>Müraciət</th><th>İşə qəbul</th><th>Orta işə qəbul müddəti</th></tr></thead>
+              <tbody>
+                {data.trend.map((m) => (
+                  <tr key={m.month}><td>{m.month}</td><td>{m.applications}</td><td>{m.hires}</td><td>{m.avgDaysToHire === null ? "—" : `${m.avgDaysToHire} gün`}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       <section className="panel">
         <div className="section-heading">
           <h3>Vakansiyalar üzrə</h3>
@@ -137,6 +175,8 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
             <div className="admin-actions">
               <ReportButton kind="jobs" label="Vakansiyalar XLSX" query={query} />
               <ReportButton kind="applications" label="Müraciətlər XLSX" query={query} />
+              {me?.permissions.includes("tests") && !data.scope?.ownOnly && <ReportButton kind="tests" label="Testlər XLSX" query={query} />}
+              {me?.permissions.includes("offers") && !data.scope?.ownOnly && <ReportButton kind="offers" label="Təkliflər XLSX" query={query} />}
             </div>
           )}
         </div>

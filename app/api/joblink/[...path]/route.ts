@@ -110,6 +110,7 @@ const normalizedProfileRecord = (value: unknown, customSkills: string[] = []): P
 // A vacancy is open only while it is published, its owner is not suspended
 // and its application deadline (when set) has not passed.
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
+import { comparePeriods, inPeriod, monthlyTrend, pctChange, reachedFunnel, sourceSplit } from "@/lib/dashboard-stats";
 import { MATCHING_KEY, normalizeMatching, ratingHash, type MatchingSettings } from "@/lib/matching-settings";
 import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
 import { COUNTRIES, canonicalUniversity, setCustomUniversities, type University } from "@/lib/university-catalog";
@@ -2873,15 +2874,51 @@ async function route(request: Request) {
       inRange: (iso: string) => (!from || iso.slice(0, 10) >= from) && (!to || iso.slice(0, 10) <= to),
     };
   };
+  if (request.method === "GET" && path === "company/attention") {
+    const scope = await reportScope();
+    const today = new Date().toISOString().slice(0, 10);
+    const weekAhead = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const items: { key: string; count: number; label: string; link: string }[] = [];
+    const add = (key: string, count: number, label: string, link: string) => count > 0 && items.push({ key, count, label, link });
+    // Vacancies waiting for this member's approval.
+    const pending = await db.prepare("SELECT data FROM jobs WHERE owner=? AND status='pending_approval'").bind(id).all<{ data: string }>();
+    const toDecide = pending.results.filter((r) => {
+      const job = JSON.parse(r.data) as { approval?: JobApproval };
+      return canDecide(memberRole, pendingStep(job.approval)) && (job.approval?.requestedBy !== userId || memberRole === "owner");
+    }).length;
+    add("approvals", toDecide, "vakansiya sizin təsdiqinizi gözləyir", "hr-approvals");
+    // New applications nobody has looked at for two days.
+    const stale = await db
+      .prepare("SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?)) AND a.status='Göndərildi' AND a.created<?")
+      .bind(id, scope.jobIdsJson, new Date(Date.now() - 2 * 86400000).toISOString()).first<{ n: number }>();
+    add("new-applications", Number(stale?.n) || 0, "müraciətə 2 gündən çoxdur baxılmayıb", "hr-candidates");
+    if (can(memberRole, "tests", memberGrants)) {
+      const review = await db.prepare("SELECT COUNT(*) AS n FROM assessment_assignments WHERE company_id=? AND review_status='pending' AND status IN ('submitted','expired')").bind(id).first<{ n: number }>().catch(() => null);
+      add("tests", Number(review?.n) || 0, "test nəticəsinin açıq cavabları yoxlanmalıdır", "hr-tests");
+    }
+    if (can(memberRole, "offers", memberGrants)) {
+      const offers = await db.prepare("SELECT COUNT(*) AS n FROM offers WHERE company_id=? AND status='sent' AND created<?").bind(id, new Date(Date.now() - 5 * 86400000).toISOString()).first<{ n: number }>().catch(() => null);
+      add("offers", Number(offers?.n) || 0, "təklifə 5 gündən çoxdur cavab verilməyib", "hr-candidates");
+    }
+    const expiring = await db
+      .prepare("SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND id IN (SELECT value FROM json_each(?)) AND status='published' AND json_extract(data,'$.deadline')<>'' AND json_extract(data,'$.deadline')>=? AND json_extract(data,'$.deadline')<=?")
+      .bind(id, scope.jobIdsJson, today, weekAhead).first<{ n: number }>();
+    add("expiring", Number(expiring?.n) || 0, "vakansiyanın son tarixinə 7 gündən az qalıb", "hr-jobs");
+    if (can(memberRole, "company-profile", memberGrants)) {
+      const profile = await db.prepare("SELECT verification_status FROM company_profiles WHERE company_id=?").bind(id).first<{ verification_status: string }>().catch(() => null);
+      if (profile?.verification_status !== "verified") add("verification", 1, profile?.verification_status === "pending" ? "şirkət yoxlaması gözlənilir" : "şirkəti təsdiqləyin (VÖEN sənədi)", "hr-company");
+    }
+    return ok({ items });
+  }
   if (request.method === "GET" && path === "company/dashboard") {
     const scope = await reportScope();
     const jobs = await db.prepare("SELECT id,status,created,json_extract(data,'$.title') AS title FROM jobs WHERE owner=? AND id IN (SELECT value FROM json_each(?))").bind(id, scope.jobIdsJson)
       .all<{ id: string; status: string; created: string; title: string }>();
-    const apps = await db
+    const allApps = await db
       .prepare("SELECT a.id,a.job_id,a.status,a.created,a.updated,a.auto FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))")
       .bind(id, scope.jobIdsJson)
-      .all<{ id: string; job_id: string; status: string; created: string; updated: string | null; auto: number }>()
-      .then((r) => ({ results: r.results.filter((a) => scope.inRange(a.created)) }));
+      .all<{ id: string; job_id: string; status: string; created: string; updated: string | null; auto: number }>();
+    const apps = { results: allApps.results.filter((a) => scope.inRange(a.created)) };
     // Offers, tests and employees are company-wide, so a role limited to its own vacancies does not see them.
     const empty = { results: [] as { status: string }[] };
     const offers = scope.ownOnly ? empty : await db.prepare("SELECT status FROM offers WHERE company_id=? AND (?='' OR substr(created,1,10)>=?) AND (?='' OR substr(created,1,10)<=?)").bind(id, scope.from, scope.from, scope.to, scope.to).all<{ status: string }>().catch(() => empty);
@@ -2946,6 +2983,20 @@ async function route(request: Request) {
       byStatus,
       days,
       perJob,
+      funnel: reachedFunnel(byStatus),
+      sources: sourceSplit(apps.results),
+      trend: monthlyTrend(allApps.results, (scope.to || new Date().toISOString()).slice(0, 10), 6),
+      delta: (() => {
+        const p = comparePeriods(scope.from, scope.to);
+        const inCur = allApps.results.filter((a) => inPeriod(a.created, p.current));
+        const inPrev = allApps.results.filter((a) => inPeriod(a.created, p.previous));
+        const hires = (list: typeof inCur) => list.filter((a) => a.status === "İşə qəbul edildi").length;
+        return {
+          period: p,
+          applications: { current: inCur.length, previous: inPrev.length, change: pctChange(inCur.length, inPrev.length) },
+          hired: { current: hires(inCur), previous: hires(inPrev), change: pctChange(hires(inCur), hires(inPrev)) },
+        };
+      })(),
       scope: { from: scope.from, to: scope.to, jobId: str(requestUrl.searchParams.get("jobId"), 100), ownOnly: scope.ownOnly },
       jobsList: jobs.results.map((j) => ({ id: j.id, title: j.title })),
     });
@@ -2954,7 +3005,7 @@ async function route(request: Request) {
     requirePermission("reports");
     const kind = str(requestUrl.searchParams.get("kind"), 20);
     const scope = await reportScope();
-    if (scope.ownOnly && ["employees", "workforce", "exits", "invoices"].includes(kind))
+    if (scope.ownOnly && ["employees", "workforce", "exits", "invoices", "tests", "offers"].includes(kind))
       throw new HttpError(403, "Bu hesabatı yalnız HR, direktor və hesab sahibi ixrac edə bilər.");
     let headers: string[] = [];
     let rows: (string | number)[][] = [];
@@ -3052,6 +3103,45 @@ async function route(request: Request) {
         .all<{ reason: string | null; jobs: number; apps: number; hired: number | null }>();
       headers = ["Yaradılma səbəbi", "Vakansiya", "Müraciət", "İşə qəbul"];
       rows = result.results.map((r) => [VACANCY_REASONS.find((x) => x.id === (r.reason || ""))?.label || "Göstərilməyib", Number(r.jobs), Number(r.apps), Number(r.hired || 0)]);
+    } else if (kind === "tests") {
+      requirePermission("tests", "Test hesabatını yalnız HR, direktor, hesab sahibi və ya bu icazə verilmiş şəxs ixrac edə bilər.");
+      const result = await db
+        .prepare(`SELECT s.status,s.assigned_at,s.submitted_at,s.score,s.max_score,s.review_status,s.snapshot,t.title,COALESCE(c.name,'') AS candidate,
+            COALESCE(json_extract(j.data,'$.title'),'') AS job_title
+          FROM assessment_assignments s JOIN assessments t ON t.id=s.assessment_id
+          LEFT JOIN accounts c ON c.id=s.candidate_id
+          LEFT JOIN applications a ON a.id=s.application_id LEFT JOIN jobs j ON j.id=a.job_id
+          WHERE s.company_id=? AND (?='' OR substr(s.assigned_at,1,10)>=?) AND (?='' OR substr(s.assigned_at,1,10)<=?)
+          ORDER BY s.assigned_at DESC`)
+        .bind(id, scope.from, scope.from, scope.to, scope.to)
+        .all<{ status: string; assigned_at: string; submitted_at: string; score: number; max_score: number; review_status: string; snapshot: string; title: string; candidate: string; job_title: string }>();
+      const statusLabel: Record<string, string> = { assigned: "Göndərilib", started: "Davam edir", submitted: "Təhvil verilib", expired: "Vaxt bitib", cancelled: "Ləğv edilib" };
+      headers = ["Test", "Vakansiya", "Namizəd", "Status", "Göndərilib", "Təhvil", "Bal", "Maksimum", "Nəticə, %", "Keçid balı, %", "Yoxlama"];
+      rows = result.results.map((r) => {
+        const copy = parseSnapshot(r.snapshot);
+        const percent = r.max_score ? Math.round((r.score / r.max_score) * 100) : "";
+        return [copy?.title || r.title, r.job_title, r.candidate, statusLabel[r.status] || r.status, r.assigned_at.slice(0, 10), (r.submitted_at || "").slice(0, 10), r.max_score ? r.score : "", r.max_score || "", percent,
+          copy?.passingScore ?? "", r.review_status === "pending" ? "açıq suallar yoxlanmalıdır" : r.review_status === "done" ? "yoxlanılıb" : ""];
+      });
+    } else if (kind === "offers") {
+      requirePermission("offers");
+      const result = await db
+        .prepare(`SELECT o.status,o.created,o.signed_at,o.data,COALESCE(c.name,'') AS candidate,COALESCE(json_extract(j.data,'$.title'),'') AS job_title
+          FROM offers o LEFT JOIN accounts c ON c.id=o.candidate_id LEFT JOIN jobs j ON j.id=o.job_id
+          WHERE o.company_id=? AND (?='' OR substr(o.created,1,10)>=?) AND (?='' OR substr(o.created,1,10)<=?) ORDER BY o.created DESC`)
+        .bind(id, scope.from, scope.from, scope.to, scope.to)
+        .all<{ status: string; created: string; signed_at: string; data: string; candidate: string; job_title: string }>();
+      const label: Record<string, string> = { sent: "Cavab gözlənilir", accepted: "Qəbul edilib", declined: "Rədd edilib", withdrawn: "Geri götürülüb" };
+      headers = ["Vakansiya", "Namizəd", "Status", "Maaş (AZN)", "Göndərilib", "Cavab tarixi"];
+      rows = result.results.map((r) => {
+        let salary: number | string = "";
+        try {
+          salary = Number((JSON.parse(r.data) as { salary?: number }).salary) || "";
+        } catch {
+          salary = "";
+        }
+        return [r.job_title, r.candidate, label[r.status] || r.status, salary, r.created.slice(0, 10), (r.signed_at || "").slice(0, 10)];
+      });
     } else throw new HttpError(400, "Hesabat növü yanlışdır.");
     await companyAudit(db, id, userId, "report-exported", kind);
     const workbook = createXlsx(headers, rows, kind);

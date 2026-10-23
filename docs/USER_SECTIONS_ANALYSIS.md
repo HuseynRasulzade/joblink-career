@@ -26,7 +26,7 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 
 | Bölmə | Vəziyyət | Çatışmayan / əlavə olunacaq |
 |---|---|---|
-| Ümumi baxış / Hesabatlar | KPI, tarix və vakansiya filtri, XLSX (real tarix xanaları), menecer üçün öz vakansiyaları | Mənbə üzrə analiz (hansı kanaldan namizəd gəlir), işə qəbul vaxtı trendi, planlanmış hesabat (e-poçtla həftəlik) |
+| Ümumi baxış / Hesabatlar | KPI və əvvəlki dövrlə müqayisə, tarix və vakansiya filtri, mərhələlər üzrə keçid faizi (ən son mərhələyə görə), müraciət mənbəyi (namizəd özü / AI avtomatik), aylar üzrə trend və orta işə qəbul müddəti, XLSX (vakansiya, müraciət, test, təklif, işçi və s.), "Diqqət tələb edənlər" bloku (təsdiq, baxılmamış müraciət, yoxlanmamış test, cavabsız təklif, bitən vakansiya, şirkət yoxlaması) | Planlanmış hesabat (e-poçtla həftəlik, planlaşdırıcı tələb edir), mənbə kimi xarici kanallar (hazırda yalnız namizəd/AI), vakansiya üzrə ayrıca trend |
 | Vakansiyalarım | AI ilə yaradılma, təsdiq zənciri, yayım | Vakansiyanı kopyalamaq, şablonlar, "bitməyə X gün qalıb" xəbərdarlığı, təkrar yayım |
 | Namizədlər | Siyahı, AI sıralama (admin seçimi), pipeline, qiymətləndirmə | Toplu əməliyyat (bir neçə nəfərə status/mesaj), istedad bazası (talent pool) və saxlanmış axtarışlar, namizəd qeydləri/etiketləri, dublikat aşkarlama |
 | HR AI köməkçi | Vakansiya layihəsi, namizəd analizi | Müsahibə sualları və qiymətləndirmə cədvəli şablonu, vakansiya mətninin ədalət yoxlaması (ayrı-seçkilik dili) |

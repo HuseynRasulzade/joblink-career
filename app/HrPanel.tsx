@@ -125,6 +125,7 @@ export default function HrPanel({
   onPublished: () => void;
   onMessage: (target: { candidateId: string; jobId?: string; name: string; jobTitle?: string }) => void;
 }) {
+  const [attention, setAttention] = useState<{ key: string; count: number; label: string; link: string }[]>([]);
   const [data, setData] = useState<HrData>({
     jobs: [],
     applications: [],
@@ -169,6 +170,11 @@ export default function HrPanel({
   const [confirm, setConfirm] = useState(false);
   const [useAI, setUseAI] = useState(false);
   useEffect(() => { if (aiEnabled) setUseAI(true); }, [aiEnabled]);
+  // Things that need the company's attention, shown on the overview.
+  useEffect(() => {
+    if (page !== "hr-overview" || !signedIn || demo) return;
+    api("company/attention").then((b: { items: typeof attention }) => setAttention(b.items || [])).catch(() => setAttention([]));
+  }, [page, signedIn, demo, api]);
   async function refresh() {
     if (!signedIn) return;
     try {
@@ -424,6 +430,19 @@ export default function HrPanel({
             </label>
           </div>
           {error && !demo && <div className="notice error">{error}</div>}
+          {page === "hr-overview" && !demo && attention.length > 0 && (
+            <section className="panel" aria-label="Diqqət tələb edənlər">
+              <h3>Diqqət tələb edənlər</h3>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+                {attention.map((item) => (
+                  <li key={item.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <span><b>{item.count}</b> {item.label}</span>
+                    <button className="secondary" onClick={() => go(item.link)}>Aç</button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <div className="stats">
             {[
               [
