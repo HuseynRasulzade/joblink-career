@@ -253,6 +253,13 @@
       "when": 1793991600000,
       "tag": "0035_test_outcome",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794078000000,
+      "tag": "0036_test_reminder",
+      "breakpoints": true
     }
   ]
 }

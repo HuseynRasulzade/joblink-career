@@ -110,6 +110,37 @@ export async function runInterviewReminders(db: D1Database, mail: Mailer, fromEm
   return sent;
 }
 
+// A candidate who has not started a test two days after it was sent gets one reminder.
+export async function runTestReminders(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+  const rows = await db
+    .prepare(`SELECT s.id,s.candidate_id,COALESCE(json_extract(s.snapshot,'$.title'),t.title) AS title,COALESCE(c.name,'') AS company
+      FROM assessment_assignments s JOIN assessments t ON t.id=s.assessment_id LEFT JOIN accounts c ON c.id=s.company_id
+      WHERE s.status='assigned' AND s.reminded_at='' AND s.assigned_at<? AND s.assigned_at>? LIMIT 200`)
+    .bind(new Date(now.getTime() - 2 * DAY).toISOString(), new Date(now.getTime() - 14 * DAY).toISOString())
+    .all<{ id: string; candidate_id: string; title: string; company: string }>()
+    .catch(() => ({ results: [] as { id: string; candidate_id: string; title: string; company: string }[] }));
+  let sent = 0;
+  for (const row of rows.results) {
+    try {
+      const claimed = await db.prepare("UPDATE assessment_assignments SET reminded_at=? WHERE id=? AND reminded_at='' AND status='assigned'").bind(now.toISOString(), row.id).run();
+      if (!claimed.meta.changes) continue;
+      const text = `${row.company ? `${row.company} sizə` : "Sizə"} “${row.title}” testi göndərib. Test hələ başlanmayıb; platformada “Testlər” bölməsindən verə bilərsiniz.`;
+      await db
+        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
+        .bind(crypto.randomUUID(), row.candidate_id, "test", `Test xatırlatması: ${row.title}`, text.slice(0, 600), "applications", now.toISOString())
+        .run();
+      if (mail && fromEmail) {
+        const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(row.candidate_id).first<{ email: string }>();
+        if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject: `Test xatırlatması: ${row.title}`, text }).catch(() => {});
+      }
+      sent++;
+    } catch {
+      // One failing reminder must not stop the others.
+    }
+  }
+  return sent;
+}
+
 // Vacancy views are kept for a limited time only.
 export async function purgeOldJobViews(db: D1Database, now = new Date()) {
   const cutoff = new Date(now.getTime() - 180 * DAY).toISOString().slice(0, 10);

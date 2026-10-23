@@ -121,3 +121,44 @@ test("outcomeTarget moves applications only when the test asks for it", async ()
   assert.equal(outcomeTarget({ passingScore: 60 }, 3, 10, "Göndərildi"), null);
   assert.equal(outcomeTarget(on, 0, 0, "Göndərildi"), null);
 });
+
+test("questionStats ranks the most missed choice questions", async () => {
+  const { questionStats } = await import("../lib/assessments.ts");
+  const q1 = { id: "a", type: "single", text: "Asan", options: ["x", "y"], correct: [0], points: 1 };
+  const q2 = { id: "b", type: "multiple", text: "Çətin", options: ["x", "y", "z"], correct: [0, 2], points: 1 };
+  const open = { id: "c", type: "text", text: "Açıq", options: [], correct: [], points: 1 };
+  const stats = questionStats([
+    { questions: [q1, q2, open], answers: { a: 0, b: [0, 2], c: "mətn" } },
+    { questions: [q1, q2, open], answers: { a: 0, b: [0], c: "" } },
+    { questions: [q1, q2], answers: { a: 1, b: [1] } },
+  ]);
+  assert.deepEqual(stats.map((s) => [s.text, s.attempts, s.correct, s.percent]), [["Çətin", 3, 1, 33], ["Asan", 3, 2, 67]]);
+});
+
+test("runTestReminders reminds a waiting candidate once", async () => {
+  const { runTestReminders } = await import("../lib/digest-job.ts");
+  const log = [];
+  const rows = [{ id: "s1", candidate_id: "u1", title: "Excel testi", company: "Şirkət" }];
+  let claimed = false;
+  const db = {
+    prepare(sql) {
+      return {
+        bind: () => ({
+          all: async () => ({ results: rows }),
+          first: async () => ({ email: "u1@example.test" }),
+          run: async () => {
+            if (sql.startsWith("UPDATE assessment_assignments")) { const first = !claimed; claimed = true; return { meta: { changes: first ? 1 : 0 } }; }
+            log.push(sql.slice(0, 22));
+            return { meta: { changes: 1 } };
+          },
+        }),
+      };
+    },
+  };
+  const mails = [];
+  const mail = { send: async (m) => mails.push(m.to[0]) };
+  assert.equal(await runTestReminders(db, mail, "noreply@x.test"), 1);
+  assert.equal(await runTestReminders(db, mail, "noreply@x.test"), 0);
+  assert.deepEqual(mails, ["u1@example.test"]);
+  assert.equal(log.filter((l) => l.startsWith("INSERT INTO notificat")).length, 1);
+});

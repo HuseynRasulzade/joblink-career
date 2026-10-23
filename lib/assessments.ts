@@ -165,6 +165,25 @@ export function outcomeTarget(
   return copy.onFail === "reject" && ["Göndərildi", "Baxışda"].includes(status) ? "Uyğun deyil" : null;
 }
 
+// Which choice questions are missed most: grouped by question text across the finished attempts.
+export type QuestionStat = { text: string; attempts: number; correct: number; percent: number };
+export function questionStats(attempts: { questions: Question[]; answers: Record<string, unknown> }[]): QuestionStat[] {
+  const byText = new Map<string, { attempts: number; correct: number }>();
+  for (const attempt of attempts) {
+    for (const q of attempt.questions) {
+      if (q.type === "text") continue;
+      const hit = scoreAnswers([q], attempt.answers).score > 0;
+      const entry = byText.get(q.text) || { attempts: 0, correct: 0 };
+      entry.attempts += 1;
+      entry.correct += hit ? 1 : 0;
+      byText.set(q.text, entry);
+    }
+  }
+  return [...byText.entries()]
+    .map(([text, v]) => ({ text, ...v, percent: Math.round((v.correct / v.attempts) * 100) }))
+    .sort((a, b) => a.percent - b.percent || b.attempts - a.attempts);
+}
+
 export const percentOf = (score: number, max: number) => (max > 0 ? Math.round((score / max) * 100) : null);
 
 export type ResultRow = { status: string; score: number; max_score: number; review_status: string; passingScore: number };

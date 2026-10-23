@@ -487,6 +487,7 @@ export const assessmentAssignments = sqliteTable(
     reviewedAt: text("reviewed_at").notNull().default(""),
     autosavedAt: text("autosaved_at").notNull().default(""),
     outcomeApplied: integer("outcome_applied").notNull().default(0),
+    remindedAt: text("reminded_at").notNull().default(""),
   },
   (t) => [
     index("assessment_assignments_candidate").on(t.candidateId, t.assignedAt),

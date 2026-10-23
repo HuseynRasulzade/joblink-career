@@ -2481,7 +2481,7 @@ async function route(request: Request) {
     "plan/methods/default",
     "plan/contract",
   ]);
-  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/test-results", "hr/question-bank", "hr/question-bank/add", "hr/question-bank/delete", "hr/assessments/ai-parse", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views", "hr/job-repost"]);
+  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessment-export", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/test-results", "hr/question-bank", "hr/question-bank/add", "hr/question-bank/delete", "hr/assessments/ai-parse", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views", "hr/job-repost"]);
   if (accountRole === "company" && candidatePaths.has(path))
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
@@ -5459,6 +5459,36 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       results[r.application_id] = { state, percent: percentOf(r.score, r.max_score) };
     }
     return ok({ results });
+  }
+  if (request.method === "GET" && path === "hr/assessment-export") {
+    requirePermission("tests", testsDenied);
+    const assessmentId = str(requestUrl.searchParams.get("id"), 100);
+    await closeExpiredAssignments(db, { companyId: id });
+    const test = await db.prepare("SELECT title,passing_score FROM assessments WHERE id=? AND company_id=?").bind(assessmentId, id).first<{ title: string; passing_score: number }>();
+    if (!test) throw new HttpError(404, "Test tapılmadı.");
+    const rows = await db
+      .prepare(`SELECT s.status,s.assigned_at,s.submitted_at,s.score,s.max_score,s.review_status,s.violations,COALESCE(json_extract(s.snapshot,'$.passingScore'),-1) AS passing,
+          COALESCE(c.name,'') AS candidate FROM assessment_assignments s LEFT JOIN accounts c ON c.id=s.candidate_id WHERE s.assessment_id=? AND s.company_id=? ORDER BY s.assigned_at DESC`)
+      .bind(assessmentId, id)
+      .all<{ status: string; assigned_at: string; submitted_at: string; score: number; max_score: number; review_status: string; violations: string; passing: number; candidate: string }>();
+    const statusLabel: Record<string, string> = { assigned: "Göndərilib", started: "Davam edir", submitted: "Təhvil verilib", expired: "Vaxt bitib", cancelled: "Ləğv edilib" };
+    const stateLabel: Record<string, string> = { passed: "Keçdi", failed: "Keçmədi", pending: "Yoxlanılır", none: "" };
+    const data = rows.results.map((r) => {
+      const state = resultState({ status: r.status, score: r.score, max_score: r.max_score, review_status: r.review_status, passingScore: r.passing >= 0 ? r.passing : test.passing_score });
+      let violations = 0;
+      try { violations = (JSON.parse(r.violations) as unknown[]).length; } catch { violations = 0; }
+      const closed = ["submitted", "expired"].includes(r.status);
+      return [r.candidate, statusLabel[r.status] || r.status, closed ? r.score : "", closed ? r.max_score : "", closed ? percentOf(r.score, r.max_score) ?? "" : "", stateLabel[state], violations, r.assigned_at.slice(0, 10), r.submitted_at.slice(0, 10)];
+    });
+    await companyAudit(db, id, userId, "test-results-exported", assessmentId);
+    const workbook = createXlsx(["Namizəd", "Status", "Bal", "Maksimum", "Faiz", "Nəticə", "Pozuntu sayı", "Göndərilib", "Təhvil tarixi"], data, "Nəticələr");
+    return new Response(Uint8Array.from(workbook).buffer, {
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Content-Disposition": `attachment; filename="test-neticeleri-${new Date().toISOString().slice(0, 10)}.xlsx"`,
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    });
   }
   if (request.method === "GET" && path === "hr/assessment") {
     requirePermission("tests", testsDenied);

@@ -2,7 +2,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { ClipboardCheck, FileText, History, Plus, Trash2, X } from "lucide-react";
 import type { Application, Job } from "@/lib/model";
-import type { Question, QuestionType } from "@/lib/assessments";
+import { questionStats, type Question, type QuestionType } from "@/lib/assessments";
 import { QUESTION_FILE_ACCEPT, readQuestionFile } from "@/lib/question-file";
 import { Field, Modal } from "./components";
 import { formatDate } from "@/lib/dates";
@@ -419,6 +419,9 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                     <FileText size={14} /> Fayla bax
                   </a>
                 )}
+                {detail.assignments.length > 0 && (
+                  <a className="secondary" href={`/api/joblink/hr/assessment-export?id=${encodeURIComponent(detail.assessment.id)}`}>Excel-ə yüklə</a>
+                )}
                 <button onClick={() => edit(detail)}>Redaktə et</button>
                 <button onClick={() => duplicate(detail)}>Kopyala</button>
                 {!detail.assignments.length && (
@@ -439,6 +442,7 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                 )}
               </div>
             </div>
+            <ResultAnalysis assignments={detail.assignments} />
             <h3>Nəticələr</h3>
             <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Namizəd</th><th>Status</th><th>Bal</th><th>Pozuntular</th><th>Təhvil</th></tr></thead><tbody>
               {detail.assignments.map((a) => {
@@ -678,6 +682,33 @@ function QuestionBank({ notify, current, onPick }: { notify: (message: string) =
           Seçilmiş {chosen.length} sualı əlavə et
         </button>
       )}
+    </details>
+  );
+}
+
+// Questions candidates miss most, so weak or unclear questions are easy to spot.
+function ResultAnalysis({ assignments }: { assignments: Detail["assignments"] }) {
+  const finished = assignments.filter((a) => ["submitted", "expired"].includes(a.status));
+  const stats = questionStats(finished.map((a) => ({ questions: a.questions, answers: a.answers })));
+  if (finished.length < 2 || !stats.length) return null;
+  return (
+    <details className="field">
+      <summary>Sual üzrə təhlil ({finished.length} cəhd)</summary>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead><tr><th>Sual</th><th>Cavablayan</th><th>Düzgün</th></tr></thead>
+          <tbody>
+            {stats.map((s) => (
+              <tr key={s.text}>
+                <td>{s.text}</td>
+                <td>{s.attempts}</td>
+                <td><b className={s.percent < 40 ? "compare-worst" : ""}>{s.percent}%</b></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <small className="skill-picker-help">Düzgün cavab faizi çox aşağıdırsa, sual qeyri-aydın və ya cavab açarı səhv ola bilər.</small>
     </details>
   );
 }
