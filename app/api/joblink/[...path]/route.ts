@@ -932,15 +932,15 @@ async function sendAdminEmail(subject: string, text: string) {
 // and, when e-mail sending is configured, the admin mailbox.
 async function createSupportThread(
   db: D1Database,
-  input: { userId: string; role: string; topic: string; subject: string; body: string; meta?: Record<string, unknown> },
+  input: { userId: string; role: string; topic: string; subject: string; body: string; meta?: Record<string, unknown>; attachment?: { name: string; type: string; data: string } },
 ) {
   const threadId = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.batch([
     db.prepare("INSERT INTO support_threads(id,user_id,user_role,topic,subject,status,meta,created,updated) VALUES(?,?,?,?,?,'new',?,?,?)")
       .bind(threadId, input.userId, input.role, input.topic, input.subject, JSON.stringify(input.meta || {}), now, now),
-    db.prepare("INSERT INTO support_messages(id,thread_id,author_id,author_role,body,created) VALUES(?,?,?,?,?,?)")
-      .bind(crypto.randomUUID(), threadId, input.userId, input.role, input.body, now),
+    db.prepare("INSERT INTO support_messages(id,thread_id,author_id,author_role,body,attachment_name,attachment_type,attachment_data,created) VALUES(?,?,?,?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(), threadId, input.userId, input.role, input.body, input.attachment?.name || "", input.attachment?.type || "", input.attachment?.data || "", now),
   ]);
   await sendAdminEmail(
     `Joblink sorğusu: ${supportTopicLabel(input.topic)} — ${input.subject}`,
@@ -1938,8 +1938,32 @@ async function route(request: Request) {
     }
     throw new HttpError(400, "Əməliyyat yanlışdır.");
   }
+  // One small PDF or image may be attached to a request or a reply.
+  const supportFile = (value: unknown) => {
+    const file = value as { name?: unknown; type?: unknown; data?: unknown } | undefined;
+    if (!file) return undefined;
+    const type = str(file.type, 80);
+    const data = str(file.data, 700_000);
+    if (!["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(type) || !data || !/^[A-Za-z0-9+/=]+$/.test(data)) throw new HttpError(400, "Fayl PDF, PNG, JPG və ya WEBP olmalıdır.");
+    return { name: str(file.name, 160) || "fayl", type, data };
+  };
+  const supportBody = async () => {
+    const raw = await request.text();
+    if (raw.length > 900_000) throw new HttpError(413, "Fayl çox böyükdür (maksimum 500 KB).");
+    try { return JSON.parse(raw) as Record<string, unknown>; } catch { throw new HttpError(400, "Sorğu məlumatları oxunmadı."); }
+  };
+  if (request.method === "GET" && path === "support/attachment") {
+    const row = await db
+      .prepare("SELECT m.attachment_name,m.attachment_type,m.attachment_data,t.user_id FROM support_messages m JOIN support_threads t ON t.id=m.thread_id WHERE m.id=?")
+      .bind(str(requestUrl.searchParams.get("id"), 100))
+      .first<{ attachment_name: string; attachment_type: string; attachment_data: string; user_id: string }>();
+    if (!row?.attachment_data || (accountRole !== "admin" && row.user_id !== id)) throw new HttpError(404, "Fayl tapılmadı.");
+    return new Response(Uint8Array.from(atob(row.attachment_data), (c) => c.charCodeAt(0)), {
+      headers: { "Content-Type": row.attachment_type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
+    });
+  }
   if (request.method === "POST" && path === "support/create") {
-    const body = await jsonBody(request);
+    const body = await supportBody();
     const topic = SUPPORT_TOPICS.some((t) => t.id === body.topic) ? String(body.topic) : "other";
     const subject = str(body.subject, 160).replace(/\s+/g, " ");
     const text = str(body.body, 4000);
@@ -1952,7 +1976,7 @@ async function route(request: Request) {
     const meta = body.meta && typeof body.meta === "object" && !Array.isArray(body.meta)
       ? Object.fromEntries(Object.entries(body.meta as Record<string, unknown>).slice(0, 10).map(([k, v]) => [str(k, 40), str(v, 300)]))
       : {};
-    const threadId = await createSupportThread(db, { userId: id, role: accountRole, topic, subject, body: text, meta });
+    const threadId = await createSupportThread(db, { userId: id, role: accountRole, topic, subject, body: text, meta, attachment: supportFile(body.attachment) });
     return ok({ ok: true, id: threadId }, 201);
   }
   if (request.method === "GET" && path === "support") {
@@ -1973,14 +1997,15 @@ async function route(request: Request) {
       await db.prepare("UPDATE support_threads SET status='read',updated=? WHERE id=?").bind(new Date().toISOString(), threadId).run();
     if (accountRole !== "admin")
       await db.prepare("UPDATE support_threads SET user_read=? WHERE id=?").bind(new Date().toISOString(), threadId).run();
-    const messages = await db.prepare("SELECT * FROM support_messages WHERE thread_id=? ORDER BY created").bind(threadId).all();
+    const messages = await db.prepare("SELECT id,thread_id,author_id,author_role,body,created,attachment_name,attachment_type FROM support_messages WHERE thread_id=? ORDER BY created").bind(threadId).all();
     return ok({ thread: { ...thread, status: accountRole === "admin" && thread.status === "new" ? "read" : thread.status }, messages: messages.results });
   }
   if (request.method === "POST" && path === "support/reply") {
-    const body = await jsonBody(request);
+    const body = await supportBody();
     const threadId = str(body.id, 100);
     const text = str(body.body, 4000);
-    if (!text) throw new HttpError(400, "Mesajı yazın.");
+    const attachment = supportFile(body.attachment);
+    if (!text && !attachment) throw new HttpError(400, "Mesajı yazın.");
     const thread = await db.prepare("SELECT user_id,status FROM support_threads WHERE id=?").bind(threadId).first<{ user_id: string; status: string }>();
     if (!thread || (accountRole !== "admin" && thread.user_id !== id)) throw new HttpError(404, "Sorğu tapılmadı.");
     const now = new Date().toISOString();
@@ -1988,8 +2013,8 @@ async function route(request: Request) {
       ? (SUPPORT_STATUSES[str(body.status, 20)] ? str(body.status, 20) : thread.status === "new" ? "read" : thread.status)
       : thread.status === "done" || thread.status === "rejected" ? "new" : thread.status;
     await db.batch([
-      db.prepare("INSERT INTO support_messages(id,thread_id,author_id,author_role,body,created) VALUES(?,?,?,?,?,?)")
-        .bind(crypto.randomUUID(), threadId, id, accountRole, text, now),
+      db.prepare("INSERT INTO support_messages(id,thread_id,author_id,author_role,body,attachment_name,attachment_type,attachment_data,created) VALUES(?,?,?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), threadId, id, accountRole, text, attachment?.name || "", attachment?.type || "", attachment?.data || "", now),
       db.prepare("UPDATE support_threads SET status=?,updated=? WHERE id=?").bind(nextStatus, now, threadId),
     ]);
     return ok({ ok: true, status: nextStatus });

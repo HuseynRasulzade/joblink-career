@@ -43,6 +43,8 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0045_invoice_vat` | Fakturada `vat_percent` (0 və ya 18, məbləğə daxil); yeni faktura şirkətə bildiriş və e-poçt göndərir |
 | `0046_message_attachments_assignee` | Mesaja qoşma (`messages.attachment_*`, PDF/şəkil 500 KB-a qədər) və yazışmanı komanda üzvünə təyin etmə (`message_threads.assignee_id`) |
 | `0047_account_security` | Şifrə sıfırlama və e-poçt təsdiqi (`auth_tokens`, `password_accounts.verified`), cihaz siyahısı (`sessions.created/agent`), iki mərhələli giriş (`totp_secrets`) |
+| `0048_job_alerts` | Namizədin vakansiya xəbərdarlıqları (`job_alerts`); gündəlik cron yeni uyğun vakansiyaları bildirir (`seen` siyahısı təkrarın qarşısını alır) |
+| `0049_support_attachments` | Dəstək sorğusuna və cavaba fayl əlavəsi (`support_messages.attachment_*`) |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 

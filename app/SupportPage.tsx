@@ -1,7 +1,8 @@
 "use client";
 import { formatDate } from "@/lib/dates";
 import { useEffect, useState } from "react";
-import { Inbox, LifeBuoy, Plus, Send } from "lucide-react";
+import { Inbox, LifeBuoy, Paperclip, Plus, Send } from "lucide-react";
+import { FAQ } from "@/lib/faq";
 import { SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
 import { siteLanguage, translate } from "./i18n";
 
@@ -16,7 +17,17 @@ type Thread = {
   last_message: string | null;
   unread_replies?: number;
 };
-type Message = { id: string; author_role: string; body: string; created: string };
+type Message = { id: string; author_role: string; body: string; created: string; attachment_name?: string };
+type Attachment = { name: string; type: string; data: string };
+function pickFile(event: React.ChangeEvent<HTMLInputElement>, onPick: (file: Attachment) => void, notify: (m: string) => void) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  if (file.size > 500_000) return notify(t("Fayl 500 KB-dan kiçik olmalıdır (PDF və ya şəkil)."));
+  const reader = new FileReader();
+  reader.onload = () => onPick({ name: file.name, type: file.type, data: String(reader.result).split(",")[1] || "" });
+  reader.readAsDataURL(file);
+}
 const t = (text: string) => translate(text, siteLanguage());
 const when = (value: string) => formatDate(value, siteLanguage(), { year: false, time: true });
 
@@ -41,10 +52,12 @@ function StatusChip({ status }: { status: string }) {
 // requests and their status; the admin sees every request (admin mode).
 export default function SupportPage({
   admin = false,
+  role = "candidate",
   onRead,
   notify,
 }: {
   admin?: boolean;
+  role?: "candidate" | "company";
   onRead: () => void;
   notify: (message: string) => void;
 }) {
@@ -54,6 +67,8 @@ export default function SupportPage({
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ topic: "suggestion", subject: "", body: "" });
   const [reply, setReply] = useState("");
+  const [formFile, setFormFile] = useState<Attachment | null>(null);
+  const [replyFile, setReplyFile] = useState<Attachment | null>(null);
   const [nextStatus, setNextStatus] = useState("");
   const [filter, setFilter] = useState({ status: "", topic: "" });
   const [busy, setBusy] = useState(false);
@@ -90,7 +105,8 @@ export default function SupportPage({
     event.preventDefault();
     setBusy(true);
     try {
-      await request("support/create", form);
+      await request("support/create", { ...form, attachment: formFile || undefined });
+      setFormFile(null);
       notify(t("Sorğunuz göndərildi. Statusunu bu bölmədə izləyə bilərsiniz."));
       setForm({ topic: "suggestion", subject: "", body: "" });
       setCreating(false);
@@ -103,12 +119,13 @@ export default function SupportPage({
   }
   async function send(event: React.FormEvent) {
     event.preventDefault();
-    if (!active || (!reply.trim() && !nextStatus)) return;
+    if (!active || (!reply.trim() && !replyFile && !nextStatus)) return;
     setBusy(true);
     try {
-      if (reply.trim()) await request("support/reply", { id: active.id, body: reply, status: nextStatus || undefined });
+      if (reply.trim() || replyFile) await request("support/reply", { id: active.id, body: reply, status: nextStatus || undefined, attachment: replyFile || undefined });
       else await request("admin/support/status", { id: active.id, status: nextStatus });
       setReply("");
+      setReplyFile(null);
       await open(active);
     } catch (error) {
       notify((error as Error).message);
@@ -180,6 +197,11 @@ export default function SupportPage({
               <span>{t("Mesaj")}</span>
               <textarea required rows={6} maxLength={4000} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
             </label>
+            <label className="field">
+              <span>{t("Fayl əlavə et (PDF və ya şəkil, 500 KB-a qədər, istəyə bağlı)")}</span>
+              <input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => pickFile(e, setFormFile, notify)} />
+              {formFile && <small className="muted">📎 {formFile.name}</small>}
+            </label>
             <p className="muted fine-print">{t("Sorğu admin panelinə və admin e-poçtuna göndərilir. Cavab və status dəyişikliyi burada görünəcək.")}</p>
             <button className="primary" disabled={busy}><Send size={16} /> {t("Göndər")}</button>
           </form>
@@ -192,7 +214,8 @@ export default function SupportPage({
               {messages.map((m) => (
                 <div key={m.id} className={`chat-message ${(admin ? m.author_role === "admin" : m.author_role !== "admin") ? "user" : "assistant"}`}>
                   {m.author_role === "admin" && !admin && <b className="support-author">{t("Joblink dəstək")}</b>}
-                  <p>{m.body}</p>
+                  {m.body && <p>{m.body}</p>}
+                  {m.attachment_name && <p><a href={`/api/joblink/support/attachment?id=${encodeURIComponent(m.id)}`} target="_blank" rel="noopener noreferrer">📎 {m.attachment_name}</a></p>}
                   <small className="message-time">{when(m.created)}</small>
                 </div>
               ))}
@@ -200,13 +223,18 @@ export default function SupportPage({
             <form className="chat-input support-reply" onSubmit={send}>
               <textarea rows={3} aria-label={t("Cavab")} value={reply} placeholder={t(admin ? "Cavabınızı yazın…" : "Əlavə məlumat yazın…")} onChange={(e) => setReply(e.target.value)} />
               <div className="support-reply-actions">
+                <label className="attach-button" title={t("Fayl əlavə et")}>
+                  <Paperclip size={18} />
+                  <input type="file" hidden accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => pickFile(e, setReplyFile, notify)} />
+                </label>
+                {replyFile && <small className="muted">📎 {replyFile.name}</small>}
                 {admin && (
                   <select value={nextStatus} onChange={(e) => setNextStatus(e.target.value)} aria-label={t("Yeni status")}>
                     <option value="">{t("Statusu dəyişmə")}</option>
                     {Object.entries(SUPPORT_STATUSES).map(([key, value]) => <option key={key} value={key}>{t(value.label)}</option>)}
                   </select>
                 )}
-                <button className="primary" disabled={busy || (!reply.trim() && !nextStatus)} aria-label={t("Göndər")}>
+                <button className="primary" disabled={busy || (!reply.trim() && !replyFile && !nextStatus)} aria-label={t("Göndər")}>
                   <Send size={18} />
                 </button>
               </div>
@@ -217,6 +245,17 @@ export default function SupportPage({
             <div className="assistant-icon"><LifeBuoy size={25} /></div>
             <h2>{t(admin ? "Sorğular və mesajlar" : "Dəstək")}</h2>
             <p>{t(admin ? "Şirkət və işçilərin bütün sorğuları burada toplanır." : "Şikayət, təklif və suallarınızı göndərin, statusunu izləyin: göndərildi, oxundu, icradadır, tamamlandı.")}</p>
+            {!admin && (
+              <div className="faq-list">
+                <h3>{t("Tez-tez verilən suallar")}</h3>
+                {FAQ[role].map((item) => (
+                  <details key={item.q}>
+                    <summary>{t(item.q)}</summary>
+                    <p>{t(item.a)}</p>
+                  </details>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </section>

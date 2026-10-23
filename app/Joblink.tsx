@@ -67,6 +67,7 @@ import AccountLogin from "./AccountLogin";
 import AdminPanel from "./AdminPanel";
 import AccountSettings from "./AccountSettings";
 import { JobAlerts } from "./JobAlerts";
+import { similarJobs } from "@/lib/similar-jobs";
 import CvRewrite from "./CvRewrite";
 import CareerAssistant from "./CareerAssistant";
 import MessagesPage, { type MessageTarget } from "./MessagesPage";
@@ -1935,6 +1936,22 @@ export default function Joblink() {
                 </div>
               </aside>
             </div>
+            {(() => {
+              const similar = similarJobs(job, jobs);
+              return similar.length ? (
+                <section className="panel similar-jobs">
+                  <h3>Oxşar vakansiyalar</h3>
+                  <div className="company-jobs-list">
+                    {similar.map((x) => (
+                      <button key={x.id} className="company-job-row" onClick={() => openJob(x)}>
+                        <strong>{x.title}</strong>
+                        <span>{x.company} · {x.city}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null;
+            })()}
             {job.demo && (
               <p className="demo-notice">
                 Bu elan nümayiş üçündür. Müraciət real şirkətə göndərilmir.
@@ -2141,7 +2158,7 @@ export default function Joblink() {
           ) : !admin && signedIn && (page === "support" || page === "hr-support") ? (
             <>
               <section className="page-heading"><div className="heading-row"><div><h1>Dəstək</h1><p>Şikayət, təklif və sorğularınız</p></div></div></section>
-              <SupportPage onRead={refreshUnread} notify={notify} />
+              <SupportPage role={hr ? "company" : "candidate"} onRead={refreshUnread} notify={notify} />
             </>
           ) : admin ? (
             <AdminPanel

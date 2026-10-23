@@ -8,16 +8,16 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 | Bölmə | Vəziyyət | Çatışmayan / əlavə olunacaq |
 |---|---|---|
 | Ümumi baxış | İşləyir | Profilin dolğunluq göstəricisi ("CV 70% hazırdır, nə əlavə edin"), növbəti addım kartı |
-| Vakansiyalar | Filtr, saxlama, müqayisə, qayda % və AI balı (admin seçimi ilə) | **Vakansiya xəbərdarlığı** (yeni uyğun vakansiya olanda bildiriş/e-poçt), saxlanmış axtarış, "bu vakansiyaya oxşarlar" |
+| Vakansiyalar | Filtr, saxlama, müqayisə, qayda % və AI balı (admin seçimi ilə) | Vakansiya xəbərdarlığı (saxlanmış axtarış + gündəlik cron bildirişi/e-poçt) və “oxşar vakansiyalar” hazırdır |
 | Şirkətlər | İzləmə və bloklama | Şirkət səhifəsi (təsvir, açıq vakansiyalar, işəgötürən brendi), rəy/reytinq (moderasiya ilə) |
 | CV analizi | AI analiz, sübut yoxlaması, struktur CV | CV-ni PDF kimi yükləmək/şablonla yaratmaq (CV builder), versiya tarixçəsi, vakansiyaya uyğunlaşdırılmış CV variantı |
 | AI tövsiyələri / AI köməkçi | İşləyir (AI açarı tələb edir) | Müsahibəyə hazırlıq rejimi (sual-cavab məşqi), öyrənmə planı (çatışan bacarıqlar üçün), söhbət tarixçəsi var |
-| Mənim profilim | Təcrübə, təhsil (universitet/ixtisas siyahıları), sertifikat, sənəd təsdiqi, avtomatik müraciət | Layihələr/portfolio linkləri, istinad şəxsləri (referans), maaş gözləntisində gross/net və əsas/əlavə iş yeri (maaş modulu hazırdır, qoşulmayıb), "profili gizlət/aç" aydın idarəsi, öz məlumatını yükləmək (ixrac) |
-| Müraciətlərim | Status, hadisə tarixçəsi, təkliflər, testlər | **Müsahibə təyinatı və xatırlatma** (tarix, yer/link, təqvimə əlavə), statusa görə e-poçt/bildiriş, müraciəti geri götürmə izahı, rədd səbəbi göstərilməsi (işəgötürən icazə versə) |
-| Mesajlar | Cavab, oxundu işarəsi, axtarış | Qoşma (CV/sənəd), hazır cavablar var, mesaj şikayəti, arxiv |
+| Mənim profilim | Təcrübə, təhsil (universitet/ixtisas siyahıları), sertifikat, sənəd təsdiqi, avtomatik müraciət | Portfolio linki və “iş təkliflərinə açığam” seçimi var; istinad şəxsləri (3-ə qədər, yalnız müraciət edilən işəgötürənə görünür) və məlumat ixracı (JSON) əlavə olundu. Qalır: maaş gözləntisində gross/net və əsas/əlavə iş yeri (vakansiyada maaş növü göstərilmədiyi üçün) |
+| Müraciətlərim | Status, hadisə tarixçəsi, təkliflər, testlər | Müsahibə təyinatı və xatırlatma, status bildirişi, rədd səbəbinin göstərilməsi (işəgötürən seçsə) hazırdır. Qalır: müraciəti geri götürmə izahı |
+| Mesajlar | Cavab, oxundu işarəsi, axtarış | Qoşma (PDF/şəkil) əlavə olundu. Qalır: mesaj şikayəti, arxiv |
 | Maaş kalkulyatoru | 2026 qaydaları | Vakansiya maaşını gross/net kimi göstərmək və gözləntiylə müqayisə (`lib/tax.ts` hazırdır) |
 | Paketlər | Planlar, kart, müqavilə (mock provayder) | Real ödəniş provayderi, faktura PDF, planın yenilənməsi xatırlatması |
-| Dəstək | Sorğular və cavablar | Tez-tez verilən suallar, sorğuya fayl əlavəsi |
+| Dəstək | Sorğular və cavablar | Tez-tez verilən suallar və sorğuya fayl əlavəsi hazırdır |
 | Hesab | Giriş, qeydiyyat, hesabın silinməsi, şifrə sıfırlama (e-poçt linki), e-poçt təsdiqi, iki mərhələli giriş (TOTP + ehtiyat kodlar), aktiv cihazlar və uzaqdan çıxış | Hesab silinəndə bütün şəxsi məlumat cədvəlləri təmizlənir. E-poçt göndərilməsi üçün `EMAIL` binding lazımdır |
 
 Ən vacib 3: parol sıfırlama və e-poçt təsdiqi, vakansiya xəbərdarlığı, müsahibə təyinatı və xatırlatma.
