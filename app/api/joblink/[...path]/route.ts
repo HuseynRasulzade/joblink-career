@@ -112,8 +112,9 @@ const normalizedProfileRecord = (value: unknown, customSkills: string[] = []): P
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
 import { comparePeriods, inPeriod, monthlyTrend, pctChange, reachedFunnel } from "@/lib/dashboard-stats";
 import { normalizeExternalSource, sourceBreakdown } from "@/lib/sources";
+import { ACTIVE_INTERVIEW, INTERVIEW_KINDS, INTERVIEW_STATUS_LABEL, bakuLocal, icsFor, sanitizeFeedback, sanitizeInterview } from "@/lib/interviews";
 import { normalizeFrequency } from "@/lib/digest";
-import { runDigests } from "@/lib/digest-job";
+import { runDigests, runInterviewReminders } from "@/lib/digest-job";
 import { MATCHING_KEY, normalizeMatching, ratingHash, type MatchingSettings } from "@/lib/matching-settings";
 import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
 import { COUNTRIES, canonicalUniversity, setCustomUniversities, type University } from "@/lib/university-catalog";
@@ -2383,7 +2384,8 @@ async function route(request: Request) {
       const body = await jsonBody(request);
       const settings = runtime();
       const sent = await runDigests(db, settings.EMAIL as never, settings.EMAIL_FROM, new Date(), body.force === true);
-      return ok({ sent });
+      const reminders = await runInterviewReminders(db, settings.EMAIL as never, settings.EMAIL_FROM, new Date());
+      return ok({ sent, reminders });
     }
     if (request.method === "POST" && path === "admin/company-tax-check") {
       const b = await jsonBody(request);
@@ -2432,6 +2434,9 @@ async function route(request: Request) {
     "exams",
     "exams/start",
     "exams/save",
+    "interviews",
+    "interviews/respond",
+    "interviews/ics",
     "exams/file",
     "exams/violation",
     "exams/submit",
@@ -2448,7 +2453,7 @@ async function route(request: Request) {
     "plan/methods/default",
     "plan/contract",
   ]);
-  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel"]);
+  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics"]);
   if (accountRole === "company" && candidatePaths.has(path))
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
@@ -3377,6 +3382,45 @@ async function route(request: Request) {
     return new Response(Uint8Array.from(atob(row.doc_data), (c) => c.charCodeAt(0)), {
       headers: { "Content-Type": row.doc_type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
     });
+  }
+  if (request.method === "GET" && path === "interviews") {
+    const rows = await db
+      .prepare(`SELECT i.id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.status,i.candidate_note,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS company
+        FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.company_id
+        WHERE i.candidate_id=? AND i.scheduled_at>=? ORDER BY i.scheduled_at LIMIT 100`)
+      .bind(id, new Date(Date.now() - 14 * 86400000).toISOString())
+      .all();
+    return ok({ interviews: rows.results, statusLabels: INTERVIEW_STATUS_LABEL });
+  }
+  if (request.method === "POST" && path === "interviews/respond") {
+    const b = await jsonBody(request);
+    const row = await db
+      .prepare(`SELECT i.id,i.status,i.scheduled_at,i.company_id,i.created_by,i.application_id,COALESCE(json_extract(j.data,'$.title'),'') AS job_title FROM interviews i JOIN jobs j ON j.id=i.job_id
+        WHERE i.id=? AND i.candidate_id=?`)
+      .bind(str(b.id, 100), id)
+      .first<{ id: string; status: string; scheduled_at: string; company_id: string; created_by: string; application_id: string; job_title: string }>();
+    if (!row) throw new HttpError(404, "Müsahibə tapılmadı.");
+    if (!ACTIVE_INTERVIEW.includes(row.status as never) || Date.parse(row.scheduled_at) < Date.now()) throw new HttpError(409, "Bu müsahibəyə artıq cavab vermək olmaz.");
+    const action = str(b.action, 10);
+    if (action !== "confirm" && action !== "decline") throw new HttpError(400, "Cavab yanlışdır.");
+    const note = str(b.note, 300);
+    await db.prepare("UPDATE interviews SET status=?,candidate_note=?,updated=? WHERE id=?").bind(action === "confirm" ? "confirmed" : "declined", note, new Date().toISOString(), row.id).run();
+    const title = action === "confirm" ? `Namizəd müsahibəni təsdiqlədi: ${row.job_title}` : `Namizəd müsahibədən imtina etdi: ${row.job_title}`;
+    const body = `${bakuLocal(row.scheduled_at)}${note ? ` · ${note}` : ""}`;
+    await notify(db, { userId: row.company_id, type: "interview", title, body, link: "hr-interviews" });
+    if (row.created_by && row.created_by !== row.company_id) await notify(db, { userId: row.created_by, type: "interview", title, body, link: "hr-interviews" });
+    await recordApplicationEvent(db, { applicationId: row.application_id, actorId: id, actorRole: "candidate", type: "interview", to: action === "confirm" ? "namizəd təsdiqlədi" : "namizəd imtina etdi" });
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "interviews/ics") {
+    const row = await db
+      .prepare(`SELECT i.id,i.scheduled_at,i.duration_min,i.location,i.note,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS company
+        FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.company_id WHERE i.id=? AND i.candidate_id=?`)
+      .bind(str(requestUrl.searchParams.get("id"), 100), id)
+      .first<{ id: string; scheduled_at: string; duration_min: number; location: string; note: string; job_title: string; company: string }>();
+    if (!row) throw new HttpError(404, "Müsahibə tapılmadı.");
+    const body = icsFor({ id: row.id, scheduledAt: row.scheduled_at, durationMin: row.duration_min, title: `Müsahibə: ${row.company} (${row.job_title})`, location: row.location, description: row.note });
+    return new Response(body, { headers: { "Content-Type": "text/calendar; charset=utf-8", "Content-Disposition": 'attachment; filename="musahibe.ics"', "Cache-Control": "private, no-store" } });
   }
   if (request.method === "GET" && path === "exams") {
     await closeExpiredAssignments(db, { candidateId: id });
@@ -5489,6 +5533,126 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     return new Response(Uint8Array.from(atob(row.attachment_data), (c) => c.charCodeAt(0)), {
       headers: { "Content-Type": row.attachment_type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
     });
+  }
+  // ---- Interviews (company side) ----
+  type InterviewRow = {
+    id: string; application_id: string; job_id: string; company_id: string; candidate_id: string; scheduled_at: string; duration_min: number;
+    kind: string; location: string; note: string; status: string; candidate_note: string; created_by: string; rating: number; feedback: string;
+    decision: string; created: string; job_title: string; candidate: string; application_status: string; job_data?: string;
+  };
+  const INTERVIEW_COLUMNS = `i.id,i.application_id,i.job_id,i.company_id,i.candidate_id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.status,i.candidate_note,i.created_by,i.rating,i.feedback,i.decision,i.created,
+      COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS candidate,COALESCE(a.status,'') AS application_status`;
+  const interviewKindText = (row: { kind: string; location: string }) => `${INTERVIEW_KINDS.find((k) => k.id === row.kind)?.label || row.kind}${row.location ? `: ${row.location}` : ""}`;
+  // Roles without "publish" see and schedule interviews only for vacancies they created.
+  const interviewScope = async () => (await reportScope()).jobIds;
+  if (request.method === "GET" && path === "hr/interviews") {
+    const jobIds = await interviewScope();
+    const rows = await db
+      .prepare(`SELECT ${INTERVIEW_COLUMNS} FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.candidate_id LEFT JOIN applications a ON a.id=i.application_id
+        WHERE i.company_id=? AND i.job_id IN (SELECT value FROM json_each(?)) AND i.scheduled_at>=? ORDER BY i.scheduled_at LIMIT 300`)
+      .bind(id, JSON.stringify(jobIds), new Date(Date.now() - 45 * 86400000).toISOString())
+      .all<InterviewRow>();
+    return ok({ interviews: rows.results, statusLabels: INTERVIEW_STATUS_LABEL });
+  }
+  if (request.method === "POST" && path === "hr/interviews/create") {
+    const b = await jsonBody(request);
+    const input = sanitizeInterview(b);
+    if ("error" in input) throw new HttpError(400, input.error);
+    const jobIds = await interviewScope();
+    const app = await db
+      .prepare(`SELECT a.id,a.status,a.candidate_id,a.job_id,json_extract(j.data,'$.title') AS title FROM applications a JOIN jobs j ON j.id=a.job_id
+        WHERE a.id=? AND j.owner=? AND j.id IN (SELECT value FROM json_each(?))`)
+      .bind(str(b.applicationId, 100), id, JSON.stringify(jobIds))
+      .first<{ id: string; status: string; candidate_id: string; job_id: string; title: string }>();
+    if (!app) throw new HttpError(404, "Müraciət tapılmadı.");
+    if (["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(app.status)) throw new HttpError(409, "Bu müraciət üçün müsahibə təyin etmək olmaz.");
+    const active = await db
+      .prepare(`SELECT id FROM interviews WHERE application_id=? AND status IN ('scheduled','confirmed') AND scheduled_at>?`)
+      .bind(app.id, new Date().toISOString())
+      .first();
+    if (active) throw new HttpError(409, "Bu müraciət üçün aktiv müsahibə var. Onu dəyişdirin və ya ləğv edin.");
+    const now = new Date().toISOString();
+    const interviewId = crypto.randomUUID();
+    await db
+      .prepare(`INSERT INTO interviews(id,application_id,job_id,company_id,candidate_id,scheduled_at,duration_min,kind,location,note,status,created_by,created,updated)
+        VALUES(?,?,?,?,?,?,?,?,?,?,'scheduled',?,?,?)`)
+      .bind(interviewId, app.id, app.job_id, id, app.candidate_id, input.scheduledAt, input.durationMin, input.kind, input.location, input.note, userId, now, now)
+      .run();
+    if (["Göndərildi", "Baxışda"].includes(app.status)) {
+      await db.prepare("UPDATE applications SET status='Müsahibə',updated=? WHERE id=?").bind(now, app.id).run();
+      await recordApplicationEvent(db, { applicationId: app.id, actorId: userId, actorRole: "company", type: "status", from: app.status, to: "Müsahibə" });
+    }
+    await recordApplicationEvent(db, { applicationId: app.id, actorId: userId, actorRole: "company", type: "interview", to: `${bakuLocal(input.scheduledAt)} · ${interviewKindText(input)}` });
+    const company = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>();
+    const message = `${company?.name || "Şirkət"} sizi "${app.title}" vakansiyası üzrə müsahibəyə dəvət edir: ${bakuLocal(input.scheduledAt)} (Bakı vaxtı), ${input.durationMin} dəq. ${interviewKindText(input)}. Müraciətlərim bölməsində təsdiqləyin və ya imtina edin.`;
+    await notify(db, { userId: app.candidate_id, type: "interview", title: `Müsahibə dəvəti: ${app.title}`, body: message, link: "applications" });
+    await sendUserEmail(db, app.candidate_id, `Müsahibə dəvəti: ${app.title}`, message);
+    await companyAudit(db, id, userId, "interview-scheduled", app.id, bakuLocal(input.scheduledAt));
+    return ok({ ok: true, id: interviewId }, 201);
+  }
+  if (request.method === "POST" && path === "hr/interviews/update") {
+    const b = await jsonBody(request);
+    const jobIds = await interviewScope();
+    const row = await db
+      .prepare(`SELECT ${INTERVIEW_COLUMNS} FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.candidate_id LEFT JOIN applications a ON a.id=i.application_id
+        WHERE i.id=? AND i.company_id=? AND i.job_id IN (SELECT value FROM json_each(?))`)
+      .bind(str(b.id, 100), id, JSON.stringify(jobIds))
+      .first<InterviewRow>();
+    if (!row) throw new HttpError(404, "Müsahibə tapılmadı.");
+    const action = str(b.action, 20);
+    const now = new Date().toISOString();
+    const isActive = ACTIVE_INTERVIEW.includes(row.status as never);
+    if (action === "reschedule") {
+      if (!isActive && row.status !== "declined") throw new HttpError(409, "Bu müsahibənin vaxtını dəyişmək olmaz.");
+      const input = sanitizeInterview({ kind: row.kind, location: row.location, durationMin: row.duration_min, note: row.note, ...b });
+      if ("error" in input) throw new HttpError(400, input.error);
+      await db
+        .prepare("UPDATE interviews SET scheduled_at=?,duration_min=?,kind=?,location=?,note=?,status='scheduled',candidate_note='',reminded_at='',updated=? WHERE id=?")
+        .bind(input.scheduledAt, input.durationMin, input.kind, input.location, input.note, now, row.id).run();
+      const message = `"${row.job_title}" müsahibəsinin vaxtı dəyişdi: ${bakuLocal(input.scheduledAt)} (Bakı vaxtı). ${interviewKindText(input)}. Yenidən təsdiqləyin.`;
+      await notify(db, { userId: row.candidate_id, type: "interview", title: `Müsahibə vaxtı dəyişdi: ${row.job_title}`, body: message, link: "applications" });
+      await sendUserEmail(db, row.candidate_id, `Müsahibə vaxtı dəyişdi: ${row.job_title}`, message);
+      await recordApplicationEvent(db, { applicationId: row.application_id, actorId: userId, actorRole: "company", type: "interview", to: `vaxt dəyişdi: ${bakuLocal(input.scheduledAt)}` });
+    } else if (action === "cancel") {
+      if (!isActive) throw new HttpError(409, "Bu müsahibə artıq aktiv deyil.");
+      await db.prepare("UPDATE interviews SET status='cancelled',updated=? WHERE id=?").bind(now, row.id).run();
+      await notify(db, { userId: row.candidate_id, type: "interview", title: `Müsahibə ləğv edildi: ${row.job_title}`, body: str(b.reason, 300), link: "applications" });
+      await sendUserEmail(db, row.candidate_id, `Müsahibə ləğv edildi: ${row.job_title}`, str(b.reason, 300) || "Müsahibə ləğv edildi.");
+      await recordApplicationEvent(db, { applicationId: row.application_id, actorId: userId, actorRole: "company", type: "interview", to: "ləğv edildi" });
+    } else if (action === "complete" || action === "no_show") {
+      if (!isActive) throw new HttpError(409, "Bu müsahibə artıq aktiv deyil.");
+      if (Date.parse(row.scheduled_at) > Date.now() + 15 * 60000) throw new HttpError(409, "Müsahibə vaxtı hələ çatmayıb.");
+      await db.prepare("UPDATE interviews SET status=?,updated=? WHERE id=?").bind(action === "complete" ? "completed" : "no_show", now, row.id).run();
+      await recordApplicationEvent(db, { applicationId: row.application_id, actorId: userId, actorRole: "company", type: "interview", to: action === "complete" ? "keçirildi" : "namizəd gəlmədi" });
+    } else throw new HttpError(400, "Əməliyyat yanlışdır.");
+    await companyAudit(db, id, userId, `interview-${action}`, row.application_id, bakuLocal(row.scheduled_at));
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "hr/interviews/feedback") {
+    const b = await jsonBody(request);
+    const jobIds = await interviewScope();
+    const row = await db
+      .prepare("SELECT i.id,i.status,i.scheduled_at,i.application_id FROM interviews i WHERE i.id=? AND i.company_id=? AND i.job_id IN (SELECT value FROM json_each(?))")
+      .bind(str(b.id, 100), id, JSON.stringify(jobIds))
+      .first<{ id: string; status: string; scheduled_at: string; application_id: string }>();
+    if (!row) throw new HttpError(404, "Müsahibə tapılmadı.");
+    if (row.status !== "completed") throw new HttpError(409, "Rəy yalnız keçirilmiş müsahibə üçün yazılır. Əvvəl müsahibəni “keçirildi” kimi qeyd edin.");
+    const fb = sanitizeFeedback(b);
+    if ("error" in fb) throw new HttpError(400, fb.error);
+    await db.prepare("UPDATE interviews SET rating=?,feedback=?,decision=?,updated=? WHERE id=?").bind(fb.rating, fb.feedback, fb.decision, new Date().toISOString(), row.id).run();
+    await recordApplicationEvent(db, { applicationId: row.application_id, actorId: userId, actorRole: "company", type: "interview", to: `rəy: ${fb.rating}/5` });
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "hr/interviews/ics") {
+    const jobIds = await interviewScope();
+    const row = await db
+      .prepare(`SELECT ${INTERVIEW_COLUMNS} FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.candidate_id LEFT JOIN applications a ON a.id=i.application_id
+        WHERE i.id=? AND i.company_id=? AND i.job_id IN (SELECT value FROM json_each(?))`)
+      .bind(str(requestUrl.searchParams.get("id"), 100), id, JSON.stringify(jobIds))
+      .first<InterviewRow>();
+    if (!row) throw new HttpError(404, "Müsahibə tapılmadı.");
+    const body = icsFor({ id: row.id, scheduledAt: row.scheduled_at, durationMin: row.duration_min, title: `Müsahibə: ${row.candidate} (${row.job_title})`, location: row.location, description: row.note });
+    return new Response(body, { headers: { "Content-Type": "text/calendar; charset=utf-8", "Content-Disposition": 'attachment; filename="musahibe.ics"', "Cache-Control": "private, no-store" } });
   }
   if (request.method === "GET" && path === "hr/application-events") {
     const applicationId = str(requestUrl.searchParams.get("id"), 100);

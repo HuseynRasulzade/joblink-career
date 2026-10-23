@@ -723,3 +723,34 @@ export const digestSubscriptions = sqliteTable(
   },
   (t) => [index("digest_subscriptions_company").on(t.companyId)],
 );
+
+// Interviews scheduled by the company for an application; the candidate confirms or declines.
+export const interviews = sqliteTable(
+  "interviews",
+  {
+    id: text("id").primaryKey(),
+    applicationId: text("application_id").notNull(),
+    jobId: text("job_id").notNull(),
+    companyId: text("company_id").notNull(),
+    candidateId: text("candidate_id").notNull(),
+    scheduledAt: text("scheduled_at").notNull(),
+    durationMin: integer("duration_min").notNull().default(45),
+    kind: text("kind").notNull().default("online"),
+    location: text("location").notNull().default(""),
+    note: text("note").notNull().default(""),
+    status: text("status").notNull().default("scheduled"),
+    candidateNote: text("candidate_note").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    rating: integer("rating").notNull().default(0),
+    feedback: text("feedback").notNull().default(""),
+    decision: text("decision").notNull().default(""),
+    remindedAt: text("reminded_at").notNull().default(""),
+    created: text("created").notNull(),
+    updated: text("updated").notNull(),
+  },
+  (t) => [
+    index("interviews_company").on(t.companyId, t.scheduledAt),
+    index("interviews_candidate").on(t.candidateId, t.scheduledAt),
+    index("interviews_application").on(t.applicationId),
+  ],
+);

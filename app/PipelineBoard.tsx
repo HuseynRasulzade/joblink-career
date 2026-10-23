@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ClipboardCheck, FileSignature, History, MessageCircle, UserRound } from "lucide-react";
+import { CalendarClock, ClipboardCheck, FileSignature, History, MessageCircle, UserRound } from "lucide-react";
 import { OFFER_STATUS, type Offer } from "./Offers";
 import type { Application } from "@/lib/model";
 import { WITHDRAWN_STATUS } from "@/lib/recruitment";
@@ -45,6 +45,7 @@ export default function PipelineBoard({
   onOffer,
   onWithdrawOffer,
   onAssignTest,
+  onSchedule,
 }: {
   applications: Application[];
   stages: string[] | undefined;
@@ -57,6 +58,7 @@ export default function PipelineBoard({
   onOffer: (application: Application) => void;
   onWithdrawOffer: (offer: Offer) => void;
   onAssignTest: (application: Application) => void;
+  onSchedule?: (application: Application) => void;
 }) {
   const lastStage = (stages || [])[(stages || []).length - 1] || "";
   // Offers follow the last selection stage.
@@ -130,6 +132,9 @@ export default function PipelineBoard({
                     <button type="button" title={t("Profil")} onClick={() => onOpenProfile(app)}><UserRound size={14} /></button>
                     <button type="button" title={t("Mesaj yaz")} onClick={() => onMessage(app)}><MessageCircle size={14} /></button>
                     <button type="button" title={t("Tarixçə")} onClick={() => onHistory(app)}><History size={14} /></button>
+                    {!disabled && onSchedule && !["Uyğun deyil", "İşə qəbul edildi"].includes(app.status) && (
+                      <button type="button" title={t("Müsahibə təyin et")} onClick={() => onSchedule(app)}><CalendarClock size={14} /></button>
+                    )}
                     {!disabled && !["Uyğun deyil", "İşə qəbul edildi"].includes(app.status) && (
                       <button type="button" title={t("Test göndər")} onClick={() => onAssignTest(app)}><ClipboardCheck size={14} /></button>
                     )}

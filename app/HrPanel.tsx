@@ -28,6 +28,7 @@ import { CertificationBadges } from "./CertificationPickers";
 import ConversationList, { type ConversationSummary } from "./ConversationList";
 import PipelineBoard from "./PipelineBoard";
 import { AssignTestModal } from "./AssessmentsPage";
+import { ScheduleInterviewModal } from "./Interviews";
 import { OfferComposer, type Offer } from "./Offers";
 import { CandidateComparison, CompareBar } from "./Comparison";
 import { VACANCY_REASONS } from "@/lib/recruitment";
@@ -150,6 +151,7 @@ export default function HrPanel({
   const [offers, setOffers] = useState<Record<string, Offer>>({});
   const [offerFor, setOfferFor] = useState<Application | null>(null);
   const [testFor, setTestFor] = useState<Application | null>(null);
+  const [interviewFor, setInterviewFor] = useState<Application | null>(null);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [relations, setRelations] = useState<{ following: string[]; blocked: string[] }>({ following: [], blocked: [] });
   const [onlyFollowed, setOnlyFollowed] = useState(false);
@@ -926,6 +928,7 @@ export default function HrPanel({
                   offers={offers}
                   onOffer={setOfferFor}
                   onAssignTest={setTestFor}
+                  onSchedule={setInterviewFor}
                   onWithdrawOffer={async (offer) => {
                     if (!window.confirm("Təklif geri götürülsün?")) return;
                     try {
@@ -1050,6 +1053,7 @@ export default function HrPanel({
         />
       )}
       {testFor && <AssignTestModal application={testFor} onClose={() => setTestFor(null)} notify={notify} />}
+      {interviewFor && <ScheduleInterviewModal application={interviewFor} onClose={() => setInterviewFor(null)} onDone={() => void refresh()} notify={notify} />}
       {offerFor && selectedJob && (
         <OfferComposer
           application={offerFor}

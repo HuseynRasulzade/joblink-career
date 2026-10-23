@@ -37,7 +37,7 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 | Şirkət məlumatları | Sənəd yoxlaması, VÖEN | İşəgötürən səhifəsi (lokal/şəkil/video), ofis ünvanı xəritə |
 | Hesablar və ödənişlər | Faktura, ödəniş | Real provayder, avtomatik faktura e-poçtu, ƏDV |
 | Mesajlar | Şirkət qutusu, müəllif adı, bildiriş, limit | Şablonlar, qoşma, mesajı komanda üzvünə təyin etmək |
-| **Müsahibə** | **Yoxdur** | Təqvim, namizədə təklif olunan vaxt slotları, xatırlatma, nəticə forması (rəy), panel müsahibəsi |
+| **Müsahibə** | Var: pipeline kartından təyin etmə (Bakı vaxtı, ofis/onlayn/telefon), namizədin təsdiqi və ya imtinası, vaxt dəyişmə və ləğv, "keçirildi/gəlmədi", 1–5 rəy və tövsiyə, `.ics` təqvim faylı, bildiriş və e-poçt, gündəlik xatırlatma (cron) | Namizədə bir neçə vaxt slotu təklif etmək, panel müsahibəsi (bir neçə müsahibəçi), müsahibə sual şablonları |
 | **Təklif** | Var (status, qəbul) | Şablon, e-imza (ASAN), maaşın gross/net göstərilməsi (`lib/tax.ts`) |
 
 Ən vacib 3: müsahibə modulu, toplu əməliyyat və istedad bazası, təklif şablonu və e-imza.

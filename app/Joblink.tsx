@@ -2,6 +2,7 @@
 import { formatDate } from "@/lib/dates";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CalendarClock,
   ClipboardCheck,
   LayoutDashboard,
   BriefcaseBusiness,
@@ -69,6 +70,7 @@ import CareerAssistant from "./CareerAssistant";
 import MessagesPage, { type MessageTarget } from "./MessagesPage";
 import SupportPage from "./SupportPage";
 import AssessmentsPage from "./AssessmentsPage";
+import { CandidateInterviews, InterviewsPage } from "./Interviews";
 import { AdminVerifications, VerificationPanel } from "./Verifications";
 import { AdminCompanies, ApprovalsPage, BillingPage, CompanyDashboard, CompanyProfilePage, EmployeesPage, TeamPage, WorkforcePage, type CompanyMe } from "./CompanyPages";
 import { ExamList } from "./ExamRoom";
@@ -105,6 +107,7 @@ const hrNav = [
   { id: "hr-jobs", label: "Vakansiyalarım", icon: BriefcaseBusiness },
   { id: "hr-candidates", label: "Namizədlər", icon: Users },
   { id: "hr-ai", label: "HR AI köməkçi", icon: Sparkles },
+  { id: "hr-interviews", label: "Müsahibələr", icon: CalendarClock },
   { id: "hr-tests", label: "Testlər", icon: ClipboardCheck },
   { id: "hr-approvals", label: "Təsdiqlər", icon: ListChecks },
   { id: "hr-reports", label: "Hesabatlar", icon: BarChart3 },
@@ -2080,6 +2083,11 @@ export default function Joblink() {
               <section className="page-heading"><div className="heading-row"><div><h1>Şirkət yoxlaması</h1><p>e-taxes VÖEN sənədləri və şirkət rekvizitləri</p></div></div></section>
               <AdminCompanies notify={notify} />
             </>
+          ) : !admin && signedIn && hr && page === "hr-interviews" ? (
+            <>
+              <section className="page-heading"><div className="heading-row"><div><h1>Müsahibələr</h1><p>Təyin olunmuş müsahibələr, namizədin cavabı və rəylər</p></div></div></section>
+              <InterviewsPage notify={notify} />
+            </>
           ) : !admin && signedIn && hr && page === "hr-tests" ? (
             <>
               <section className="page-heading"><div className="heading-row"><div><h1>Testlər</h1><p>Vakansiyalar üzrə testlər, nəticələr və dəyişiklik tarixçəsi</p></div></div></section>
@@ -3000,6 +3008,7 @@ export default function Joblink() {
               )}
               {page === "applications" && (
                 <>
+                  {signedIn && <CandidateInterviews notify={notify} />}
                   {signedIn && <ExamList notify={notify} />}
                   {profile.autoApply && (
                     <section className="panel auto-apply-status">

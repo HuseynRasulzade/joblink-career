@@ -71,3 +71,41 @@ export async function runDigests(db: D1Database, mail: Mailer, fromEmail: string
   }
   return sent;
 }
+
+// Reminds both sides about interviews in the next 30 hours (the job runs once a day).
+export async function runInterviewReminders(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+  const rows = await db
+    .prepare(`SELECT i.id,i.scheduled_at,i.kind,i.location,i.company_id,i.candidate_id,i.created_by,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS company
+      FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.company_id
+      WHERE i.status IN ('scheduled','confirmed') AND i.reminded_at='' AND i.scheduled_at>? AND i.scheduled_at<=?`)
+    .bind(now.toISOString(), new Date(now.getTime() + 30 * 3600000).toISOString())
+    .all<{ id: string; scheduled_at: string; kind: string; location: string; company_id: string; candidate_id: string; created_by: string; job_title: string; company: string }>()
+    .catch(() => ({ results: [] as { id: string; scheduled_at: string; kind: string; location: string; company_id: string; candidate_id: string; created_by: string; job_title: string; company: string }[] }));
+  let sent = 0;
+  for (const row of rows.results) {
+    try {
+      const local = new Date(Date.parse(row.scheduled_at) + 4 * 3600000).toISOString().slice(0, 16).replace("T", " ");
+      const where = row.location ? `: ${row.location}` : "";
+      const text = `Xatırlatma: "${row.job_title}" müsahibəsi ${local} (Bakı vaxtı)${where}.`;
+      const targets = [
+        { userId: row.candidate_id, link: "applications" },
+        { userId: row.created_by || row.company_id, link: "hr-interviews" },
+      ];
+      for (const target of targets) {
+        await db
+          .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
+          .bind(crypto.randomUUID(), target.userId, "interview", `Müsahibə xatırlatması: ${row.job_title}`, text.slice(0, 600), target.link, now.toISOString())
+          .run();
+        if (mail && fromEmail) {
+          const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(target.userId).first<{ email: string }>();
+          if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject: `Müsahibə xatırlatması: ${row.job_title}`, text }).catch(() => {});
+        }
+      }
+      await db.prepare("UPDATE interviews SET reminded_at=? WHERE id=?").bind(now.toISOString(), row.id).run();
+      sent++;
+    } catch {
+      // One failing reminder must not stop the others.
+    }
+  }
+  return sent;
+}

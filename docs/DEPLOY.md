@@ -24,6 +24,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0026_matching_settings` | Admin ayarları (`app_settings`) və vakansiya başına AI reytinqləri (`ai_job_ratings`) |
 | `0027_company_tax_check` | e-taxes vergi ödəyicisi yoxlamasının nəticəsi (`company_profiles.tax_check`) |
 | `0028_digests_sources` | Avtomatik hesabat abunəlikləri (`digest_subscriptions`) və müraciət mənbəyi (`applications.source`) |
+| `0029_interviews` | Müsahibələr (`interviews`): vaxt, format, namizədin cavabı, rəy |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 

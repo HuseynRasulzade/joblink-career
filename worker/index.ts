@@ -1,7 +1,7 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { runDigests, type Mailer } from "../lib/digest-job.ts";
+import { runDigests, runInterviewReminders, type Mailer } from "../lib/digest-job.ts";
 
 interface Env {
   ASSETS: Fetcher;
@@ -45,9 +45,9 @@ const worker = {
 
     return handler.fetch(request, env, ctx);
   },
-  // Daily cron: sends the weekly and monthly summaries that are due.
+  // Daily cron: sends the weekly and monthly summaries that are due and interview reminders.
   async scheduled(_controller: unknown, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(runDigests(env.DB, env.EMAIL, env.EMAIL_FROM));
+    ctx.waitUntil(Promise.all([runDigests(env.DB, env.EMAIL, env.EMAIL_FROM), runInterviewReminders(env.DB, env.EMAIL, env.EMAIL_FROM)]));
   },
 };
 
