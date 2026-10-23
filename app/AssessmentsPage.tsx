@@ -458,7 +458,7 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                       <span className={`admin-status ${a.status === "submitted" ? "active" : a.status === "started" ? "paused" : "archived"}`}>{statusText}</span>
                       {a.review_status === "pending" && <small className="skill-description">açıq suallar yoxlanmalıdır</small>}
                       {closed && a.review_status !== "pending" && percent !== null && (
-                        <small className={`skill-description ${percent >= a.passingScore ? "compare-best" : ""}`}>{percent >= a.passingScore ? "Keçdi" : "Keçmədi"} (keçid {a.passingScore}%)</small>
+                        <small className="skill-description" style={percent >= a.passingScore ? { color: "#0f766e", fontWeight: 600 } : undefined}>{percent >= a.passingScore ? "Keçdi" : "Keçmədi"} (keçid {a.passingScore}%)</small>
                       )}
                       {a.review_status === "done" && a.reviewer_name && <small className="skill-description">yoxladı: {a.reviewer_name}</small>}
                     </td>
