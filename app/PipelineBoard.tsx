@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { CalendarClock, ClipboardCheck, FileSignature, History, MessageCircle, UserRound } from "lucide-react";
+import { BookmarkPlus, CalendarClock, ClipboardCheck, FileSignature, History, MessageCircle, UserRound } from "lucide-react";
 import { OFFER_STATUS, type Offer } from "./Offers";
 import type { Application } from "@/lib/model";
 import { WITHDRAWN_STATUS } from "@/lib/recruitment";
@@ -46,6 +46,7 @@ export default function PipelineBoard({
   onWithdrawOffer,
   onAssignTest,
   onSchedule,
+  onBulk,
 }: {
   applications: Application[];
   stages: string[] | undefined;
@@ -59,6 +60,7 @@ export default function PipelineBoard({
   onWithdrawOffer: (offer: Offer) => void;
   onAssignTest: (application: Application) => void;
   onSchedule?: (application: Application) => void;
+  onBulk?: (ids: string[], action: "status" | "message" | "pool") => void;
 }) {
   const lastStage = (stages || [])[(stages || []).length - 1] || "";
   // Offers follow the last selection stage.
@@ -66,9 +68,22 @@ export default function PipelineBoard({
     app.status === "Müsahibə" && (!lastStage || app.stage === lastStage) && offers[app.id]?.status !== "sent";
   const columns = pipelineColumns(stages);
   const [dragging, setDragging] = useState<string>("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggle = (appId: string) => setSelected((list) => (list.includes(appId) ? list.filter((x) => x !== appId) : [...list, appId]));
   const withdrawn = applications.filter((a) => a.status === WITHDRAWN_STATUS);
   return (
     <div className="pipeline">
+      {onBulk && !disabled && selected.length > 0 && (
+        <div className="info-bar" role="region" aria-label={t("Toplu əməliyyat")}>
+          <span><b>{selected.length}</b> {t("namizəd seçilib")}</span>
+          <div className="admin-actions">
+            <button type="button" onClick={() => onBulk(selected, "status")}>{t("Status dəyiş")}</button>
+            <button type="button" onClick={() => onBulk(selected, "message")}>{t("Mesaj göndər")}</button>
+            <button type="button" onClick={() => onBulk(selected, "pool")}>{t("Bazaya əlavə et")}</button>
+            <button type="button" className="text-button" onClick={() => setSelected([])}>{t("Seçimi təmizlə")}</button>
+          </div>
+        </div>
+      )}
       <div className="pipeline-board">
         {columns.map((column) => {
           const cards = applications.filter((a) => a.status !== WITHDRAWN_STATUS && columnOf(a, columns) === column.key);
@@ -99,6 +114,11 @@ export default function PipelineBoard({
                   }}
                   onDragEnd={() => setDragging("")}
                 >
+                  {onBulk && !disabled && (
+                    <label className="checkline" style={{ fontSize: 12 }}>
+                      <input type="checkbox" checked={selected.includes(app.id)} onChange={() => toggle(app.id)} aria-label={`${app.profile.name} — ${t("seç")}`} /> {t("seç")}
+                    </label>
+                  )}
                   <strong>{app.profile.name}</strong>
                   <small>{app.profile.title}</small>
                   <small>{formatDate(app.created, siteLanguage(), { year: false })}{app.auto ? " · AI" : ""}</small>
@@ -132,6 +152,9 @@ export default function PipelineBoard({
                     <button type="button" title={t("Profil")} onClick={() => onOpenProfile(app)}><UserRound size={14} /></button>
                     <button type="button" title={t("Mesaj yaz")} onClick={() => onMessage(app)}><MessageCircle size={14} /></button>
                     <button type="button" title={t("Tarixçə")} onClick={() => onHistory(app)}><History size={14} /></button>
+                    {!disabled && onBulk && (
+                      <button type="button" title={t("Bazaya əlavə et")} onClick={() => onBulk([app.id], "pool")}><BookmarkPlus size={14} /></button>
+                    )}
                     {!disabled && onSchedule && !["Uyğun deyil", "İşə qəbul edildi"].includes(app.status) && (
                       <button type="button" title={t("Müsahibə təyin et")} onClick={() => onSchedule(app)}><CalendarClock size={14} /></button>
                     )}

@@ -754,3 +754,20 @@ export const interviews = sqliteTable(
     index("interviews_application").on(t.applicationId),
   ],
 );
+
+// The company's saved candidates with tags and a private note.
+export const talentPool = sqliteTable(
+  "talent_pool",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    candidateId: text("candidate_id").notNull(),
+    tags: text("tags").notNull().default("[]"),
+    note: text("note").notNull().default(""),
+    sourceJobId: text("source_job_id").notNull().default(""),
+    addedBy: text("added_by").notNull().default(""),
+    created: text("created").notNull(),
+    updated: text("updated").notNull(),
+  },
+  (t) => [uniqueIndex("talent_pool_unique").on(t.companyId, t.candidateId), index("talent_pool_candidate").on(t.candidateId)],
+);

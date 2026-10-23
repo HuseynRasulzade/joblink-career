@@ -114,6 +114,7 @@ import { comparePeriods, inPeriod, monthlyTrend, pctChange, reachedFunnel } from
 import { normalizeExternalSource, sourceBreakdown } from "@/lib/sources";
 import { ACTIVE_INTERVIEW, INTERVIEW_KINDS, INTERVIEW_STATUS_LABEL, bakuLocal, icsFor, sanitizeFeedback, sanitizeInterview } from "@/lib/interviews";
 import { normalizeFrequency } from "@/lib/digest";
+import { matchesTalent, sanitizeNote, sanitizeTags } from "@/lib/talent";
 import { runDigests, runInterviewReminders } from "@/lib/digest-job";
 import { MATCHING_KEY, normalizeMatching, ratingHash, type MatchingSettings } from "@/lib/matching-settings";
 import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
@@ -2453,7 +2454,7 @@ async function route(request: Request) {
     "plan/methods/default",
     "plan/contract",
   ]);
-  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics"]);
+  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk"]);
   if (accountRole === "company" && candidatePaths.has(path))
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
@@ -5653,6 +5654,160 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     if (!row) throw new HttpError(404, "Müsahibə tapılmadı.");
     const body = icsFor({ id: row.id, scheduledAt: row.scheduled_at, durationMin: row.duration_min, title: `Müsahibə: ${row.candidate} (${row.job_title})`, location: row.location, description: row.note });
     return new Response(body, { headers: { "Content-Type": "text/calendar; charset=utf-8", "Content-Disposition": 'attachment; filename="musahibe.ics"', "Cache-Control": "private, no-store" } });
+  }
+  // ---- Talent pool and bulk actions on applications ----
+  // The candidate may be saved when they applied to one of the company's vacancies or keep an open profile.
+  const savableCandidate = async (candidateId: string) => {
+    const applied = await db
+      .prepare("SELECT a.job_id FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.candidate_id=? AND j.owner=? ORDER BY a.created DESC LIMIT 1")
+      .bind(candidateId, id)
+      .first<{ job_id: string }>();
+    if (applied) return { ok: true, jobId: applied.job_id };
+    const open = await db
+      .prepare("SELECT 1 AS x FROM profiles p LEFT JOIN accounts a ON a.id=p.user_id WHERE p.user_id=? AND p.active='1' AND COALESCE(a.status,'active')='active'")
+      .bind(candidateId)
+      .first();
+    return { ok: !!open, jobId: "" };
+  };
+  const poolUpsert = async (candidateId: string, tags: string[], note: string, sourceJobId: string, merge: boolean) => {
+    const now = new Date().toISOString();
+    const existing = await db.prepare("SELECT id,tags,note FROM talent_pool WHERE company_id=? AND candidate_id=?").bind(id, candidateId).first<{ id: string; tags: string; note: string }>();
+    if (existing) {
+      let oldTags: string[] = [];
+      try {
+        oldTags = JSON.parse(existing.tags) as string[];
+      } catch {
+        oldTags = [];
+      }
+      const nextTags = merge ? sanitizeTags([...oldTags, ...tags]) : tags;
+      await db.prepare("UPDATE talent_pool SET tags=?,note=?,updated=? WHERE id=?").bind(JSON.stringify(nextTags), merge && !note ? existing.note : note, now, existing.id).run();
+    } else {
+      await db
+        .prepare("INSERT INTO talent_pool(id,company_id,candidate_id,tags,note,source_job_id,added_by,created,updated) VALUES(?,?,?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), id, candidateId, JSON.stringify(tags), note, sourceJobId, userId, now, now)
+        .run();
+    }
+  };
+  if (request.method === "GET" && path === "hr/talent") {
+    const rows = await db
+      .prepare(`SELECT t.id,t.candidate_id,t.tags,t.note,t.created,t.updated,COALESCE(a.name,'') AS account_name,p.data AS profile_data,COALESCE(p.active,'0') AS active,
+          (SELECT COUNT(*) FROM applications ap JOIN jobs j ON j.id=ap.job_id WHERE ap.candidate_id=t.candidate_id AND j.owner=t.company_id) AS applications
+        FROM talent_pool t LEFT JOIN accounts a ON a.id=t.candidate_id LEFT JOIN profiles p ON p.user_id=t.candidate_id
+        WHERE t.company_id=? ORDER BY t.updated DESC LIMIT 500`)
+      .bind(id)
+      .all<{ id: string; candidate_id: string; tags: string; note: string; created: string; updated: string; account_name: string; profile_data: string | null; active: string; applications: number }>();
+    const q = str(requestUrl.searchParams.get("q"), 80);
+    const tag = str(requestUrl.searchParams.get("tag"), 40);
+    const allTags = new Set<string>();
+    const entries = rows.results.map((r) => {
+      const tags = (() => { try { return sanitizeTags(JSON.parse(r.tags)); } catch { return [] as string[]; } })();
+      tags.forEach((t) => allTags.add(t));
+      const profile = r.profile_data ? normalizedProfileRecord(JSON.parse(r.profile_data), customSkillLabels) : null;
+      // A profile the candidate has hidden is shown only to a company they applied to.
+      const visible = !!profile && (r.active === "1" || r.applications > 0);
+      return {
+        id: r.id,
+        candidateId: r.candidate_id,
+        name: visible ? profile!.name : r.account_name || "Namizəd",
+        title: visible ? profile!.title : "",
+        city: visible ? profile!.city : "",
+        skills: visible ? profile!.skills.slice(0, 8) : [],
+        years: visible ? analyze(profile!).years : 0,
+        profileHidden: !visible,
+        applications: r.applications,
+        tags,
+        note: r.note,
+        created: r.created,
+        updated: r.updated,
+      };
+    });
+    return ok({
+      tags: [...allTags].sort((a, b) => a.localeCompare(b, "az")),
+      entries: entries.filter((e) => matchesTalent({ name: e.name, title: e.title, skills: e.skills, tags: e.tags, note: e.note }, { q, tag })),
+      total: entries.length,
+    });
+  }
+  if (request.method === "POST" && path === "hr/talent/save") {
+    const b = await jsonBody(request);
+    const candidateId = str(b.candidateId, 100);
+    const check = await savableCandidate(candidateId);
+    if (!check.ok) throw new HttpError(404, "Bu namizədi bazaya əlavə etmək olmaz: müraciət etməyib və profili açıq deyil.");
+    await poolUpsert(candidateId, sanitizeTags(b.tags), sanitizeNote(b.note), check.jobId, false);
+    await companyAudit(db, id, userId, "talent-saved", candidateId);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "hr/talent/remove") {
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM talent_pool WHERE company_id=? AND candidate_id=?").bind(id, str(b.candidateId, 100)).run();
+    await companyAudit(db, id, userId, "talent-removed", str(b.candidateId, 100));
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "hr/applications/bulk") {
+    const b = await jsonBody(request);
+    const ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).map((x: unknown) => str(x, 100)).filter(Boolean))].slice(0, 50) as string[];
+    if (!ids.length) throw new HttpError(400, "Müraciət seçilməyib.");
+    const action = str(b.action, 12);
+    if (!["status", "message", "pool"].includes(action)) throw new HttpError(400, "Əməliyyat yanlışdır.");
+    const jobIds = (await reportScope()).jobIds;
+    const rows = await db
+      .prepare(`SELECT a.id,a.status,a.stage,a.candidate_id,a.job_id,json_extract(j.data,'$.title') AS title,json_extract(j.data,'$.company') AS company,COALESCE(ac.name,'') AS name
+        FROM applications a JOIN jobs j ON j.id=a.job_id LEFT JOIN accounts ac ON ac.id=a.candidate_id
+        WHERE a.id IN (SELECT value FROM json_each(?)) AND j.owner=? AND j.id IN (SELECT value FROM json_each(?))`)
+      .bind(JSON.stringify(ids), id, JSON.stringify(jobIds))
+      .all<{ id: string; status: string; stage: string; candidate_id: string; job_id: string; title: string; company: string; name: string }>();
+    const found = new Map(rows.results.map((r) => [r.id, r]));
+    const skipped: { id: string; name: string; reason: string }[] = [];
+    let done = 0;
+    for (const appId of ids) if (!found.has(appId)) skipped.push({ id: appId, name: "", reason: "tapılmadı və ya sizə aid deyil" });
+    const now = new Date().toISOString();
+    if (action === "status") {
+      const status = str(b.status, 30);
+      // Hiring and offers keep their own flow (offer, acceptance); bulk only moves people to review or rejects them.
+      if (!["Baxışda", "Uyğun deyil"].includes(status)) throw new HttpError(400, "Toplu rejimdə yalnız “Baxışda” və “Uyğun deyil” statusları verilir.");
+      for (const r of rows.results) {
+        if (r.status === WITHDRAWN_STATUS) { skipped.push({ id: r.id, name: r.name, reason: "namizəd müraciəti geri götürüb" }); continue; }
+        if (r.status === status) { skipped.push({ id: r.id, name: r.name, reason: "artıq bu statusdadır" }); continue; }
+        if (r.status === "İşə qəbul edildi") { skipped.push({ id: r.id, name: r.name, reason: "artıq işə qəbul edilib" }); continue; }
+        if (status === "Baxışda" && r.status !== "Göndərildi") { skipped.push({ id: r.id, name: r.name, reason: `hazırda “${r.status}” mərhələsindədir` }); continue; }
+        const pendingOffer = await db.prepare("SELECT id FROM offers WHERE application_id=? AND status='sent'").bind(r.id).first().catch(() => null);
+        if (pendingOffer) { skipped.push({ id: r.id, name: r.name, reason: "cavab gözləyən təklif var" }); continue; }
+        await db.prepare("UPDATE applications SET status=?,stage='',updated=? WHERE id=?").bind(status, now, r.id).run();
+        await recordApplicationEvent(db, { applicationId: r.id, actorId: userId, actorRole: "company", type: "status", from: r.status, to: status, note: "toplu əməliyyat" });
+        await notify(db, { userId: r.candidate_id, type: "application-status", title: `${r.title}: ${status}`, body: `${r.company} müraciətinizin statusunu yenilədi.`, link: "applications" });
+        done++;
+      }
+    } else if (action === "message") {
+      const text = str(b.body, 4000);
+      if (!text) throw new HttpError(400, "Mesajı yazın.");
+      if (rows.results.length > 20) throw new HttpError(400, "Bir dəfəyə ən çoxu 20 namizədə mesaj göndərmək olar.");
+      const since = new Date(Date.now() - 5 * 60_000).toISOString();
+      const recent = await db.prepare("SELECT COUNT(*) AS n FROM messages WHERE author_id=? AND created>?").bind(userId, since).first<{ n: number }>().catch(() => null);
+      if ((Number(recent?.n) || 0) + rows.results.length > 40) throw new HttpError(429, "Çox mesaj göndərdiniz. Bir neçə dəqiqə gözləyin.");
+      const sender = await senderLabel(db, "company", id, userId);
+      for (const r of rows.results) {
+        if (await blockedBetween(db, id, r.candidate_id)) { skipped.push({ id: r.id, name: r.name, reason: "yazışma bloklanıb" }); continue; }
+        let thread = await db.prepare("SELECT id FROM message_threads WHERE company_id=? AND candidate_id=? AND job_id=?").bind(id, r.candidate_id, r.job_id).first<{ id: string }>();
+        if (!thread) {
+          thread = { id: crypto.randomUUID() };
+          await db.prepare("INSERT INTO message_threads(id,company_id,candidate_id,job_id,company_read,candidate_read,created,updated) VALUES(?,?,?,?,?,?,?,?)").bind(thread.id, id, r.candidate_id, r.job_id, now, "", now, now).run();
+        }
+        const unreadBefore = await hasUnreadFrom(db, thread.id, id);
+        await db.batch([
+          db.prepare("INSERT INTO messages(id,thread_id,sender_id,sender_role,body,author_id,created) VALUES(?,?,?,?,?,?,?)").bind(crypto.randomUUID(), thread.id, id, "company", text, userId, now),
+          db.prepare("UPDATE message_threads SET updated=?,company_read=? WHERE id=?").bind(now, now, thread.id),
+        ]);
+        await notifyNewMessage(db, { threadId: thread.id, recipientId: r.candidate_id, senderName: sender, unreadBefore, preview: text });
+        done++;
+      }
+    } else {
+      const tags = sanitizeTags(b.tags);
+      for (const r of rows.results) {
+        await poolUpsert(r.candidate_id, tags, sanitizeNote(b.note), r.job_id, true);
+        done++;
+      }
+    }
+    await companyAudit(db, id, userId, `bulk-${action}`, "", `${done}/${ids.length}`);
+    return ok({ ok: true, done, skipped });
   }
   if (request.method === "GET" && path === "hr/application-events") {
     const applicationId = str(requestUrl.searchParams.get("id"), 100);

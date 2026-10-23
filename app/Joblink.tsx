@@ -2,6 +2,7 @@
 import { formatDate } from "@/lib/dates";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  BookmarkCheck,
   CalendarClock,
   ClipboardCheck,
   LayoutDashboard,
@@ -71,6 +72,7 @@ import MessagesPage, { type MessageTarget } from "./MessagesPage";
 import SupportPage from "./SupportPage";
 import AssessmentsPage from "./AssessmentsPage";
 import { CandidateInterviews, InterviewsPage } from "./Interviews";
+import { TalentPage } from "./BulkTalent";
 import { AdminVerifications, VerificationPanel } from "./Verifications";
 import { AdminCompanies, ApprovalsPage, BillingPage, CompanyDashboard, CompanyProfilePage, EmployeesPage, TeamPage, WorkforcePage, type CompanyMe } from "./CompanyPages";
 import { ExamList } from "./ExamRoom";
@@ -107,6 +109,7 @@ const hrNav = [
   { id: "hr-jobs", label: "Vakansiyalarım", icon: BriefcaseBusiness },
   { id: "hr-candidates", label: "Namizədlər", icon: Users },
   { id: "hr-ai", label: "HR AI köməkçi", icon: Sparkles },
+  { id: "hr-talent", label: "İstedad bazası", icon: BookmarkCheck },
   { id: "hr-interviews", label: "Müsahibələr", icon: CalendarClock },
   { id: "hr-tests", label: "Testlər", icon: ClipboardCheck },
   { id: "hr-approvals", label: "Təsdiqlər", icon: ListChecks },
@@ -2082,6 +2085,17 @@ export default function Joblink() {
             <>
               <section className="page-heading"><div className="heading-row"><div><h1>Şirkət yoxlaması</h1><p>e-taxes VÖEN sənədləri və şirkət rekvizitləri</p></div></div></section>
               <AdminCompanies notify={notify} />
+            </>
+          ) : !admin && signedIn && hr && page === "hr-talent" ? (
+            <>
+              <section className="page-heading"><div className="heading-row"><div><h1>İstedad bazası</h1><p>Saxladığınız namizədlər, etiket və qeydlər</p></div></div></section>
+              <TalentPage
+                notify={notify}
+                onMessage={(target) => {
+                  setMessageTarget(target);
+                  go("hr-messages");
+                }}
+              />
             </>
           ) : !admin && signedIn && hr && page === "hr-interviews" ? (
             <>
