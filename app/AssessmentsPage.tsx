@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { ClipboardCheck, FileText, History, Plus, Trash2, X } from "lucide-react";
 import type { Application, Job } from "@/lib/model";
 import { parseQuestionCsv, type Question, type QuestionType } from "@/lib/assessments";
@@ -342,7 +342,8 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                 const closed = a.status === "submitted" || a.status === "expired";
                 const statusText = { submitted: "Təhvil verilib", expired: "Vaxt bitib", started: "Davam edir", assigned: "Göndərilib", cancelled: "Ləğv edilib" }[a.status] || a.status;
                 return (
-                  <tr key={a.id}>
+                  <Fragment key={a.id}>
+                  <tr>
                     <td><strong>{a.candidate_name}</strong></td>
                     <td>
                       <span className={`admin-status ${a.status === "submitted" ? "active" : a.status === "started" ? "paused" : "archived"}`}>{statusText}</span>
@@ -363,7 +364,6 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                     </td>
                     <td>
                       {a.submitted_at ? formatDate(a.submitted_at, siteLanguage(), { time: true }) : "—"}
-                      {closed && open.length > 0 && <GradeBox assignmentId={a.id} questions={open} answers={a.answers} manual={a.manualScores} notify={notify} onSaved={() => open_(detail.assessment.id)} />}
                       <div className="admin-actions">
                         {(a.status === "started" || a.status === "expired") && (
                           <button type="button" onClick={() => act("hr/assessments/extend", { assignmentId: a.id, minutes: 15 }, "Vaxt 15 dəqiqə uzadıldı.")}>+15 dəq</button>
@@ -374,6 +374,14 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                       </div>
                     </td>
                   </tr>
+                  {closed && open.length > 0 && (
+                    <tr>
+                      <td colSpan={5}>
+                        <GradeBox assignmentId={a.id} questions={open} answers={a.answers} manual={a.manualScores} notify={notify} onSaved={() => open_(detail.assessment.id)} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
               {!detail.assignments.length && <tr><td colSpan={5}><p className="admin-empty">Test hələ namizədə göndərilməyib. Pipeline-da namizəd kartından “Test göndər” seçin.</p></td></tr>}
@@ -426,18 +434,18 @@ function GradeBox({ assignmentId, questions, answers, manual, notify, onSaved }:
     }
   }
   return (
-    <details>
-      <summary>Açıq cavablar</summary>
+    <details open={Object.keys(manual).length === 0}>
+      <summary><b>Açıq cavabları yoxla və qiymətləndir</b></summary>
       {questions.map((q) => (
         <div key={q.id}>
           <p><b>{q.text}</b><br />{String(answers[q.id] || "—")}</p>
           <label>
             Bal (0–{q.points}){" "}
-            <input type="number" min={0} max={q.points} value={grades[q.id] ?? ""} onChange={(e) => setGrades({ ...grades, [q.id]: e.target.value })} style={{ width: 70 }} />
+            <input type="number" min={0} max={q.points} value={grades[q.id] ?? ""} onChange={(e) => setGrades({ ...grades, [q.id]: e.target.value })} style={{ width: 80, padding: "4px 8px" }} />
           </label>
         </div>
       ))}
-      <button type="button" className="primary" disabled={busy} onClick={save}>Balı yadda saxla</button>
+      <button type="button" className="primary" style={{ marginTop: 8 }} disabled={busy} onClick={save}>Balı yadda saxla</button>
     </details>
   );
 }
