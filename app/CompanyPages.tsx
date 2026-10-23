@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Building2, CheckCircle2, Download, FileText, Plus, Receipt, Trash2, UserPlus, Users, XCircle } from "lucide-react";
-import { COMPANY_SIZES, type CompanyDetails, type CompanyPermission, type JobApproval } from "@/lib/company";
+import { COMPANY_SIZES, VOEN_LOOKUP_URL, VOEN_TYPE_LABEL, validVoen, voenType, type CompanyDetails, type CompanyPermission, type JobApproval } from "@/lib/company";
 import { Field, Modal } from "./components";
 import { formatDate } from "@/lib/dates";
 import { VACANCY_REASONS } from "@/lib/recruitment";
@@ -476,6 +476,12 @@ export function CompanyProfilePage({ notify, onChange }: { notify: Notify; onCha
               </select>
             </Field>
           </div>
+          {validVoen(details.voen) && (
+            <p className="muted fine-print">
+              VÖEN tipi: <b>{VOEN_TYPE_LABEL[voenType(details.voen)]}</b>. Rəsmi yoxlama:{" "}
+              <a href={VOEN_LOOKUP_URL} target="_blank" rel="noreferrer">e-taxes vergi ödəyicisi məlumatı</a>
+            </p>
+          )}
           <Field label="Şirkət haqqında"><textarea rows={4} value={details.about} onChange={(e) => set("about", e.target.value)} /></Field>
           {data.verification !== "verified" && (
             <div className="field">
@@ -699,7 +705,14 @@ export function AdminCompanies({ notify }: { notify: Notify }) {
             {data.companies.map((c) => (
               <tr key={c.company_id}>
                 <td><strong>{c.data.legalName || c.name}</strong><small className="skill-description">{c.name}</small></td>
-                <td>{c.data.voen || "—"}<small className="skill-description">{c.data.director}{c.data.legalAddress ? ` · ${c.data.legalAddress}` : ""}</small></td>
+                <td>{c.data.voen || "—"}
+                  {validVoen(c.data.voen) && (
+                    <small className="skill-description">
+                      {VOEN_TYPE_LABEL[voenType(c.data.voen)]} ·{" "}
+                      <a href={VOEN_LOOKUP_URL} target="_blank" rel="noreferrer">e-taxes-də yoxla</a>
+                    </small>
+                  )}
+                  <small className="skill-description">{c.data.director}{c.data.legalAddress ? ` · ${c.data.legalAddress}` : ""}</small></td>
                 <td>{c.doc_name ? <a href={`/api/joblink/admin/company-doc?id=${encodeURIComponent(c.company_id)}`} target="_blank" rel="noreferrer"><FileText size={13} /> {c.doc_name}</a> : "—"}<small className="skill-description">{c.submitted_at ? when(c.submitted_at) : ""}</small></td>
                 <td><span className={`admin-status ${c.verification_status === "verified" ? "active" : c.verification_status === "pending" ? "paused" : "archived"}`}>{c.verification_status}</span>{c.verification_note && <small className="skill-description">{c.verification_note}</small>}</td>
                 <td>

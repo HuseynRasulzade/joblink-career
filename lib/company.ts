@@ -93,6 +93,19 @@ export function companyDetailsInput(value: unknown): CompanyDetails {
 }
 // Azerbaijani taxpayer ID: 10 digits.
 export const validVoen = (voen: string) => /^\d{10}$/.test(voen);
+// The last digit of a VÖEN tells the taxpayer type: 1 = legal entity, 2 = individual.
+// This is read from the number only; the official taxpayer search is the confirmation.
+export type VoenType = "legal" | "individual" | "unknown";
+export function voenType(voen: string): VoenType {
+  if (!validVoen(voen)) return "unknown";
+  return voen[9] === "1" ? "legal" : voen[9] === "2" ? "individual" : "unknown";
+}
+export const VOEN_TYPE_LABEL: Record<VoenType, string> = {
+  legal: "Hüquqi şəxs (nömrəyə görə)",
+  individual: "Fiziki şəxs (nömrəyə görə)",
+  unknown: "Tip naməlum",
+};
+export const VOEN_LOOKUP_URL = "https://new.e-taxes.gov.az/etaxes/services/taxpayer-info";
 export const VERIFICATION_STATUS: Record<string, string> = {
   none: "Təsdiqlənməyib",
   pending: "Yoxlanılır",
