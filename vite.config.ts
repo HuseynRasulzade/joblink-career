@@ -2,8 +2,7 @@ import { sites } from "@openai/sites-vite-plugin";
 import vinext from "vinext";
 import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
-import { existsSync, readFileSync } from "node:fs";
-import bundledConfig from "./wrangler.external.json";
+import externalConfig from "./wrangler.external.json";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
@@ -34,12 +33,6 @@ const localBindingConfig = {
       ]
     : [],
 };
-
-// `node local/run.mjs` writes wrangler.local.json (the online config without the Cloudflare AI binding).
-const externalConfig =
-  process.env.JOBLINK_LOCAL === "1" && existsSync("wrangler.local.json")
-    ? JSON.parse(readFileSync("wrangler.local.json", "utf8"))
-    : bundledConfig;
 
 export default defineConfig(async () => {
   const external = process.env.JOBLINK_EXTERNAL === "1";
