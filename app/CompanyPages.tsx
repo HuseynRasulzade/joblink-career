@@ -476,12 +476,10 @@ export function CompanyProfilePage({ notify, onChange }: { notify: Notify; onCha
               </select>
             </Field>
           </div>
-          {validVoen(details.voen) && (
-            <p className="muted fine-print">
-              VÖEN tipi: <b>{VOEN_TYPE_LABEL[voenType(details.voen)]}</b>. Rəsmi yoxlama:{" "}
-              <a href={VOEN_LOOKUP_URL} target="_blank" rel="noreferrer">e-taxes vergi ödəyicisi məlumatı</a>
-            </p>
-          )}
+          <p className="muted fine-print">
+            {validVoen(details.voen) && <>VÖEN tipi: <b>{VOEN_TYPE_LABEL[voenType(details.voen)]}</b>. </>}
+            <a href={VOEN_LOOKUP_URL} target="_blank" rel="noreferrer">VÖEN-i rəsmi vergi ödəyicisi səhifəsində yoxla (e-taxes)</a>
+          </p>
           <Field label="Şirkət haqqında"><textarea rows={4} value={details.about} onChange={(e) => set("about", e.target.value)} /></Field>
           {data.verification !== "verified" && (
             <div className="field">
@@ -721,12 +719,10 @@ export function AdminCompanies({ notify }: { notify: Notify }) {
               <tr key={c.company_id}>
                 <td><strong>{c.data.legalName || c.name}</strong><small className="skill-description">{c.name}</small></td>
                 <td>{c.data.voen || "—"}
-                  {validVoen(c.data.voen) && (
-                    <small className="skill-description">
-                      {VOEN_TYPE_LABEL[voenType(c.data.voen)]} ·{" "}
-                      <a href={VOEN_LOOKUP_URL} target="_blank" rel="noreferrer">e-taxes-də yoxla</a>
-                    </small>
-                  )}
+                  <small className="skill-description">
+                    {validVoen(c.data.voen) ? `${VOEN_TYPE_LABEL[voenType(c.data.voen)]} · ` : ""}
+                    <a href={VOEN_LOOKUP_URL} target="_blank" rel="noreferrer">e-taxes-də yoxla</a>
+                  </small>
                   {c.taxCheck && (
                     <div className="skill-description" style={{ whiteSpace: "normal", lineHeight: 1.5, margin: "6px 0" }}>
                       <b>e-taxes:</b> {c.taxCheck.name}
