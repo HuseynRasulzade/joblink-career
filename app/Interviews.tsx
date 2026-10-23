@@ -16,6 +16,8 @@ export type InterviewItem = {
   note: string;
   status: string;
   candidate_note: string;
+  panel?: string;
+  slots?: string[];
   job_title: string;
   candidate?: string;
   company?: string;
@@ -57,6 +59,8 @@ export function ScheduleInterviewModal({ application, existing, onClose, onDone,
     kind: (existing?.kind || "online") as InterviewKind,
     location: existing?.location || "",
     note: existing?.note || "",
+    panel: existing?.panel || "",
+    extraSlots: ["", ""],
   });
   const [busy, setBusy] = useState(false);
   const kind = INTERVIEW_KINDS.find((k) => k.id === form.kind)!;
@@ -94,6 +98,16 @@ export function ScheduleInterviewModal({ application, existing, onClose, onDone,
           <Field label={form.kind === "onsite" ? "Ünvan" : form.kind === "online" ? "Görüş linki" : "Telefon (istəyə bağlı)"}>
             <input value={form.location} placeholder={kind.placeholder} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           </Field>
+        </div>
+        <Field label="Müsahibə aparanlar (panel, istəyə bağlı)">
+          <input value={form.panel} placeholder="Məsələn: Aynur M. (HR), Rəşad Ə. (şöbə rəhbəri)" onChange={(e) => setForm({ ...form, panel: e.target.value })} />
+        </Field>
+        <div className="form-grid">
+          {[0, 1].map((n) => (
+            <Field key={n} label={`Alternativ vaxt ${n + 1} (namizəd seçir, istəyə bağlı)`}>
+              <input type="datetime-local" value={form.extraSlots[n]} onChange={(e) => setForm({ ...form, extraSlots: form.extraSlots.map((s, k) => (k === n ? e.target.value : s)) })} />
+            </Field>
+          ))}
         </div>
         <Field label="Namizəd üçün qeyd (istəyə bağlı)">
           <textarea rows={3} value={form.note} placeholder="Məsələn: şəxsiyyət vəsiqəsini götürün" onChange={(e) => setForm({ ...form, note: e.target.value })} />
@@ -151,7 +165,8 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
         <div className="section-heading">
           <div>
             <h3>{i.candidate || "Namizəd"} — {i.job_title}</h3>
-            <p>{when(i.scheduled_at)} (Bakı) · {i.duration_min} dəq · {kindLabel(i.kind)}{i.location ? `: ${i.location}` : ""}</p>
+            <p>{i.slots?.length && i.status === "scheduled" ? `Vaxt variantları: ${i.slots.map(when).join(" / ")}` : when(i.scheduled_at)} (Bakı) · {i.duration_min} dəq · {kindLabel(i.kind)}{i.location ? `: ${i.location}` : ""}</p>
+            {i.panel && <p className="muted">Müsahibə aparanlar: {i.panel}</p>}
             {i.candidate_note && <p className="muted">Namizəd yazdı: “{i.candidate_note}”</p>}
           </div>
           <span className={`admin-status ${i.status === "confirmed" || i.status === "completed" ? "active" : i.status === "scheduled" ? "paused" : "archived"}`}>{labels[i.status] || i.status}</span>
@@ -218,7 +233,9 @@ export function CandidateInterviews({ notify }: { notify: Notify }) {
       .catch(() => {});
   }, []);
   useEffect(load, [load]);
+  const [picked, setPicked] = useState<Record<string, string>>({});
   async function respond(i: InterviewItem, action: "confirm" | "decline") {
+    if (action === "confirm" && i.slots?.length && !picked[i.id]) return notify("Sizə uyğun vaxtı seçin.");
     let note = "";
     if (action === "decline") {
       const typed = window.prompt("İmtina səbəbi və ya sizə uyğun yeni vaxt (istəyə bağlı):");
@@ -226,7 +243,7 @@ export function CandidateInterviews({ notify }: { notify: Notify }) {
       note = typed;
     }
     try {
-      await request("interviews/respond", { id: i.id, action, note });
+      await request("interviews/respond", { id: i.id, action, note, slot: picked[i.id] });
       notify(action === "confirm" ? "Müsahibə təsdiqləndi." : "Şirkətə imtina bildirildi.");
       load();
     } catch (error) {
@@ -243,7 +260,18 @@ export function CandidateInterviews({ notify }: { notify: Notify }) {
         <article key={i.id} className="exam-row">
           <div>
             <strong>{i.company} — {i.job_title}</strong>
-            <small>{when(i.scheduled_at)} (Bakı vaxtı) · {i.duration_min} dəq · {kindLabel(i.kind)}{i.location ? `: ${i.location}` : ""}</small>
+            {i.slots?.length && i.status === "scheduled" ? (
+              <fieldset className="field">
+                <legend>Sizə uyğun vaxtı seçin (Bakı vaxtı)</legend>
+                {i.slots.map((s) => (
+                  <label key={s}><input type="radio" name={`slot-${i.id}`} checked={picked[i.id] === s} onChange={() => setPicked({ ...picked, [i.id]: s })} /> {when(s)}</label>
+                ))}
+              </fieldset>
+            ) : (
+              <small>{when(i.scheduled_at)} (Bakı vaxtı)</small>
+            )}
+            <small>{i.duration_min} dəq · {kindLabel(i.kind)}{i.location ? `: ${i.location}` : ""}</small>
+            {i.panel && <small>Müsahibə aparanlar: {i.panel}</small>}
             {i.note && <small>Qeyd: {i.note}</small>}
             <small>{labels[i.status] || i.status}</small>
           </div>

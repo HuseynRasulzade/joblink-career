@@ -34,7 +34,7 @@ export function bakuLocal(iso: string) {
   return d.toISOString().slice(0, 16).replace("T", " ");
 }
 
-export type InterviewInput = { scheduledAt: string; durationMin: number; kind: InterviewKind; location: string; note: string };
+export type InterviewInput = { scheduledAt: string; durationMin: number; kind: InterviewKind; location: string; note: string; panel: string; slots: string[] };
 export function sanitizeInterview(input: unknown, now = Date.now()): InterviewInput | { error: string } {
   const v = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
   const scheduledAt = toIso(v.scheduledAt);
@@ -46,7 +46,18 @@ export function sanitizeInterview(input: unknown, now = Date.now()): InterviewIn
   const location = text(v.location, 300);
   if (kind !== "phone" && location.length < 3) return { error: kind === "onsite" ? "Müsahibənin ünvanını yazın." : "Onlayn görüşün linkini yazın." };
   const duration = Math.round(Number(v.durationMin) || 45);
-  return { scheduledAt, durationMin: Math.max(15, Math.min(240, duration)), kind, location, note: text(v.note, 600) };
+  // Up to two more time options: the candidate picks one. All options follow the same rules as the first.
+  const extra: string[] = [];
+  for (const raw of Array.isArray(v.extraSlots) ? v.extraSlots.slice(0, 5) : []) {
+    const iso = toIso(raw);
+    if (!iso) continue;
+    const at = Date.parse(iso);
+    if (at < now + 5 * 60000 || at > now + 366 * 86400000) return { error: "Alternativ vaxt keçmişdə və ya bir ildən uzaq ola bilməz." };
+    if (iso !== scheduledAt && !extra.includes(iso)) extra.push(iso);
+  }
+  if (extra.length > 2) return { error: "Ən çoxu 3 vaxt təklif etmək olar." };
+  const slots = extra.length ? [scheduledAt, ...extra].sort() : [];
+  return { scheduledAt: slots[0] || scheduledAt, durationMin: Math.max(15, Math.min(240, duration)), kind, location, note: text(v.note, 600), panel: text(v.panel, 200), slots };
 }
 
 export type FeedbackDecision = "advance" | "hold" | "reject";

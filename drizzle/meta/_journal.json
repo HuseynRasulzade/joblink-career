@@ -267,6 +267,20 @@
       "when": 1794164400000,
       "tag": "0037_employee_probation_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1794250800000,
+      "tag": "0038_headcount_plan",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1794337200000,
+      "tag": "0039_interview_panel_slots",
+      "breakpoints": true
     }
   ]
 }

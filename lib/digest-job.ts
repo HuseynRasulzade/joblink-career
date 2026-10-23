@@ -77,7 +77,7 @@ export async function runInterviewReminders(db: D1Database, mail: Mailer, fromEm
   const rows = await db
     .prepare(`SELECT i.id,i.scheduled_at,i.kind,i.location,i.company_id,i.candidate_id,i.created_by,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS company
       FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.company_id
-      WHERE i.status IN ('scheduled','confirmed') AND i.reminded_at='' AND i.scheduled_at>? AND i.scheduled_at<=?`)
+      WHERE i.status IN ('scheduled','confirmed') AND i.reminded_at='' AND i.slots='[]' AND i.scheduled_at>? AND i.scheduled_at<=?`)
     .bind(now.toISOString(), new Date(now.getTime() + 30 * 3600000).toISOString())
     .all<{ id: string; scheduled_at: string; kind: string; location: string; company_id: string; candidate_id: string; created_by: string; job_title: string; company: string }>()
     .catch(() => ({ results: [] as { id: string; scheduled_at: string; kind: string; location: string; company_id: string; candidate_id: string; created_by: string; job_title: string; company: string }[] }));

@@ -13,7 +13,7 @@ test("a local time without an offset is Baku time (UTC+4)", () => {
 });
 test("an online interview needs a link and keeps clean fields", () => {
   const ok = sanitizeInterview({ scheduledAt: "2026-11-02T14:30", kind: "online", location: "https://meet.example/abc", durationMin: 60, note: " Salam " }, NOW);
-  assert.deepEqual(ok, { scheduledAt: "2026-11-02T10:30:00.000Z", durationMin: 60, kind: "online", location: "https://meet.example/abc", note: "Salam" });
+  assert.deepEqual(ok, { scheduledAt: "2026-11-02T10:30:00.000Z", durationMin: 60, kind: "online", location: "https://meet.example/abc", note: "Salam", panel: "", slots: [] });
   assert.match(sanitizeInterview({ scheduledAt: "2026-11-02T14:30", kind: "online", location: "" }, NOW).error, /link/i);
   assert.match(sanitizeInterview({ scheduledAt: "2026-11-02T14:30", kind: "onsite", location: "x" }, NOW).error, /ünvan/i);
 });
@@ -46,4 +46,19 @@ test("the calendar file has UTC times, the right length and escaped text", () =>
   assert.match(ics, /LOCATION:Nizami 10\; 3-cü mərtəbə/);
   assert.match(ics, /DESCRIPTION:Sətir 1\\nSətir 2/);
   assert.ok(ics.startsWith("BEGIN:VCALENDAR") && ics.includes("END:VEVENT") && ics.includes("\r\n"));
+});
+
+test("sanitizeInterview: panel and alternative slots", async () => {
+  
+  const now = Date.parse("2026-10-23T05:00:00Z");
+  const base = { scheduledAt: "2026-11-03T15:00", kind: "phone", durationMin: 30, panel: "  Aynur M.   HR " };
+  const single = sanitizeInterview(base, now);
+  assert.equal(single.panel, "Aynur M. HR");
+  assert.deepEqual(single.slots, []);
+  const multi = sanitizeInterview({ ...base, extraSlots: ["2026-11-02T10:00", "2026-11-03T15:00", "", "2026-11-04T11:00"] }, now);
+  assert.equal(multi.slots.length, 3);
+  assert.equal(multi.scheduledAt, multi.slots[0]);
+  assert.deepEqual([...multi.slots].sort(), multi.slots);
+  assert.match(sanitizeInterview({ ...base, extraSlots: ["2026-11-02T10:00", "2026-11-04T11:00", "2026-11-05T11:00"] }, now).error, /3 vaxt/);
+  assert.match(sanitizeInterview({ ...base, extraSlots: ["2026-10-01T10:00"] }, now).error, /Alternativ/);
 });

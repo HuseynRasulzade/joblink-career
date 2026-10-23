@@ -562,6 +562,16 @@ export const companyEmployees = sqliteTable(
   },
   (t) => [index("company_employees_company").on(t.companyId, t.status)],
 );
+export const headcountPlan = sqliteTable(
+  "headcount_plan",
+  {
+    companyId: text("company_id").notNull(),
+    department: text("department").notNull(),
+    planned: integer("planned").notNull().default(0),
+    updated: text("updated").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.department] })],
+);
 export const employeeDocuments = sqliteTable(
   "employee_documents",
   {
@@ -781,6 +791,8 @@ export const interviews = sqliteTable(
     feedback: text("feedback").notNull().default(""),
     decision: text("decision").notNull().default(""),
     remindedAt: text("reminded_at").notNull().default(""),
+    panel: text("panel").notNull().default(""),
+    slots: text("slots").notNull().default("[]"),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
   },

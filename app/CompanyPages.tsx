@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Building2, CheckCircle2, Download, FileText, Plus, Receipt, Trash2, UserPlus, Users, XCircle } from "lucide-react";
-import { COMPANY_SIZES, VOEN_LOOKUP_URL, VOEN_TYPE_LABEL, validVoen, voenType, type CompanyDetails, type TaxCheck, type CompanyPermission, type JobApproval } from "@/lib/company";
+import { COMPANY_SIZES, ROLE_PRESETS, VOEN_LOOKUP_URL, VOEN_TYPE_LABEL, validVoen, voenType, type CompanyDetails, type TaxCheck, type CompanyPermission, type JobApproval } from "@/lib/company";
 import { Field, Modal } from "./components";
 import { formatDate } from "@/lib/dates";
 import { VACANCY_REASONS } from "@/lib/recruitment";
@@ -406,6 +406,18 @@ export function TeamPage({ me, notify, onJoined }: { me: CompanyMe | null; notif
           <h3><UserPlus size={18} /> Komandaya üzv dəvət et</h3>
           <div className="form-grid">
             <Field label="E-poçt"><input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+            <Field label="Hazır şablon">
+              <select
+                value=""
+                onChange={(e) => {
+                  const preset = ROLE_PRESETS.find((p) => p.id === e.target.value);
+                  if (preset) setForm({ ...form, role: preset.role, grants: preset.grants.filter((g) => team.grantable?.some((x) => x.id === g)) });
+                }}
+              >
+                <option value="">Şablon seçin…</option>
+                {ROLE_PRESETS.map((p) => <option key={p.id} value={p.id} title={p.description}>{p.label}</option>)}
+              </select>
+            </Field>
             <Field label="Rol">
               <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                 {team.roles.filter((r) => r.id !== "owner" && (r.id !== "director" || me?.role === "owner")).map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
@@ -652,6 +664,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           </tbody>
         </table>
       </div>
+      {data.canEdit && <HeadcountPlan notify={notify} />}
       {editing && (
         <Modal title={editing.id ? "İşçini düzəlt" : "Yeni işçi"} onClose={() => setEditing(null)}>
           <div className="offer-composer">
@@ -1106,5 +1119,52 @@ function EmployeeDocuments({ employeeId, notify }: { employeeId: string; notify:
       </div>
       <small className="skill-picker-help">PDF və ya şəkil, 1 MB-a qədər. Yalnız HR, direktor və hesab sahibi görür; hər açılış jurnala yazılır. İşçi siyahıdan silinəndə sənədləri də silinir.</small>
     </div>
+  );
+}
+
+// ---------- Headcount plan ----------
+function HeadcountPlan({ notify }: { notify: Notify }) {
+  const [data, setData] = useState<{ rows: { department: string; planned: number | null; current: number; gap: number | null }[]; openVacancies: number } | null>(null);
+  const [department, setDepartment] = useState("");
+  const [planned, setPlanned] = useState("");
+  const load = useCallback(() => request<NonNullable<typeof data>>("company/headcount").then(setData).catch((e) => notify((e as Error).message)), [notify]);
+  useEffect(() => { void load(); }, [load]);
+  async function save(dept: string, value: string) {
+    try {
+      await request("company/headcount/save", { department: dept, planned: value === "" ? null : Number(value) });
+      await load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (!data) return null;
+  return (
+    <details className="panel" open={data.rows.some((r) => r.planned !== null)}>
+      <summary><b>Ştat planı</b> <small className="muted">· açıq vakansiya: {data.openVacancies}</small></summary>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead><tr><th>Şöbə</th><th>İndi işləyir</th><th>Plan</th><th>Boş yer</th></tr></thead>
+          <tbody>
+            {data.rows.map((r) => (
+              <tr key={r.department}>
+                <td>{r.department || "Şöbə göstərilməyib"}</td>
+                <td>{r.current}</td>
+                <td>
+                  <input type="number" min={0} style={{ width: 80 }} defaultValue={r.planned ?? ""} aria-label={`${r.department || "Şöbə"} planı`} onBlur={(e) => e.target.value !== String(r.planned ?? "") && void save(r.department, e.target.value)} />
+                </td>
+                <td>{r.gap === null ? "—" : r.gap > 0 ? <b>{r.gap} boş</b> : r.gap < 0 ? <span className="danger-text">{-r.gap} artıq</span> : "Dolu"}</td>
+              </tr>
+            ))}
+            {!data.rows.length && <tr><td colSpan={4}><p className="admin-empty">Şöbə yoxdur. Aşağıdan plan əlavə edin.</p></td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <div className="admin-actions">
+        <input value={department} placeholder="Şöbə" aria-label="Yeni şöbə" onChange={(e) => setDepartment(e.target.value)} />
+        <input type="number" min={0} value={planned} placeholder="Plan" aria-label="Plan" style={{ width: 90 }} onChange={(e) => setPlanned(e.target.value)} />
+        <button type="button" disabled={!department.trim() || planned === ""} onClick={async () => { await save(department.trim(), planned); setDepartment(""); setPlanned(""); }}>Əlavə et</button>
+      </div>
+      <small className="skill-picker-help">“İndi işləyir” məzuniyyətdəkiləri də sayır. Plan dəyişikliyi şirkət jurnalına yazılır. Boş yer üçün vakansiya yaradın.</small>
+    </details>
   );
 }

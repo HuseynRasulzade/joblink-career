@@ -34,6 +34,13 @@ export const GRANTABLE: { id: CompanyPermission; label: string }[] = [
   { id: "tests", label: "Testlərə giriş (yaratmaq, göndərmək, nəticələr, test faylı)" },
   { id: "reports", label: "Hesabatların ixracı" },
 ];
+// Ready role + extra-permission combinations offered when inviting a member.
+export const ROLE_PRESETS: { id: string; label: string; role: CompanyRole; grants: CompanyPermission[]; description: string }[] = [
+  { id: "test-owner", label: "Test məsul şəxsi", role: "recruiter", grants: ["tests"], description: "Rekruter + testləri yaradır, göndərir və nəticələri görür" },
+  { id: "analyst", label: "Hesabat analitiki", role: "manager", grants: ["reports"], description: "Şöbə rəhbəri + hesabatları Excel-ə ixrac edir" },
+  { id: "screening", label: "İlkin seçim üzrə rekruter", role: "recruiter", grants: ["tests", "reports"], description: "Rekruter + testlər və hesabatlar" },
+  { id: "dept-head", label: "Şöbə rəhbəri (testlərlə)", role: "manager", grants: ["tests"], description: "Şöbə rəhbəri + namizədlərə test göndərir" },
+];
 export const normalizeGrants = (value: unknown): CompanyPermission[] =>
   [...new Set((Array.isArray(value) ? value : []).map(String))].filter((g): g is CompanyPermission => GRANTABLE.some((x) => x.id === g));
 export function can(role: string, permission: CompanyPermission, grants: readonly string[] = []) {
