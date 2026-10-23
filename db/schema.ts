@@ -151,6 +151,20 @@ export const sessions = sqliteTable(
   },
   (t) => [index("sessions_expiry").on(t.expires)],
 );
+export const aiUsage = sqliteTable(
+  "ai_usage",
+  {
+    day: text("day").notNull(),
+    feature: text("feature").notNull(),
+    provider: text("provider").notNull(),
+    userId: text("user_id").notNull().default(""),
+    calls: integer("calls").notNull().default(0),
+    charsIn: integer("chars_in").notNull().default(0),
+    charsOut: integer("chars_out").notNull().default(0),
+    errors: integer("errors").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.feature, t.provider, t.userId] })],
+);
 export const notificationPrefs = sqliteTable("notification_prefs", {
   userId: text("user_id").primaryKey(),
   emailOff: text("email_off").notNull().default("[]"),

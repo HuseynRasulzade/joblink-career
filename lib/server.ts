@@ -284,16 +284,42 @@ export async function jsonBody(request: Request) {
     throw new HttpError(400, "Sorğu məlumatları oxunmadı.");
   }
 }
-export async function aiText(
-  instructions: string,
-  input: string,
-  json = false,
-  limits: {
-    maxInputChars?: number;
-    maxOutputTokens?: number;
-    timeoutMs?: number;
-  } = {},
-) {
+type AiLimits = {
+  maxInputChars?: number;
+  maxOutputTokens?: number;
+  timeoutMs?: number;
+  // For the admin usage panel: what the call is for, and whose request it is.
+  feature?: string;
+  user?: string;
+};
+// One row per day, feature, provider and user; counts calls, text sizes and failures (never the text itself).
+export async function recordAiUsage(entry: { feature: string; provider: string; user: string; charsIn: number; charsOut: number; error: boolean }) {
+  try {
+    const db = await store();
+    await db
+      .prepare(`INSERT INTO ai_usage(day,feature,provider,user_id,calls,chars_in,chars_out,errors) VALUES(?,?,?,?,1,?,?,?)
+        ON CONFLICT(day,feature,provider,user_id) DO UPDATE SET calls=calls+1,chars_in=chars_in+excluded.chars_in,chars_out=chars_out+excluded.chars_out,errors=errors+excluded.errors`)
+      .bind(new Date().toISOString().slice(0, 10), entry.feature.slice(0, 40), entry.provider, entry.user.slice(0, 100), entry.charsIn, entry.charsOut, entry.error ? 1 : 0)
+      .run();
+  } catch {
+    // Usage statistics are best-effort (before the migration they are simply not kept).
+  }
+}
+export async function aiText(instructions: string, input: string, json = false, limits: AiLimits = {}) {
+  const settings = runtime();
+  const provider = settings.AI_PROVIDER !== "openai" && settings.DEEPSEEK_API_KEY ? "deepseek" : "openai";
+  if (provider === "openai" && !settings.OPENAI_API_KEY) return aiTextRaw(instructions, input, json, limits);
+  const base = { feature: limits.feature || "other", provider, user: limits.user || "", charsIn: instructions.length + Math.min(input.length, limits.maxInputChars || 30000) };
+  try {
+    const text = await aiTextRaw(instructions, input, json, limits);
+    await recordAiUsage({ ...base, charsOut: text?.length || 0, error: false });
+    return text;
+  } catch (error) {
+    await recordAiUsage({ ...base, charsOut: 0, error: true });
+    throw error;
+  }
+}
+async function aiTextRaw(instructions: string, input: string, json: boolean, limits: AiLimits) {
   const settings = runtime();
   const maxInputChars = Math.min(120000, limits.maxInputChars || 30000);
   const maxOutputTokens = Math.min(16000, limits.maxOutputTokens || 3500);
@@ -390,7 +416,7 @@ export async function cachedAiText(
   instructions: string,
   input: string,
   json = false,
-  limits: Parameters<typeof aiText>[3] = {},
+  limits: AiLimits = {},
 ): Promise<{ text: string | null; cached: boolean; save: () => Promise<void> }> {
   const settings = runtime();
   const model =
@@ -413,7 +439,7 @@ export async function cachedAiText(
   } catch {
     // Cache table not migrated yet.
   }
-  const text = await aiText(instructions, input, json, limits);
+  const text = await aiText(instructions, input, json, { feature: kind, user: userId, ...limits });
   const save = async () => {
     if (!text) return;
     try {

@@ -379,6 +379,13 @@
       "when": 1795546800000,
       "tag": "0053_notification_prefs",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1795633200000,
+      "tag": "0054_ai_usage",
+      "breakpoints": true
     }
   ]
 }
