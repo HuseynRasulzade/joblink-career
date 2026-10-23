@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, FileSignature, Send } from "lucide-react";
 import type { Application, Job } from "@/lib/model";
 import { Field, Modal } from "./components";
 import { formatDate } from "@/lib/dates";
 import { siteLanguage } from "./i18n";
+import { calculateFromGross, calculateFromNet } from "@/lib/salary";
 
 export type OfferData = {
   position: string;
@@ -41,6 +42,17 @@ export const OFFER_STATUS: Record<Offer["status"], string> = {
 };
 const date = (value: string) => (value ? formatDate(value, siteLanguage(), { month: "long" }) : "—");
 
+// The other form of the amount (net for a gross offer, gross for a net one); an estimate for a private-sector main job.
+function otherSalary(data: OfferData) {
+  try {
+    const r = data.salaryPeriod === "gross" ? calculateFromGross(data.salary) : calculateFromNet(data.salary);
+    const value = data.salaryPeriod === "gross" ? r.net : r.gross;
+    return value > 0 ? Math.round(value) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Printable offer letter built from the employer's offer terms.
 export function OfferDocument({ data, candidateName, offer }: { data: OfferData; candidateName: string; offer?: Offer }) {
   return (
@@ -54,7 +66,7 @@ export function OfferDocument({ data, candidateName, offer }: { data: OfferData;
       <table>
         <tbody>
           <tr><th>Vəzifə</th><td>{data.position}</td></tr>
-          <tr><th>Əmək haqqı</th><td>{data.salary.toLocaleString("az-AZ")} AZN ({data.salaryPeriod === "gross" ? "vergilər daxil, gross" : "əlinə, net"}) / ay</td></tr>
+          <tr><th>Əmək haqqı</th><td>{data.salary.toLocaleString("az-AZ")} AZN ({data.salaryPeriod === "gross" ? "vergilər daxil, gross" : "əlinə, net"}) / ay{(() => { const other = otherSalary(data); return other ? <small className="skill-description"> {data.salaryPeriod === "gross" ? "Təxmini əlinə (net)" : "Təxmini vergilər daxil (gross)"}: {other.toLocaleString("az-AZ")} AZN</small> : null; })()}</td></tr>
           <tr><th>İşə başlama tarixi</th><td>{date(data.startDate)}</td></tr>
           <tr><th>Müqavilə növü</th><td>{data.contractType}</td></tr>
           {data.probationMonths > 0 && <tr><th>Sınaq müddəti</th><td>{data.probationMonths} ay</td></tr>}
@@ -125,6 +137,44 @@ export function OfferComposer({
     signerTitle: "HR meneceri",
   });
   const set = <K extends keyof OfferData>(key: K, value: OfferData[K]) => setData((d) => ({ ...d, [key]: value }));
+  type Template = { id: string; name: string; data: Partial<OfferData> & { validDays?: number } };
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const loadTemplates = () =>
+    fetch("/api/joblink/offers/templates", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ templates: Template[] }>) : { templates: [] as Template[] }))
+      .then((d) => setTemplates(d.templates))
+      .catch(() => {});
+  useEffect(() => { void loadTemplates(); }, []);
+  const applyTemplate = (t: Template) =>
+    setData((d) => ({
+      ...d,
+      contractType: t.data.contractType ?? d.contractType,
+      probationMonths: t.data.probationMonths ?? d.probationMonths,
+      workSchedule: t.data.workSchedule || d.workSchedule,
+      location: t.data.location || d.location,
+      benefits: t.data.benefits || d.benefits,
+      message: t.data.message || d.message,
+      signerName: t.data.signerName || d.signerName,
+      signerTitle: t.data.signerTitle || d.signerTitle,
+      validUntil: t.data.validDays ? plusDays(t.data.validDays) : d.validUntil,
+    }));
+  async function saveTemplate() {
+    const name = window.prompt("Şablonun adı (məsələn: Standart ofis təklifi):");
+    if (!name) return;
+    try {
+      const validDays = Math.max(1, Math.round((Date.parse(data.validUntil) - Date.now()) / 86400000)) || 7;
+      const response = await fetch("/api/joblink/offers/templates/save", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, data: { ...data, validDays } }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Şablon saxlanmadı.");
+      notify("Şablon saxlanıldı. Maaş və başlama tarixi şablona yazılmır.");
+      await loadTemplates();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   async function send() {
     setBusy(true);
     try {
@@ -148,6 +198,20 @@ export function OfferComposer({
   return (
     <Modal title={`İş təklifi — ${application.profile.name}`} onClose={onClose} className="offer-modal">
       <div className="offer-composer">
+        <div className="admin-actions">
+          <select
+            value=""
+            aria-label="Şablondan doldur"
+            onChange={(e) => {
+              const t = templates.find((x) => x.id === e.target.value);
+              if (t) applyTemplate(t);
+            }}
+          >
+            <option value="">{templates.length ? "Şablondan doldur…" : "Hələ şablon yoxdur"}</option>
+            {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <button type="button" className="secondary" onClick={saveTemplate}>Şablon kimi saxla</button>
+        </div>
         <div className="form-grid">
           <Field label="Vəzifə"><input value={data.position} onChange={(e) => set("position", e.target.value)} /></Field>
           <Field label="Aylıq əmək haqqı (AZN)"><input type="number" min={1} value={data.salary} onChange={(e) => set("salary", Number(e.target.value))} /></Field>

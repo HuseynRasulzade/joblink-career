@@ -30,3 +30,12 @@ test("probation reminder goes out once per employee", async () => {
   assert.equal(inserted.length, 1);
   assert.deepEqual(mails, ["Sınaq müddəti: Əli Əliyev"]);
 });
+
+test("addMonthsIso keeps month ends valid", async () => {
+  const { addMonthsIso } = await import("../lib/company.ts");
+  assert.equal(addMonthsIso("2026-11-02", 3), "2027-02-02");
+  assert.equal(addMonthsIso("2026-08-31", 6), "2027-02-28");
+  assert.equal(addMonthsIso("2027-08-31", 6), "2028-02-29");
+  assert.equal(addMonthsIso("2026-01-15", 0), "2026-01-15");
+  assert.equal(addMonthsIso("bad", 3), "");
+});

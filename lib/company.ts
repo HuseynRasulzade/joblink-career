@@ -172,3 +172,16 @@ export function taxNameMatches(declared: string, registered: string) {
   const b = core(registered);
   return !!a && !!b && a === b;
 }
+
+// Date plus whole months; a day that does not exist in the target month (31 Aug + 6) falls on that month's last day.
+export function addMonthsIso(date: string, months: number) {
+  const d = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = d.getUTCDate();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  // 31 Aug + 6 months stays in the last month: clamp to its last day.
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, last));
+  return d.toISOString().slice(0, 10);
+}

@@ -562,6 +562,18 @@ export const companyEmployees = sqliteTable(
   },
   (t) => [index("company_employees_company").on(t.companyId, t.status)],
 );
+export const offerTemplates = sqliteTable(
+  "offer_templates",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    name: text("name").notNull(),
+    data: text("data").notNull(),
+    createdBy: text("created_by").notNull(),
+    updated: text("updated").notNull(),
+  },
+  (t) => [index("offer_templates_company").on(t.companyId, t.updated)],
+);
 export const headcountPlan = sqliteTable(
   "headcount_plan",
   {

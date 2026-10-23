@@ -76,7 +76,7 @@ import {
 } from "@/lib/job-title-catalog";
 import { SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
 import { APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, VACANCY_REASONS, WITHDRAWN_STATUS } from "@/lib/recruitment";
-import { COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval, sanitizeTaxCheck, taxNameMatches, type TaxCheck } from "@/lib/company";
+import { addMonthsIso, COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval, sanitizeTaxCheck, taxNameMatches, type TaxCheck } from "@/lib/company";
 import { DOCUMENT_CHECK_PROMPT, VERIFICATION_LABELS, normalizeAiCheck, statusFromAi, type AiDocumentCheck } from "@/lib/verification";
 import { GRACE_MS, outcomeTarget, percentOf, resultState, summarizeResults, shuffleQuestions, cleanAnswers, combinedScore, isExpired, parseSnapshot, publicQuestions, reviewState, sanitizeGrades, sanitizeQuestions, textQuestions, type Question } from "@/lib/assessments";
 export const dynamic = "force-dynamic";
@@ -442,10 +442,12 @@ async function addHiredEmployee(db: D1Database, applicationId: string) {
     if (exists) return;
     const profile = JSON.parse(row.data) as Profile;
     const job = JSON.parse(row.job_data) as Job;
-    const offer = row.offer ? (JSON.parse(row.offer) as { position?: string; salary?: number; startDate?: string; salaryPeriod?: string }) : null;
+    const offer = row.offer ? (JSON.parse(row.offer) as { position?: string; salary?: number; startDate?: string; salaryPeriod?: string; probationMonths?: number }) : null;
     const now = new Date().toISOString();
     const employeeId = crypto.randomUUID();
     const startDate = offer?.startDate || now.slice(0, 10);
+    const probationMonths = Math.max(0, Math.min(6, Math.round(Number(offer?.probationMonths) || 0)));
+    const probationEnd = probationMonths ? addMonthsIso(startDate, probationMonths) : "";
     try {
       await db.batch([
       db.prepare(`INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,job_id,created,updated)
@@ -455,6 +457,8 @@ async function addHiredEmployee(db: D1Database, applicationId: string) {
       db.prepare("INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)")
         .bind(crypto.randomUUID(), row.owner, employeeId, "hired", "", "", "joblink", "", startDate, now),
       ]);
+      // The probation period promised in the offer becomes the employee's probation end (reminded before it ends).
+      if (probationEnd) await db.prepare("UPDATE company_employees SET probation_end=? WHERE id=?").bind(probationEnd, employeeId).run().catch(() => {});
     } catch {
       // Before migration 0022 the employee is saved without the vacancy link and history.
       await db
@@ -5387,6 +5391,46 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         body: `${job.company} müraciətinizin statusunu yenilədi.`,
         link: "applications",
       });
+    return ok({ ok: true });
+  }
+  // ---- Offer templates: the terms a company repeats (contract, probation, schedule, benefits, wording) ----
+  const offerTemplateDenied = "Təklif şablonlarını yalnız HR, direktor və ya hesab sahibi idarə edə bilər.";
+  if (request.method === "GET" && path === "offers/templates") {
+    requirePermission("offers", offerTemplateDenied);
+    const rows = await db.prepare("SELECT id,name,data,updated FROM offer_templates WHERE company_id=? ORDER BY name").bind(id).all<{ id: string; name: string; data: string; updated: string }>();
+    return ok({ templates: rows.results.flatMap((r) => { try { return [{ id: r.id, name: r.name, updated: r.updated, data: JSON.parse(r.data) }]; } catch { return []; } }) });
+  }
+  if (request.method === "POST" && path === "offers/templates/save") {
+    requirePermission("offers", offerTemplateDenied);
+    const b = await jsonBody(request);
+    const name = str(b.name, 80);
+    if (name.length < 3) throw new HttpError(400, "Şablonun adını yazın.");
+    const d = (b.data && typeof b.data === "object" ? b.data : {}) as Record<string, unknown>;
+    // Person-specific values (amount, start date, signer of one offer) are not kept in a template.
+    const data = {
+      contractType: ["Müddətsiz", "Müddətli", "Mülki-hüquqi"].includes(String(d.contractType)) ? d.contractType : "Müddətsiz",
+      probationMonths: Math.max(0, Math.min(6, Math.round(Number(d.probationMonths) || 0))),
+      workSchedule: str(d.workSchedule, 200),
+      location: str(d.location, 200),
+      benefits: str(d.benefits, 1000),
+      message: str(d.message, 2000),
+      signerName: str(d.signerName, 120),
+      signerTitle: str(d.signerTitle, 120),
+      validDays: Math.max(1, Math.min(60, Math.round(Number(d.validDays) || 7))),
+    };
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM offer_templates WHERE company_id=?").bind(id).first<{ n: number }>();
+    const existing = await db.prepare("SELECT id FROM offer_templates WHERE company_id=? AND name=?").bind(id, name).first<{ id: string }>();
+    if (!existing && (Number(count?.n) || 0) >= 30) throw new HttpError(409, "Ən çoxu 30 şablon saxlamaq olar.");
+    const now = new Date().toISOString();
+    if (existing) await db.prepare("UPDATE offer_templates SET data=?,updated=? WHERE id=?").bind(JSON.stringify(data), now, existing.id).run();
+    else await db.prepare("INSERT INTO offer_templates(id,company_id,name,data,created_by,updated) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), id, name, JSON.stringify(data), userId, now).run();
+    await companyAudit(db, id, userId, "offer-template-saved", name);
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "offers/templates/delete") {
+    requirePermission("offers", offerTemplateDenied);
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM offer_templates WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "offers/create") {

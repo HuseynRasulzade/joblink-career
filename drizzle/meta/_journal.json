@@ -281,6 +281,13 @@
       "when": 1794337200000,
       "tag": "0039_interview_panel_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1794423600000,
+      "tag": "0040_offer_templates",
+      "breakpoints": true
     }
   ]
 }

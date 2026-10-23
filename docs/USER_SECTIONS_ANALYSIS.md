@@ -38,7 +38,7 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 | Hesablar və ödənişlər | Faktura, ödəniş | Real provayder, avtomatik faktura e-poçtu, ƏDV |
 | Mesajlar | Şirkət qutusu, müəllif adı, bildiriş, limit | Şablonlar, qoşma, mesajı komanda üzvünə təyin etmək |
 | **Müsahibə** | Var: pipeline kartından təyin etmə (Bakı vaxtı, ofis/onlayn/telefon), namizədin təsdiqi və ya imtinası, vaxt dəyişmə və ləğv, "keçirildi/gəlmədi", 1–5 rəy və tövsiyə, `.ics` təqvim faylı, bildiriş və e-poçt, gündəlik xatırlatma (cron) | Namizədə 2-3 vaxt variantı təklif etmə (namizəd seçir) və müsahibə aparanlar (panel) hazırdır. Qalır: müsahibə sual şablonları |
-| **Təklif** | Var (status, qəbul) | Şablon, e-imza (ASAN), maaşın gross/net göstərilməsi (`lib/tax.ts`) |
+| **Təklif** | Var (status, qəbul) | Təklif şablonları (saxla/doldur), təklif sənədində gross/net qarşılığı (təxmini), qəbul edildikdə təklifdəki sınaq müddətindən işçinin sınaq sonu avtomatik hesablanır. Qalır: ASAN e-imza (xarici inteqrasiya, bizdən asılı deyil) |
 
 Ən vacib 3: müsahibə modulu, toplu əməliyyat və istedad bazası, təklif şablonu və e-imza.
 
