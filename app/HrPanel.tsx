@@ -271,7 +271,7 @@ export default function HrPanel({
             .map((r) => [r.candidateId, r]),
         ),
       });
-      notify("AI namizədləri qiymətləndirdi.");
+      notify(data.source === "rules" ? "AI qiymətləndirmə administrator tərəfindən söndürülüb, qaydalarla hesablanmış bal göstərilir." : "AI namizədləri qiymətləndirdi.");
     } catch (e) {
       notify((e as Error).message);
     } finally {

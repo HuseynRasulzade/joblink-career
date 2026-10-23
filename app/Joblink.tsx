@@ -1,6 +1,6 @@
 "use client";
 import { formatDate } from "@/lib/dates";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ClipboardCheck,
   LayoutDashboard,
@@ -131,6 +131,7 @@ const adminNav = [
   { id: "admin-certifications", label: "Sertifikatlar kataloqu", icon: Award },
   { id: "admin-job-titles", label: "Vəzifələr kataloqu", icon: ListChecks },
   { id: "admin-education", label: "Təhsil kataloqu", icon: Award },
+  { id: "admin-matching", label: "Uyğunluq balı", icon: Sparkles },
   { id: "admin-support", label: "Sorğular və mesajlar", icon: Inbox },
   { id: "admin-relations", label: "İzləmə və bloklar", icon: UserCheck },
   { id: "admin-companies", label: "Şirkət yoxlaması", icon: BadgeCheck },
@@ -319,6 +320,8 @@ export default function Joblink() {
     Record<string, { score: number; reason: string }>
   >({});
   const [rankingFingerprint, setRankingFingerprint] = useState("");
+  // Admin choice: with "ai" the AI rating runs by itself for the CV's best vacancies.
+  const [matchingMode, setMatchingMode] = useState<"rules" | "ai">("rules");
   const [analysisTime, setAnalysisTime] = useState("");
   const [analysisError, setAnalysisError] = useState("");
   const [profileFocus, setProfileFocus] = useState<{
@@ -356,6 +359,7 @@ export default function Joblink() {
           ...j,
           ranking: {
             ...match(profile, j),
+            ruleScore: match(profile, j).score,
             ...(rankingFingerprint === rankingKey && aiRatings[j.id]
               ? {
                   score: aiRatings[j.id].score,
@@ -889,6 +893,39 @@ export default function Joblink() {
       setBusy(false);
     }
   }
+  // Remember the one-time consent and load the admin's choice.
+  useEffect(() => {
+    if (!signedIn || hr || admin) return;
+    try {
+      if (window.localStorage.getItem("joblink-ai-ranking-consent") === "1") setRankingConsent(true);
+    } catch {
+      // Storage is optional.
+    }
+    api("matching-settings")
+      .then((b: { settings: { candidate: "rules" | "ai" } }) => setMatchingMode(b.settings.candidate))
+      .catch(() => setMatchingMode("rules"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn, hr, admin]);
+  // Automatic AI rating: once per vacancy, repeated only when the CV or vacancy changes.
+  const autoRanked = useRef("");
+  useEffect(() => {
+    if (matchingMode !== "ai" || !signedIn || hr || admin || !aiEnabled || !rankingConsent) return;
+    if (profile.cvText.trim().length < 80 || !jobs.length || autoRanked.current === rankingKey) return;
+    const timer = window.setTimeout(async () => {
+      autoRanked.current = rankingKey;
+      try {
+        const ids = [...jobs].sort((a, b) => match(profile, b).score - match(profile, a).score).slice(0, 50).map((j) => j.id);
+        const b = await api("rank-jobs", { profile, language, jobIds: ids, auto: true });
+        if (!b.ratings?.length) return;
+        setAiRatings(Object.fromEntries((b.ratings as { id: string; score: number; reason: string }[]).map((r) => [r.id, { score: r.score, reason: r.reason }])));
+        setRankingFingerprint(rankingKey);
+      } catch {
+        autoRanked.current = "";
+      }
+    }, 1500);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchingMode, signedIn, hr, admin, aiEnabled, rankingConsent, rankingKey]);
   async function apply() {
     if (!job) return;
     setBusy(true);
@@ -1043,7 +1080,7 @@ export default function Joblink() {
               </div>
               {"aiReason" in j.ranking && (
                 <p className="muted fine-print">
-                  AI rəyi: {String(j.ranking.aiReason)}
+                  AI rəyi: {String(j.ranking.aiReason)} · qaydalarla: {j.ranking.ruleScore}%
                 </p>
               )}
               <div className="job-footer">
@@ -1091,7 +1128,14 @@ export default function Joblink() {
               <input
                 type="checkbox"
                 checked={rankingConsent}
-                onChange={(e) => setRankingConsent(e.target.checked)}
+                onChange={(e) => {
+                  setRankingConsent(e.target.checked);
+                  try {
+                    window.localStorage.setItem("joblink-ai-ranking-consent", e.target.checked ? "1" : "0");
+                  } catch {
+                    // Storage is optional.
+                  }
+                }}
               />{" "}
               CV mətnimi vakansiyalara uyğunluq üçün {aiProvider} ilə paylaşmağa
               razıyam.
@@ -1105,7 +1149,7 @@ export default function Joblink() {
             </button>
             {rankingFingerprint === rankingKey && (
               <span className="muted">
-                AI reytinqi aktivdir · ilk 30 vakansiya
+                AI reytinqi aktivdir{matchingMode === "ai" ? " · avtomatik, hər vakansiya üçün bir dəfə" : " · ilk 30 vakansiya"}
               </span>
             )}
           </div>

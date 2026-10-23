@@ -686,3 +686,23 @@ export const customEducationItems = sqliteTable(
   },
   (t) => [uniqueIndex("custom_education_items_label").on(t.kind, t.label)],
 );
+
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updated: text("updated").notNull(),
+});
+
+// One AI fit rating per candidate and vacancy; it is reused until the CV or the vacancy changes.
+export const aiJobRatings = sqliteTable(
+  "ai_job_ratings",
+  {
+    userId: text("user_id").notNull(),
+    jobId: text("job_id").notNull(),
+    inputHash: text("input_hash").notNull(),
+    score: integer("score").notNull(),
+    reason: text("reason").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.jobId] }), index("ai_job_ratings_created").on(t.created)],
+);
