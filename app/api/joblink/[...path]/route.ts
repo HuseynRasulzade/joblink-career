@@ -57,6 +57,7 @@ import {
 } from "@/lib/skill-catalog";
 import { createXlsx, excelDateSerial } from "@/lib/xlsx";
 import { findDuplicates } from "@/lib/duplicates";
+import { normalizeVat, vatParts } from "@/lib/vat";
 import {
   CERTIFICATION_CATALOG,
   CERTIFICATION_CATEGORIES,
@@ -113,7 +114,7 @@ const normalizedProfileRecord = (value: unknown, customSkills: string[] = []): P
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
 import { comparePeriods, inPeriod, monthlyTrend, pctChange, reachedFunnel } from "@/lib/dashboard-stats";
 import { normalizeExternalSource, sourceBreakdown } from "@/lib/sources";
-import { ACTIVE_INTERVIEW, INTERVIEW_KINDS, INTERVIEW_STATUS_LABEL, bakuLocal, icsFor, sanitizeFeedback, sanitizeInterview } from "@/lib/interviews";
+import { sanitizeGuideQuestions, ACTIVE_INTERVIEW, INTERVIEW_KINDS, INTERVIEW_STATUS_LABEL, bakuLocal, icsFor, sanitizeFeedback, sanitizeInterview } from "@/lib/interviews";
 import { normalizeFrequency } from "@/lib/digest";
 import { matchesTalent, sanitizeNote, sanitizeTags } from "@/lib/talent";
 import { TEMPLATE_LIMIT, cleanTemplateName, copyableJob, draftFromContent } from "@/lib/job-templates";
@@ -1044,14 +1045,14 @@ async function route(request: Request) {
           (SELECT COUNT(*) FROM jobs j WHERE j.owner=a.id AND j.status='published'
             AND (COALESCE(json_extract(j.data,'$.deadline'),'')='' OR json_extract(j.data,'$.deadline')>=date('now'))) AS open_jobs,
           (SELECT COUNT(*) FROM relations r WHERE r.target_id=a.id AND r.kind='follow') AS followers,
-          p.verification_status AS verification, p.data AS details
+          p.verification_status AS verification, p.data AS details, CASE WHEN COALESCE(p.logo_data,'')<>'' THEN 1 ELSE 0 END AS has_logo
         FROM accounts a LEFT JOIN company_profiles p ON p.company_id=a.id
         WHERE a.role='company' AND COALESCE(a.status,'active')='active'
           AND ${user ? "NOT EXISTS(SELECT 1 FROM relations r WHERE r.kind='block' AND ((r.actor_id=? AND r.target_id=a.id) OR (r.actor_id=a.id AND r.target_id=?)))" : "1=1"}
         ORDER BY open_jobs DESC, a.name LIMIT 300`)
       .bind(...(user ? [user, user] : []))
-      .all<{ id: string; name: string; open_jobs: number; followers: number; verification: string | null; details: string | null }>()
-      .catch(() => ({ results: [] as { id: string; name: string; open_jobs: number; followers: number; verification: string | null; details: string | null }[] }));
+      .all<{ id: string; name: string; open_jobs: number; followers: number; verification: string | null; details: string | null; has_logo: number }>()
+      .catch(() => ({ results: [] as { id: string; name: string; open_jobs: number; followers: number; verification: string | null; details: string | null; has_logo: number }[] }));
     // Only public profile fields; legal and banking details stay private.
     return ok({
       companies: rows.results.map((r) => {
@@ -1066,8 +1067,24 @@ async function route(request: Request) {
           size: d.size,
           website: d.website,
           about: d.about,
+          officeAddress: d.officeAddress,
+          mapUrl: d.mapUrl,
+          videoUrl: d.videoUrl,
+          linkedin: d.linkedin,
+          instagram: d.instagram,
+          facebook: d.facebook,
+          foundedYear: d.foundedYear,
+          logo: r.has_logo === 1,
         };
       }),
+    });
+  }
+  if (request.method === "GET" && path === "companies/logo") {
+    const row = await db.prepare("SELECT logo_type,logo_data FROM company_profiles WHERE company_id=?").bind(str(requestUrl.searchParams.get("id"), 100))
+      .first<{ logo_type: string; logo_data: string }>().catch(() => null);
+    if (!row?.logo_data) throw new HttpError(404, "Loqo tapılmadı.");
+    return new Response(Uint8Array.from(atob(row.logo_data), (c) => c.charCodeAt(0)), {
+      headers: { "Content-Type": row.logo_type, "Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff" },
     });
   }
   if (request.method === "GET" && path === "state") {
@@ -1482,13 +1499,15 @@ async function route(request: Request) {
           CASE WHEN ?='company' THEN t.candidate_id ELSE t.company_id END AS other_id,
           COALESCE(other.name,'İstifadəçi') AS other_name,
           COALESCE(json_extract(j.data,'$.title'),'') AS job_title,
-          (SELECT body FROM messages m WHERE m.thread_id=t.id ORDER BY created DESC LIMIT 1) AS last_message,
+          CASE WHEN ?='company' THEN t.assignee_id ELSE '' END AS assignee_id,
+          CASE WHEN ?='company' THEN COALESCE((SELECT name FROM accounts WHERE id=t.assignee_id),'') ELSE '' END AS assignee_name,
+          (SELECT CASE WHEN body<>'' THEN body ELSE '📎 '||attachment_name END FROM messages m WHERE m.thread_id=t.id ORDER BY created DESC LIMIT 1) AS last_message,
           (SELECT COUNT(*) FROM messages m WHERE m.thread_id=t.id AND m.sender_id<>? AND m.created>t.${readCol}) AS unread
         FROM message_threads t
         LEFT JOIN accounts other ON other.id = CASE WHEN ?='company' THEN t.candidate_id ELSE t.company_id END
         LEFT JOIN jobs j ON j.id=t.job_id
         WHERE t.${mine}=? ORDER BY t.updated DESC LIMIT 200`)
-      .bind(accountRole, id, accountRole, id)
+      .bind(accountRole, accountRole, accountRole, id, accountRole, id)
       .all();
     return ok({ threads: rows.results });
   }
@@ -1508,13 +1527,13 @@ async function route(request: Request) {
     const before = str(requestUrl.searchParams.get("before"), 40);
     const limit = Math.max(10, Math.min(100, Number(requestUrl.searchParams.get("limit")) || 40));
     const page = await db
-      .prepare(`SELECT m.id,m.sender_id,m.sender_role,m.body,m.created,m.reply_to,COALESCE(au.name,'') AS author,
+      .prepare(`SELECT m.id,m.sender_id,m.sender_role,m.body,m.created,m.reply_to,m.attachment_name,m.attachment_type,COALESCE(au.name,'') AS author,
           r.body AS reply_body, r.sender_id AS reply_sender
         FROM messages m LEFT JOIN messages r ON r.id=m.reply_to AND m.reply_to<>''
         LEFT JOIN accounts au ON au.id=m.author_id AND m.author_id<>''
         WHERE m.thread_id=? ${before ? "AND m.created<?" : ""} ORDER BY m.created DESC LIMIT ?`)
       .bind(...(before ? [threadId, before, limit + 1] : [threadId, limit + 1]))
-      .all<{ id: string; sender_id: string; sender_role: string; body: string; created: string; reply_to: string; author: string; reply_body: string | null; reply_sender: string | null }>();
+      .all<{ id: string; sender_id: string; sender_role: string; body: string; created: string; reply_to: string; attachment_name: string; attachment_type: string; author: string; reply_body: string | null; reply_sender: string | null }>();
     const hasMore = page.results.length > limit;
     const rows = page.results.slice(0, limit).reverse();
     const otherReadAt = (thread as { company_id: string; company_read?: string; candidate_read?: string }).company_id === id
@@ -1529,6 +1548,7 @@ async function route(request: Request) {
         sender_role: m.sender_role,
         body: m.body,
         created: m.created,
+        attachment: m.attachment_name ? { name: m.attachment_name, type: m.attachment_type } : null,
         mine: m.sender_id === id,
         // Which team member wrote it is shown to the company side only.
         author: accountRole === "company" && m.sender_role === "company" ? m.author : "",
@@ -1662,10 +1682,45 @@ async function route(request: Request) {
       return ok({ ok: true });
     }
   }
+  if (request.method === "GET" && path === "messages/attachment") {
+    const row = await db
+      .prepare(`SELECT m.attachment_name,m.attachment_type,m.attachment_data FROM messages m JOIN message_threads t ON t.id=m.thread_id
+        WHERE m.id=? AND (t.company_id=? OR t.candidate_id=?)`)
+      .bind(str(requestUrl.searchParams.get("id"), 100), id, id)
+      .first<{ attachment_name: string; attachment_type: string; attachment_data: string }>();
+    if (!row?.attachment_data) throw new HttpError(404, "Fayl tapılmadı.");
+    return new Response(Uint8Array.from(atob(row.attachment_data), (c) => c.charCodeAt(0)), {
+      headers: { "Content-Type": row.attachment_type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
+    });
+  }
+  // The company assigns a conversation to one team member, who is notified.
+  if (request.method === "POST" && path === "messages/assign") {
+    if (accountRole !== "company") throw new HttpError(403, "Yazışmanı yalnız şirkət təyin edə bilər.");
+    const b = await jsonBody(request);
+    const thread = await db.prepare("SELECT id,candidate_id FROM message_threads WHERE id=? AND company_id=?").bind(str(b.threadId, 100), id).first<{ id: string; candidate_id: string }>();
+    if (!thread) throw new HttpError(404, "Yazışma tapılmadı.");
+    const assignee = str(b.userId, 100);
+    if (assignee && assignee !== id) {
+      const member = await db.prepare("SELECT 1 FROM company_members WHERE company_id=? AND user_id=? AND status='active'").bind(id, assignee).first();
+      if (!member) throw new HttpError(400, "Bu şəxs komanda üzvü deyil.");
+    }
+    await db.prepare("UPDATE message_threads SET assignee_id=? WHERE id=?").bind(assignee, thread.id).run();
+    if (assignee && assignee !== userId) await notify(db, { userId: assignee, type: "message", title: "Sizə yazışma təyin edildi", body: "Namizədlə yazışmaya siz baxırsınız.", link: "hr-messages" });
+    return ok({ ok: true });
+  }
   if (request.method === "POST" && path === "messages/send") {
-    const body = await jsonBody(request);
+    // Larger body than usual: a message may carry one small document or image.
+    const rawBody = await request.text();
+    if (rawBody.length > 900_000) throw new HttpError(413, "Fayl çox böyükdür (maksimum 500 KB).");
+    let body: Record<string, unknown>;
+    try { body = JSON.parse(rawBody); } catch { throw new HttpError(400, "Sorğu məlumatları oxunmadı."); }
     const text = str(body.body, 4000);
-    if (!text) throw new HttpError(400, "Mesajı yazın.");
+    const file = body.attachment as { name?: unknown; type?: unknown; data?: unknown } | undefined;
+    const fileType = str(file?.type, 80);
+    const fileData = str(file?.data, 700_000);
+    if (file && (!["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(fileType) || !fileData || !/^[A-Za-z0-9+/=]+$/.test(fileData)))
+      throw new HttpError(400, "Fayl PDF, PNG, JPG və ya WEBP olmalıdır.");
+    if (!text && !file) throw new HttpError(400, "Mesajı yazın."); 
     const thread = await db
       .prepare("SELECT id,company_id FROM message_threads WHERE id=? AND (company_id=? OR candidate_id=?)")
       .bind(str(body.threadId, 100), id, id)
@@ -1682,11 +1737,11 @@ async function route(request: Request) {
     await assertMessageRate(db, userId);
     const unreadBefore = await hasUnreadFrom(db, thread.id, id);
     await db.batch([
-      db.prepare("INSERT INTO messages(id,thread_id,sender_id,sender_role,body,reply_to,author_id,created) VALUES(?,?,?,?,?,?,?,?)")
-        .bind(crypto.randomUUID(), thread.id, id, accountRole, text, replyTo, userId, now),
+      db.prepare("INSERT INTO messages(id,thread_id,sender_id,sender_role,body,reply_to,author_id,attachment_name,attachment_type,attachment_data,created) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), thread.id, id, accountRole, text, replyTo, userId, file ? str(file.name, 160) || "fayl" : "", file ? fileType : "", file ? fileData : "", now),
       db.prepare(`UPDATE message_threads SET updated=?,${thread.company_id === id ? "company_read" : "candidate_read"}=? WHERE id=?`).bind(now, now, thread.id),
     ]);
-    if (other) await notifyNewMessage(db, { threadId: thread.id, recipientId: other.other, senderName: await senderLabel(db, accountRole, id, userId), unreadBefore, preview: text });
+    if (other) await notifyNewMessage(db, { threadId: thread.id, recipientId: other.other, senderName: await senderLabel(db, accountRole, id, userId), unreadBefore, preview: text || `📎 ${str(file?.name, 80)}` });
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "messages/unread") {
@@ -2295,11 +2350,16 @@ async function route(request: Request) {
       const invoiceId = crypto.randomUUID();
       const now = new Date().toISOString();
       await db.batch([
-        db.prepare("INSERT INTO billing_invoices(id,account_id,description,amount_cents,currency,due_date,status,created_by,created,updated) VALUES(?,?,?,?,? ,?,'open',?,?,?)")
-          .bind(invoiceId, accountId, description, amountCents, "AZN", dueDate, id, now, now),
+        db.prepare("INSERT INTO billing_invoices(id,account_id,description,amount_cents,currency,vat_percent,due_date,status,created_by,created,updated) VALUES(?,?,?,?,?,?,?,'open',?,?,?)")
+          .bind(invoiceId, accountId, description, amountCents, "AZN", normalizeVat(body.vatPercent), dueDate, id, now, now),
         db.prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
           .bind(crypto.randomUUID(), id, "invoice-created", "invoice", invoiceId, JSON.stringify({ accountId, amountCents, dueDate }), now),
       ]);
+      // The account is told about the invoice right away, by e-mail too when sending is configured.
+      const parts = vatParts(amountCents, normalizeVat(body.vatPercent));
+      const invoiceText = `${description}: ${(amountCents / 100).toFixed(2)} AZN${parts.vat ? ` (o cümlədən ƏDV ${(parts.vat / 100).toFixed(2)} AZN)` : ""}. Son ödəniş tarixi: ${dueDate}.`;
+      await notify(db, { userId: accountId, type: "billing", title: "Yeni hesab-faktura", body: invoiceText, link: "hr-billing" });
+      await sendUserEmail(db, accountId, "Yeni hesab-faktura", invoiceText);
       return ok({ ok: true, id: invoiceId }, 201);
     }
     if (request.method === "POST" && path === "admin/billing/payment") {
@@ -2540,7 +2600,7 @@ async function route(request: Request) {
     "plan/methods/default",
     "plan/contract",
   ]);
-  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessment-export", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/test-results", "hr/question-bank", "hr/question-bank/add", "hr/question-bank/delete", "hr/assessments/ai-parse", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views", "hr/job-repost", "hr/saved-searches", "hr/saved-searches/save", "hr/saved-searches/delete"]);
+  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessment-export", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/test-results", "hr/question-bank", "hr/question-bank/add", "hr/question-bank/delete", "hr/assessments/ai-parse", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views", "hr/job-repost", "hr/saved-searches", "hr/saved-searches/save", "hr/saved-searches/delete", "hr/interview-templates", "hr/interview-templates/save", "hr/interview-templates/delete"]);
   if (accountRole === "company" && candidatePaths.has(path))
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
@@ -2584,7 +2644,7 @@ async function route(request: Request) {
       .bind(id)
       .first<{ id: string; name: string; email: string }>();
     const members = await db
-      .prepare(`SELECT m.id,m.email,m.role,m.department,m.grants,m.status,m.created,COALESCE(a.name,'') AS name FROM company_members m
+      .prepare(`SELECT m.id,m.user_id,m.email,m.role,m.department,m.grants,m.status,m.created,COALESCE(a.name,'') AS name FROM company_members m
         LEFT JOIN accounts a ON a.id=m.user_id WHERE m.company_id=? AND m.status<>'removed' ORDER BY m.created`)
       .bind(id)
       .all<Record<string, unknown> & { grants: string }>();
@@ -2774,6 +2834,25 @@ async function route(request: Request) {
       reviewedAt: row?.reviewed_at || "",
       canEdit: can(memberRole, "company-profile"),
     });
+  }
+  if (request.method === "POST" && path === "company/logo") {
+    requirePermission("company-profile");
+    const raw = await request.text();
+    if (raw.length > 450_000) throw new HttpError(413, "Loqo 300 KB-dan böyük olmamalıdır.");
+    let b: Record<string, unknown>;
+    try { b = JSON.parse(raw); } catch { throw new HttpError(400, "Məlumat oxunmadı."); }
+    const type = str(b.type, 40);
+    const data = str(b.data, 450_000);
+    if (b.remove === true) {
+      await db.prepare("UPDATE company_profiles SET logo_type='',logo_data='' WHERE company_id=?").bind(id).run();
+      return ok({ ok: true });
+    }
+    if (!["image/png", "image/jpeg", "image/webp"].includes(type) || !data || !/^[A-Za-z0-9+/=]+$/.test(data)) throw new HttpError(400, "Loqo PNG, JPG və ya WEBP olmalıdır.");
+    await db.prepare(`INSERT INTO company_profiles(company_id,data,verification_status,updated,logo_type,logo_data) VALUES(?,?,?,?,?,?)
+        ON CONFLICT(company_id) DO UPDATE SET logo_type=excluded.logo_type,logo_data=excluded.logo_data`)
+      .bind(id, "{}", "none", new Date().toISOString(), type, data).run();
+    await companyAudit(db, id, userId, "company-logo", "");
+    return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/profile") {
     requirePermission("company-profile");
@@ -3018,11 +3097,11 @@ async function route(request: Request) {
   if (request.method === "GET" && path === "company/billing") {
     requirePermission("billing", "Hesab-fakturaları yalnız HR, direktor və hesab sahibi görə bilər.");
     const invoices = await db
-      .prepare(`SELECT bi.id,bi.description,bi.amount_cents,bi.currency,bi.due_date,bi.status,bi.created,
+      .prepare(`SELECT bi.id,bi.description,bi.amount_cents,bi.currency,bi.vat_percent,bi.due_date,bi.status,bi.created,
           COALESCE((SELECT SUM(bp.amount_cents) FROM billing_payments bp WHERE bp.invoice_id=bi.id),0) AS paid_cents
         FROM billing_invoices bi WHERE bi.account_id=? ORDER BY bi.created DESC LIMIT 200`)
       .bind(id)
-      .all<{ id: string; description: string; amount_cents: number; currency: string; due_date: string; status: string; created: string; paid_cents: number }>();
+      .all<{ id: string; description: string; amount_cents: number; currency: string; vat_percent: number; due_date: string; status: string; created: string; paid_cents: number }>();
     const payments = await db
       .prepare(`SELECT bp.id,bp.invoice_id,bp.amount_cents,bp.currency,bp.method,bp.reference,bp.paid_at,bi.description
         FROM billing_payments bp LEFT JOIN billing_invoices bi ON bi.id=bp.invoice_id WHERE bp.account_id=? ORDER BY bp.paid_at DESC LIMIT 200`)
@@ -3031,6 +3110,7 @@ async function route(request: Request) {
     const today = new Date().toISOString().slice(0, 10);
     const list = invoices.results.map((i) => ({
       ...i,
+      vat_cents: vatParts(i.amount_cents, i.vat_percent).vat,
       outstanding_cents: i.status === "cancelled" ? 0 : Math.max(0, i.amount_cents - i.paid_cents),
       state: i.status === "cancelled" ? "cancelled" : i.paid_cents >= i.amount_cents ? "paid" : i.due_date < today ? "overdue" : "open",
     }));
@@ -6068,6 +6148,30 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     if (!row) throw new HttpError(404, "Müsahibə tapılmadı.");
     const body = icsFor({ id: row.id, scheduledAt: row.scheduled_at, durationMin: row.duration_min, title: `Müsahibə: ${row.candidate} (${row.job_title})`, location: row.location, description: [row.note, row.panel ? `Müsahibə aparanlar: ${row.panel}` : ""].filter(Boolean).join(" | ") });
     return new Response(body, { headers: { "Content-Type": "text/calendar; charset=utf-8", "Content-Disposition": 'attachment; filename="musahibe.ics"', "Cache-Control": "private, no-store" } });
+  }
+  // ---- Interview question guides: question lists a team reuses for one role or stage ----
+  if (request.method === "GET" && path === "hr/interview-templates") {
+    const rows = await db.prepare("SELECT id,name,questions FROM interview_templates WHERE company_id=? ORDER BY name").bind(id).all<{ id: string; name: string; questions: string }>();
+    return ok({ templates: rows.results.map((r) => ({ id: r.id, name: r.name, questions: sanitizeGuideQuestions((() => { try { return JSON.parse(r.questions); } catch { return []; } })()) })) });
+  }
+  if (request.method === "POST" && path === "hr/interview-templates/save") {
+    const b = await jsonBody(request);
+    const name = str(b.name, 80);
+    const questions = sanitizeGuideQuestions(b.questions);
+    if (name.length < 3) throw new HttpError(400, "Şablonun adını yazın.");
+    if (!questions.length) throw new HttpError(400, "Ən azı bir sual yazın.");
+    const existing = await db.prepare("SELECT id FROM interview_templates WHERE company_id=? AND (id=? OR name=?)").bind(id, str(b.id, 100), name).first<{ id: string }>();
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM interview_templates WHERE company_id=?").bind(id).first<{ n: number }>();
+    if (!existing && (Number(count?.n) || 0) >= 30) throw new HttpError(409, "Ən çoxu 30 şablon saxlamaq olar.");
+    const now = new Date().toISOString();
+    if (existing) await db.prepare("UPDATE interview_templates SET name=?,questions=?,updated=? WHERE id=?").bind(name, JSON.stringify(questions), now, existing.id).run();
+    else await db.prepare("INSERT INTO interview_templates(id,company_id,name,questions,created_by,updated) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), id, name, JSON.stringify(questions), userId, now).run();
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "hr/interview-templates/delete") {
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM interview_templates WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    return ok({ ok: true });
   }
   // ---- Talent pool and bulk actions on applications ----
   // The candidate may be saved when they applied to one of the company's vacancies or keep an open profile.

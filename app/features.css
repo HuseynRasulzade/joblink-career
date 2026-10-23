@@ -5215,3 +5215,14 @@ a svg {
 }
 .quick-saved { display: inline-flex; flex: none; align-items: center; gap: 2px; }
 .quick-saved button:last-child { padding: 5px 6px; }
+
+/* Employer report printed or saved as PDF from the browser */
+@media print {
+  body.print-report .main-shell { display: block !important; }
+  body.print-report .main-shell .topbar,
+  body.print-report .page-tabs,
+  body.print-report .form-grid,
+  body.print-report .admin-actions,
+  body.print-report .digest-card { display: none !important; }
+  body.print-report .panel, body.print-report .kpi { break-inside: avoid; }
+}

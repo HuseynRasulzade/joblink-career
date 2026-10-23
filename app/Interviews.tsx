@@ -210,6 +210,7 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
   return (
     <div className="company-page">
       <p className="muted">Müsahibəni “Namizədlər” bölməsində pipeline kartındakı təqvim düyməsi ilə təyin edirsiniz. Namizəd təsdiq edir və ya imtina edir, müsahibədən əvvəl xatırlatma gəlir.</p>
+      <InterviewGuides notify={notify} />
       <h3>Gələcək müsahibələr</h3>
       {upcoming.map(row)}
       {!upcoming.length && <p className="admin-empty">Planlaşdırılmış müsahibə yoxdur.</p>}
@@ -287,5 +288,42 @@ export function CandidateInterviews({ notify }: { notify: Notify }) {
         </article>
       ))}
     </section>
+  );
+}
+
+type Guide = { id: string; name: string; questions: string[] };
+// Question guides: write once, open during any interview.
+function InterviewGuides({ notify }: { notify: Notify }) {
+  const [guides, setGuides] = useState<Guide[]>([]);
+  const [editing, setEditing] = useState<{ id: string; name: string; text: string } | null>(null);
+  const load = useCallback(() => request<{ templates: Guide[] }>("hr/interview-templates").then((d) => setGuides(d.templates)).catch(() => {}), []);
+  useEffect(() => { void load(); }, [load]);
+  return (
+    <details className="panel">
+      <summary><b>Müsahibə sual şablonları</b> <small className="muted">· {guides.length}</small></summary>
+      {guides.map((g) => (
+        <details key={g.id}>
+          <summary>{g.name} <small className="muted">({g.questions.length} sual)</small></summary>
+          <ol>{g.questions.map((q, i) => <li key={i}>{q}</li>)}</ol>
+          <div className="admin-actions">
+            <button type="button" onClick={() => setEditing({ id: g.id, name: g.name, text: g.questions.join("\n") })}>Düzəlt</button>
+            <button type="button" onClick={async () => { if (!window.confirm("Şablon silinsin?")) return; await request("hr/interview-templates/delete", { id: g.id }).catch((e) => notify((e as Error).message)); await load(); }}>Sil</button>
+          </div>
+        </details>
+      ))}
+      {!guides.length && !editing && <p className="muted">Hələ şablon yoxdur. Vəzifə və ya mərhələ üzrə suallar siyahısı yaradın.</p>}
+      {editing ? (
+        <div className="offer-composer">
+          <Field label="Şablonun adı"><input value={editing.name} placeholder="Məsələn: Mühasib — texniki müsahibə" onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></Field>
+          <Field label="Suallar (hər sətirdə bir sual)"><textarea rows={8} value={editing.text} onChange={(e) => setEditing({ ...editing, text: e.target.value })} /></Field>
+          <div className="admin-actions">
+            <button type="button" className="primary" onClick={async () => { try { await request("hr/interview-templates/save", { id: editing.id, name: editing.name, questions: editing.text }); setEditing(null); notify("Şablon saxlanıldı."); await load(); } catch (error) { notify((error as Error).message); } }}>Saxla</button>
+            <button type="button" onClick={() => setEditing(null)}>Ləğv et</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="secondary" onClick={() => setEditing({ id: "", name: "", text: "" })}>Yeni şablon</button>
+      )}
+    </details>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 import { formatDate } from "@/lib/dates";
 import { useEffect, useRef, useState } from "react";
-import { CornerUpLeft, MessageCircle, Search, Send, X, Check, CheckCheck, ChevronsDown } from "lucide-react";
+import { CornerUpLeft, MessageCircle, Paperclip, Search, Send, X, Check, CheckCheck, ChevronsDown } from "lucide-react";
 import { siteLanguage, translate } from "./i18n";
 
 type Thread = {
@@ -11,6 +11,8 @@ type Thread = {
   job_title: string;
   other_name: string;
   last_message: string | null;
+  assignee_id?: string;
+  assignee_name?: string;
   unread: number;
   updated: string;
 };
@@ -21,6 +23,7 @@ type Message = {
   mine: boolean;
   author?: string;
   replyTo?: { id: string; body: string; mine: boolean } | null;
+  attachment?: { name: string; type: string } | null;
 };
 type SearchHit = { id: string; thread_id: string; body: string; created: string; other_name: string; job_title: string };
 const QUICK_REPLIES: Record<"candidate" | "company", string[]> = {
@@ -85,12 +88,21 @@ export default function MessagesPage({
   onRead: () => void;
   notify: (message: string) => void;
 }) {
+  const [file, setFile] = useState<{ name: string; type: string; data: string } | null>(null);
+  const [team, setTeam] = useState<{ id: string; name: string }[]>([]);
+  const [assigneeFilter, setAssigneeFilter] = useState("");
   const [saved, setSaved] = useState<{ id: string; body: string }[]>([]);
   const loadSaved = () => {
     if (role !== "company") return Promise.resolve();
     return request<{ templates: { id: string; body: string }[] }>("messages/templates").then((d) => setSaved(d.templates)).catch(() => {});
   };
   useEffect(() => { void loadSaved(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+  useEffect(() => {
+    if (role !== "company") return;
+    request<{ owner: { id: string; name: string } | null; members: { user_id?: string; id: string; name: string; status: string }[] }>("company/team")
+      .then((d) => setTeam([...(d.owner ? [{ id: d.owner.id, name: d.owner.name }] : []), ...d.members.filter((m) => m.status === "active" && m.user_id).map((m) => ({ id: m.user_id as string, name: m.name }))]))
+      .catch(() => {});
   }, [role]);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [active, setActive] = useState<string>("");
@@ -257,12 +269,13 @@ export default function MessagesPage({
   }, [active]);
 
   async function send() {
-    if (!text.trim() || busy) return;
+    if ((!text.trim() && !file) || busy) return;
     setBusy(true);
     try {
       if (active) {
-        await request("messages/send", { threadId: active, body: text, replyTo: replyTo?.id });
+        await request("messages/send", { threadId: active, body: text, replyTo: replyTo?.id, attachment: file || undefined });
         setText("");
+        setFile(null);
         setReplyTo(null);
         stick.current = true;
         await open(active);
@@ -292,6 +305,13 @@ export default function MessagesPage({
   return (
     <div className="messages-page">
       <aside className="conversation-list">
+        {role === "company" && team.length > 1 && (
+          <select aria-label={t("Təyinata görə süz")} value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}>
+            <option value="">{t("Bütün yazışmalar")}</option>
+            <option value="none">{t("Təyin olunmayanlar")}</option>
+            {team.map((m) => <option key={m.id} value={m.id}>{m.name || t("Hesab sahibi")}</option>)}
+          </select>
+        )}
         <label className="conversation-search">
           <Search size={15} />
           <input
@@ -322,6 +342,8 @@ export default function MessagesPage({
           {threads
             .filter((thread) => {
               const q = search.trim().toLocaleLowerCase("az");
+              if (assigneeFilter === "none" && thread.assignee_id) return false;
+              if (assigneeFilter && assigneeFilter !== "none" && thread.assignee_id !== assigneeFilter) return false;
               return !q || `${thread.other_name} ${thread.job_title}`.toLocaleLowerCase("az").includes(q);
             })
             .map((thread) => (
@@ -331,7 +353,7 @@ export default function MessagesPage({
                   {thread.other_name}
                   {thread.unread > 0 && <span className="unread-dot">{thread.unread}</span>}
                 </strong>
-                <small>{thread.job_title || t("Ümumi yazışma")}</small>
+                <small>{thread.job_title || t("Ümumi yazışma")}{thread.assignee_name ? ` · ${t("Təyin")}: ${thread.assignee_name}` : ""}</small>
                 {thread.last_message && <small className="message-preview">{thread.last_message}</small>}
               </button>
             </div>
@@ -350,6 +372,24 @@ export default function MessagesPage({
           <>
             <div className="messages-heading">
               <MessageCircle size={18} /> <strong>{heading}</strong>
+              {role === "company" && current && team.length > 0 && (
+                <select
+                  aria-label={t("Yazışmanı təyin et")}
+                  value={current.assignee_id || ""}
+                  onChange={async (event) => {
+                    try {
+                      await request("messages/assign", { threadId: current.id, userId: event.target.value });
+                      notify(t("Yazışma təyin edildi."));
+                      await loadThreads();
+                    } catch (error) {
+                      notify((error as Error).message);
+                    }
+                  }}
+                >
+                  <option value="">{t("Təyin olunmayıb")}</option>
+                  {team.map((m) => <option key={m.id} value={m.id}>{m.name || t("Hesab sahibi")}</option>)}
+                </select>
+              )}
             </div>
             <div
               className="chat-messages"
@@ -385,7 +425,12 @@ export default function MessagesPage({
                           <span>{m.replyTo.body}</span>
                         </button>
                       )}
-                      <p>{m.body}</p>
+                      {m.body && <p>{m.body}</p>}
+                      {m.attachment && (
+                        <p>
+                          <a href={`/api/joblink/messages/attachment?id=${encodeURIComponent(m.id)}`} target="_blank" rel="noopener noreferrer">📎 {m.attachment.name}</a>
+                        </p>
+                      )}
                       <small className="message-time">
                         {m.author ? `${m.author} · ` : ""}{time(m.created)}
                         {m.mine && !mineAfter && (
@@ -467,7 +512,25 @@ export default function MessagesPage({
                   }
                 }}
               />
-              <button className="primary" aria-label={t("Mesajı göndər")} disabled={busy || !text.trim()}>
+              <label className="attach-button" title={t("Fayl əlavə et (PDF və ya şəkil, 500 KB-a qədər)")}>
+                <Paperclip size={18} />
+                <input
+                  type="file"
+                  hidden
+                  accept="application/pdf,image/png,image/jpeg,image/webp"
+                  onChange={(event) => {
+                    const picked = event.target.files?.[0];
+                    event.target.value = "";
+                    if (!picked) return;
+                    if (picked.size > 500_000) return notify(t("Fayl 500 KB-dan kiçik olmalıdır."));
+                    const reader = new FileReader();
+                    reader.onload = () => setFile({ name: picked.name, type: picked.type, data: String(reader.result).split(",")[1] || "" });
+                    reader.readAsDataURL(picked);
+                  }}
+                />
+              </label>
+              {file && <small className="muted">📎 {file.name} <button type="button" className="text-button" onClick={() => setFile(null)}>×</button></small>}
+              <button className="primary" aria-label={t("Mesajı göndər")} disabled={busy || (!text.trim() && !file)}>
                 <Send size={18} />
               </button>
             </form>

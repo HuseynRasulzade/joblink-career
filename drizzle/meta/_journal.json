@@ -302,6 +302,34 @@
       "when": 1794596400000,
       "tag": "0042_saved_searches",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1794682800000,
+      "tag": "0043_company_logo",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1794769200000,
+      "tag": "0044_interview_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1794855600000,
+      "tag": "0045_invoice_vat",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1794942000000,
+      "tag": "0046_message_attachments_assignee",
+      "breakpoints": true
     }
   ]
 }

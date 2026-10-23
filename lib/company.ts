@@ -78,8 +78,27 @@ export type CompanyDetails = {
   about: string;
   bankName: string;
   iban: string;
+  // Public employer page
+  officeAddress: string;
+  mapUrl: string;
+  videoUrl: string;
+  linkedin: string;
+  instagram: string;
+  facebook: string;
+  foundedYear: string;
 };
 export const COMPANY_SIZES = ["1–10", "11–50", "51–200", "201–500", "501–1000", "1000+"];
+// Only plain https links are kept for public pages (no javascript:, data: or http:).
+export function safeUrl(value: unknown, max = 300) {
+  const raw = typeof value === "string" ? value.trim().slice(0, max) : "";
+  if (!raw) return "";
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    return url.protocol === "https:" || url.protocol === "http:" ? (url.protocol === "http:" ? `https://${url.host}${url.pathname}${url.search}` : url.href) : "";
+  } catch {
+    return "";
+  }
+}
 const clean = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 export function companyDetailsInput(value: unknown): CompanyDetails {
   const v = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
@@ -96,6 +115,13 @@ export function companyDetailsInput(value: unknown): CompanyDetails {
     about: clean(v.about, 3000),
     bankName: clean(v.bankName, 120),
     iban: clean(v.iban, 40).replace(/\s+/g, "").toUpperCase(),
+    officeAddress: clean(v.officeAddress, 300),
+    mapUrl: safeUrl(v.mapUrl),
+    videoUrl: safeUrl(v.videoUrl),
+    linkedin: safeUrl(v.linkedin),
+    instagram: safeUrl(v.instagram),
+    facebook: safeUrl(v.facebook),
+    foundedYear: /^(19|20)\d{2}$/.test(clean(v.foundedYear, 4)) ? clean(v.foundedYear, 4) : "",
   };
 }
 // Azerbaijani taxpayer ID: 10 digits.

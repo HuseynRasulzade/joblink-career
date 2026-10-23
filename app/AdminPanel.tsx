@@ -240,7 +240,7 @@ export default function AdminPanel({
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [billingForm, setBillingForm] = useState<"invoice" | "payment" | "">("");
-  const [invoiceForm, setInvoiceForm] = useState({ accountId: "", description: "", amount: "", dueDate: "" });
+  const [invoiceForm, setInvoiceForm] = useState({ accountId: "", description: "", amount: "", dueDate: "", vatPercent: 0 });
   const [paymentForm, setPaymentForm] = useState({ invoiceId: "", amount: "", method: "bank", reference: "", note: "", paidAt: new Date().toISOString().slice(0, 10) });
   const [skillForm, setSkillForm] = useState({ label: "", labelEn: "", category: "", categoryEn: "", aliases: "" });
   const [skillFormOpen, setSkillFormOpen] = useState(false);
@@ -327,7 +327,7 @@ export default function AdminPanel({
         amountCents: Math.round(Number(invoiceForm.amount.replace(",", ".")) * 100),
       });
       notify("Hesab-faktura yaradıldı.");
-      setInvoiceForm({ accountId: "", description: "", amount: "", dueDate: "" });
+      setInvoiceForm({ accountId: "", description: "", amount: "", dueDate: "", vatPercent: 0 });
       setBillingForm("");
       await load();
     } catch (error) { notify((error as Error).message); }
@@ -573,6 +573,7 @@ export default function AdminPanel({
               <label><span>Hesab *</span><select required value={invoiceForm.accountId} onChange={(e) => setInvoiceForm({...invoiceForm,accountId:e.target.value})}><option value="">Hesab seçin</option>{data.users.filter((u) => u.role !== "admin" && u.status === "active").map((u) => <option key={u.id} value={u.id}>{u.name} — {u.email || (u.role === "company" ? "Şirkət" : "Namizəd")}</option>)}</select></label>
               <label className="wide"><span>Təyinat *</span><input required maxLength={160} value={invoiceForm.description} onChange={(e) => setInvoiceForm({...invoiceForm,description:e.target.value})} placeholder="Məsələn: Premium şirkət paketi — oktyabr" /></label>
               <label><span>Məbləğ (AZN) *</span><input required min="0.01" max="1000000" step="0.01" inputMode="decimal" value={invoiceForm.amount} onChange={(e) => setInvoiceForm({...invoiceForm,amount:e.target.value})} placeholder="0.00" /></label>
+              <label><span>ƏDV (məbləğə daxildir)</span><select value={invoiceForm.vatPercent} onChange={(e) => setInvoiceForm({...invoiceForm,vatPercent:Number(e.target.value)})}><option value={0}>ƏDV yoxdur</option><option value={18}>18% ƏDV daxil</option></select></label>
               <label><span>Son ödəniş tarixi *</span><input required type="date" value={invoiceForm.dueDate} onChange={(e) => setInvoiceForm({...invoiceForm,dueDate:e.target.value})} /></label>
               <div className="billing-form-actions"><button type="button" onClick={() => setBillingForm("")}>Ləğv et</button><button className="billing-primary" disabled={busy === "billing:invoice"}>Hesab-fakturanı yarat</button></div>
             </form>}

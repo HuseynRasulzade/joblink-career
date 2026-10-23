@@ -139,6 +139,19 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
         </Field>
       </div>
       {data.scope?.ownOnly && <p className="muted fine-print">Yalnız sizin yaratdığınız vakansiyalar göstərilir.</p>}
+      <div className="admin-actions">
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => {
+            document.body.classList.add("print-report");
+            window.addEventListener("afterprint", () => document.body.classList.remove("print-report"), { once: true });
+            window.print();
+          }}
+        >
+          PDF kimi saxla / çap et
+        </button>
+      </div>
       <div className="kpi-grid">
         {cards.map(([label, value, hint]) => (
           <div className="kpi" key={label}>
@@ -549,6 +562,10 @@ export function CompanyProfilePage({ notify, onChange }: { notify: Notify; onCha
     ["legalName", "Hüquqi ad"], ["voen", "VÖEN", "10 rəqəm"], ["director", "Direktor (Ad Soyad)"], ["legalAddress", "Hüquqi ünvan"],
     ["phone", "Telefon"], ["email", "Rəsmi e-poçt"], ["website", "Vebsayt"], ["industry", "Sahə"], ["bankName", "Bank"], ["iban", "Hesab (IBAN)"],
   ];
+  const publicFields: [keyof CompanyDetails, string, string?][] = [
+    ["officeAddress", "Ofis ünvanı (namizədlər görür)"], ["mapUrl", "Xəritə linki", "Google Maps / Yandex / 2GIS"], ["videoUrl", "Şirkət videosu (link)", "YouTube və s."],
+    ["linkedin", "LinkedIn"], ["instagram", "Instagram"], ["facebook", "Facebook"], ["foundedYear", "Yarandığı il", "2012"],
+  ];
   async function save() {
     setBusy(true);
     try {
@@ -593,6 +610,35 @@ export function CompanyProfilePage({ notify, onChange }: { notify: Notify; onCha
                 <option value="">Seçin</option>
                 {COMPANY_SIZES.map((s) => <option key={s}>{s}</option>)}
               </select>
+            </Field>
+          </div>
+          <h4>İşəgötürən səhifəsi (namizədlərə görünür)</h4>
+          <div className="form-grid">
+            {publicFields.map(([key, label, placeholder]) => (
+              <Field key={key} label={label}><input value={details[key]} placeholder={placeholder} onChange={(e) => set(key, e.target.value)} /></Field>
+            ))}
+            <Field label="Loqo (PNG/JPG/WEBP, 300 KB-a qədər)">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  if (file.size > 300_000) return notify("Loqo 300 KB-dan kiçik olmalıdır.");
+                  const reader = new FileReader();
+                  reader.onload = async () => {
+                    try {
+                      await request("company/logo", { type: file.type, data: String(reader.result).split(",")[1] || "" });
+                      notify("Loqo yeniləndi.");
+                    } catch (error) {
+                      notify((error as Error).message);
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+              <button type="button" className="text-button" onClick={async () => { await request("company/logo", { remove: true }).catch(() => {}); notify("Loqo silindi."); }}>Loqonu sil</button>
             </Field>
           </div>
           <p className="muted fine-print">
@@ -744,7 +790,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
 
 // ---------- Invoices and payments ----------
 type Billing = {
-  invoices: { id: string; description: string; amount_cents: number; paid_cents: number; outstanding_cents: number; due_date: string; state: string; created: string }[];
+  invoices: { id: string; description: string; amount_cents: number; vat_cents?: number; vat_percent?: number; paid_cents: number; outstanding_cents: number; due_date: string; state: string; created: string }[];
   payments: { id: string; amount_cents: number; method: string; reference: string; paid_at: string; description: string }[];
   summary: { billed: number; paid: number; outstanding: number; overdue: number };
 };
@@ -771,7 +817,7 @@ export function BillingPage({ notify }: { notify: Notify }) {
               {data.invoices.map((i) => (
                 <tr key={i.id}>
                   <td><strong>{i.description}</strong><small className="skill-description">{day(i.created)}</small></td>
-                  <td>{azn(i.amount_cents / 100)}</td>
+                  <td>{azn(i.amount_cents / 100)}{!!i.vat_cents && <small className="skill-description">o cümlədən ƏDV {i.vat_percent}%: {azn(i.vat_cents / 100)}</small>}</td>
                   <td>{azn(i.paid_cents / 100)}</td>
                   <td>{azn(i.outstanding_cents / 100)}</td>
                   <td>{day(i.due_date)}</td>

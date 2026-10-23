@@ -62,3 +62,10 @@ test("sanitizeInterview: panel and alternative slots", async () => {
   assert.match(sanitizeInterview({ ...base, extraSlots: ["2026-11-02T10:00", "2026-11-04T11:00", "2026-11-05T11:00"] }, now).error, /3 vaxt/);
   assert.match(sanitizeInterview({ ...base, extraSlots: ["2026-10-01T10:00"] }, now).error, /Alternativ/);
 });
+
+test("sanitizeGuideQuestions numbers, bullets and blanks are cleaned", async () => {
+  const { sanitizeGuideQuestions } = await import("../lib/interviews.ts");
+  assert.deepEqual(sanitizeGuideQuestions("1. Özünüzü təqdim edin\n\n- Niyə bizi seçdiniz?\n  * Maaş gözləntiniz?\n"), ["Özünüzü təqdim edin", "Niyə bizi seçdiniz?", "Maaş gözləntiniz?"]);
+  assert.equal(sanitizeGuideQuestions(Array.from({ length: 40 }, (_, i) => `Sual ${i}`)).length, 30);
+  assert.deepEqual(sanitizeGuideQuestions(null), []);
+});

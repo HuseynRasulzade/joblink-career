@@ -47,6 +47,7 @@ export const billingInvoices = sqliteTable(
     description: text("description").notNull(),
     amountCents: integer("amount_cents").notNull(),
     currency: text("currency").notNull().default("AZN"),
+    vatPercent: integer("vat_percent").notNull().default(0),
     dueDate: text("due_date").notNull(),
     status: text("status").notNull().default("open"),
     createdBy: text("created_by").notNull(),
@@ -323,6 +324,8 @@ export const messageThreads = sqliteTable(
     jobId: text("job_id").notNull().default(""),
     companyRead: text("company_read").notNull().default(""),
     candidateRead: text("candidate_read").notNull().default(""),
+    // Team member who handles this conversation (company side only).
+    assigneeId: text("assignee_id").notNull().default(""),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
   },
@@ -342,6 +345,9 @@ export const messages = sqliteTable(
     replyTo: text("reply_to").notNull().default(""),
     // The person who wrote it; senderId is the company for company messages.
     authorId: text("author_id").notNull().default(""),
+    attachmentName: text("attachment_name").notNull().default(""),
+    attachmentType: text("attachment_type").notNull().default(""),
+    attachmentData: text("attachment_data").notNull().default(""),
     created: text("created").notNull(),
   },
   (t) => [index("messages_thread").on(t.threadId, t.created)],
@@ -524,6 +530,8 @@ export const companyProfiles = sqliteTable(
     docName: text("doc_name").notNull().default(""),
     docType: text("doc_type").notNull().default(""),
     docData: text("doc_data").notNull().default(""),
+    logoType: text("logo_type").notNull().default(""),
+    logoData: text("logo_data").notNull().default(""),
     verificationStatus: text("verification_status").notNull().default("none"),
     verificationNote: text("verification_note").notNull().default(""),
     submittedAt: text("submitted_at").notNull().default(""),
@@ -561,6 +569,18 @@ export const companyEmployees = sqliteTable(
     updated: text("updated").notNull(),
   },
   (t) => [index("company_employees_company").on(t.companyId, t.status)],
+);
+export const interviewTemplates = sqliteTable(
+  "interview_templates",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    name: text("name").notNull(),
+    questions: text("questions").notNull().default("[]"),
+    createdBy: text("created_by").notNull(),
+    updated: text("updated").notNull(),
+  },
+  (t) => [index("interview_templates_company").on(t.companyId, t.updated)],
 );
 export const savedSearches = sqliteTable(
   "saved_searches",

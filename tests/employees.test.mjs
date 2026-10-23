@@ -39,3 +39,25 @@ test("addMonthsIso keeps month ends valid", async () => {
   assert.equal(addMonthsIso("2026-01-15", 0), "2026-01-15");
   assert.equal(addMonthsIso("bad", 3), "");
 });
+
+test("safeUrl keeps only plain web links", async () => {
+  const { safeUrl, companyDetailsInput } = await import("../lib/company.ts");
+  assert.equal(safeUrl("https://maps.google.com/?q=Baku"), "https://maps.google.com/?q=Baku");
+  assert.equal(safeUrl("example.az/about"), "https://example.az/about");
+  assert.equal(safeUrl("javascript:alert(1)"), "");
+  assert.equal(safeUrl("data:text/html,<b>x"), "");
+  assert.equal(safeUrl(""), "");
+  const d = companyDetailsInput({ foundedYear: "1850", mapUrl: "javascript:x", videoUrl: "youtu.be/abc", officeAddress: "  Nizami 10 " });
+  assert.equal(d.foundedYear, "");
+  assert.equal(d.mapUrl, "");
+  assert.equal(d.videoUrl, "https://youtu.be/abc");
+  assert.equal(d.officeAddress, "Nizami 10");
+});
+
+test("VAT part of a total with 18% included", async () => {
+  const { vatParts, normalizeVat } = await import("../lib/vat.ts");
+  assert.deepEqual(vatParts(11800, 18), { total: 11800, vat: 1800, net: 10000 });
+  assert.deepEqual(vatParts(5000, 0), { total: 5000, vat: 0, net: 5000 });
+  assert.equal(normalizeVat("18"), 18);
+  assert.equal(normalizeVat(20), 0);
+});

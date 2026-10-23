@@ -13,7 +13,24 @@ export type CompanyInfo = {
   size: string;
   website: string;
   about: string;
+  officeAddress?: string;
+  mapUrl?: string;
+  videoUrl?: string;
+  linkedin?: string;
+  instagram?: string;
+  facebook?: string;
+  foundedYear?: string;
+  logo?: boolean;
 };
+
+export function CompanyMark({ company }: { company: Pick<CompanyInfo, "id" | "name" | "logo"> }) {
+  return company.logo ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img className="vacancy-company-mark" src={`/api/joblink/companies/logo?id=${encodeURIComponent(company.id)}`} alt={company.name} style={{ objectFit: "contain", background: "#fff" }} />
+  ) : (
+    <span className="vacancy-company-mark" aria-hidden="true">{company.name.slice(0, 1).toLocaleUpperCase("az")}</span>
+  );
+}
 
 export function VerifiedBadge({ small }: { small?: boolean }) {
   return (
@@ -55,7 +72,7 @@ export function CompaniesPage({ onOpen, notify }: { onOpen: (company: CompanyInf
       <div className="company-grid">
         {shown.map((c) => (
           <button key={c.id} className="company-card" onClick={() => onOpen(c)}>
-            <span className="vacancy-company-mark" aria-hidden="true">{c.name.slice(0, 1).toLocaleUpperCase("az")}</span>
+            <CompanyMark company={c} />
             <strong>{c.name}</strong>
             {c.verified && <VerifiedBadge small />}
             <small>{[c.industry, c.size && `${c.size} işçi`].filter(Boolean).join(" · ") || "—"}</small>
@@ -88,10 +105,10 @@ export function CompanyView({
   return (
     <div className="company-view">
       <header className="vacancy-company">
-        <div className="vacancy-company-mark" aria-hidden="true">{company.name.slice(0, 1).toLocaleUpperCase("az")}</div>
+        <CompanyMark company={company} />
         <div>
           <h3>{company.name}</h3>
-          <span>{[company.industry, company.size && `${company.size} işçi`].filter(Boolean).join(" · ")}</span>
+          <span>{[company.industry, company.size && `${company.size} işçi`, company.foundedYear && `${company.foundedYear}-ci ildən`].filter(Boolean).join(" · ")}</span>
         </div>
         {company.verified && <VerifiedBadge />}
       </header>
@@ -105,6 +122,16 @@ export function CompanyView({
           </>
         )}
       </p>
+      {(company.officeAddress || company.mapUrl || company.videoUrl || company.linkedin || company.instagram || company.facebook) && (
+        <ul className="company-links">
+          {company.officeAddress && <li>Ofis: {company.officeAddress}{company.mapUrl && <> · <a href={company.mapUrl} target="_blank" rel="noopener noreferrer nofollow">Xəritədə bax</a></>}</li>}
+          {!company.officeAddress && company.mapUrl && <li><a href={company.mapUrl} target="_blank" rel="noopener noreferrer nofollow">Ofisin xəritədəki yeri</a></li>}
+          {company.videoUrl && <li><a href={company.videoUrl} target="_blank" rel="noopener noreferrer nofollow">Şirkət haqqında video</a></li>}
+          {company.linkedin && <li><a href={company.linkedin} target="_blank" rel="noopener noreferrer nofollow">LinkedIn</a></li>}
+          {company.instagram && <li><a href={company.instagram} target="_blank" rel="noopener noreferrer nofollow">Instagram</a></li>}
+          {company.facebook && <li><a href={company.facebook} target="_blank" rel="noopener noreferrer nofollow">Facebook</a></li>}
+        </ul>
+      )}
       {signedIn && (
         <div className="form-actions">
           <button className="secondary" onClick={() => onFollow(!following)}>

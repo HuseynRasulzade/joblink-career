@@ -60,6 +60,15 @@ export function sanitizeInterview(input: unknown, now = Date.now()): InterviewIn
   return { scheduledAt: slots[0] || scheduledAt, durationMin: Math.max(15, Math.min(240, duration)), kind, location, note: text(v.note, 600), panel: text(v.panel, 200), slots };
 }
 
+// A question guide: one question per line (or an array), cleaned, up to 30 questions.
+export function sanitizeGuideQuestions(input: unknown): string[] {
+  const lines = Array.isArray(input) ? input : typeof input === "string" ? input.split(/\r?\n/) : [];
+  return lines
+    .map((line) => text(line, 300).replace(/^\s*(?:\d{1,2}[.)]|[-*•])\s*/, ""))
+    .filter(Boolean)
+    .slice(0, 30);
+}
+
 export type FeedbackDecision = "advance" | "hold" | "reject";
 export function sanitizeFeedback(input: unknown): { rating: number; feedback: string; decision: FeedbackDecision } | { error: string } {
   const v = input && typeof input === "object" ? (input as Record<string, unknown>) : {};

@@ -38,6 +38,10 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0040_offer_templates` | Təklif şablonları (`offer_templates`): müqavilə növü, sınaq, qrafik, imkanlar, mətn; maaş və tarix şablona yazılmır |
 | `0041_message_templates` | Şirkətin ortaq mesaj şablonları (`message_templates`) |
 | `0042_saved_searches` | Namizəd siyahısının saxlanmış axtarışları (`saved_searches`) |
+| `0043_company_logo` | Şirkət loqosu (`company_profiles.logo_type/logo_data`, 300 KB-a qədər, ictimai `companies/logo`) |
+| `0044_interview_templates` | Müsahibə sual şablonları (`interview_templates`) |
+| `0045_invoice_vat` | Fakturada `vat_percent` (0 və ya 18, məbləğə daxil); yeni faktura şirkətə bildiriş və e-poçt göndərir |
+| `0046_message_attachments_assignee` | Mesaja qoşma (`messages.attachment_*`, PDF/şəkil 500 KB-a qədər) və yazışmanı komanda üzvünə təyin etmə (`message_threads.assignee_id`) |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 
