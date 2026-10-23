@@ -10,6 +10,13 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 process.chdir(root);
 const PORT = process.env.PORT || "3000";
 const PASSWORD = "Demo-12345-local";
+// Run the tools through node directly: no npx and no .cmd shims, so it also works from a bundled Windows copy.
+const binPath = (pkg) => {
+  const manifest = JSON.parse(readFileSync(join("node_modules", pkg, "package.json"), "utf8"));
+  const bin = typeof manifest.bin === "string" ? manifest.bin : manifest.bin[pkg] || Object.values(manifest.bin)[0];
+  return join(root, "node_modules", pkg, bin);
+};
+const tool = (pkg, args) => `"${process.execPath}" "${binPath(pkg)}" ${args}`;
 const run = (command, env = {}) => spawnSync(command, { shell: true, stdio: "inherit", env: { ...process.env, ...env } }).status === 0;
 
 // Already running (for example started by an earlier click): just open the browser.
@@ -45,7 +52,7 @@ mkdirSync(".wrangler", { recursive: true });
 
 console.log("[3/4] Lokal baza və demo hesablar hazırlanır...");
 const env = { JOBLINK_LOCAL: "1", WRANGLER_LOG_PATH: ".wrangler/wrangler.log" };
-if (!run("npx wrangler d1 migrations apply joblink-career-db --local --config wrangler.local.json", env)) process.exit(1);
+if (!run(tool("wrangler", "d1 migrations apply joblink-career-db --local --config wrangler.local.json"), env)) process.exit(1);
 const q = (v) => `'${String(v).replaceAll("'", "''")}'`;
 const demo = [
   { id: "00000000-0000-4000-8000-0000000000a1", email: "namized@joblink.test", name: "Demo Namizəd", role: "candidate" },
@@ -60,7 +67,7 @@ for (const a of demo) {
   sql.push(`INSERT OR IGNORE INTO password_accounts(email,user_id,password_hash,password_salt) VALUES(${q(a.email)},${q(a.id)},${q(hash)},${q(salt)});`);
 }
 writeFileSync(".wrangler/seed-local.sql", sql.join("\n"));
-if (!run("npx wrangler d1 execute joblink-career-db --local --config wrangler.local.json --file .wrangler/seed-local.sql", env)) process.exit(1);
+if (!run(tool("wrangler", "d1 execute joblink-career-db --local --config wrangler.local.json --file .wrangler/seed-local.sql"), env)) process.exit(1);
 
 console.log(`
 [4/4] Sayt başlayır: http://localhost:${PORT}
@@ -91,5 +98,5 @@ const opener = process.platform === "win32" ? `start "" "${openUrl}"` : process.
   }
   console.log("Sayt 6 dəqiqə ərzində hazır olmadı. Yuxarıdakı xəta sətirlərinə baxın.");
 })();
-const server = spawn(`npx vinext dev --port ${PORT}`, { shell: true, stdio: "inherit", env: { ...process.env, ...env, JOBLINK_EXTERNAL: "1" } });
+const server = spawn(tool("vinext", `dev --port ${PORT}`), { shell: true, stdio: "inherit", env: { ...process.env, ...env, JOBLINK_EXTERNAL: "1" } });
 server.on("exit", (code) => process.exit(code ?? 0));
