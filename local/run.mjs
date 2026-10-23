@@ -59,5 +59,24 @@ console.log(`
 
   Dayandırmaq üçün: Ctrl+C
 `);
+// Open the browser by itself once the site answers (the first start can take a minute).
+const openUrl = `http://localhost:${PORT}`;
+const opener = process.platform === "win32" ? `start "" "${openUrl}"` : process.platform === "darwin" ? `open "${openUrl}"` : `xdg-open "${openUrl}"`;
+(async () => {
+  for (let i = 0; i < 180; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const res = await fetch(`http://127.0.0.1:${PORT}/`, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        console.log(`\n>>> Sayt hazırdır: ${openUrl} (brauzer açılır)\n`);
+        spawnSync(opener, { shell: true, stdio: "ignore" });
+        return;
+      }
+    } catch {
+      // Not ready yet.
+    }
+  }
+  console.log("Sayt 6 dəqiqə ərzində hazır olmadı. Yuxarıdakı xəta sətirlərinə baxın.");
+})();
 const server = spawn(`npx vinext dev --port ${PORT}`, { shell: true, stdio: "inherit", env: { ...process.env, ...env, JOBLINK_EXTERNAL: "1" } });
 server.on("exit", (code) => process.exit(code ?? 0));
