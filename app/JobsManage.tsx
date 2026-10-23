@@ -18,11 +18,12 @@ const FIELD_LABELS: Record<string, string> = {
 export function EditJobModal({ job, api, onClose, onSaved, notify }: { job: Job; api: Api; onClose: () => void; onSaved: () => void; notify: Notify }) {
   const [draft, setDraft] = useState<Job>(job);
   const [busy, setBusy] = useState(false);
+  const [tell, setTell] = useState(true);
   async function save() {
     setBusy(true);
     try {
-      const result = (await api("hr/job-update", { jobId: job.id, changes: draft })) as { changed: string[] };
-      notify(result.changed.length ? `Yadda saxlanıldı: ${result.changed.map((k) => FIELD_LABELS[k] || k).join(", ")}.` : "Dəyişiklik yoxdur.");
+      const result = (await api("hr/job-update", { jobId: job.id, changes: draft, notifyApplicants: tell })) as { changed: string[]; notified?: number };
+      notify(result.changed.length ? `Yadda saxlanıldı: ${result.changed.map((k) => FIELD_LABELS[k] || k).join(", ")}.${result.notified ? ` ${result.notified} namizədə bildiriş göndərildi.` : ""}` : "Dəyişiklik yoxdur.");
       onSaved();
       onClose();
     } catch (error) {
@@ -35,7 +36,10 @@ export function EditJobModal({ job, api, onClose, onSaved, notify }: { job: Job;
     <Modal title={`Redaktə: ${job.title}`} onClose={onClose}>
       <div className="offer-composer">
         <JobForm job={draft} onChange={setDraft} />
-        <p className="muted fine-print">Dəyişiklik elanda dərhal görünür və fəaliyyət jurnalına yazılır. Artıq müraciət etmiş namizədlərə bildiriş getmir.</p>
+        <label className="checkline">
+          <input type="checkbox" checked={tell} onChange={(e) => setTell(e.target.checked)} /> Müraciət etmiş namizədlərə bildiriş göndər (yalnız maaş, vəzifə, şəhər, iş rejimi, qrafik, ünvan və ya son tarix dəyişəndə)
+        </label>
+        <p className="muted fine-print">Dəyişiklik elanda dərhal görünür və fəaliyyət jurnalına yazılır. Mətn və tələb dəyişiklikləri üçün bildiriş getmir.</p>
         <button className="primary" disabled={busy || !draft.title.trim() || !draft.company.trim()} onClick={save}>Yadda saxla</button>
       </div>
     </Modal>

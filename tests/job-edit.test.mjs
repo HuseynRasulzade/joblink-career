@@ -39,3 +39,39 @@ test("pickEditable drops identity and status fields", () => {
   assert.equal(closeReasonLabel("filled"), "Vəzifə dolduruldu");
   assert.equal(closeReasonLabel("zzz"), "");
 });
+
+import { describeMaterialChanges } from "../lib/job-edit.ts";
+import { conversionPercent, viewerKey } from "../lib/job-views.ts";
+
+test("applicants hear about salary, place, schedule and deadline changes", () => {
+  const before = { title: "Mühasib", minSalary: 900, maxSalary: 1100, city: "Bakı", mode: "Ofisdə", description: "köhnə", deadline: "2026-11-01" };
+  const after = { ...before, minSalary: 1000, maxSalary: 1300, city: "Sumqayıt", description: "yeni mətn", deadline: "2026-11-15" };
+  assert.deepEqual(describeMaterialChanges(before, after), [
+    "Maaş: 900–1100 AZN → 1000–1300 AZN",
+    "Şəhər: Bakı → Sumqayıt",
+    "Müraciət üçün son tarix: 2026-11-01 → 2026-11-15",
+  ]);
+});
+test("a text-only edit produces no applicant notification", () => {
+  const before = { title: "A", minSalary: 1, maxSalary: 2, description: "x", requirements: "y", skills: ["a"] };
+  assert.deepEqual(describeMaterialChanges(before, { ...before, description: "z", requirements: "w", skills: ["a", "b"] }), []);
+});
+test("a missing value is shown in words and salary can become negotiable", () => {
+  assert.deepEqual(describeMaterialChanges({ minSalary: 500, maxSalary: 700, workSchedule: "" }, { minSalary: 0, maxSalary: 0, workSchedule: "09:00–18:00" }), [
+    "Maaş: 500–700 AZN → razılaşma yolu ilə",
+    "İş qrafiki: göstərilməyib → 09:00–18:00",
+  ]);
+});
+test("the viewer key is stable, per vacancy and not the user id", async () => {
+  const a = await viewerKey("user-1", "job-1");
+  assert.equal(a, await viewerKey("user-1", "job-1"));
+  assert.notEqual(a, await viewerKey("user-1", "job-2"));
+  assert.notEqual(a, await viewerKey("user-2", "job-1"));
+  assert.equal(a.length, 32);
+  assert.equal(a.includes("user"), false);
+});
+test("conversion is applications per unique viewer, capped at 100", () => {
+  assert.equal(conversionPercent(3, 12), 25);
+  assert.equal(conversionPercent(5, 0), null);
+  assert.equal(conversionPercent(9, 4), 100);
+});

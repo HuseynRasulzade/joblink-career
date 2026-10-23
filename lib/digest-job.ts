@@ -109,3 +109,10 @@ export async function runInterviewReminders(db: D1Database, mail: Mailer, fromEm
   }
   return sent;
 }
+
+// Vacancy views are kept for a limited time only.
+export async function purgeOldJobViews(db: D1Database, now = new Date()) {
+  const cutoff = new Date(now.getTime() - 180 * DAY).toISOString().slice(0, 10);
+  const result = await db.prepare("DELETE FROM job_views WHERE day<?").bind(cutoff).run().catch(() => null);
+  return result?.meta?.changes || 0;
+}

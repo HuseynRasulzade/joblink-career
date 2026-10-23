@@ -383,6 +383,18 @@ export default function Joblink() {
     [profile, language],
   );
   function openJob(j: Job) {
+    // A candidate looking at a real vacancy counts as one view per day (the server keeps no names).
+    if (signedIn && !hr && !admin && !j.demo) {
+      try {
+        const key = `joblink-viewed:${new Date().toISOString().slice(0, 10)}:${j.id}`;
+        if (!window.sessionStorage.getItem(key)) {
+          window.sessionStorage.setItem(key, "1");
+          void api("jobs/view", { jobId: j.id }).catch(() => {});
+        }
+      } catch {
+        // Storage is optional.
+      }
+    }
     setCompany(null);
     setJob(j);
     setTabs((t) => (t.some((x) => x.key === `job:${j.id}`) ? t : [...t, { key: `job:${j.id}`, kind: "job", ref: j.id, title: j.title, job: j }]));

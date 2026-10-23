@@ -27,6 +27,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0029_interviews` | Müsahibələr (`interviews`): vaxt, format, namizədin cavabı, rəy |
 | `0030_talent_pool` | İstedad bazası (`talent_pool`): etiket, qeyd, şirkət üzrə unikal |
 | `0031_job_templates` | Vakansiya şablonları (`job_templates`) |
+| `0032_job_views` | Vakansiya baxışları (`job_views`): vakansiya, baxanın birtərəfli hash-ı, gün; 180 gündən sonra silinir |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 
@@ -54,3 +55,8 @@ Cloudflare → D1 → `joblink-career-db` → Console-da `scripts/seed-demo-acco
 - `wrangler.external.json`-dakı `triggers.crons` hər gün 05:00 UTC (Bakı 09:00) işə düşür. Həftəlik hesabat bazar ertəsi, aylıq hesabat ayın 1-i göndərilir. Workflow-un `wrangler deploy` addımı cron-u özü qeyd edir.
 - Hesabat həmişə abunəçinin bildirişlərinə düşür. **E-poçtla göndərmək** üçün Cloudflare e-poçt göndərmə bağlaması (`EMAIL`) və `EMAIL_FROM` dəyişəni qurulmalıdır; onlar olmasa yalnız bildiriş yaranır.
 - Admin üçün "indi göndər": `POST /api/joblink/admin/run-digests` (`{"force":true}` bütün abunəçilərə dərhal göndərir).
+
+## Vakansiya baxışları və məxfilik
+- Namizəd vakansiyanı açanda gündə bir dəfə sayılır. Bazada namizədin kimliyi yox, `vakansiya + namizəd` üçün birtərəfli hash saxlanır; şirkət yalnız say görür.
+- Qeydlər 180 gündən sonra gündəlik cron ilə silinir (`purgeOldJobViews`). Admin üçün "indi göndər" əməliyyatı da təmizləməni işlədir.
+- Şirkətin öz baxışı və qeydiyyatsız ziyarətçilər sayılmır.

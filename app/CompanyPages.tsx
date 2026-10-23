@@ -91,7 +91,7 @@ type Dashboard = {
   };
   byStatus: Record<string, number>;
   days: { date: string; count: number }[];
-  perJob: { id: string; title: string; status: string; applications: number; interview: number; offered: number; hired: number }[];
+  perJob: { id: string; title: string; status: string; viewers?: number; conversion?: number | null; applications: number; interview: number; offered: number; hired: number }[];
   scope?: { from: string; to: string; jobId: string; ownOnly: boolean };
   jobsList?: { id: string; title: string }[];
   funnel?: { stage: string; reached: number; fromPrevious: number | null }[];
@@ -227,12 +227,12 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
         </div>
         <div className="admin-table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Vakansiya</th><th>Status</th><th>Müraciət</th><th>Müsahibə</th><th>Təklif</th><th>İşə qəbul</th></tr></thead>
+            <thead><tr><th>Vakansiya</th><th>Status</th><th>Baxan namizəd</th><th>Müraciət</th><th>Konversiya</th><th>Müsahibə</th><th>Təklif</th><th>İşə qəbul</th></tr></thead>
             <tbody>
               {data.perJob.map((j) => (
-                <tr key={j.id}><td><strong>{j.title}</strong></td><td>{j.status}</td><td>{j.applications}</td><td>{j.interview}</td><td>{j.offered}</td><td>{j.hired}</td></tr>
+                <tr key={j.id}><td><strong>{j.title}</strong></td><td>{j.status}</td><td>{j.viewers ?? 0}</td><td>{j.applications}</td><td>{j.conversion === null || j.conversion === undefined ? "—" : `${j.conversion}%`}</td><td>{j.interview}</td><td>{j.offered}</td><td>{j.hired}</td></tr>
               ))}
-              {!data.perJob.length && <tr><td colSpan={6}><p className="admin-empty">Hələ vakansiya yoxdur.</p></td></tr>}
+              {!data.perJob.length && <tr><td colSpan={8}><p className="admin-empty">Hələ vakansiya yoxdur.</p></td></tr>}
             </tbody>
           </table>
         </div>

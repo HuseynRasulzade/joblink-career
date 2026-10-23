@@ -116,8 +116,9 @@ import { ACTIVE_INTERVIEW, INTERVIEW_KINDS, INTERVIEW_STATUS_LABEL, bakuLocal, i
 import { normalizeFrequency } from "@/lib/digest";
 import { matchesTalent, sanitizeNote, sanitizeTags } from "@/lib/talent";
 import { TEMPLATE_LIMIT, cleanTemplateName, copyableJob, draftFromContent } from "@/lib/job-templates";
-import { CLOSE_REASONS, changedFields, isEditableStatus, pickEditable, validDeadline } from "@/lib/job-edit";
-import { runDigests, runInterviewReminders } from "@/lib/digest-job";
+import { CLOSE_REASONS, changedFields, describeMaterialChanges, isEditableStatus, pickEditable, validDeadline } from "@/lib/job-edit";
+import { conversionPercent, viewerKey } from "@/lib/job-views";
+import { purgeOldJobViews, runDigests, runInterviewReminders } from "@/lib/digest-job";
 import { MATCHING_KEY, normalizeMatching, ratingHash, type MatchingSettings } from "@/lib/matching-settings";
 import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
 import { COUNTRIES, canonicalUniversity, setCustomUniversities, type University } from "@/lib/university-catalog";
@@ -2388,7 +2389,8 @@ async function route(request: Request) {
       const settings = runtime();
       const sent = await runDigests(db, settings.EMAIL as never, settings.EMAIL_FROM, new Date(), body.force === true);
       const reminders = await runInterviewReminders(db, settings.EMAIL as never, settings.EMAIL_FROM, new Date());
-      return ok({ sent, reminders });
+      const purged = await purgeOldJobViews(db);
+      return ok({ sent, reminders, purged });
     }
     if (request.method === "POST" && path === "admin/company-tax-check") {
       const b = await jsonBody(request);
@@ -2438,6 +2440,7 @@ async function route(request: Request) {
     "exams/start",
     "exams/save",
     "interviews",
+    "jobs/view",
     "interviews/respond",
     "interviews/ics",
     "exams/file",
@@ -2456,7 +2459,7 @@ async function route(request: Request) {
     "plan/methods/default",
     "plan/contract",
   ]);
-  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update"]);
+  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete", "hr/job-update", "hr/job-views"]);
   if (accountRole === "company" && candidatePaths.has(path))
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
@@ -2975,10 +2978,19 @@ async function route(request: Request) {
       const date = new Date(lastDay - i * 86400000).toISOString().slice(0, 10);
       days.push({ date, count: apps.results.filter((a) => a.created.slice(0, 10) === date).length });
     }
+    // Distinct candidates who looked at each vacancy in the selected period.
+    const viewRows = await db
+      .prepare("SELECT job_id,COUNT(DISTINCT viewer) AS uniq FROM job_views WHERE job_id IN (SELECT value FROM json_each(?)) AND (?='' OR day>=?) AND (?='' OR day<=?) GROUP BY job_id")
+      .bind(scope.jobIdsJson, scope.from, scope.from, scope.to, scope.to)
+      .all<{ job_id: string; uniq: number }>()
+      .catch(() => ({ results: [] as { job_id: string; uniq: number }[] }));
+    const viewers = new Map(viewRows.results.map((r) => [r.job_id, Number(r.uniq) || 0]));
     const perJob = jobs.results.map((j) => {
       const list = apps.results.filter((a) => a.job_id === j.id);
       return {
         id: j.id, title: j.title, status: j.status, created: j.created,
+        viewers: viewers.get(j.id) || 0,
+        conversion: conversionPercent(list.length, viewers.get(j.id) || 0),
         applications: list.length,
         interview: list.filter((a) => a.status === "Müsahibə").length,
         offered: list.filter((a) => a.status === "Təklif edildi").length,
@@ -3061,15 +3073,16 @@ async function route(request: Request) {
     } else if (kind === "jobs") {
       const result = await db
         .prepare(`SELECT j.status,j.created,j.data,(SELECT COUNT(*) FROM applications a WHERE a.job_id=j.id) AS apps,
+            (SELECT COUNT(DISTINCT v.viewer) FROM job_views v WHERE v.job_id=j.id) AS viewers,
             (SELECT COUNT(*) FROM applications a WHERE a.job_id=j.id AND a.status='İşə qəbul edildi') AS hired
           FROM jobs j WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))
           AND (?='' OR substr(j.created,1,10)>=?) AND (?='' OR substr(j.created,1,10)<=?) ORDER BY j.created DESC`)
         .bind(id, scope.jobIdsJson, scope.from, scope.from, scope.to, scope.to)
-        .all<{ status: string; created: string; data: string; apps: number; hired: number }>();
-      headers = ["Vakansiya", "Şəhər", "Status", "Yaradılıb", "Son tarix", "Maaş (min)", "Maaş (maks)", "Müraciət", "İşə qəbul"];
+        .all<{ status: string; created: string; data: string; apps: number; viewers: number; hired: number }>();
+      headers = ["Vakansiya", "Şəhər", "Status", "Yaradılıb", "Son tarix", "Maaş (min)", "Maaş (maks)", "Baxan namizəd", "Müraciət", "Konversiya, %", "İşə qəbul"];
       rows = result.results.map((r) => {
         const j = JSON.parse(r.data) as Job;
-        return [j.title, j.city, r.status, r.created.slice(0, 10), j.deadline || "", j.minSalary || 0, j.maxSalary || 0, Number(r.apps), Number(r.hired)];
+        return [j.title, j.city, r.status, r.created.slice(0, 10), j.deadline || "", j.minSalary || 0, j.maxSalary || 0, Number(r.viewers), Number(r.apps), conversionPercent(Number(r.apps), Number(r.viewers)) ?? "", Number(r.hired)];
       });
     } else if (kind === "employees") {
       const showSalary = can(memberRole, "salaries");
@@ -3385,6 +3398,19 @@ async function route(request: Request) {
     return new Response(Uint8Array.from(atob(row.doc_data), (c) => c.charCodeAt(0)), {
       headers: { "Content-Type": row.doc_type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
     });
+  }
+  if (request.method === "POST" && path === "jobs/view") {
+    // Counts one view per candidate, vacancy and day. Only a one-way hash of the viewer is stored.
+    const b = await jsonBody(request);
+    const jobId = str(b.jobId, 100);
+    const job = await db.prepare("SELECT owner FROM jobs WHERE id=? AND status='published'").bind(jobId).first<{ owner: string }>();
+    if (!job || job.owner === id) return ok({ ok: true, counted: false });
+    const result = await db
+      .prepare("INSERT OR IGNORE INTO job_views(job_id,viewer,day) VALUES(?,?,?)")
+      .bind(jobId, await viewerKey(id, jobId), new Date().toISOString().slice(0, 10))
+      .run()
+      .catch(() => null);
+    return ok({ ok: true, counted: !!result?.meta?.changes });
   }
   if (request.method === "GET" && path === "interviews") {
     const rows = await db
@@ -5903,6 +5929,18 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .all();
     return ok({ events: rows.results });
   }
+  if (request.method === "GET" && path === "hr/job-views") {
+    const jobIds = (await reportScope()).jobIds;
+    const today = new Date().toISOString().slice(0, 10);
+    const weekAgo = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
+    const rows = await db
+      .prepare(`SELECT job_id,COUNT(*) AS views,COUNT(DISTINCT viewer) AS uniq,SUM(CASE WHEN day>=? AND day<=? THEN 1 ELSE 0 END) AS last7
+        FROM job_views WHERE job_id IN (SELECT value FROM json_each(?)) GROUP BY job_id`)
+      .bind(weekAgo, today, JSON.stringify(jobIds))
+      .all<{ job_id: string; views: number; uniq: number; last7: number | null }>()
+      .catch(() => ({ results: [] as { job_id: string; views: number; uniq: number; last7: number | null }[] }));
+    return ok({ views: Object.fromEntries(rows.results.map((r) => [r.job_id, { views: Number(r.views) || 0, unique: Number(r.uniq) || 0, last7: Number(r.last7) || 0 }])) });
+  }
   if (request.method === "POST" && path === "hr/job-update") {
     requirePermission("publish", "Vakansiyanı redaktə etmək üçün HR və ya direktor icazəsi lazımdır.");
     const b = await jsonBody(request);
@@ -5919,7 +5957,20 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     if (!fields.length) return ok({ ok: true, changed: [] });
     await db.prepare("UPDATE jobs SET data=? WHERE id=?").bind(JSON.stringify(merged), row.id).run();
     await companyAudit(db, id, userId, "job-updated", String(row.id), `${merged.title}: ${fields.join(", ")}`);
-    return ok({ ok: true, changed: fields });
+    // Important changes (pay, place, schedule, deadline) are sent to people who already applied.
+    const lines = describeMaterialChanges(current, merged);
+    let notified = 0;
+    if (lines.length && b.notifyApplicants !== false) {
+      const applicants = await db
+        .prepare("SELECT DISTINCT candidate_id FROM applications WHERE job_id=? AND status NOT IN ('Uyğun deyil','İşə qəbul edildi',?) LIMIT 500")
+        .bind(row.id, WITHDRAWN_STATUS)
+        .all<{ candidate_id: string }>();
+      for (const a of applicants.results) {
+        await notify(db, { userId: a.candidate_id, type: "job-update", title: `${merged.title}: vakansiya şərtləri yeniləndi`, body: lines.join("; "), link: "applications" });
+        notified++;
+      }
+    }
+    return ok({ ok: true, changed: fields, changes: lines, notified });
   }
   if (request.method === "POST" && path === "job-status") {
     const b = await jsonBody(request);

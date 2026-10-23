@@ -158,6 +158,7 @@ export default function HrPanel({
   const [offerFor, setOfferFor] = useState<Application | null>(null);
   const [testFor, setTestFor] = useState<Application | null>(null);
   const [interviewFor, setInterviewFor] = useState<Application | null>(null);
+  const [views, setViews] = useState<Record<string, { views: number; unique: number; last7: number }>>({});
   const [editJob, setEditJob] = useState<Job | null>(null);
   const [closeJob, setCloseJob] = useState<Job | null>(null);
   const [jobQuery, setJobQuery] = useState("");
@@ -189,6 +190,11 @@ export default function HrPanel({
   const [confirm, setConfirm] = useState(false);
   const [useAI, setUseAI] = useState(false);
   useEffect(() => { if (aiEnabled) setUseAI(true); }, [aiEnabled]);
+  // How many candidates looked at each vacancy.
+  useEffect(() => {
+    if (page !== "hr-jobs" || !signedIn || demo) return;
+    api("hr/job-views").then((b: { views: typeof views }) => setViews(b.views || {})).catch(() => setViews({}));
+  }, [page, signedIn, demo, api]);
   // Things that need the company's attention, shown on the overview.
   useEffect(() => {
     if (page !== "hr-overview" || !signedIn || demo) return;
@@ -574,7 +580,14 @@ export default function HrPanel({
                   const left = daysLeft(j.deadline);
                   return (
                     <p className="job-internal">
-                      <span><b>{n.total}</b> müraciət</span>
+                      {views[j.id] ? (
+                        <span title="Namizəd baxışları: gündə bir nəfər bir dəfə sayılır">
+                          <b>{views[j.id].unique}</b> baxan namizəd · son 7 gün <b>{views[j.id].last7}</b>
+                        </span>
+                      ) : (
+                        <span>hələ baxış yoxdur</span>
+                      )}
+                      <span><b>{n.total}</b> müraciət{views[j.id]?.unique ? ` (${Math.min(100, Math.round((n.total / views[j.id].unique) * 100))}% konversiya)` : ""}</span>
                       {n.fresh > 0 && <span><b>{n.fresh}</b> yeni</span>}
                       {n.interview > 0 && <span><b>{n.interview}</b> müsahibə</span>}
                       {n.hired > 0 && <span><b>{n.hired}</b> işə qəbul</span>}

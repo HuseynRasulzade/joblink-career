@@ -36,3 +36,23 @@ export function extendedDeadline(current: string | undefined, days: number, toda
 
 export const daysLeft = (deadline: string | undefined, today = new Date().toISOString().slice(0, 10)) =>
   deadline ? Math.round((Date.parse(`${deadline}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000) : null;
+
+// Changes the applicants should hear about; wording edits and internal fields stay silent.
+export const MATERIAL_FIELDS = ["title", "minSalary", "maxSalary", "city", "mode", "type", "workSchedule", "address", "deadline"] as const;
+const FIELD_NAMES: Record<string, string> = {
+  title: "Vəzifə", city: "Şəhər", mode: "İş rejimi", type: "Məşğulluq növü", workSchedule: "İş qrafiki", address: "Ünvan", deadline: "Müraciət üçün son tarix",
+};
+const salaryText = (job: Partial<Job>) => (job.minSalary || job.maxSalary ? `${job.minSalary || 0}–${job.maxSalary || 0} AZN` : "razılaşma yolu ilə");
+
+// Short lines such as "Maaş: 900–1100 AZN → 1000–1300 AZN"; empty when nothing important changed.
+export function describeMaterialChanges(before: Partial<Job>, after: Partial<Job>): string[] {
+  const lines: string[] = [];
+  if (before.minSalary !== after.minSalary || before.maxSalary !== after.maxSalary) lines.push(`Maaş: ${salaryText(before)} → ${salaryText(after)}`);
+  for (const key of MATERIAL_FIELDS) {
+    if (key === "minSalary" || key === "maxSalary") continue;
+    const a = String((before as Record<string, unknown>)[key] ?? "");
+    const b = String((after as Record<string, unknown>)[key] ?? "");
+    if (a !== b) lines.push(`${FIELD_NAMES[key]}: ${a || "göstərilməyib"} → ${b || "göstərilməyib"}`);
+  }
+  return lines;
+}

@@ -786,3 +786,14 @@ export const jobTemplates = sqliteTable(
   },
   (t) => [uniqueIndex("job_templates_name").on(t.companyId, t.name)],
 );
+
+// One row per vacancy, viewer (one-way hash) and day; purged after 180 days.
+export const jobViews = sqliteTable(
+  "job_views",
+  {
+    jobId: text("job_id").notNull(),
+    viewer: text("viewer").notNull(),
+    day: text("day").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.jobId, t.viewer, t.day] }), index("job_views_day").on(t.day)],
+);
