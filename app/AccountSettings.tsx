@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, MailCheck, MonitorSmartphone, ShieldCheck, Trash2 } from "lucide-react";
+import { Bell, KeyRound, MailCheck, MonitorSmartphone, ShieldCheck, Trash2 } from "lucide-react";
 import { Field, Modal } from "./components";
 
 export default function AccountSettings({
@@ -64,6 +64,7 @@ export default function AccountSettings({
     <Modal title="Hesab təhlükəsizliyi" onClose={onClose} className="account-settings">
       {error && <div className="notice error">{error}</div>}
       <SecurityPanel api={api} notify={notify} />
+      <EmailPrefsPanel api={api} notify={notify} />
       <form className="account-settings-section" onSubmit={changePassword}>
         <h3>
           <KeyRound size={17} /> Şifrəni dəyiş
@@ -221,6 +222,32 @@ function SecurityPanel({ api, notify }: { api: (path: string, body?: unknown) =>
       {sessions.length > 1 && (
         <button type="button" className="secondary" onClick={() => run(async () => { await api("auth/revoke-session", { all: true }); notify("Digər cihazlardan çıxış edildi."); await load(); })}>Digər bütün cihazlardan çıx</button>
       )}
+    </section>
+  );
+}
+
+// Which kinds of notification also arrive by e-mail.
+function EmailPrefsPanel({ api, notify }: { api: (path: string, body?: unknown) => Promise<unknown>; notify: (s: string) => void }) {
+  const [data, setData] = useState<{ emailOff: string[]; categories: { id: string; label: string }[] } | null>(null);
+  useEffect(() => {
+    api("notification-prefs").then((d) => setData(d as NonNullable<typeof data>)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!data) return null;
+  const toggle = async (id: string, on: boolean) => {
+    const emailOff = on ? data.emailOff.filter((x) => x !== id) : [...data.emailOff, id];
+    setData({ ...data, emailOff });
+    try { await api("notification-prefs", { emailOff }); } catch (err) { notify((err as Error).message); }
+  };
+  return (
+    <section className="account-settings-section">
+      <h3><Bell size={17} /> E-poçt bildirişləri</h3>
+      <p className="muted">Sayt daxilində bildirişlər həmişə göstərilir. Aşağıdakılar e-poçtla da gəlsin?</p>
+      {data.categories.map((c) => (
+        <label key={c.id} className="checkline">
+          <input type="checkbox" checked={!data.emailOff.includes(c.id)} onChange={(e) => toggle(c.id, e.target.checked)} /> {c.label}
+        </label>
+      ))}
     </section>
   );
 }

@@ -151,6 +151,11 @@ export const sessions = sqliteTable(
   },
   (t) => [index("sessions_expiry").on(t.expires)],
 );
+export const notificationPrefs = sqliteTable("notification_prefs", {
+  userId: text("user_id").primaryKey(),
+  emailOff: text("email_off").notNull().default("[]"),
+  updated: text("updated").notNull(),
+});
 export const companyReviews = sqliteTable(
   "company_reviews",
   {

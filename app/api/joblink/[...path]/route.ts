@@ -59,6 +59,7 @@ import { createXlsx, excelDateSerial } from "@/lib/xlsx";
 import { findDuplicates } from "@/lib/duplicates";
 import { normalizeVat, vatParts } from "@/lib/vat";
 import { sanitizeReview, summarizeRatings } from "@/lib/reviews";
+import { AUTO_EMAIL_TYPES, EMAIL_CATEGORIES, emailAllowedFor, sanitizeEmailOff } from "@/lib/notification-prefs";
 import { alertIsEmpty, describeAlert, jobMatchesAlert, sanitizeAlertFilters, type AlertJob } from "@/lib/job-alerts";
 import {
   CERTIFICATION_CATALOG,
@@ -171,9 +172,16 @@ async function blockedBetween(db: D1Database, a: string, b: string) {
     return false;
   }
 }
-async function sendUserEmail(db: D1Database, userId: string, subject: string, text: string) {
+async function sendUserEmail(db: D1Database, userId: string, subject: string, text: string, type = "") {
   const settings = runtime();
   if (!settings.EMAIL || !settings.EMAIL_FROM) return;
+  // The person may have switched this category of e-mail off.
+  if (type) {
+    const prefs = await db.prepare("SELECT email_off FROM notification_prefs WHERE user_id=?").bind(userId).first<{ email_off: string }>().catch(() => null);
+    let off: string[] = [];
+    try { off = prefs ? sanitizeEmailOff(JSON.parse(prefs.email_off)) : []; } catch { off = []; }
+    if (!emailAllowedFor(off, type)) return;
+  }
   const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(userId).first<{ email: string }>();
   if (!account?.email) return;
   try {
@@ -194,6 +202,8 @@ async function notify(
   } catch {
     // Notifications are best-effort.
   }
+  // Status, offer, test, billing and review notifications also go out by e-mail.
+  if (AUTO_EMAIL_TYPES.has(input.type)) await sendUserEmail(db, input.userId, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`, input.type);
 }
 // Followers hear about new vacancies (in-app; e-mail when configured).
 async function notifyFollowers(db: D1Database, companyId: string, j: Job) {
@@ -207,7 +217,7 @@ async function notifyFollowers(db: D1Database, companyId: string, j: Job) {
     await notify(db, { userId: follower.actor_id, type: "followed-job", title: `${j.company}: yeni vakansiya — ${j.title}`, link: "jobs" });
     // With packages, e-mails about followed companies are part of the paid packages.
     if (enforced && !(await planOf(db, follower.actor_id, providerFor(runtime().PAYMENT_PROVIDER))).limits.digestEmail) continue;
-    await sendUserEmail(db, follower.actor_id, `${j.company}: yeni vakansiya — ${j.title}`, `İzlədiyiniz ${j.company} şirkəti yeni vakansiya paylaşdı: ${j.title} (${j.city}). Joblink-də baxın.`);
+    await sendUserEmail(db, follower.actor_id, `${j.company}: yeni vakansiya — ${j.title}`, `İzlədiyiniz ${j.company} şirkəti yeni vakansiya paylaşdı: ${j.title} (${j.city}). Joblink-də baxın.`, "followed-job");
   }
 }
 // Universities and programmes the administrator added from candidates' requests.
@@ -257,7 +267,7 @@ async function notifyCompanyRoles(db: D1Database, companyId: string, permission:
   // with the permission also get an e-mail when sending is configured.
   await notify(db, { userId: companyId, ...input });
   for (const user of (await companyUsersWith(db, companyId, permission)).slice(1))
-    await sendUserEmail(db, user, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`);
+    await sendUserEmail(db, user, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`, input.type);
 }
 // A test that was started but not handed in by its deadline (plus one minute) is
 // closed with the answers saved so far, instead of staying "in progress" forever.
@@ -1845,6 +1855,21 @@ async function route(request: Request) {
       .first<{ count: number }>();
     return ok({ messages: Number(unread?.count) || 0, support: Number(support?.count) || 0 });
   }
+  // Each person chooses which categories also arrive by e-mail (all on by default).
+  if (path === "notification-prefs") {
+    if (request.method === "GET") {
+      const row = await db.prepare("SELECT email_off FROM notification_prefs WHERE user_id=?").bind(id).first<{ email_off: string }>().catch(() => null);
+      let off: string[] = [];
+      try { off = row ? sanitizeEmailOff(JSON.parse(row.email_off)) : []; } catch { off = []; }
+      return ok({ emailOff: off, categories: EMAIL_CATEGORIES.map(({ id: key, label }) => ({ id: key, label })) });
+    }
+    if (request.method === "POST") {
+      const b = await jsonBody(request);
+      await db.prepare("INSERT INTO notification_prefs(user_id,email_off,updated) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET email_off=excluded.email_off,updated=excluded.updated")
+        .bind(id, JSON.stringify(sanitizeEmailOff(b.emailOff)), new Date().toISOString()).run();
+      return ok({ ok: true });
+    }
+  }
   // The candidate downloads everything the platform holds about them (documents are listed, not included).
   if (request.method === "GET" && path === "account/export") {
     if (accountRole !== "candidate") throw new HttpError(403, "Məlumat ixracı iş axtaran hesabı üçündür.");
@@ -2525,7 +2550,6 @@ async function route(request: Request) {
       const parts = vatParts(amountCents, normalizeVat(body.vatPercent));
       const invoiceText = `${description}: ${(amountCents / 100).toFixed(2)} AZN${parts.vat ? ` (o cümlədən ƏDV ${(parts.vat / 100).toFixed(2)} AZN)` : ""}. Son ödəniş tarixi: ${dueDate}.`;
       await notify(db, { userId: accountId, type: "billing", title: "Yeni hesab-faktura", body: invoiceText, link: "hr-billing" });
-      await sendUserEmail(db, accountId, "Yeni hesab-faktura", invoiceText);
       return ok({ ok: true, id: invoiceId }, 201);
     }
     if (request.method === "POST" && path === "admin/billing/payment") {
@@ -6255,7 +6279,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     const when = input.slots.length ? `vaxt variantları: ${input.slots.map(bakuLocal).join(" / ")} (Bakı vaxtı)` : `${bakuLocal(input.scheduledAt)} (Bakı vaxtı)`;
     const message = `${company?.name || "Şirkət"} sizi "${app.title}" vakansiyası üzrə müsahibəyə dəvət edir: ${when}, ${input.durationMin} dəq. ${interviewKindText(input)}${input.panel ? `. Müsahibə aparanlar: ${input.panel}` : ""}. Müraciətlərim bölməsində ${input.slots.length ? "sizə uyğun vaxtı seçib təsdiqləyin" : "təsdiqləyin"} və ya imtina edin.`;
     await notify(db, { userId: app.candidate_id, type: "interview", title: `Müsahibə dəvəti: ${app.title}`, body: message, link: "applications" });
-    await sendUserEmail(db, app.candidate_id, `Müsahibə dəvəti: ${app.title}`, message);
+    await sendUserEmail(db, app.candidate_id, `Müsahibə dəvəti: ${app.title}`, message, "interview");
     await companyAudit(db, id, userId, "interview-scheduled", app.id, bakuLocal(input.scheduledAt));
     return ok({ ok: true, id: interviewId }, 201);
   }
@@ -6280,13 +6304,13 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         .bind(input.scheduledAt, input.durationMin, input.kind, input.location, input.note, input.panel, JSON.stringify(input.slots), now, row.id).run();
       const message = `"${row.job_title}" müsahibəsinin vaxtı dəyişdi: ${bakuLocal(input.scheduledAt)} (Bakı vaxtı). ${interviewKindText(input)}. Yenidən təsdiqləyin.`;
       await notify(db, { userId: row.candidate_id, type: "interview", title: `Müsahibə vaxtı dəyişdi: ${row.job_title}`, body: message, link: "applications" });
-      await sendUserEmail(db, row.candidate_id, `Müsahibə vaxtı dəyişdi: ${row.job_title}`, message);
+      await sendUserEmail(db, row.candidate_id, `Müsahibə vaxtı dəyişdi: ${row.job_title}`, message, "interview");
       await recordApplicationEvent(db, { applicationId: row.application_id, actorId: userId, actorRole: "company", type: "interview", to: `vaxt dəyişdi: ${bakuLocal(input.scheduledAt)}` });
     } else if (action === "cancel") {
       if (!isActive) throw new HttpError(409, "Bu müsahibə artıq aktiv deyil.");
       await db.prepare("UPDATE interviews SET status='cancelled',updated=? WHERE id=?").bind(now, row.id).run();
       await notify(db, { userId: row.candidate_id, type: "interview", title: `Müsahibə ləğv edildi: ${row.job_title}`, body: str(b.reason, 300), link: "applications" });
-      await sendUserEmail(db, row.candidate_id, `Müsahibə ləğv edildi: ${row.job_title}`, str(b.reason, 300) || "Müsahibə ləğv edildi.");
+      await sendUserEmail(db, row.candidate_id, `Müsahibə ləğv edildi: ${row.job_title}`, str(b.reason, 300) || "Müsahibə ləğv edildi.", "interview");
       await recordApplicationEvent(db, { applicationId: row.application_id, actorId: userId, actorRole: "company", type: "interview", to: "ləğv edildi" });
     } else if (action === "complete" || action === "no_show") {
       if (!isActive) throw new HttpError(409, "Bu müsahibə artıq aktiv deyil.");

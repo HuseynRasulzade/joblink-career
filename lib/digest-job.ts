@@ -1,11 +1,25 @@
 // The daily job that sends the scheduled summaries. It is called by the Worker's cron trigger
 // and by the admin "send now" action.
+import { emailAllowedFor, sanitizeEmailOff } from "./notification-prefs.ts";
 import { jobMatchesAlert, sanitizeAlertFilters, type AlertJob } from "./job-alerts.ts";
 import { digestSubject, digestText, isDue, normalizeFrequency, type DigestData } from "./digest.ts";
 
 export type Mailer = { send(message: { to: string[]; from: { email: string; name: string }; subject: string; text: string }): Promise<unknown> } | null | undefined;
 
 const DAY = 86400000;
+
+// Sends one e-mail unless the person switched that category off (see lib/notification-prefs.ts).
+async function sendTo(db: D1Database, mail: Mailer, fromEmail: string | undefined, userId: string, subject: string, text: string, type: string) {
+  if (!mail || !fromEmail) return;
+  const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(userId).first<{ email: string }>().catch(() => null);
+  if (!account?.email) return;
+  const prefs = await db.prepare("SELECT email_off FROM notification_prefs WHERE user_id=?").bind(userId).first<{ email_off: string }>().catch(() => null);
+  let off: string[] = [];
+  try { off = prefs ? sanitizeEmailOff(JSON.parse(prefs.email_off)) : []; } catch { off = []; }
+  if (!emailAllowedFor(off, type)) return;
+  await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject, text }).catch(() => {});
+}
+
 const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 async function count(db: D1Database, sql: string, ...bind: unknown[]) {
@@ -98,8 +112,7 @@ export async function runInterviewReminders(db: D1Database, mail: Mailer, fromEm
           .bind(crypto.randomUUID(), target.userId, "interview", `Müsahibə xatırlatması: ${row.job_title}`, text.slice(0, 600), target.link, now.toISOString())
           .run();
         if (mail && fromEmail) {
-          const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(target.userId).first<{ email: string }>();
-          if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject: `Müsahibə xatırlatması: ${row.job_title}`, text }).catch(() => {});
+          await sendTo(db, mail, fromEmail, target.userId, `Müsahibə xatırlatması: ${row.job_title}`, text, "interview");
         }
       }
       await db.prepare("UPDATE interviews SET reminded_at=? WHERE id=?").bind(now.toISOString(), row.id).run();
@@ -131,8 +144,7 @@ export async function runTestReminders(db: D1Database, mail: Mailer, fromEmail: 
         .bind(crypto.randomUUID(), row.candidate_id, "test", `Test xatırlatması: ${row.title}`, text.slice(0, 600), "applications", now.toISOString())
         .run();
       if (mail && fromEmail) {
-        const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(row.candidate_id).first<{ email: string }>();
-        if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject: `Test xatırlatması: ${row.title}`, text }).catch(() => {});
+        await sendTo(db, mail, fromEmail, row.candidate_id, `Test xatırlatması: ${row.title}`, text, "test");
       }
       sent++;
     } catch {
@@ -162,8 +174,7 @@ export async function runProbationReminders(db: D1Database, mail: Mailer, fromEm
         .bind(crypto.randomUUID(), row.company_id, "employee", `Sınaq müddəti: ${row.name}`, text.slice(0, 600), "hr-employees", now.toISOString())
         .run();
       if (mail && fromEmail) {
-        const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(row.company_id).first<{ email: string }>();
-        if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject: `Sınaq müddəti: ${row.name}`, text }).catch(() => {});
+        await sendTo(db, mail, fromEmail, row.company_id, `Sınaq müddəti: ${row.name}`, text, "other");
       }
       sent++;
     } catch {
@@ -214,8 +225,7 @@ export async function runJobAlerts(db: D1Database, mail: Mailer, fromEmail: stri
         .bind(crypto.randomUUID(), alert.user_id, "job-alert", `Yeni vakansiya: ${alert.name}`, text.slice(0, 600), "jobs", now.toISOString())
         .run();
       if (mail && fromEmail) {
-        const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(alert.user_id).first<{ email: string }>();
-        if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject: `Yeni vakansiya: ${alert.name}`, text }).catch(() => {});
+        await sendTo(db, mail, fromEmail, alert.user_id, `Yeni vakansiya: ${alert.name}`, text, "job-alert");
       }
       sent++;
     } catch {
@@ -243,8 +253,7 @@ export async function runPlanReminders(db: D1Database, mail: Mailer, fromEmail: 
         .bind(crypto.randomUUID(), row.account_id, "plan", "Paketin müddəti bitir", text, row.role === "company" ? "hr-billing" : "packages", now.toISOString())
         .run();
       if (mail && fromEmail) {
-        const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(row.account_id).first<{ email: string }>();
-        if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject: "Joblink: paketin müddəti bitir", text }).catch(() => {});
+        await sendTo(db, mail, fromEmail, row.account_id, "Joblink: paketin müddəti bitir", text, "plan");
       }
       sent++;
     } catch {
