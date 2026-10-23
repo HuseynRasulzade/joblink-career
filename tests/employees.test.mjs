@@ -61,3 +61,12 @@ test("VAT part of a total with 18% included", async () => {
   assert.equal(normalizeVat("18"), 18);
   assert.equal(normalizeVat(20), 0);
 });
+
+test("sanitizeRejection shares only with a known reason", async () => {
+  const { sanitizeRejection } = await import("../lib/recruitment.ts");
+  const ok = sanitizeRejection({ reason: "salary", note: "  Maaş   çərçivəmizdən yüksəkdir ", share: true });
+  assert.deepEqual([ok.reason, ok.share, ok.note], ["salary", true, "Maaş çərçivəmizdən yüksəkdir"]);
+  assert.equal(sanitizeRejection({ reason: "unknown", share: true }).share, false);
+  assert.equal(sanitizeRejection({ reason: "other" }).share, false);
+  assert.equal(sanitizeRejection({ reason: "other", note: "x".repeat(300), share: true }).note.length, 200);
+});

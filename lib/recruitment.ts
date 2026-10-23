@@ -25,3 +25,19 @@ export function sanitizeStages(value: unknown) {
   if (!Array.isArray(value)) return [] as string[];
   return [...new Set(value.filter((x): x is string => typeof x === "string").map((x) => x.trim().replace(/\s+/g, " ").slice(0, 60)).filter(Boolean))].slice(0, 8);
 }
+
+// Why an application was closed. The employer may share the reason (and a short note) with the candidate.
+export const REJECTION_REASONS: { id: string; label: string }[] = [
+  { id: "experience", label: "Tələb olunan təcrübə çatmır" },
+  { id: "skills", label: "Bacarıqlar vakansiyanın tələbinə uyğun deyil" },
+  { id: "salary", label: "Maaş gözləntisi uyğun gəlmir" },
+  { id: "other-candidate", label: "Başqa namizəd seçildi" },
+  { id: "test", label: "Test nəticəsi kifayət etmədi" },
+  { id: "position-closed", label: "Vakansiya bağlandı" },
+  { id: "other", label: "Digər" },
+];
+export function sanitizeRejection(input: { reason?: unknown; note?: unknown; share?: unknown }) {
+  const reason = REJECTION_REASONS.find((r) => r.id === input.reason);
+  const note = typeof input.note === "string" ? input.note.replace(/\s+/g, " ").trim().slice(0, 200) : "";
+  return { reason: reason?.id || "", label: reason?.label || "", note, share: input.share === true && !!reason };
+}

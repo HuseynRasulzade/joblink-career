@@ -3166,7 +3166,9 @@ export default function Joblink() {
                                               ? `Mərhələ: ${event.to_value}`
                                               : event.type === "offer"
                                                 ? `İş təklifi: ${event.to_value}`
-                                                : `Status: ${event.to_value}`}
+                                                : event.type === "rejection"
+                                                  ? `Səbəb: ${event.to_value}${event.note ? ` — ${event.note}` : ""}`
+                                                  : `Status: ${event.to_value}`}
                                       </span>
                                     </li>
                                   ))}

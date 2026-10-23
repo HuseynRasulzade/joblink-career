@@ -170,7 +170,7 @@ export type Application = {
   auto?: boolean;
   stage?: string;
   duplicate?: { otherVacancies: number; sameContactAs: string[] } | null;
-  events?: { type: string; from_value: string; to_value: string; created: string }[];
+  events?: { type: string; from_value: string; to_value: string; note?: string; created: string }[];
 };
 export const blankProfile: Profile = {
   name: "",

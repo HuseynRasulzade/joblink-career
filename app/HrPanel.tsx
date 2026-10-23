@@ -36,7 +36,7 @@ import { CloseJobModal, EditJobModal } from "./JobsManage";
 import { closeReasonLabel, daysLeft, extendedDeadline } from "@/lib/job-edit";
 import { OfferComposer, type Offer } from "./Offers";
 import { CandidateComparison, CompareBar } from "./Comparison";
-import { VACANCY_REASONS } from "@/lib/recruitment";
+import { REJECTION_REASONS, VACANCY_REASONS } from "@/lib/recruitment";
 import { formatDate } from "@/lib/dates";
 import { certificationById } from "@/lib/certification-catalog";
 import { candidateCertifications } from "@/lib/model";
@@ -170,13 +170,14 @@ export default function HrPanel({
   const [saveTemplate, setSaveTemplate] = useState<{ jobId?: string; job?: Job; name: string } | null>(null);
   const [saveTalent, setSaveTalent] = useState<{ candidateId: string; name: string } | null>(null);
   const [bulk, setBulk] = useState<{ ids: string[]; action: "status" | "message" | "pool" | "test" } | null>(null);
+  const [rejecting, setRejecting] = useState<{ application: Application; status: string; stage: string; reason: string; note: string; share: boolean } | null>(null);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [relations, setRelations] = useState<{ following: string[]; blocked: string[] }>({ following: [], blocked: [] });
   const [onlyFollowed, setOnlyFollowed] = useState(false);
   const [comparing, setComparing] = useState(false);
   const toggleCompare = (key: string, on: boolean) =>
     setCompareIds((list) => (on ? (list.length >= 4 ? list : [...list, key]) : list.filter((x) => x !== key)));
-  const [history, setHistory] = useState<{ name: string; events: { type: string; actor_role: string; from_value: string; to_value: string; created: string }[] } | null>(null);
+  const [history, setHistory] = useState<{ name: string; events: { type: string; actor_role: string; from_value: string; to_value: string; note?: string; created: string }[] } | null>(null);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("Uyğun namizədlər");
   const [candidate, setCandidate] = useState<Profile | null>(null);
@@ -276,9 +277,14 @@ export default function HrPanel({
       const ai = aiRatings?.jobId === selectedJob?.id ? aiRatings.items : null;
       return (ai?.[b.id]?.score ?? b.ranking?.score ?? 0) - (ai?.[a.id]?.score ?? a.ranking?.score ?? 0);
     });
-  async function moveApplication(application: Application, status: string, stage: string) {
+  async function moveApplication(application: Application, status: string, stage: string, extra: Record<string, unknown> = {}) {
+    // Closing an application asks for a reason first; the employer decides whether the candidate sees it.
+    if (status === "Uyğun deyil" && application.status !== status && !("rejectionReason" in extra)) {
+      setRejecting({ application, status, stage, reason: "other", note: "", share: false });
+      return;
+    }
     try {
-      await api("application-status", { id: application.id, status, stage });
+      await api("application-status", { id: application.id, status, stage, ...extra });
       await refresh();
       notify(stage ? `${application.profile.name}: ${stage}` : `${application.profile.name}: ${status}`);
     } catch (e) {
@@ -1269,13 +1275,49 @@ export default function HrPanel({
                         ? `Mərhələ: ${event.to_value}`
                         : event.type === "offer"
                           ? `İş təklifi: ${event.to_value}`
-                          : `Status: ${event.from_value || "—"} → ${event.to_value}`}
+                          : event.type === "interview"
+                            ? `Müsahibə: ${event.to_value}`
+                            : event.type === "test"
+                              ? `Test: ${event.to_value}`
+                              : event.type === "rejection"
+                                ? `Rədd səbəbi: ${event.to_value}${event.note?.startsWith("shared") ? " (namizədə göstərilib)" : " (daxili)"}`
+                                : `Status: ${event.from_value || "—"} → ${event.to_value}`}
                 </span>
                 <small>{event.actor_role === "company" ? "Şirkət" : event.actor_role === "candidate" ? "Namizəd" : event.actor_role}</small>
               </li>
             ))}
             {!history.events.length && <li>Hələ qeyd yoxdur.</li>}
           </ol>
+        </Modal>
+      )}
+      {rejecting && (
+        <Modal title={`${rejecting.application.profile.name} — “Uyğun deyil”`} onClose={() => setRejecting(null)}>
+          <div className="offer-composer">
+            <Field label="Səbəb (daxili qeyd üçün)">
+              <select value={rejecting.reason} onChange={(e) => setRejecting({ ...rejecting, reason: e.target.value })}>
+                {REJECTION_REASONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+              </select>
+            </Field>
+            <label className="checkline">
+              <input type="checkbox" checked={rejecting.share} onChange={(e) => setRejecting({ ...rejecting, share: e.target.checked })} /> Səbəbi namizədə göstər
+            </label>
+            {rejecting.share && (
+              <Field label="Namizədə qısa qeyd (istəyə bağlı, 200 simvol)">
+                <textarea rows={3} maxLength={200} value={rejecting.note} onChange={(e) => setRejecting({ ...rejecting, note: e.target.value })} />
+              </Field>
+            )}
+            <p className="muted fine-print">Seçmədiyiniz halda səbəb yalnız şirkət daxilində qalır. Namizəd yalnız status dəyişikliyi bildirişi alır.</p>
+            <button
+              className="primary"
+              onClick={async () => {
+                const r = rejecting;
+                setRejecting(null);
+                await moveApplication(r.application, r.status, r.stage, { rejectionReason: r.reason, rejectionNote: r.note, shareReason: r.share });
+              }}
+            >
+              Təsdiqlə
+            </button>
+          </div>
         </Modal>
       )}
       {candidate && (

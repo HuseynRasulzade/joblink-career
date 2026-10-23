@@ -78,7 +78,7 @@ import {
   type JobTitleDefinition,
 } from "@/lib/job-title-catalog";
 import { SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
-import { APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, VACANCY_REASONS, WITHDRAWN_STATUS } from "@/lib/recruitment";
+import { sanitizeRejection, APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, VACANCY_REASONS, WITHDRAWN_STATUS } from "@/lib/recruitment";
 import { addMonthsIso, COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval, sanitizeTaxCheck, taxNameMatches, type TaxCheck } from "@/lib/company";
 import { DOCUMENT_CHECK_PROMPT, VERIFICATION_LABELS, normalizeAiCheck, statusFromAi, type AiDocumentCheck } from "@/lib/verification";
 import { GRACE_MS, outcomeTarget, percentOf, resultState, summarizeResults, shuffleQuestions, cleanAnswers, combinedScore, isExpired, parseSnapshot, publicQuestions, reviewState, sanitizeGrades, sanitizeQuestions, textQuestions, type Question } from "@/lib/assessments";
@@ -1115,12 +1115,12 @@ async function route(request: Request) {
         .bind(user)
         .all<Row & { job_data: string | null }>();
       const eventRows = await db
-        .prepare(`SELECT e.application_id,e.type,e.from_value,e.to_value,e.created FROM application_events e
-          JOIN applications a ON a.id=e.application_id WHERE a.candidate_id=? AND e.type IN ('applied','status','stage','withdrawn','offer')
+        .prepare(`SELECT e.application_id,e.type,e.from_value,e.to_value,CASE WHEN e.type='rejection' THEN substr(e.note,9) ELSE '' END AS note,e.created FROM application_events e
+          JOIN applications a ON a.id=e.application_id WHERE a.candidate_id=? AND (e.type IN ('applied','status','stage','withdrawn','offer') OR (e.type='rejection' AND e.note LIKE 'shared%'))
           ORDER BY e.created`)
         .bind(user)
-        .all<{ application_id: string; type: string; from_value: string; to_value: string; created: string }>()
-        .catch(() => ({ results: [] as { application_id: string; type: string; from_value: string; to_value: string; created: string }[] }));
+        .all<{ application_id: string; type: string; from_value: string; to_value: string; note: string; created: string }>()
+        .catch(() => ({ results: [] as { application_id: string; type: string; from_value: string; to_value: string; note: string; created: string }[] }));
       applications = appRows.results.map((r) => {
         const visible = STAGE_VISIBLE_STATUSES.has(r.status);
         return {
@@ -5600,6 +5600,10 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     }
     if (row.status !== b.status)
       await recordApplicationEvent(db, { applicationId: row.id, actorId: id, actorRole: "company", type: "status", from: row.status, to: b.status });
+    // The reason stays inside the company unless the employer chose to share it with the candidate.
+    const rejection = row.status !== b.status && b.status === "Uyğun deyil" ? sanitizeRejection({ reason: b.rejectionReason, note: b.rejectionNote, share: b.shareReason }) : null;
+    if (rejection?.reason)
+      await recordApplicationEvent(db, { applicationId: row.id, actorId: userId, actorRole: "company", type: "rejection", to: rejection.label, note: `${rejection.share ? "shared" : "private"}${rejection.share && rejection.note ? `: ${rejection.note}` : ""}` });
     if (row.status !== b.status && b.status === "İşə qəbul edildi") await addHiredEmployee(db, row.id);
     if (stage && stage !== row.stage)
       await recordApplicationEvent(db, { applicationId: row.id, actorId: id, actorRole: "company", type: "stage", from: row.stage, to: stage });
@@ -5608,7 +5612,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         userId: row.candidate_id,
         type: "application-status",
         title: `${job.title}: ${stage || b.status}`,
-        body: `${job.company} müraciətinizin statusunu yenilədi.`,
+        body: rejection?.share ? `${job.company} müraciətinizin statusunu yenilədi. Səbəb: ${rejection.label}${rejection.note ? ` — ${rejection.note}` : ""}` : `${job.company} müraciətinizin statusunu yenilədi.`,
         link: "applications",
       });
     return ok({ ok: true });
