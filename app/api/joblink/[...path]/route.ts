@@ -115,6 +115,7 @@ import { normalizeExternalSource, sourceBreakdown } from "@/lib/sources";
 import { ACTIVE_INTERVIEW, INTERVIEW_KINDS, INTERVIEW_STATUS_LABEL, bakuLocal, icsFor, sanitizeFeedback, sanitizeInterview } from "@/lib/interviews";
 import { normalizeFrequency } from "@/lib/digest";
 import { matchesTalent, sanitizeNote, sanitizeTags } from "@/lib/talent";
+import { TEMPLATE_LIMIT, cleanTemplateName, copyableJob, draftFromContent } from "@/lib/job-templates";
 import { runDigests, runInterviewReminders } from "@/lib/digest-job";
 import { MATCHING_KEY, normalizeMatching, ratingHash, type MatchingSettings } from "@/lib/matching-settings";
 import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
@@ -2454,7 +2455,7 @@ async function route(request: Request) {
     "plan/methods/default",
     "plan/contract",
   ]);
-  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk"]);
+  const companyPaths = new Set(["draft", "publish", "hr", "application-status", "job-status", "hr/rank-candidates", "hr/application-events", "offers/create", "offers/withdraw", "hr/assessments", "hr/assessment", "hr/assessments/save", "hr/assessments/delete", "hr/assessments/assign", "hr/assessment-file", "hr/assessments/grade", "hr/assessments/extend", "hr/assessments/cancel", "hr/interviews", "hr/interviews/create", "hr/interviews/update", "hr/interviews/feedback", "hr/interviews/ics", "hr/talent", "hr/talent/save", "hr/talent/remove", "hr/applications/bulk", "hr/job-duplicate", "hr/job-templates", "hr/job-templates/save", "hr/job-templates/use", "hr/job-templates/delete"]);
   if (accountRole === "company" && candidatePaths.has(path))
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
@@ -5808,6 +5809,85 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     }
     await companyAudit(db, id, userId, `bulk-${action}`, "", `${done}/${ids.length}`);
     return ok({ ok: true, done, skipped });
+  }
+  // ---- Vacancy copy and templates ----
+  const newDraftFrom = async (content: Partial<Job>) => {
+    const draft = draftFromContent(content, { id: crypto.randomUUID(), owner: id, now: new Date().toISOString() });
+    await db.prepare("INSERT INTO drafts(id,owner,data,status) VALUES(?,?,?,'draft')").bind(draft.id, id, JSON.stringify(draft)).run();
+    return draft;
+  };
+  if (request.method === "POST" && path === "hr/job-duplicate") {
+    const b = await jsonBody(request);
+    const jobIds = (await reportScope()).jobIds;
+    const row = await db
+      .prepare("SELECT data FROM jobs WHERE id=? AND owner=? AND id IN (SELECT value FROM json_each(?))")
+      .bind(str(b.jobId, 100), id, JSON.stringify(jobIds))
+      .first<Row>();
+    if (!row) throw new HttpError(404, "Vakansiya tapılmadı.");
+    const draft = await newDraftFrom(normalizedJobRecord(JSON.parse(row.data), customSkillLabels));
+    await companyAudit(db, id, userId, "job-duplicated", str(b.jobId, 100), String(draft.title));
+    return ok({ draft }, 201);
+  }
+  if (request.method === "GET" && path === "hr/job-templates") {
+    const rows = await db
+      .prepare(`SELECT t.id,t.name,t.data,t.created_by,t.updated,COALESCE(a.name,'') AS author FROM job_templates t LEFT JOIN accounts a ON a.id=t.created_by
+        WHERE t.company_id=? ORDER BY t.updated DESC LIMIT 100`)
+      .bind(id)
+      .all<{ id: string; name: string; data: string; created_by: string; updated: string; author: string }>();
+    return ok({
+      templates: rows.results.map((r) => {
+        const content = JSON.parse(r.data) as Partial<Job>;
+        return { id: r.id, name: r.name, title: content.title || "", city: content.city || "", updated: r.updated, author: r.author, canDelete: r.created_by === userId || can(memberRole, "publish") };
+      }),
+    });
+  }
+  if (request.method === "POST" && path === "hr/job-templates/save") {
+    const b = await jsonBody(request);
+    const name = cleanTemplateName(b.name);
+    if (name.length < 3) throw new HttpError(400, "Şablonun adını yazın (ən azı 3 simvol).");
+    let content: Partial<Job>;
+    if (b.jobId) {
+      const jobIds = (await reportScope()).jobIds;
+      const row = await db
+        .prepare("SELECT data FROM jobs WHERE id=? AND owner=? AND id IN (SELECT value FROM json_each(?))")
+        .bind(str(b.jobId, 100), id, JSON.stringify(jobIds))
+        .first<Row>();
+      if (!row) throw new HttpError(404, "Vakansiya tapılmadı.");
+      content = copyableJob(normalizedJobRecord(JSON.parse(row.data), customSkillLabels));
+    } else {
+      // A draft from the AI page: validated like a published vacancy so the template is complete.
+      const escoLabels = await allowedEscoLabels(db, b.job?.skills);
+      // The internal reason is not part of a template, so it must not block saving one.
+      content = copyableJob(jobInput({ ...(b.job || {}), reason: VACANCY_REASONS[0].id }, [...customSkillLabels, ...escoLabels]));
+    }
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM job_templates WHERE company_id=?").bind(id).first<{ n: number }>();
+    // SQLite's lower() only handles ASCII, so names are compared with Azerbaijani-aware lower-casing.
+    const names = await db.prepare("SELECT id,name FROM job_templates WHERE company_id=?").bind(id).all<{ id: string; name: string }>();
+    const same = names.results.find((t) => t.name.toLocaleLowerCase("az") === name.toLocaleLowerCase("az"));
+    if (!same && (Number(count?.n) || 0) >= TEMPLATE_LIMIT) throw new HttpError(409, `Ən çoxu ${TEMPLATE_LIMIT} şablon saxlamaq olar. Lazımsızı silin.`);
+    if (same && b.replace !== true) throw new HttpError(409, "Bu adla şablon var. Başqa ad yazın və ya üzərinə yazmaq üçün təsdiq edin.");
+    const now = new Date().toISOString();
+    if (same) await db.prepare("UPDATE job_templates SET data=?,updated=? WHERE id=?").bind(JSON.stringify(content), now, same.id).run();
+    else await db.prepare("INSERT INTO job_templates(id,company_id,name,data,created_by,created,updated) VALUES(?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, name, JSON.stringify(content), userId, now, now).run();
+    await companyAudit(db, id, userId, "template-saved", name);
+    return ok({ ok: true, replaced: !!same }, 201);
+  }
+  if (request.method === "POST" && path === "hr/job-templates/use") {
+    const b = await jsonBody(request);
+    const row = await db.prepare("SELECT name,data FROM job_templates WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<{ name: string; data: string }>();
+    if (!row) throw new HttpError(404, "Şablon tapılmadı.");
+    const draft = await newDraftFrom(JSON.parse(row.data) as Partial<Job>);
+    await companyAudit(db, id, userId, "template-used", row.name);
+    return ok({ draft }, 201);
+  }
+  if (request.method === "POST" && path === "hr/job-templates/delete") {
+    const b = await jsonBody(request);
+    const row = await db.prepare("SELECT id,name,created_by FROM job_templates WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<{ id: string; name: string; created_by: string }>();
+    if (!row) throw new HttpError(404, "Şablon tapılmadı.");
+    if (row.created_by !== userId && !can(memberRole, "publish")) throw new HttpError(403, "Şablonu yalnız yaradan və ya HR silə bilər.");
+    await db.prepare("DELETE FROM job_templates WHERE id=?").bind(row.id).run();
+    await companyAudit(db, id, userId, "template-deleted", row.name);
+    return ok({ ok: true });
   }
   if (request.method === "GET" && path === "hr/application-events") {
     const applicationId = str(requestUrl.searchParams.get("id"), 100);

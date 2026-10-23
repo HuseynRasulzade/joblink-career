@@ -26,6 +26,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0028_digests_sources` | Avtomatik hesabat abunəlikləri (`digest_subscriptions`) və müraciət mənbəyi (`applications.source`) |
 | `0029_interviews` | Müsahibələr (`interviews`): vaxt, format, namizədin cavabı, rəy |
 | `0030_talent_pool` | İstedad bazası (`talent_pool`): etiket, qeyd, şirkət üzrə unikal |
+| `0031_job_templates` | Vakansiya şablonları (`job_templates`) |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 

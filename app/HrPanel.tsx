@@ -30,6 +30,7 @@ import PipelineBoard from "./PipelineBoard";
 import { AssignTestModal } from "./AssessmentsPage";
 import { ScheduleInterviewModal } from "./Interviews";
 import { BulkModal, SaveTalentModal } from "./BulkTalent";
+import { SaveTemplateModal, TemplatesModal, duplicateJob } from "./JobTemplates";
 import { OfferComposer, type Offer } from "./Offers";
 import { CandidateComparison, CompareBar } from "./Comparison";
 import { VACANCY_REASONS } from "@/lib/recruitment";
@@ -153,6 +154,8 @@ export default function HrPanel({
   const [offerFor, setOfferFor] = useState<Application | null>(null);
   const [testFor, setTestFor] = useState<Application | null>(null);
   const [interviewFor, setInterviewFor] = useState<Application | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [saveTemplate, setSaveTemplate] = useState<{ jobId?: string; job?: Job; name: string } | null>(null);
   const [saveTalent, setSaveTalent] = useState<{ candidateId: string; name: string } | null>(null);
   const [bulk, setBulk] = useState<{ ids: string[]; action: "status" | "message" | "pool" } | null>(null);
   const [compareIds, setCompareIds] = useState<string[]>([]);
@@ -364,6 +367,15 @@ export default function HrPanel({
       notify((e as Error).message);
     }
   }
+  // A copied vacancy or a template becomes the draft on the HR assistant page.
+  function loadDraft(next: Job, message: string) {
+    setConversationId("");
+    setMessages([]);
+    setPrompt("");
+    setDraft(next);
+    go("hr-ai");
+    notify(message);
+  }
   function newConversation() {
     setConversationId("");
     setMessages([]);
@@ -517,6 +529,23 @@ export default function HrPanel({
                   <span>
                     {j.minSalary || j.maxSalary ? `${j.minSalary}–${j.maxSalary} AZN` : "Razılaşma yolu ilə"}
                   </span>
+                  {!j.demo && (
+                    <div className="admin-actions">
+                      <button
+                        disabled={busy}
+                        onClick={async () => {
+                          try {
+                            loadDraft(await duplicateJob(j.id), "Vakansiya kopyalandı. Yeni layihəni yoxlayın, son tarixi və yaranma səbəbini daxil edin.");
+                          } catch (e) {
+                            notify((e as Error).message);
+                          }
+                        }}
+                      >
+                        Kopyala
+                      </button>
+                      <button onClick={() => setSaveTemplate({ jobId: j.id, name: j.title })}>Şablon kimi saxla</button>
+                    </div>
+                  )}
                   {!j.demo && jobStatus(j) === "published" && (
                     <div className="admin-actions">
                       <select
@@ -666,7 +695,10 @@ export default function HrPanel({
               <h3>
                 <FileText size={18} /> Vakansiya layihəsi
               </h3>
-              <span className="pill">TƏSDİQ GÖZLƏYİR</span>
+              <div className="admin-actions">
+                <button onClick={() => setTemplatesOpen(true)}>Şablonlar</button>
+                <span className="pill">TƏSDİQ GÖZLƏYİR</span>
+              </div>
             </div>
             {draft ? (
               <>
@@ -674,6 +706,7 @@ export default function HrPanel({
                   Bütün şərtləri yoxlayın və şirkət məlumatlarını tamamlayın.
                 </p>
                 <JobForm job={draft} onChange={setDraft} />
+                <button className="secondary wide" onClick={() => setSaveTemplate({ job: draft, name: draft.title })}>Şablon kimi saxla</button>
                 <button
                   className="primary wide"
                   onClick={() => setConfirm(true)}
@@ -1062,6 +1095,8 @@ export default function HrPanel({
         />
       )}
       {testFor && <AssignTestModal application={testFor} onClose={() => setTestFor(null)} notify={notify} />}
+      {templatesOpen && <TemplatesModal onClose={() => setTemplatesOpen(false)} onUse={(d) => loadDraft(d, "Şablondan layihə yaradıldı. Son tarixi və yaranma səbəbini daxil edin.")} notify={notify} />}
+      {saveTemplate && <SaveTemplateModal jobId={saveTemplate.jobId} job={saveTemplate.job} defaultName={saveTemplate.name} onClose={() => setSaveTemplate(null)} notify={notify} />}
       {saveTalent && <SaveTalentModal candidateId={saveTalent.candidateId} name={saveTalent.name} onClose={() => setSaveTalent(null)} notify={notify} />}
       {bulk && <BulkModal ids={bulk.ids} action={bulk.action} onClose={() => setBulk(null)} onDone={() => void refresh()} notify={notify} />}
       {interviewFor && <ScheduleInterviewModal application={interviewFor} onClose={() => setInterviewFor(null)} onDone={() => void refresh()} notify={notify} />}

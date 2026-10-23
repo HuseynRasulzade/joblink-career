@@ -771,3 +771,18 @@ export const talentPool = sqliteTable(
   },
   (t) => [uniqueIndex("talent_pool_unique").on(t.companyId, t.candidateId), index("talent_pool_candidate").on(t.candidateId)],
 );
+
+// Reusable vacancy content a company saves to start new openings quickly.
+export const jobTemplates = sqliteTable(
+  "job_templates",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    name: text("name").notNull(),
+    data: text("data").notNull(),
+    createdBy: text("created_by").notNull().default(""),
+    created: text("created").notNull(),
+    updated: text("updated").notNull(),
+  },
+  (t) => [uniqueIndex("job_templates_name").on(t.companyId, t.name)],
+);
