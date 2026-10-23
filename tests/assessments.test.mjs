@@ -110,3 +110,14 @@ test("the summary counts states and averages only decided results", () => {
   assert.deepEqual(s, { assigned: 5, submitted: 4, pending: 1, passed: 2, failed: 1, average: 60 });
   assert.deepEqual(summarizeResults([]), { assigned: 0, submitted: 0, pending: 0, passed: 0, failed: 0, average: null });
 });
+
+test("outcomeTarget moves applications only when the test asks for it", async () => {
+  const { outcomeTarget } = await import("../lib/assessments.ts");
+  const on = { passingScore: 60, onPass: "review", onFail: "reject" };
+  assert.equal(outcomeTarget(on, 8, 10, "Göndərildi"), "Baxışda");
+  assert.equal(outcomeTarget(on, 8, 10, "Baxışda"), null);
+  assert.equal(outcomeTarget(on, 3, 10, "Baxışda"), "Uyğun deyil");
+  assert.equal(outcomeTarget(on, 3, 10, "İşə qəbul edildi"), null);
+  assert.equal(outcomeTarget({ passingScore: 60 }, 3, 10, "Göndərildi"), null);
+  assert.equal(outcomeTarget(on, 0, 0, "Göndərildi"), null);
+});

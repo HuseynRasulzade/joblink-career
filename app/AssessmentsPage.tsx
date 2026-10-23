@@ -31,6 +31,8 @@ type Detail = {
     duration_min: number;
     passing_score: number;
     show_result?: number;
+    on_pass?: string;
+    on_fail?: string;
     questions: Question[];
     attachment_name: string;
     attachment_type: string;
@@ -61,6 +63,8 @@ type Draft = {
   durationMin: number;
   passingScore: number;
   showResult?: boolean;
+  onPass?: string;
+  onFail?: string;
   jobId: string;
   questions: Question[];
   attachment?: { name: string; type: string; data: string };
@@ -154,6 +158,8 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
       durationMin: d.assessment.duration_min,
       passingScore: d.assessment.passing_score,
       showResult: d.assessment.show_result === 1,
+      onPass: d.assessment.on_pass || "",
+      onFail: d.assessment.on_fail || "",
       jobId: d.assessment.job_id,
       questions: d.assessment.questions,
       attachmentName: d.assessment.attachment_name,
@@ -170,6 +176,8 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
       durationMin: d.assessment.duration_min,
       passingScore: d.assessment.passing_score,
       showResult: d.assessment.show_result === 1,
+      onPass: d.assessment.on_pass || "",
+      onFail: d.assessment.on_fail || "",
       jobId: d.assessment.job_id,
       questions: d.assessment.questions.map((q) => ({ ...q, id: crypto.randomUUID().slice(0, 8) })),
       attachmentName: "",
@@ -264,6 +272,9 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
               <Field label="Müddət (dəqiqə)"><input type="number" min={5} max={240} value={draft.durationMin} onChange={(e) => setDraft({ ...draft, durationMin: Number(e.target.value) })} /></Field>
               <Field label="Keçid balı (%)"><input type="number" min={0} max={100} value={draft.passingScore} onChange={(e) => setDraft({ ...draft, passingScore: Number(e.target.value) })} /></Field>
               <label className="checkbox-row"><input type="checkbox" checked={!!draft.showResult} onChange={(e) => setDraft({ ...draft, showResult: e.target.checked })} /> Nəticəni namizədə göstər (açıq suallar yoxlandıqdan sonra)</label>
+              <label className="checkbox-row"><input type="checkbox" checked={draft.onPass === "review"} onChange={(e) => setDraft({ ...draft, onPass: e.target.checked ? "review" : "" })} /> Keçəndə müraciət avtomatik “Baxışda” statusuna keçsin (yalnız yeni müraciət)</label>
+              <label className="checkbox-row"><input type="checkbox" checked={draft.onFail === "reject"} onChange={(e) => setDraft({ ...draft, onFail: e.target.checked ? "reject" : "" })} /> Keçməyəndə müraciət avtomatik “Uyğun deyil” olsun (namizədə bildiriş gedir)</label>
+              {draft.onFail === "reject" && <small className="skill-picker-help">Yalnız bütün suallar qiymətləndirildikdən sonra tətbiq olunur, işə qəbul və təklif mərhələsinə toxunmur.</small>}
             </div>
             <Field label="Təlimat"><textarea rows={3} value={draft.instructions} onChange={(e) => setDraft({ ...draft, instructions: e.target.value })} /></Field>
             <div className="field">

@@ -62,7 +62,7 @@ export function scoreAnswers(questions: Question[], answers: Record<string, unkn
 // ---- Snapshot, answers and manual review ----
 // A test is copied into the assignment when it is sent, so editing the test
 // afterwards never changes what a candidate sees or how it is scored.
-export type TestSnapshot = { title: string; instructions: string; durationMin: number; passingScore: number; questions: Question[]; showResult?: boolean };
+export type TestSnapshot = { title: string; instructions: string; durationMin: number; passingScore: number; questions: Question[]; showResult?: boolean; onPass?: string; onFail?: string };
 
 export function parseSnapshot(raw: string): TestSnapshot | null {
   try {
@@ -152,6 +152,19 @@ export function parseQuestionCsv(input: string): Question[] {
 }
 
 // ---- Results: percent, pass / fail and a summary for one test ----
+// What an application does once a test is fully graded. Both actions are opt-in per test.
+export function outcomeTarget(
+  copy: { passingScore: number; onPass?: string; onFail?: string },
+  score: number,
+  max: number,
+  status: string,
+): string | null {
+  const percent = percentOf(score, max);
+  if (percent === null) return null;
+  if (percent >= copy.passingScore) return copy.onPass === "review" && status === "Göndərildi" ? "Baxışda" : null;
+  return copy.onFail === "reject" && ["Göndərildi", "Baxışda"].includes(status) ? "Uyğun deyil" : null;
+}
+
 export const percentOf = (score: number, max: number) => (max > 0 ? Math.round((score / max) * 100) : null);
 
 export type ResultRow = { status: string; score: number; max_score: number; review_status: string; passingScore: number };

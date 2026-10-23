@@ -423,6 +423,8 @@ export const assessments = sqliteTable(
     durationMin: integer("duration_min").notNull().default(30),
     passingScore: integer("passing_score").notNull().default(0),
     showResult: integer("show_result").notNull().default(0),
+    onPass: text("on_pass").notNull().default(""),
+    onFail: text("on_fail").notNull().default(""),
     questions: text("questions").notNull().default("[]"),
     attachmentName: text("attachment_name").notNull().default(""),
     attachmentType: text("attachment_type").notNull().default(""),
@@ -484,6 +486,7 @@ export const assessmentAssignments = sqliteTable(
     reviewedBy: text("reviewed_by").notNull().default(""),
     reviewedAt: text("reviewed_at").notNull().default(""),
     autosavedAt: text("autosaved_at").notNull().default(""),
+    outcomeApplied: integer("outcome_applied").notNull().default(0),
   },
   (t) => [
     index("assessment_assignments_candidate").on(t.candidateId, t.assignedAt),
