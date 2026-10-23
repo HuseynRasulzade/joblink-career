@@ -23,6 +23,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0025_tests_messages_hardening` | Test surəti (snapshot) və əl ilə qiymətləndirmə, komanda üzvü əlavə icazələri, mesaj müəllifi |
 | `0026_matching_settings` | Admin ayarları (`app_settings`) və vakansiya başına AI reytinqləri (`ai_job_ratings`) |
 | `0027_company_tax_check` | e-taxes vergi ödəyicisi yoxlamasının nəticəsi (`company_profiles.tax_check`) |
+| `0028_digests_sources` | Avtomatik hesabat abunəlikləri (`digest_subscriptions`) və müraciət mənbəyi (`applications.source`) |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 
@@ -45,3 +46,8 @@ Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı si
 ## Demo hesablar
 
 Cloudflare → D1 → `joblink-career-db` → Console-da `scripts/seed-demo-accounts.mjs`-in yaratdığı SQL-i işlədin (skript hər dəfə yeni parol çıxarır, SQL və parollar bir-birinə uyğun olmalıdır).
+
+## Planlanmış hesabatlar (cron) və e-poçt
+- `wrangler.external.json`-dakı `triggers.crons` hər gün 05:00 UTC (Bakı 09:00) işə düşür. Həftəlik hesabat bazar ertəsi, aylıq hesabat ayın 1-i göndərilir. Workflow-un `wrangler deploy` addımı cron-u özü qeyd edir.
+- Hesabat həmişə abunəçinin bildirişlərinə düşür. **E-poçtla göndərmək** üçün Cloudflare e-poçt göndərmə bağlaması (`EMAIL`) və `EMAIL_FROM` dəyişəni qurulmalıdır; onlar olmasa yalnız bildiriş yaranır.
+- Admin üçün "indi göndər": `POST /api/joblink/admin/run-digests` (`{"force":true}` bütün abunəçilərə dərhal göndərir).

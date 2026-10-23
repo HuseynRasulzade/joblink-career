@@ -110,7 +110,10 @@ const normalizedProfileRecord = (value: unknown, customSkills: string[] = []): P
 // A vacancy is open only while it is published, its owner is not suspended
 // and its application deadline (when set) has not passed.
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
-import { comparePeriods, inPeriod, monthlyTrend, pctChange, reachedFunnel, sourceSplit } from "@/lib/dashboard-stats";
+import { comparePeriods, inPeriod, monthlyTrend, pctChange, reachedFunnel } from "@/lib/dashboard-stats";
+import { normalizeExternalSource, sourceBreakdown } from "@/lib/sources";
+import { normalizeFrequency } from "@/lib/digest";
+import { runDigests } from "@/lib/digest-job";
 import { MATCHING_KEY, normalizeMatching, ratingHash, type MatchingSettings } from "@/lib/matching-settings";
 import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
 import { COUNTRIES, canonicalUniversity, setCustomUniversities, type University } from "@/lib/university-catalog";
@@ -2375,6 +2378,13 @@ async function route(request: Request) {
         headers: { "Content-Type": row.doc_type, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
       });
     }
+    if (request.method === "POST" && path === "admin/run-digests") {
+      // Same job the daily cron runs; "force" sends to every subscriber now.
+      const body = await jsonBody(request);
+      const settings = runtime();
+      const sent = await runDigests(db, settings.EMAIL as never, settings.EMAIL_FROM, new Date(), body.force === true);
+      return ok({ sent });
+    }
     if (request.method === "POST" && path === "admin/company-tax-check") {
       const b = await jsonBody(request);
       const companyId = str(b.companyId, 100);
@@ -2874,6 +2884,25 @@ async function route(request: Request) {
       inRange: (iso: string) => (!from || iso.slice(0, 10) >= from) && (!to || iso.slice(0, 10) <= to),
     };
   };
+  if (request.method === "GET" && path === "company/digest") {
+    requirePermission("reports");
+    const row = await db.prepare("SELECT frequency,last_sent FROM digest_subscriptions WHERE user_id=?").bind(userId).first<{ frequency: string; last_sent: string }>().catch(() => null);
+    return ok({ frequency: normalizeFrequency(row?.frequency), lastSent: row?.last_sent || "", allowed: can(memberRole, "publish") });
+  }
+  if (request.method === "POST" && path === "company/digest") {
+    requirePermission("reports");
+    // The summary is company-wide, so only members who see the whole company may subscribe.
+    if (!can(memberRole, "publish")) throw new HttpError(403, "Avtomatik hesabat yalnız bütün şirkəti görən rollar üçündür.");
+    const b = await jsonBody(request);
+    const frequency = normalizeFrequency(b.frequency);
+    await db
+      .prepare(`INSERT INTO digest_subscriptions(user_id,company_id,frequency,created) VALUES(?,?,?,?)
+        ON CONFLICT(user_id) DO UPDATE SET company_id=excluded.company_id,frequency=excluded.frequency`)
+      .bind(userId, id, frequency, new Date().toISOString())
+      .run();
+    await companyAudit(db, id, userId, "digest-set", "", frequency);
+    return ok({ ok: true, frequency });
+  }
   if (request.method === "GET" && path === "company/attention") {
     const scope = await reportScope();
     const today = new Date().toISOString().slice(0, 10);
@@ -2915,9 +2944,9 @@ async function route(request: Request) {
     const jobs = await db.prepare("SELECT id,status,created,json_extract(data,'$.title') AS title FROM jobs WHERE owner=? AND id IN (SELECT value FROM json_each(?))").bind(id, scope.jobIdsJson)
       .all<{ id: string; status: string; created: string; title: string }>();
     const allApps = await db
-      .prepare("SELECT a.id,a.job_id,a.status,a.created,a.updated,a.auto FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))")
+      .prepare("SELECT a.id,a.job_id,a.status,a.created,a.updated,a.auto,a.source FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))")
       .bind(id, scope.jobIdsJson)
-      .all<{ id: string; job_id: string; status: string; created: string; updated: string | null; auto: number }>();
+      .all<{ id: string; job_id: string; status: string; created: string; updated: string | null; auto: number; source: string }>();
     const apps = { results: allApps.results.filter((a) => scope.inRange(a.created)) };
     // Offers, tests and employees are company-wide, so a role limited to its own vacancies does not see them.
     const empty = { results: [] as { status: string }[] };
@@ -2984,7 +3013,7 @@ async function route(request: Request) {
       days,
       perJob,
       funnel: reachedFunnel(byStatus),
-      sources: sourceSplit(apps.results),
+      sources: sourceBreakdown(apps.results),
       trend: monthlyTrend(allApps.results, (scope.to || new Date().toISOString()).slice(0, 10), 6),
       delta: (() => {
         const p = comparePeriods(scope.from, scope.to);
@@ -3232,11 +3261,21 @@ async function route(request: Request) {
     if (!found) throw new HttpError(404, "Vakansiya artıq aktiv deyil və ya müraciət müddəti bitib.");
     if ("owner" in found && typeof found.owner === "string" && !sampleJobs.some((sample) => sample.id === jobId) && (await blockedBetween(db, id, found.owner)))
       throw new HttpError(403, "Bu şirkətin vakansiyalarına müraciət etmək mümkün deyil.");
+    // Where the candidate came from: a tracking link, an earlier message from the company, or the site itself.
+    let source = normalizeExternalSource(b.source);
+    if (!source && "owner" in found && typeof found.owner === "string") {
+      const invited = await db
+        .prepare("SELECT 1 AS x FROM message_threads WHERE company_id=? AND candidate_id=? AND job_id=? LIMIT 1")
+        .bind(found.owner, id, jobId)
+        .first()
+        .catch(() => null);
+      source = invited ? "invite" : "platform";
+    }
     // A withdrawn application may be resubmitted with the current profile.
     const applyResult = await db
       .prepare(
-        `INSERT INTO applications(id,job_id,candidate_id,data,status,created,auto) VALUES(?,?,?,?,?,?,0)
-          ON CONFLICT(job_id,candidate_id) DO UPDATE SET data=excluded.data,status=excluded.status,created=excluded.created,auto=0
+        `INSERT INTO applications(id,job_id,candidate_id,data,status,created,auto,source) VALUES(?,?,?,?,?,?,0,?)
+          ON CONFLICT(job_id,candidate_id) DO UPDATE SET data=excluded.data,status=excluded.status,created=excluded.created,auto=0,source=excluded.source
           WHERE applications.status='${WITHDRAWN_STATUS}'`,
       )
       .bind(
@@ -3246,6 +3285,7 @@ async function route(request: Request) {
         JSON.stringify(p),
         "Göndərildi",
         new Date().toISOString(),
+        source || "platform",
       )
       .run();
     if (applyResult.meta.changes > 0) {
@@ -3697,7 +3737,7 @@ async function route(request: Request) {
     for (const x of batch) {
       const result = await db
         .prepare(
-          "INSERT OR IGNORE INTO applications(id,job_id,candidate_id,data,status,created,auto) VALUES(?,?,?,?,?,?,1)",
+          "INSERT OR IGNORE INTO applications(id,job_id,candidate_id,data,status,created,auto,source) VALUES(?,?,?,?,?,?,1,'auto')",
         )
         .bind(
           crypto.randomUUID(),

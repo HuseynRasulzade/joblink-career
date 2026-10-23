@@ -191,6 +191,8 @@ export const applications = sqliteTable(
     auto: integer("auto").notNull().default(0),
     stage: text("stage").notNull().default(""),
     updated: text("updated").notNull().default(""),
+    // Where the application came from (see lib/sources.ts); empty on older rows.
+    source: text("source").notNull().default(""),
   },
   (t) => [
     uniqueIndex("application_unique").on(t.jobId, t.candidateId),
@@ -707,4 +709,17 @@ export const aiJobRatings = sqliteTable(
     created: text("created").notNull(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.jobId] }), index("ai_job_ratings_created").on(t.created)],
+);
+
+// Scheduled summary e-mails for company members (weekly or monthly).
+export const digestSubscriptions = sqliteTable(
+  "digest_subscriptions",
+  {
+    userId: text("user_id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    frequency: text("frequency").notNull(),
+    lastSent: text("last_sent").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [index("digest_subscriptions_company").on(t.companyId)],
 );

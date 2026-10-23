@@ -50,6 +50,38 @@ function ReportButton({ kind, label, query = "" }: { kind: string; label: string
   );
 }
 
+// Weekly or monthly summary by e-mail (and in the notification bell).
+function DigestCard({ notify }: { notify: Notify }) {
+  const [state, setState] = useState<{ frequency: string; lastSent: string; allowed: boolean } | null>(null);
+  useEffect(() => {
+    request<{ frequency: string; lastSent: string; allowed: boolean }>("company/digest").then(setState).catch(() => setState(null));
+  }, []);
+  if (!state?.allowed) return null;
+  async function change(frequency: string) {
+    try {
+      await request("company/digest", { frequency });
+      setState((v) => (v ? { ...v, frequency } : v));
+      notify(frequency === "off" ? "Avtomatik hesabat söndürüldü." : frequency === "weekly" ? "Hər bazar ertəsi həftəlik hesabat göndəriləcək." : "Hər ayın 1-də aylıq hesabat göndəriləcək.");
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  return (
+    <section className="panel">
+      <h3>Avtomatik hesabat</h3>
+      <p className="muted fine-print">Yeni müraciətlər, işə qəbul və diqqət tələb edən işlərin qısa icmalı e-poçtunuza (və bildirişlərə) göndərilir. E-poçt yalnız platformada e-poçt göndərmə qurulubsa gedir.</p>
+      <Field label="Tezlik">
+        <select value={state.frequency} onChange={(e) => change(e.target.value)}>
+          <option value="off">Göndərilməsin</option>
+          <option value="weekly">Həftəlik (bazar ertəsi)</option>
+          <option value="monthly">Aylıq (ayın 1-i)</option>
+        </select>
+      </Field>
+      {state.lastSent && <p className="muted fine-print">Son göndərilmə: {when(state.lastSent)}</p>}
+    </section>
+  );
+}
+
 // ---------- Dashboard and reports ----------
 type Dashboard = {
   totals: {
@@ -63,7 +95,7 @@ type Dashboard = {
   scope?: { from: string; to: string; jobId: string; ownOnly: boolean };
   jobsList?: { id: string; title: string }[];
   funnel?: { stage: string; reached: number; fromPrevious: number | null }[];
-  sources?: { candidate: number; auto: number };
+  sources?: { id: string; label: string; count: number }[];
   trend?: { month: string; applications: number; hires: number; avgDaysToHire: number | null }[];
   delta?: {
     period: { current: { from: string; to: string }; previous: { from: string; to: string }; days: number };
@@ -149,10 +181,23 @@ export function CompanyDashboard({ me, notify }: { me: CompanyMe | null; notify:
             <b>{data.byStatus["Uyğun deyil"] || 0}</b>
           </div>
         </div>
-        {data.sources && (
-          <p className="muted fine-print">Mənbə: {data.sources.candidate} namizəd özü müraciət etdi, {data.sources.auto} AI avtomatik müraciəti.</p>
+        {!!data.sources?.length && (
+          <>
+            <h3 style={{ marginTop: 16 }}>Müraciət mənbəyi</h3>
+            <div className="funnel">
+              {data.sources.map((row) => (
+                <div key={row.id} className="funnel-row">
+                  <span>{row.label}</span>
+                  <div><i style={{ width: `${t.applications ? (row.count / t.applications) * 100 : 0}%` }} /></div>
+                  <b>{row.count}</b>
+                </div>
+              ))}
+            </div>
+            <p className="muted fine-print">Xarici kanallar üçün “Vakansiyalarım” bölməsində kanal seçib izləmə linki kopyalayın və həmin kanalda paylaşın.</p>
+          </>
         )}
       </section>
+      {reports && <DigestCard notify={notify} />}
       {data.trend && (
         <section className="panel">
           <h3>Aylar üzrə trend (son 6 ay)</h3>

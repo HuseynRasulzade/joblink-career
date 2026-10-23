@@ -1,5 +1,6 @@
 "use client";
 import { FitReviewPanel } from "./FitReview";
+import { EXTERNAL_SOURCES, trackingLink } from "@/lib/sources";
 import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
@@ -125,6 +126,7 @@ export default function HrPanel({
   onPublished: () => void;
   onMessage: (target: { candidateId: string; jobId?: string; name: string; jobTitle?: string }) => void;
 }) {
+  const [linkSource, setLinkSource] = useState<Record<string, string>>({});
   const [attention, setAttention] = useState<{ key: string; count: number; label: string; link: string }[]>([]);
   const [data, setData] = useState<HrData>({
     jobs: [],
@@ -510,6 +512,31 @@ export default function HrPanel({
                   <span>
                     {j.minSalary || j.maxSalary ? `${j.minSalary}–${j.maxSalary} AZN` : "Razılaşma yolu ilə"}
                   </span>
+                  {!j.demo && jobStatus(j) === "published" && (
+                    <div className="admin-actions">
+                      <select
+                        aria-label="Paylaşım kanalı"
+                        value={linkSource[j.id] || ""}
+                        onChange={(e) => setLinkSource({ ...linkSource, [j.id]: e.target.value })}
+                      >
+                        <option value="">Kanal seçin (izləmə üçün)</option>
+                        {EXTERNAL_SOURCES.map((src) => <option key={src.id} value={src.id}>{src.label}</option>)}
+                      </select>
+                      <button
+                        onClick={async () => {
+                          const link = trackingLink(window.location.origin, j.id, linkSource[j.id] || "");
+                          try {
+                            await navigator.clipboard.writeText(link);
+                            notify("Link kopyalandı: " + link);
+                          } catch {
+                            window.prompt("Linki kopyalayın:", link);
+                          }
+                        }}
+                      >
+                        Link kopyala
+                      </button>
+                    </div>
+                  )}
                   {!j.demo && jobStatus(j) !== "archived" && (
                     <div className="admin-actions">
                       {jobStatus(j) === "published" ? (

@@ -893,6 +893,26 @@ export default function Joblink() {
       setBusy(false);
     }
   }
+  // A shared link /?job=ID&src=linkedin opens that vacancy and remembers the channel until the candidate applies.
+  const deepLinked = useRef("");
+  useEffect(() => {
+    if (hr || admin || !jobs.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const wanted = params.get("job") || "";
+    if (!wanted || deepLinked.current === wanted) return;
+    const target = jobs.find((x) => x.id === wanted);
+    if (!target) return;
+    deepLinked.current = wanted;
+    const src = (params.get("src") || "").toLowerCase();
+    try {
+      if (src) window.localStorage.setItem("joblink-src", JSON.stringify({ job: wanted, src }));
+    } catch {
+      // Storage is optional.
+    }
+    openJob(target);
+    go("jobs");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, hr, admin]);
   // Remember the one-time consent and load the admin's choice.
   useEffect(() => {
     if (!signedIn || hr || admin) return;
@@ -930,7 +950,14 @@ export default function Joblink() {
     if (!job) return;
     setBusy(true);
     try {
-      await api("apply", { jobId: job.id });
+      let source = "";
+      try {
+        const stored = JSON.parse(window.localStorage.getItem("joblink-src") || "null") as { job: string; src: string } | null;
+        if (stored?.job === job.id) source = stored.src;
+      } catch {
+        // Storage is optional.
+      }
+      await api("apply", { jobId: job.id, source });
       setApplyConfirm(false);
       await refresh();
       notify(
