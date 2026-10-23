@@ -1,0 +1,44 @@
+{
+  "year": 2026,
+  "version": "2026.1",
+  "currency": "AZN",
+  "source": "Vergilər Nazirliyi (taxes.gov.az), DSMF — rəsmi yoxlama gözlənilir",
+  "status": "assumptions",
+  "disclaimer": "Hesablama 2026 dərəcələrinə (qeyri-dövlət, qeyri-neft sektoru) və aşağıdakı fərziyyələrə əsaslanır.",
+  "assumptions": {
+    "deduction_applies_to": "main_only",
+    "first_bracket_boundary_inclusive": true,
+    "insurance_marginal": true,
+    "medical_split": "each_side",
+    "bracket_basis": "per_job",
+    "additional_job_insurance_same_as_main": true
+  },
+  "compare": { "partial_ratio": 0.9 },
+  "profiles": {
+    "private": {
+      "confirmed": true,
+      "label": "Qeyri-dövlət, qeyri-neft",
+      "income_tax": {
+        "first_bracket_deduction": 200,
+        "brackets": [
+          { "up_to": 2500, "base": 0, "rate": 0.03, "from": 0, "deduction_eligible": true },
+          { "up_to": 8000, "base": 75, "rate": 0.10, "from": 2500 },
+          { "up_to": null, "base": 625, "rate": 0.14, "from": 8000 }
+        ]
+      },
+      "employee_dsmf": [ { "up_to": 200, "rate": 0.03 }, { "up_to": null, "rate": 0.10 } ],
+      "employer_dsmf": [ { "up_to": 200, "rate": 0.22 }, { "up_to": 8000, "rate": 0.15 }, { "up_to": null, "rate": 0.11 } ],
+      "unemployment": { "employee": 0.005, "employer": 0.005 },
+      "medical": [ { "up_to": 2500, "rate": 0.02 }, { "up_to": null, "rate": 0.005 } ]
+    },
+    "public": {
+      "confirmed": false,
+      "label": "Dövlət və neft sektoru",
+      "status": "təsdiqlənməyib",
+      "warning": "Dövlət və neft sektoru üçün pillə hədləri rəsmi mənbədə dəqiq göstərilməyib; hesablama aparılmır.",
+      "income_tax_rates": [0.14, 0.25],
+      "dsmf_rates": { "employee": 0.03, "employer": 0.22 },
+      "income_tax": null
+    }
+  }
+}
