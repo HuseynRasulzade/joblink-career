@@ -1,16 +1,195 @@
 "use client";
 import { formatDate } from "@/lib/dates";
-import { useCallback, useEffect, useState } from "react";
-import { GraduationCap, Inbox, Plus, Trash2, X } from "lucide-react";
-import { COUNTRIES, type University } from "@/lib/university-catalog";
-import { MAJOR_FIELDS, type Major } from "@/lib/major-catalog";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { GraduationCap, Inbox, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  COUNTRIES,
+  UNIVERSITIES,
+  normalizeUniversityKey,
+  type University,
+} from "@/lib/university-catalog";
+import {
+  MAJOR_FIELDS,
+  MAJORS,
+  normalizeMajorKey,
+  type Major,
+} from "@/lib/major-catalog";
 import { setCustomUniversities } from "@/lib/university-catalog";
 import { setCustomMajors } from "@/lib/major-catalog";
 
-type Thread = { id: string; topic: string; subject: string; status: string; user_name: string; user_role: string; created: string };
-type Form = { kind: "university" | "major"; label: string; labelEn: string; labelRu: string; extra: string; aliases: string; threadId: string };
+type Thread = {
+  id: string;
+  topic: string;
+  subject: string;
+  status: string;
+  user_name: string;
+  user_role: string;
+  created: string;
+};
+type Form = {
+  kind: "university" | "major";
+  label: string;
+  labelEn: string;
+  labelRu: string;
+  extra: string;
+  aliases: string;
+  threadId: string;
+};
 type Data = { universities: University[]; majors: Major[] };
-const blank = (kind: Form["kind"], label = "", threadId = ""): Form => ({ kind, label, labelEn: "", labelRu: "", extra: "", aliases: "", threadId });
+const blank = (kind: Form["kind"], label = "", threadId = ""): Form => ({
+  kind,
+  label,
+  labelEn: "",
+  labelRu: "",
+  extra: "",
+  aliases: "",
+  threadId,
+});
+
+const PAGE_SIZE = 25;
+
+// Read-only view of the built-in lists that candidates pick from.
+function BuiltInCatalog({ language }: { language: "az" | "en" | "ru" }) {
+  const [kind, setKind] = useState<"university" | "major">("university");
+  const [query, setQuery] = useState("");
+  const [group, setGroup] = useState("");
+  const [page, setPage] = useState(0);
+  const universities = kind === "university";
+  const groups = universities ? COUNTRIES : MAJOR_FIELDS;
+  const rows = useMemo(() => {
+    const key = (value: string) =>
+      universities ? normalizeUniversityKey(value) : normalizeMajorKey(value);
+    const needle = key(query);
+    const source: Array<University | Major> = universities
+      ? UNIVERSITIES
+      : MAJORS;
+    return source.filter((item) => {
+      const itemGroup = "country" in item ? item.country : item.field;
+      if (group && itemGroup !== group) return false;
+      if (!needle) return true;
+      return [item.label, item.labelEn, item.labelRu, ...item.aliases].some(
+        (text) => key(text).includes(needle),
+      );
+    });
+  }, [universities, query, group]);
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const current = Math.min(page, pages - 1);
+  const shown = rows.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
+  const groupName = (item: University | Major) => {
+    const id = "country" in item ? item.country : item.field;
+    return groups[id]?.[language] || id;
+  };
+  const choose = (next: "university" | "major") => {
+    setKind(next);
+    setGroup("");
+    setPage(0);
+  };
+  return (
+    <section className="panel admin-table-card skill-admin-card">
+      <div className="section-heading billing-heading">
+        <div>
+          <h2>Hazır kataloq</h2>
+          <p>
+            Namizədlərin təhsil bölməsində seçdiyi hazır universitet və
+            ixtisaslar
+          </p>
+        </div>
+        <div className="billing-head-actions">
+          <button
+            className={universities ? "billing-primary" : ""}
+            onClick={() => choose("university")}
+          >
+            Universitetlər ({UNIVERSITIES.length})
+          </button>
+          <button
+            className={universities ? "" : "billing-primary"}
+            onClick={() => choose("major")}
+          >
+            İxtisaslar ({MAJORS.length})
+          </button>
+        </div>
+      </div>
+      <div className="billing-form skill-admin-form">
+        <label>
+          <span>Axtar</span>
+          <div className="search-field">
+            <Search size={15} />
+            <input
+              value={query}
+              placeholder="Ad, qısaltma və ya ingilis adı"
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
+            />
+          </div>
+        </label>
+        <label>
+          <span>{universities ? "Ölkə" : "Sahə"}</span>
+          <select
+            value={group}
+            onChange={(e) => {
+              setGroup(e.target.value);
+              setPage(0);
+            }}
+          >
+            <option value="">
+              {universities ? "Bütün ölkələr" : "Bütün sahələr"}
+            </option>
+            {Object.keys(groups).map((id) => (
+              <option key={id} value={id}>
+                {groups[id][language]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="admin-table-wrap">
+        <table className="admin-table skill-admin-table">
+          <thead>
+            <tr>
+              <th>Ad</th>
+              <th>İngilis dilində</th>
+              <th>{universities ? "Ölkə" : "Sahə"}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((item) => (
+              <tr key={item.id}>
+                <td>
+                  <strong>{item.label}</strong>
+                </td>
+                <td>{item.labelEn}</td>
+                <td>{groupName(item)}</td>
+              </tr>
+            ))}
+            {!shown.length && (
+              <tr>
+                <td colSpan={3}>
+                  <p className="admin-empty">Uyğun qeyd tapılmadı.</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="billing-form-actions">
+        <span>
+          {rows.length} qeyd · {current + 1} / {pages}
+        </span>
+        <button disabled={current === 0} onClick={() => setPage(current - 1)}>
+          Əvvəlki
+        </button>
+        <button
+          disabled={current >= pages - 1}
+          onClick={() => setPage(current + 1)}
+        >
+          Növbəti
+        </button>
+      </div>
+    </section>
+  );
+}
 
 // Admin page for universities and study programmes that candidates asked to add.
 export default function AdminEducation({
@@ -33,9 +212,15 @@ export default function AdminEducation({
       setData(loaded);
       setCustomUniversities(loaded.universities);
       setCustomMajors(loaded.majors);
-      const response = await fetch("/api/joblink/support", { credentials: "same-origin", cache: "no-store" });
-      const threads = ((await response.json()) as { threads?: Thread[] }).threads || [];
-      setRequests(threads.filter((t) => t.topic === "university" || t.topic === "major"));
+      const response = await fetch("/api/joblink/support", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      const threads =
+        ((await response.json()) as { threads?: Thread[] }).threads || [];
+      setRequests(
+        threads.filter((t) => t.topic === "university" || t.topic === "major"),
+      );
     } catch (error) {
       notify((error as Error).message);
     }
@@ -52,7 +237,11 @@ export default function AdminEducation({
     setBusy(true);
     try {
       await api("admin/education", form);
-      notify(form.threadId ? "Siyahıya əlavə edildi və sorğu tamamlandı." : "Siyahıya əlavə edildi.");
+      notify(
+        form.threadId
+          ? "Siyahıya əlavə edildi və sorğu tamamlandı."
+          : "Siyahıya əlavə edildi.",
+      );
       setForm(null);
       await load();
     } catch (error) {
@@ -62,10 +251,17 @@ export default function AdminEducation({
     }
   }
   async function reject(thread: Thread) {
-    const reason = window.prompt("Rədd etmə səbəbi (istifadəçiyə göndəriləcək):", "Bu ad siyahıdakı mövcud qeyd ilə eynidir.");
+    const reason = window.prompt(
+      "Rədd etmə səbəbi (istifadəçiyə göndəriləcək):",
+      "Bu ad siyahıdakı mövcud qeyd ilə eynidir.",
+    );
     if (reason === null) return;
     try {
-      await api("support/reply", { id: thread.id, body: reason || "Sorğu rədd edildi.", status: "rejected" });
+      await api("support/reply", {
+        id: thread.id,
+        body: reason || "Sorğu rədd edildi.",
+        status: "rejected",
+      });
       notify("Sorğu rədd edildi.");
       await load();
     } catch (error) {
@@ -73,7 +269,12 @@ export default function AdminEducation({
     }
   }
   async function remove(id: string, label: string) {
-    if (!window.confirm(`“${label}” siyahıdan silinsin? Namizədlərin profilindəki yazı dəyişməz.`)) return;
+    if (
+      !window.confirm(
+        `“${label}” siyahıdan silinsin? Namizədlərin profilindəki yazı dəyişməz.`,
+      )
+    )
+      return;
     try {
       await api("admin/education/delete", { id });
       notify("Silindi.");
@@ -87,74 +288,314 @@ export default function AdminEducation({
   const countryName = (code: string) => COUNTRIES[code]?.[language] || code;
   const fieldName = (id: string) => MAJOR_FIELDS[id]?.[language] || id;
   const items = [
-    ...data.universities.map((u) => ({ id: u.id, kind: "Universitet", label: u.label, en: u.labelEn, extra: countryName(u.country) })),
-    ...data.majors.map((m) => ({ id: m.id, kind: "İxtisas", label: m.label, en: m.labelEn, extra: fieldName(m.field) })),
+    ...data.universities.map((u) => ({
+      id: u.id,
+      kind: "Universitet",
+      label: u.label,
+      en: u.labelEn,
+      extra: countryName(u.country),
+    })),
+    ...data.majors.map((m) => ({
+      id: m.id,
+      kind: "İxtisas",
+      label: m.label,
+      en: m.labelEn,
+      extra: fieldName(m.field),
+    })),
   ];
 
   return (
     <>
       <div className="skill-admin-metrics">
-        <article><span><GraduationCap size={19} /></span><div><small>Əlavə olunmuş universitetlər</small><strong>{data.universities.length}</strong></div></article>
-        <article><span><GraduationCap size={19} /></span><div><small>Əlavə olunmuş ixtisaslar</small><strong>{data.majors.length}</strong></div></article>
-        <article><span><Inbox size={19} /></span><div><small>Gözləyən sorğular</small><strong>{open.length}</strong></div></article>
+        <article>
+          <span>
+            <GraduationCap size={19} />
+          </span>
+          <div>
+            <small>Hazır universitetlər</small>
+            <strong>{UNIVERSITIES.length}</strong>
+          </div>
+        </article>
+        <article>
+          <span>
+            <GraduationCap size={19} />
+          </span>
+          <div>
+            <small>Hazır ixtisaslar</small>
+            <strong>{MAJORS.length}</strong>
+          </div>
+        </article>
+        <article>
+          <span>
+            <GraduationCap size={19} />
+          </span>
+          <div>
+            <small>Əlavə olunmuş universitetlər</small>
+            <strong>{data.universities.length}</strong>
+          </div>
+        </article>
+        <article>
+          <span>
+            <GraduationCap size={19} />
+          </span>
+          <div>
+            <small>Əlavə olunmuş ixtisaslar</small>
+            <strong>{data.majors.length}</strong>
+          </div>
+        </article>
+        <article>
+          <span>
+            <Inbox size={19} />
+          </span>
+          <div>
+            <small>Gözləyən sorğular</small>
+            <strong>{open.length}</strong>
+          </div>
+        </article>
       </div>
+      <BuiltInCatalog language={language} />
       <section className="panel admin-table-card">
-        <div className="section-heading"><div><h2>Sorğular</h2><p>İstifadəçilərin siyahıda tapmadığı universitet və ixtisaslar</p></div><Inbox size={20} /></div>
-        <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Yazılan ad</th><th>Növ</th><th>İstifadəçi</th><th>Status</th><th>Tarix</th><th></th></tr></thead><tbody>
-          {requests.map((t) => (
-            <tr key={t.id}>
-              <td><strong>{t.subject}</strong></td>
-              <td>{t.topic === "university" ? "Universitet" : "İxtisas"}</td>
-              <td><div className="admin-job"><strong>{t.user_name}</strong><small>{t.user_role === "company" ? "Şirkət" : "Namizəd"}</small></div></td>
-              <td><span className={`admin-status ${t.status === "done" ? "active" : t.status === "rejected" ? "archived" : "paused"}`}>{({ new: "Yeni", read: "Oxundu", in_progress: "İcradadır", done: "Tamamlandı", rejected: "Rədd edildi" } as Record<string, string>)[t.status] || t.status}</span></td>
-              <td>{formatDate(t.created, language)}</td>
-              <td>{!["done", "rejected"].includes(t.status) && <div className="admin-actions">
-                <button onClick={() => setForm(blank(t.topic === "university" ? "university" : "major", t.subject, t.id))}>Əlavə et</button>
-                <button onClick={() => reject(t)}>Rədd et</button>
-              </div>}</td>
-            </tr>
-          ))}
-          {!requests.length && <tr><td colSpan={6}><p className="admin-empty">Hələ sorğu yoxdur.</p></td></tr>}
-        </tbody></table></div>
+        <div className="section-heading">
+          <div>
+            <h2>Sorğular</h2>
+            <p>İstifadəçilərin siyahıda tapmadığı universitet və ixtisaslar</p>
+          </div>
+          <Inbox size={20} />
+        </div>
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Yazılan ad</th>
+                <th>Növ</th>
+                <th>İstifadəçi</th>
+                <th>Status</th>
+                <th>Tarix</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((t) => (
+                <tr key={t.id}>
+                  <td>
+                    <strong>{t.subject}</strong>
+                  </td>
+                  <td>
+                    {t.topic === "university" ? "Universitet" : "İxtisas"}
+                  </td>
+                  <td>
+                    <div className="admin-job">
+                      <strong>{t.user_name}</strong>
+                      <small>
+                        {t.user_role === "company" ? "Şirkət" : "Namizəd"}
+                      </small>
+                    </div>
+                  </td>
+                  <td>
+                    <span
+                      className={`admin-status ${t.status === "done" ? "active" : t.status === "rejected" ? "archived" : "paused"}`}
+                    >
+                      {(
+                        {
+                          new: "Yeni",
+                          read: "Oxundu",
+                          in_progress: "İcradadır",
+                          done: "Tamamlandı",
+                          rejected: "Rədd edildi",
+                        } as Record<string, string>
+                      )[t.status] || t.status}
+                    </span>
+                  </td>
+                  <td>{formatDate(t.created, language)}</td>
+                  <td>
+                    {!["done", "rejected"].includes(t.status) && (
+                      <div className="admin-actions">
+                        <button
+                          onClick={() =>
+                            setForm(
+                              blank(
+                                t.topic === "university"
+                                  ? "university"
+                                  : "major",
+                                t.subject,
+                                t.id,
+                              ),
+                            )
+                          }
+                        >
+                          Əlavə et
+                        </button>
+                        <button onClick={() => reject(t)}>Rədd et</button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!requests.length && (
+                <tr>
+                  <td colSpan={6}>
+                    <p className="admin-empty">Hələ sorğu yoxdur.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
       <section className="panel admin-table-card skill-admin-card">
         <div className="section-heading billing-heading">
-          <div><h2>Əlavə olunmuş qeydlər</h2><p>Hazır siyahıda olmayan, admin tərəfindən əlavə edilmiş universitet və ixtisaslar</p></div>
+          <div>
+            <h2>Əlavə olunmuş qeydlər</h2>
+            <p>
+              Hazır siyahıda olmayan, admin tərəfindən əlavə edilmiş universitet
+              və ixtisaslar
+            </p>
+          </div>
           <div className="billing-head-actions">
-            <button className="billing-primary" onClick={() => setForm(blank("university"))}><Plus size={16} /> Universitet</button>
-            <button className="billing-primary" onClick={() => setForm(blank("major"))}><Plus size={16} /> İxtisas</button>
+            <button
+              className="billing-primary"
+              onClick={() => setForm(blank("university"))}
+            >
+              <Plus size={16} /> Universitet
+            </button>
+            <button
+              className="billing-primary"
+              onClick={() => setForm(blank("major"))}
+            >
+              <Plus size={16} /> İxtisas
+            </button>
           </div>
         </div>
         {form && (
           <form className="billing-form skill-admin-form" onSubmit={save}>
-            <div className="billing-form-title"><div><strong>{form.kind === "university" ? "Yeni universitet" : "Yeni ixtisas"}{form.threadId ? " (sorğu əsasında)" : ""}</strong><span>Təsdiqdən sonra istifadəçiyə avtomatik cavab göndərilir</span></div><button type="button" className="text-button" onClick={() => setForm(null)}><X size={16} /></button></div>
-            <label><span>Azərbaycan dilində ad *</span><input required maxLength={160} value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} /></label>
-            <label><span>İngilis dilində ad</span><input maxLength={160} value={form.labelEn} onChange={(e) => setForm({ ...form, labelEn: e.target.value })} /></label>
-            <label><span>Rus dilində ad</span><input maxLength={160} value={form.labelRu} onChange={(e) => setForm({ ...form, labelRu: e.target.value })} /></label>
-            <label><span>{form.kind === "university" ? "Ölkə *" : "Sahə *"}</span>
-              <select required value={form.extra} onChange={(e) => setForm({ ...form, extra: e.target.value })}>
+            <div className="billing-form-title">
+              <div>
+                <strong>
+                  {form.kind === "university"
+                    ? "Yeni universitet"
+                    : "Yeni ixtisas"}
+                  {form.threadId ? " (sorğu əsasında)" : ""}
+                </strong>
+                <span>
+                  Təsdiqdən sonra istifadəçiyə avtomatik cavab göndərilir
+                </span>
+              </div>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setForm(null)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <label>
+              <span>Azərbaycan dilində ad *</span>
+              <input
+                required
+                maxLength={160}
+                value={form.label}
+                onChange={(e) => setForm({ ...form, label: e.target.value })}
+              />
+            </label>
+            <label>
+              <span>İngilis dilində ad</span>
+              <input
+                maxLength={160}
+                value={form.labelEn}
+                onChange={(e) => setForm({ ...form, labelEn: e.target.value })}
+              />
+            </label>
+            <label>
+              <span>Rus dilində ad</span>
+              <input
+                maxLength={160}
+                value={form.labelRu}
+                onChange={(e) => setForm({ ...form, labelRu: e.target.value })}
+              />
+            </label>
+            <label>
+              <span>{form.kind === "university" ? "Ölkə *" : "Sahə *"}</span>
+              <select
+                required
+                value={form.extra}
+                onChange={(e) => setForm({ ...form, extra: e.target.value })}
+              >
                 <option value="">Seçin</option>
                 {form.kind === "university"
-                  ? Object.keys(COUNTRIES).map((code) => <option key={code} value={code}>{countryName(code)}</option>)
-                  : Object.keys(MAJOR_FIELDS).map((id) => <option key={id} value={id}>{fieldName(id)}</option>)}
+                  ? Object.keys(COUNTRIES).map((code) => (
+                      <option key={code} value={code}>
+                        {countryName(code)}
+                      </option>
+                    ))
+                  : Object.keys(MAJOR_FIELDS).map((id) => (
+                      <option key={id} value={id}>
+                        {fieldName(id)}
+                      </option>
+                    ))}
               </select>
             </label>
-            <label className="wide"><span>Alternativ yazılışlar və qısaltmalar</span><textarea rows={2} maxLength={800} value={form.aliases} onChange={(e) => setForm({ ...form, aliases: e.target.value })} placeholder="Vergül ilə ayırın" /></label>
-            <div className="billing-form-actions"><button type="button" onClick={() => setForm(null)}>Ləğv et</button><button className="billing-primary" disabled={busy}>Siyahıya əlavə et</button></div>
+            <label className="wide">
+              <span>Alternativ yazılışlar və qısaltmalar</span>
+              <textarea
+                rows={2}
+                maxLength={800}
+                value={form.aliases}
+                onChange={(e) => setForm({ ...form, aliases: e.target.value })}
+                placeholder="Vergül ilə ayırın"
+              />
+            </label>
+            <div className="billing-form-actions">
+              <button type="button" onClick={() => setForm(null)}>
+                Ləğv et
+              </button>
+              <button className="billing-primary" disabled={busy}>
+                Siyahıya əlavə et
+              </button>
+            </div>
           </form>
         )}
-        <div className="admin-table-wrap"><table className="admin-table skill-admin-table"><thead><tr><th>Növ</th><th>Ad</th><th>İngilis dilində</th><th>Ölkə / sahə</th><th></th></tr></thead><tbody>
-          {items.map((item) => (
-            <tr key={item.id}>
-              <td>{item.kind}</td>
-              <td><strong>{item.label}</strong></td>
-              <td>{item.en}</td>
-              <td>{item.extra}</td>
-              <td><button aria-label="Sil" onClick={() => remove(item.id, item.label)}><Trash2 size={14} /></button></td>
-            </tr>
-          ))}
-          {!items.length && <tr><td colSpan={5}><p className="admin-empty">Hələ əlavə olunmuş qeyd yoxdur.</p></td></tr>}
-        </tbody></table></div>
+        <div className="admin-table-wrap">
+          <table className="admin-table skill-admin-table">
+            <thead>
+              <tr>
+                <th>Növ</th>
+                <th>Ad</th>
+                <th>İngilis dilində</th>
+                <th>Ölkə / sahə</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.kind}</td>
+                  <td>
+                    <strong>{item.label}</strong>
+                  </td>
+                  <td>{item.en}</td>
+                  <td>{item.extra}</td>
+                  <td>
+                    <button
+                      aria-label="Sil"
+                      onClick={() => remove(item.id, item.label)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!items.length && (
+                <tr>
+                  <td colSpan={5}>
+                    <p className="admin-empty">
+                      Hələ əlavə olunmuş qeyd yoxdur.
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </>
   );

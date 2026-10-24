@@ -5247,3 +5247,13 @@ a svg {
     grid-column: 1;
   }
 }
+
+.skill-admin-form .search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.skill-admin-form .search-field input {
+  flex: 1;
+  min-width: 0;
+}
