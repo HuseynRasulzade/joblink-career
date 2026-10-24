@@ -321,6 +321,19 @@ export default function AdminPanel({
   }
 
   const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
+  // Bulk skill import: a CSV with "Ad;Name;Kateqoriya;Category;sinonim1|sinonim2" per line.
+  async function importSkills(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const result = (await api("admin/skills/import", { csv: await file.text() })) as { added: number; issues: { line: number; label: string; reason: string }[] };
+      notify(`${result.added} bacarıq əlavə edildi.${result.issues.length ? ` ${result.issues.length} sətir atlandı: ${result.issues.slice(0, 3).map((i) => `${i.line}. ${i.label} — ${i.reason}`).join("; ")}${result.issues.length > 3 ? "…" : ""}` : ""}`);
+      await load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   async function bulkJobs(nextAction: "pause" | "archive") {
     if (!window.confirm(`${selectedJobs.length} vakansiya ${nextAction === "pause" ? "dayandırılsın" : "arxivlənsin"}? Şirkətlər bunları özləri yenidən yayımlaya bilməyəcək.`)) return;
     setBusy("jobs:bulk");
@@ -650,6 +663,7 @@ export default function AdminPanel({
               <div><h2>Ortaq bacarıqlar kataloqu</h2><p>Hər bölməni açın, daxilindəki bacarıqlara baxın və Excel formatında endirin</p></div>
               <div className="billing-head-actions">
                 <button className="billing-secondary" onClick={() => exportSkills(true)}><Download size={16} /> Hamısını XLSX</button>
+                <label className="billing-secondary" title="Ad;Name;Kateqoriya;Category;sinonim1|sinonim2"><Plus size={16} /> CSV idxal<input type="file" hidden accept=".csv,text/csv,text/plain" onChange={importSkills} /></label>
                 <button className="billing-primary" onClick={() => setSkillFormOpen((value) => !value)}><Plus size={16} /> Yeni bacarıq</button>
               </div>
             </div>
