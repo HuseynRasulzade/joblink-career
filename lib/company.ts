@@ -174,7 +174,17 @@ export type JobApproval = {
   requestedAt: string;
   steps: ApprovalStep[];
 };
-export function newApproval(userId: string, name: string): JobApproval {
+export type ApprovalChain = "both" | "hr" | "director";
+export const APPROVAL_CHAINS: Record<ApprovalChain, string> = {
+  both: "HR meneceri, sonra direktor",
+  hr: "Yalnız HR meneceri",
+  director: "Yalnız direktor",
+};
+export function newApproval(
+  userId: string,
+  name: string,
+  chain: ApprovalChain = "both",
+): JobApproval {
   const step = (role: "hr" | "director"): ApprovalStep => ({
     role,
     decision: "",
@@ -187,7 +197,12 @@ export function newApproval(userId: string, name: string): JobApproval {
     requestedBy: userId,
     requestedByName: name,
     requestedAt: new Date().toISOString(),
-    steps: [step("hr"), step("director")],
+    steps:
+      chain === "hr"
+        ? [step("hr")]
+        : chain === "director"
+          ? [step("director")]
+          : [step("hr"), step("director")],
   };
 }
 export function pendingStep(approval: JobApproval | undefined) {
@@ -452,13 +467,27 @@ export function profileCompleteness(
 }
 
 // ---- Approvals beyond vacancies: offers, salary changes, substitutes ----
-export type ApprovalRules = { offers: boolean; salaries: boolean };
+export type ApprovalRules = {
+  offers: boolean;
+  salaries: boolean;
+  chain: ApprovalChain;
+};
 export function normalizeApprovalRules(value: unknown): ApprovalRules {
-  const v = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-  return { offers: v.offers === true, salaries: v.salaries === true };
+  const v =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  return {
+    offers: v.offers === true,
+    salaries: v.salaries === true,
+    chain: v.chain === "hr" || v.chain === "director" ? v.chain : "both",
+  };
 }
 export type ApprovalKind = "offer" | "salary";
-export const APPROVAL_KIND_LABEL: Record<ApprovalKind, string> = { offer: "İş təklifi", salary: "Maaş dəyişikliyi" };
+export const APPROVAL_KIND_LABEL: Record<ApprovalKind, string> = {
+  offer: "İş təklifi",
+  salary: "Maaş dəyişikliyi",
+};
 // A substitute is named for at most this many days.
 export const DELEGATE_MAX_DAYS = 30;
 export const REMINDER_AFTER_DAYS = 2;
@@ -467,10 +496,21 @@ export function delegateUntil(value: unknown, now = new Date()) {
   const text = typeof value === "string" ? value.slice(0, 10) : "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
   const today = now.toISOString().slice(0, 10);
-  const last = new Date(now.getTime() + DELEGATE_MAX_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const last = new Date(now.getTime() + DELEGATE_MAX_DAYS * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
   return text >= today && text <= last ? text : "";
 }
 // Whether a request that skipped the director must wait for one.
-export function needsDirector(rules: ApprovalRules, kind: ApprovalKind, canDecideAsDirector: boolean) {
-  return !canDecideAsDirector && (kind === "offer" ? rules.offers : rules.salaries);
+export function needsDirector(
+  rules: ApprovalRules,
+  kind: ApprovalKind,
+  canDecideAsDirector: boolean,
+) {
+  return (
+    !canDecideAsDirector && (kind === "offer" ? rules.offers : rules.salaries)
+  );
 }
+// The role that decides first in a chain.
+export const firstApprover = (chain: ApprovalChain) =>
+  chain === "director" ? "approve-director" : "approve-hr";

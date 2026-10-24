@@ -109,7 +109,9 @@ import {
   WITHDRAWN_STATUS,
 } from "@/lib/recruitment";
 import {
+  APPROVAL_CHAINS,
   APPROVAL_KIND_LABEL,
+  firstApprover,
   COMPANY_ROLES,
   GALLERY_LIMIT,
   delegateUntil,
@@ -5992,7 +5994,7 @@ async function route(request: Request) {
           }
         : {}),
       status: "pending_approval",
-      approval: newApproval(userId, me?.name || ""),
+      approval: newApproval(userId, me?.name || "", (await approvalRules()).chain),
       approvalHistory: history,
     };
     if (next.deadline && next.deadline < new Date().toISOString().slice(0, 10))
@@ -6012,7 +6014,7 @@ async function route(request: Request) {
       row.id,
       String(next.title),
     );
-    await notifyCompanyRoles(db, id, "approve-hr", {
+    await notifyCompanyRoles(db, id, firstApprover((await approvalRules()).chain), {
       type: "approval",
       title: `Yenidən təsdiqə göndərildi: ${next.title}`,
       body: `${me?.name || ""} düzəlişlərlə təkrar göndərdi.`,
@@ -10694,7 +10696,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       const pending = {
         ...j,
         status: "pending_approval",
-        approval: newApproval(userId, me?.name || ""),
+        approval: newApproval(userId, me?.name || "", (await approvalRules()).chain),
       };
       await db.batch([
         db
@@ -10709,7 +10711,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           .bind(JSON.stringify(pending), draft.id, id),
       ]);
       await companyAudit(db, id, userId, "job-submitted", j.id, j.title);
-      await notifyCompanyRoles(db, id, "approve-hr", {
+      await notifyCompanyRoles(db, id, firstApprover((await approvalRules()).chain), {
         type: "approval",
         title: `Təsdiq gözləyir: ${j.title}`,
         body: `${me?.name || ""} vakansiyanı təsdiqə göndərdi.`,
@@ -11494,7 +11496,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       userId,
       "approval-rules",
       "",
-      `Təkliflər: ${rules.offers ? "təsdiqlə" : "birbaşa"}, maaş: ${rules.salaries ? "təsdiqlə" : "birbaşa"}`,
+      `Təkliflər: ${rules.offers ? "təsdiqlə" : "birbaşa"}, maaş: ${rules.salaries ? "təsdiqlə" : "birbaşa"}, vakansiya zənciri: ${APPROVAL_CHAINS[rules.chain]}`,
     );
     return ok({ rules });
   }
@@ -13842,7 +13844,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       const pending = {
         ...fresh,
         status: "pending_approval",
-        approval: newApproval(userId, me?.name || ""),
+        approval: newApproval(userId, me?.name || "", (await approvalRules()).chain),
       };
       await db
         .prepare(
@@ -13858,7 +13860,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         String(row.id),
         `${fresh.title} (təsdiqə göndərildi)`,
       );
-      await notifyCompanyRoles(db, id, "approve-hr", {
+      await notifyCompanyRoles(db, id, firstApprover((await approvalRules()).chain), {
         type: "approval",
         title: `Təsdiq gözləyir: ${fresh.title}`,
         body: `${me?.name || ""} vakansiyanı təkrar yayım üçün təsdiqə göndərdi.`,

@@ -597,6 +597,7 @@ export function ApprovalsPage({
     notify,
   );
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [picked, setPicked] = useState<string[]>([]);
   const [editing, setEditing] = useState<ApprovalJob | null>(null);
   const [edit, setEdit] = useState({
     description: "",
@@ -639,15 +640,83 @@ export function ApprovalsPage({
       notify((error as Error).message);
     }
   }
+  // Approves every ticked vacancy; each one is checked on its own, so a failure does not stop the rest.
+  async function approvePicked() {
+    let done = 0;
+    let failed = "";
+    for (const jobId of picked) {
+      try {
+        await request("company/approve", {
+          jobId,
+          decision: "approve",
+          note: "",
+        });
+        done++;
+      } catch (error) {
+        failed = (error as Error).message;
+      }
+    }
+    setPicked([]);
+    notify(
+      failed
+        ? `${done} vakansiya təsdiqləndi. Biri alınmadı: ${failed}`
+        : `${done} vakansiya təsdiqləndi.`,
+    );
+    load();
+    onChange();
+  }
   if (!data) return <p className="muted">Yüklənir…</p>;
+  const decidable = data.jobs.filter((job) => job.canDecide);
   return (
     <div className="company-page">
       <p className="muted">
-        Şöbə rəhbəri və ya rekruterin yaratdığı vakansiya əvvəlcə HR meneceri,
-        sonra direktor tərəfindən təsdiqlənir və yalnız bundan sonra yayımlanır.
+        Şöbə rəhbəri və ya rekruterin yaratdığı vakansiya şirkətin təsdiq
+        zəncirinə görə (standart: əvvəlcə HR meneceri, sonra direktor)
+        təsdiqlənir və yalnız bundan sonra yayımlanır.
       </p>
+      {decidable.length > 1 && (
+        <div className="form-actions">
+          <button
+            className="secondary"
+            onClick={() =>
+              setPicked(
+                picked.length === decidable.length
+                  ? []
+                  : decidable.map((job) => job.id),
+              )
+            }
+          >
+            {picked.length === decidable.length
+              ? "Seçimi təmizlə"
+              : `Hamısını seç (${decidable.length})`}
+          </button>
+          <button
+            className="primary"
+            disabled={!picked.length}
+            onClick={approvePicked}
+          >
+            Seçilənləri təsdiqlə ({picked.length})
+          </button>
+        </div>
+      )}
       {data.jobs.map((job) => (
         <article key={job.id} className="panel approval-card">
+          {job.canDecide && decidable.length > 1 && (
+            <label className="approval-pick">
+              <input
+                type="checkbox"
+                checked={picked.includes(job.id)}
+                onChange={(e) =>
+                  setPicked(
+                    e.target.checked
+                      ? [...picked, job.id]
+                      : picked.filter((x) => x !== job.id),
+                  )
+                }
+              />{" "}
+              Toplu təsdiq üçün seç
+            </label>
+          )}
           <div className="section-heading">
             <div>
               <h3>{job.title}</h3>
@@ -877,9 +946,10 @@ function RequestApprovals({
     notify,
   );
   const [rules, loadRules] = useLoad<{
-    rules: { offers: boolean; salaries: boolean };
+    rules: { offers: boolean; salaries: boolean; chain: string };
     canEdit: boolean;
   }>("company/approval-rules", notify);
+  const [picked, setPicked] = useState<string[]>([]);
   const [notes, setNotes] = useState<Record<string, string>>({});
   async function decide(item: ApprovalRequest, decision: "approve" | "reject") {
     try {
@@ -895,7 +965,10 @@ function RequestApprovals({
       notify((error as Error).message);
     }
   }
-  async function setRule(key: "offers" | "salaries", value: boolean) {
+  async function setRule(
+    key: "offers" | "salaries" | "chain",
+    value: boolean | string,
+  ) {
     if (!rules) return;
     try {
       await request("company/approval-rules", { ...rules.rules, [key]: value });
@@ -905,6 +978,31 @@ function RequestApprovals({
       notify((error as Error).message);
     }
   }
+  async function approvePicked() {
+    let done = 0;
+    let failed = "";
+    for (const id of picked) {
+      try {
+        await request("company/requests/decide", {
+          id,
+          decision: "approve",
+          note: "",
+        });
+        done++;
+      } catch (error) {
+        failed = (error as Error).message;
+      }
+    }
+    setPicked([]);
+    notify(
+      failed
+        ? `${done} sorğu təsdiqləndi. Biri alınmadı: ${failed}`
+        : `${done} sorğu təsdiqləndi.`,
+    );
+    load();
+    onChange();
+  }
+  const decidable = data?.requests.filter((item) => item.canDecide) || [];
   return (
     <section className="panel">
       <h3>İş təklifləri və maaş dəyişiklikləri</h3>
@@ -928,6 +1026,17 @@ function RequestApprovals({
             İşçinin maaş dəyişikliyini direktor (və ya hesab sahibi)
             təsdiqləməlidir
           </label>
+          <label>
+            Vakansiya təsdiq zənciri:{" "}
+            <select
+              value={rules.rules.chain}
+              onChange={(e) => setRule("chain", e.target.value)}
+            >
+              <option value="both">HR meneceri, sonra direktor</option>
+              <option value="hr">Yalnız HR meneceri</option>
+              <option value="director">Yalnız direktor</option>
+            </select>
+          </label>
           {!rules.canEdit && (
             <small className="skill-picker-help">
               Bu qaydaları yalnız direktor və ya hesab sahibi dəyişə bilər.
@@ -935,8 +1044,49 @@ function RequestApprovals({
           )}
         </fieldset>
       )}
+      {decidable.length > 1 && (
+        <div className="form-actions">
+          <button
+            className="secondary"
+            onClick={() =>
+              setPicked(
+                picked.length === decidable.length
+                  ? []
+                  : decidable.map((item) => item.id),
+              )
+            }
+          >
+            {picked.length === decidable.length
+              ? "Seçimi təmizlə"
+              : `Hamısını seç (${decidable.length})`}
+          </button>
+          <button
+            className="primary"
+            disabled={!picked.length}
+            onClick={approvePicked}
+          >
+            Seçilənləri təsdiqlə ({picked.length})
+          </button>
+        </div>
+      )}
       {data?.requests.map((item) => (
         <article key={item.id} className="approval-card">
+          {item.canDecide && decidable.length > 1 && (
+            <label className="approval-pick">
+              <input
+                type="checkbox"
+                checked={picked.includes(item.id)}
+                onChange={(e) =>
+                  setPicked(
+                    e.target.checked
+                      ? [...picked, item.id]
+                      : picked.filter((x) => x !== item.id),
+                  )
+                }
+              />{" "}
+              Toplu təsdiq üçün seç
+            </label>
+          )}
           <div className="section-heading">
             <div>
               <h4>
@@ -2072,7 +2222,10 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const [query, setQuery] = useState("");
   async function save() {
     try {
-      const saved = await request<{ salaryPending?: boolean }>("company/employees/save", editing);
+      const saved = await request<{ salaryPending?: boolean }>(
+        "company/employees/save",
+        editing,
+      );
       notify(
         saved.salaryPending
           ? "Digər dəyişikliklər saxlanıldı. Maaş dəyişikliyi direktorun təsdiqinə göndərildi."

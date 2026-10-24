@@ -121,13 +121,19 @@ test("approval rules and substitute dates", () => {
   assert.deepEqual(normalizeApprovalRules({ offers: true, salaries: "yes" }), {
     offers: true,
     salaries: false,
+    chain: "both",
   });
   assert.deepEqual(normalizeApprovalRules(null), {
     offers: false,
     salaries: false,
+    chain: "both",
   });
   assert.equal(
-    needsDirector({ offers: true, salaries: false }, "offer", false),
+    needsDirector(
+      { offers: true, salaries: false, chain: "both" },
+      "offer",
+      false,
+    ),
     true,
   );
   assert.equal(
@@ -143,4 +149,23 @@ test("approval rules and substitute dates", () => {
   assert.equal(delegateUntil("2026-10-23", today), "");
   assert.equal(delegateUntil("2026-12-30", today), "");
   assert.equal(delegateUntil("abc", today), "");
+});
+
+import { firstApprover, newApproval, pendingStep } from "../lib/company.ts";
+
+test("the approval chain can be HR then director, HR only or director only", () => {
+  const roles = (chain) =>
+    newApproval("u", "Ad", chain).steps.map((s) => s.role);
+  assert.deepEqual(roles("both"), ["hr", "director"]);
+  assert.deepEqual(roles("hr"), ["hr"]);
+  assert.deepEqual(roles("director"), ["director"]);
+  assert.deepEqual(roles(undefined), ["hr", "director"]);
+  assert.equal(
+    pendingStep(newApproval("u", "Ad", "director")).role,
+    "director",
+  );
+  assert.equal(firstApprover("director"), "approve-director");
+  assert.equal(firstApprover("hr"), "approve-hr");
+  assert.equal(normalizeApprovalRules({ chain: "director" }).chain, "director");
+  assert.equal(normalizeApprovalRules({ chain: "x" }).chain, "both");
 });
