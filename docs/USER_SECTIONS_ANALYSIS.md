@@ -64,7 +64,7 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 1. **Hesab təhlükəsizliyi:** hazırdır (şifrə sıfırlama, e-poçt təsdiqi, 2FA, cihaz siyahısı). E-poçt göndərmək üçün `EMAIL` binding lazımdır.
 2. **Bildirişlər:** hazırdır: status, təklif, test, mesaj, faktura və xəbərdarlıq bildirişləri e-poçtla da gedir (e-poçt qurulubsa); hər istifadəçi kateqoriyaları söndürə bilər. SMS yoxdur (xarici provayder).
 3. **Mobil:** PWA hazırdır (ana ekrana əlavə, oflayn səhifə). Real APK hosting olmadan mümkün deyil.
-4. **Dillər:** az/en var. Rus UI tərcümə materialı olmadan əlavə olunmayıb (minlərlə mətn).
+4. **Dillər:** az/en/ru var. Rus dili interfeys mətnlərini əhatə edir (`lib/i18n-ru.ts`, `lib/i18n-extra.ts`); tərcüməsi olmayan mətn ingiliscəyə düşür. AI cavabları (CV analizi, söhbət) rus seçilsə də Azərbaycan dilində qalır; dinamik mətnlər (vakansiya təsviri, şirkət məlumatı) istifadəçinin yazdığı dildə göstərilir. Tərcümələr maşın-köməkli yazılıb, native yoxlama tövsiyə olunur.
 5. **Əlçatanlıq:** axe-core (WCAG 2 A/AA) ilə bütün əsas səhifələr yoxlandı; rəng kontrastı və iç-içə interaktiv elementlər düzəldildi. Yük/performans testi aparılmayıb.
 6. **Əməliyyat:** xəta jurnalı və audit ixracı hazırdır. Canlı sayt üçün Cloudflare secret-ləri lazımdır; monitorinq (xarici) yoxdur.
 7. **Kod sağlamlığı:** paylaşılan köməkçilər `lib/api-core.ts` və `lib/api-matching.ts`-ə köçürüldü; `route()` funksiyası hələ tək fayldadır.
@@ -75,7 +75,7 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 3. Maaş modulunun qoşulması (vakansiya və gözləntidə gross/net).
 4. AI xərc paneli və şikayət növbəsi (admin).
 5. Vakansiya xəbərdarlığı, istedad bazası, toplu əməliyyat.
-6. Qalan yarımçıq funksiyalar (Word/Excel test, mesaj qoşması, təsdiq xatırlatması, ESCO, rus dili, ASAN, SMS, real ödəniş).
+6. Qalan yarımçıq funksiyalar (Word/Excel test, mesaj qoşması, təsdiq xatırlatması, ESCO, ASAN, SMS, real ödəniş).
 
 ## Əlavə (işəgötürən): saxlanmış axtarışlar və dublikat aşkarlama
 

@@ -791,7 +791,7 @@ export function analyze(p: Profile) {
 }
 export function recommendations(
   p: Profile,
-  language: "az" | "en" = "az",
+  language: "az" | "en" | "ru" = "az",
   jobs: Job[] = sampleJobs,
 ) {
   const experience = years(p);

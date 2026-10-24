@@ -102,7 +102,7 @@ export function fitEvidenceText(facts: ReturnType<typeof fitFacts>) {
   return parts.join("\n");
 }
 
-export const FIT_REVIEW_PROMPT = (language: "az" | "en") =>
+export const FIT_REVIEW_PROMPT = (language: "az" | "en" | "ru") =>
   `You are an experienced head of the department that owns this vacancy and a senior recruiter evaluating one candidate for it. Write in ${language === "en" ? "English" : "natural, grammatically correct Azerbaijani"}.
 Judge only professional evidence: the candidate's roles and duties against the vacancy's real tasks, depth and recency of the required skills, related years, certifications (status, level, passed exams) and education. City, work mode, name, gender, age, nationality, family status and appearance are not supplied and must never influence you.
 "platformEvaluation" is the platform's deterministic score with its evidence levels. Treat it as ground truth about which skills are evidenced: never call a skill missing when its level there is "experience", "certified" or "declared", and never claim a skill the candidate's data does not show. Use only facts in "candidate"; never invent employers, dates, tools, numbers or achievements.

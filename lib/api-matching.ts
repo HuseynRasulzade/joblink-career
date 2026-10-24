@@ -22,7 +22,7 @@ export async function rateJobs(
   userId: string,
   p: Profile,
   jobs: Job[],
-  language: "az" | "en",
+  language: "az" | "en" | "ru",
   dailyCap: number,
 ): Promise<{ ratings: JobRating[]; analyzed: number; reused: number; limited: boolean }> {
   const profileFacts = { title: p.title, skills: p.skills, years: analyze(p).years, certifications: certificationContext(p), cvText: p.cvText.slice(0, 12000) };
@@ -162,10 +162,10 @@ const CERT_STATUS_WORDS: Record<string, { az: string; en: string }> = {
 };
 // Compact certification facts for AI prompts (status, level, passed exams).
 // Status is given in words so it can be quoted directly in generated text.
-export function certificationContext(p: Profile, language: "az" | "en" = "az") {
+export function certificationContext(p: Profile, language: "az" | "en" | "ru" = "az") {
   return candidateCertifications(p).map((c) => ({
     name: certificationDisplayName(c.id),
-    status: CERT_STATUS_WORDS[c.status]?.[language] || c.status,
+    status: CERT_STATUS_WORDS[c.status]?.[language === "en" ? "en" : "az"] || c.status,
     level: c.level || "",
     exams: c.detail || "",
   }));

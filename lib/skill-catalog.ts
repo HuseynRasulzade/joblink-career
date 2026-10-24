@@ -375,7 +375,7 @@ export function canonicalSkill(value: string) {
 
 export function localizedSkillLabel(
   value: string,
-  language: "az" | "en" = "az",
+  language: "az" | "en" | "ru" = "az",
 ) {
   const definition = canonicalSkill(value);
   if (!definition) return value;
@@ -384,7 +384,7 @@ export function localizedSkillLabel(
 
 export function localizedSkillCategory(
   definition: SkillDefinition,
-  language: "az" | "en" = "az",
+  language: "az" | "en" | "ru" = "az",
 ) {
   return language === "en" ? definition.categoryEn : definition.category;
 }

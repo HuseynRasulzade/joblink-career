@@ -197,7 +197,7 @@ const empty: AdminData = {
   relations: [],
 };
 
-function money(cents: number, currency = "AZN", language: "az" | "en" = "az") {
+function money(cents: number, currency = "AZN", language: "az" | "en" | "ru" = "az") {
   return new Intl.NumberFormat(language === "en" ? "en-GB" : "az-AZ", {
     style: "currency",
     currency,
@@ -205,7 +205,7 @@ function money(cents: number, currency = "AZN", language: "az" | "en" = "az") {
   }).format((Number(cents) || 0) / 100);
 }
 
-function date(value: string, language: "az" | "en") {
+function date(value: string, language: "az" | "en" | "ru") {
   return formatDate(value, language);
 }
 
@@ -234,7 +234,7 @@ export default function AdminPanel({
   page: string;
   api: (path: string, body?: unknown) => Promise<any>;
   notify: (message: string) => void;
-  language: "az" | "en";
+  language: "az" | "en" | "ru";
 }) {
   const [data, setData] = useState<AdminData>(empty);
   const [loading, setLoading] = useState(true);

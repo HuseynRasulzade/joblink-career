@@ -20,7 +20,7 @@ export default function AdminEducation({
 }: {
   api: (path: string, body?: unknown) => Promise<unknown>;
   notify: (message: string) => void;
-  language: "az" | "en";
+  language: "az" | "en" | "ru";
 }) {
   const [data, setData] = useState<Data>({ universities: [], majors: [] });
   const [requests, setRequests] = useState<Thread[]>([]);

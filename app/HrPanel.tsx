@@ -128,7 +128,7 @@ export default function HrPanel({
   notify: (s: string) => void;
   aiEnabled: boolean;
   aiProvider: string;
-  language: "az" | "en";
+  language: "az" | "en" | "ru";
   signedIn: boolean;
   onPublished: () => void;
   onMessage: (target: { candidateId: string; jobId?: string; name: string; jobTitle?: string }) => void;

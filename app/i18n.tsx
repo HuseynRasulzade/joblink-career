@@ -1,8 +1,10 @@
 "use client";
 import { Children, cloneElement, isValidElement, type ReactNode } from "react";
 import { localizedSkillLabel } from "@/lib/skill-catalog";
+import { RU_UI } from "@/lib/i18n-ru";
+import { EN_EXTRA, RU_EXTRA } from "@/lib/i18n-extra";
 
-export type SiteLanguage = "az" | "en";
+export type SiteLanguage = "az" | "en" | "ru";
 let activeLanguage: SiteLanguage = "az";
 export function setSiteLanguage(language: SiteLanguage) {
   activeLanguage = language;
@@ -947,11 +949,37 @@ export function translate(
   if (language === "az") return text;
   const trimmed = text.trim();
   if (!trimmed) return text;
-  const translated = english.get(trimmed);
+  const translated =
+    (language === "ru" ? (RU_UI[trimmed] ?? RU_EXTRA[trimmed]) : undefined) ??
+    english.get(trimmed) ??
+    EN_EXTRA[trimmed];
   if (translated) return text.replace(trimmed, translated);
   const skillTranslation = localizedSkillLabel(trimmed, "en");
   if (skillTranslation !== trimmed)
     return text.replace(trimmed, skillTranslation);
+  if (language === "ru") {
+    const ruMatch =
+      trimmed.match(/^(\d+) il təcrübə$/)?.[1] ??
+      trimmed.match(/^(\d+) baxışda$/)?.[1] ??
+      trimmed.match(/^(\d+) vakansiya$/)?.[1] ??
+      trimmed.match(/^(\d+)% uyğun$/)?.[1];
+    if (ruMatch !== undefined) {
+      const n = Number(ruMatch);
+      if (trimmed.endsWith("il təcrübə"))
+        return text.replace(
+          trimmed,
+          `${n} ${n % 10 === 1 && n % 100 !== 11 ? "год" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? "года" : "лет"} опыта`,
+        );
+      if (trimmed.endsWith("baxışda"))
+        return text.replace(trimmed, `${n} на рассмотрении`);
+      if (trimmed.endsWith("vakansiya"))
+        return text.replace(
+          trimmed,
+          `${n} ${n % 10 === 1 && n % 100 !== 11 ? "вакансия" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? "вакансии" : "вакансий"}`,
+        );
+      return text.replace(trimmed, `${n}% соответствия`);
+    }
+  }
   if (/^\d+ il təcrübə$/.test(trimmed))
     return text.replace(
       trimmed,

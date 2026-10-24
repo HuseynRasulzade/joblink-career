@@ -31,7 +31,7 @@ export default function AdminJobTitles({
   api: (path: string, body?: unknown) => Promise<unknown>;
   notify: (message: string) => void;
   reload: () => Promise<void>;
-  language: "az" | "en";
+  language: "az" | "en" | "ru";
 }) {
   const [query, setQuery] = useState("");
   const [family, setFamily] = useState("");

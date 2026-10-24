@@ -24,7 +24,7 @@ export function FitReviewPanel({
   api: (path: string, body?: unknown) => Promise<any>;
   jobId: string;
   candidateId?: string;
-  language: "az" | "en";
+  language: "az" | "en" | "ru";
   audience: "candidate" | "employer";
 }) {
   const [review, setReview] = useState<FitReview | null>(null);

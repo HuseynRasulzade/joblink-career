@@ -29,7 +29,7 @@ export default function AdminCertifications({
   api: (path: string, body?: unknown) => Promise<unknown>;
   notify: (message: string) => void;
   reload: () => Promise<void>;
-  language: "az" | "en";
+  language: "az" | "en" | "ru";
 }) {
   const [category, setCategory] = useState("");
   const [query, setQuery] = useState("");

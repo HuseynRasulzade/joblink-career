@@ -180,41 +180,16 @@ function vacancyItems(text: string) {
     .map((line) => line.replace(/^[•\-*]\s*/, "").trim())
     .filter(Boolean);
 }
-function vacancyDate(value: string, language: "az" | "en") {
+function vacancyDate(value: string, language: "az" | "en" | "ru") {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return value;
-  const months =
-    language === "en"
-      ? [
-          "Jan",
-          "Feb",
-          "Mar",
-          "Apr",
-          "May",
-          "Jun",
-          "Jul",
-          "Aug",
-          "Sep",
-          "Oct",
-          "Nov",
-          "Dec",
-        ]
-      : [
-          "yan",
-          "fev",
-          "mar",
-          "apr",
-          "may",
-          "iyn",
-          "iyl",
-          "avq",
-          "sen",
-          "okt",
-          "noy",
-          "dek",
-        ];
-  return `${date.getUTCDate()} ${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+  return `${date.getUTCDate()} ${MONTH_NAMES[language][date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
+const MONTH_NAMES = {
+  az: ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avq", "sen", "okt", "noy", "dek"],
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  ru: ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"],
+};
 type CvDeepReport = {
   executiveSummary: string;
   scoreReasons: Record<string, string>;
@@ -276,7 +251,7 @@ export default function Joblink() {
   const [accountName, setAccountName] = useState("");
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiProvider, setAiProvider] = useState("DeepSeek");
-  const [language, setLanguage] = useState<"az" | "en">("az");
+  const [language, setLanguage] = useState<"az" | "en" | "ru">("az");
   setSiteLanguage(language);
   const [cvReport, setCvReport] = useState<{
     fingerprint: string;
@@ -756,14 +731,16 @@ export default function Joblink() {
   useEffect(() => {
     refresh();
     const saved = localStorage.getItem("joblink-language");
-    if (saved === "en") setLanguage("en");
+    if (saved === "en" || saved === "ru") setLanguage(saved);
   }, []);
   useEffect(() => {
     document.documentElement.lang = language;
     document.title =
       language === "en"
         ? "Joblink — Your career workspace"
-        : "Joblink — Karyeranızın növbəti addımı";
+        : language === "ru"
+          ? "Joblink — Ваш карьерный помощник"
+          : "Joblink — Karyeranızın növbəti addımı";
   }, [language]);
   const filtered = ranked
     .filter(
@@ -1142,7 +1119,7 @@ export default function Joblink() {
                   <Building2 size={13} /> {j.mode}
                 </span>
                 <span>
-                  {j.minYears}–{j.maxYears} {language === "en" ? "years" : "il"}
+                  {j.minYears}–{j.maxYears} {language === "en" ? "years" : language === "ru" ? "лет" : "il"}
                 </span>
               </div>
               <div className="skill-tags">
@@ -1449,13 +1426,14 @@ export default function Joblink() {
                 aria-label="Language / Dil"
                 value={language}
                 onChange={(event) => {
-                  const next = event.target.value as "az" | "en";
+                  const next = event.target.value as "az" | "en" | "ru";
                   setLanguage(next);
                   localStorage.setItem("joblink-language", next);
                 }}
               >
                 <option value="az">AZ</option>
                 <option value="en">EN</option>
+                <option value="ru">RU</option>
               </select>
             </label>
           </div>
@@ -1620,7 +1598,7 @@ export default function Joblink() {
                 aria-label="Language / Dil"
                 value={language}
                 onChange={(e) => {
-                  const next = e.target.value as "az" | "en";
+                  const next = e.target.value as "az" | "en" | "ru";
                   setLanguage(next);
                   localStorage.setItem("joblink-language", next);
                   document.documentElement.lang = next;
@@ -1630,6 +1608,7 @@ export default function Joblink() {
               >
                 <option value="az">AZ</option>
                 <option value="en">EN</option>
+                <option value="ru">RU</option>
               </select>
             </label>
             {signedIn && authMode === "password" && (
@@ -1807,7 +1786,7 @@ export default function Joblink() {
                 <span>Təcrübə</span>
                 <strong>
                   {job.minYears || job.maxYears
-                    ? `${job.minYears}–${job.maxYears} ${language === "en" ? "years" : "il"}`
+                    ? `${job.minYears}–${job.maxYears} ${language === "en" ? "years" : language === "ru" ? "лет" : "il"}`
                     : "Göstərilməyib"}
                 </strong>
               </div>
