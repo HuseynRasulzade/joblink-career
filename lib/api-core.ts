@@ -99,6 +99,19 @@ export async function readCustomEducation(db: D1Database) {
   }
   return { universities, majors };
 }
+// The name a new vacancy starts with: the company account's name, else the
+// legal name from its details.
+export async function companyDisplayName(db: D1Database, companyId: string) {
+  const account = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(companyId).first<{ name: string }>();
+  const name = (account?.name || "").trim();
+  if (name) return name.slice(0, 150);
+  const profile = await db.prepare("SELECT data FROM company_profiles WHERE company_id=?").bind(companyId).first<{ data: string }>();
+  try {
+    return String(JSON.parse(profile?.data || "{}").legalName || "").trim().slice(0, 150);
+  } catch {
+    return "";
+  }
+}
 // Company-side records of who did what (team, approvals, salaries, files).
 export async function companyAudit(db: D1Database, companyId: string, actorId: string, action: string, target = "", detail = "") {
   try {

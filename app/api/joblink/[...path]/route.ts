@@ -158,7 +158,7 @@ function publicJob(job: Job, includeStages = false): Job {
   if (!includeStages) delete copy.stages;
   return copy;
 }
-import { recordApplicationEvent, blockedBetween, sendUserEmail, notify, notifyFollowers, readCustomEducation, companyAudit, notifyCompanyRoles, applyTestOutcome, closeExpiredAssignments, hasUnreadFrom, senderLabel, assertMessageRate, notifyNewMessage } from "@/lib/api-core";
+import { recordApplicationEvent, blockedBetween, sendUserEmail, notify, notifyFollowers, readCustomEducation, companyAudit, companyDisplayName, notifyCompanyRoles, applyTestOutcome, closeExpiredAssignments, hasUnreadFrom, senderLabel, assertMessageRate, notifyNewMessage } from "@/lib/api-core";
 import { parseAiObject, certificationContext, readMatching, rateJobs, addHiredEmployee } from "@/lib/api-matching";
 const DEMO_JOBS_WHEN_EMPTY =(realCount: number) => (realCount ? [] : sampleJobs);
 function ok(data: unknown, status = 200) {
@@ -5154,6 +5154,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       await saveConversationTurn(db, conversation.id, prompt, question, {});
       return ok({ conversationId: conversation.id, question, draft: currentDraft, source: "template" });
     }
+    // A new vacancy starts with the company's own name.
+    if (!str(draft.company)) draft = { ...draft, company: await companyDisplayName(db, id) };
     if (currentDraft)
       await db.prepare("UPDATE drafts SET data=? WHERE id=? AND owner=? AND status='draft'").bind(JSON.stringify(draft), draft.id, id).run();
     else
@@ -5203,8 +5205,10 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       return ok({ job: { ...job, status: String(live?.status || job.status) }, pendingApproval: live?.status === "pending_approval" });
     }
     const escoLabels = await allowedEscoLabels(db, b.job?.skills);
+    const submitted = b.job && typeof b.job === "object" ? b.job : {};
+    if (!str(submitted.company)) submitted.company = await companyDisplayName(db, id);
     const j = {
-      ...jobInput(b.job, [...customSkillLabels, ...escoLabels]),
+      ...jobInput(submitted, [...customSkillLabels, ...escoLabels]),
       id: draft.id,
       owner: id,
       status: "published",
@@ -6338,6 +6342,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
   // ---- Vacancy copy and templates ----
   const newDraftFrom = async (content: Partial<Job>) => {
     const draft = draftFromContent(content, { id: crypto.randomUUID(), owner: id, now: new Date().toISOString() });
+    if (!draft.company.trim()) draft.company = await companyDisplayName(db, id);
     await db.prepare("INSERT INTO drafts(id,owner,data,status) VALUES(?,?,?,'draft')").bind(draft.id, id, JSON.stringify(draft)).run();
     return draft;
   };
