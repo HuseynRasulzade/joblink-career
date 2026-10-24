@@ -5227,3 +5227,23 @@ a svg {
   body.print-report .panel, body.print-report .kpi { break-inside: avoid; }
 }
 .tab-strip .tab-label { border: 0; background: transparent; color: inherit; font: inherit; padding: 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.language-list .language-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 150px) auto;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+.language-list .language-row input,
+.language-list .language-row select {
+  min-width: 0;
+}
+@media (max-width: 520px) {
+  .language-list .language-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .language-list .language-row select {
+    grid-column: 1;
+  }
+}

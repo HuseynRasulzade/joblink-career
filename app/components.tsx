@@ -37,6 +37,7 @@ import {
   JobCertificationPicker,
 } from "./CertificationPickers";
 import { detectCertifications } from "@/lib/certification-catalog";
+import { LanguageList } from "./LanguageList";
 import JobTitleInput from "./JobTitleInput";
 import UniversityInput from "./UniversityInput";
 import MajorInput from "./MajorInput";
@@ -954,7 +955,17 @@ export function ProfileEditor({
       };
     });
     if (!found.length && !enriched) return;
-    set("certifications", [...updated, ...found.map((c) => ({ ...c, source: "profile" as const }))]);
+    const nextOwn = [...updated, ...found.map((c) => ({ ...c, source: "profile" as const }))];
+    set("certifications", nextOwn);
+    // Course lines that are now a certification card leave the free-text field.
+    const remaining = (p.certificates || "")
+      .split("\n")
+      .filter((line) => {
+        const hits = detectCertifications(line);
+        return !hits.length || !hits.every((hit) => nextOwn.some((o) => o.id === hit.id));
+      })
+      .join("\n");
+    if (remaining !== (p.certificates || "")) set("certificates", remaining);
     onNotice(
       found.length
         ? `CV-dən ${found.length} sertifikat avtomatik əlavə edildi. Yoxlayıb profili yadda saxlayın.`
@@ -1687,15 +1698,11 @@ export function ProfileEditor({
                   onChange={(skills) => set("skills", skills)}
                   placeholder="Məsələn: Excel, 1C, Maliyyə hesabatlılığı"
                 />
-                <Field label="Dillər və səviyyə">
-                  <textarea
-                    id="profile-languages"
-                    rows={3}
-                    value={p.languages}
-                    placeholder="Azərbaycan — ana dili; İngilis — B2"
-                    onChange={(e) => set("languages", e.target.value)}
-                  />
-                </Field>
+                <LanguageList
+                  inputId="profile-languages"
+                  value={p.languages}
+                  onChange={(value) => set("languages", value)}
+                />
                 <CandidateCertificationEditor
                   inputId="profile-certifications"
                   value={p.certifications}

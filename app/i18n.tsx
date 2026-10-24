@@ -3,6 +3,7 @@ import { Children, cloneElement, isValidElement, type ReactNode } from "react";
 import { localizedSkillLabel } from "@/lib/skill-catalog";
 import { RU_UI } from "@/lib/i18n-ru";
 import { EN_EXTRA, RU_EXTRA } from "@/lib/i18n-extra";
+import { EN_MORE, RU_MORE } from "@/lib/i18n-more";
 
 export type SiteLanguage = "az" | "en" | "ru";
 let activeLanguage: SiteLanguage = "az";
@@ -950,9 +951,12 @@ export function translate(
   const trimmed = text.trim();
   if (!trimmed) return text;
   const translated =
-    (language === "ru" ? (RU_UI[trimmed] ?? RU_EXTRA[trimmed]) : undefined) ??
+    (language === "ru"
+      ? (RU_UI[trimmed] ?? RU_EXTRA[trimmed] ?? RU_MORE[trimmed])
+      : undefined) ??
     english.get(trimmed) ??
-    EN_EXTRA[trimmed];
+    EN_EXTRA[trimmed] ??
+    EN_MORE[trimmed];
   if (translated) return text.replace(trimmed, translated);
   const skillTranslation = localizedSkillLabel(trimmed, "en");
   if (skillTranslation !== trimmed)
