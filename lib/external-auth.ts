@@ -391,6 +391,7 @@ export async function authRoute(request: Request, path: string) {
       db.prepare("DELETE FROM message_threads WHERE company_id=? OR candidate_id=?").bind(userId, userId),
       db.prepare("UPDATE company_members SET status='removed' WHERE user_id=? OR company_id=?").bind(userId, userId),
       db.prepare("DELETE FROM company_profiles WHERE company_id=?").bind(userId),
+      db.prepare("DELETE FROM company_images WHERE company_id=?").bind(userId),
       db.prepare("DELETE FROM company_employees WHERE company_id=?").bind(userId),
       db.prepare("DELETE FROM payment_methods WHERE account_id=?").bind(userId),
       db.prepare("DELETE FROM subscriptions WHERE account_id=?").bind(userId),

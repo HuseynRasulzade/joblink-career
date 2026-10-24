@@ -87,7 +87,7 @@ import {
 } from "@/lib/job-title-catalog";
 import { supportSla, SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
 import { sanitizeRejection, APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, VACANCY_REASONS, WITHDRAWN_STATUS } from "@/lib/recruitment";
-import { COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval, sanitizeTaxCheck, taxNameMatches, type TaxCheck } from "@/lib/company";
+import { COMPANY_ROLES, GALLERY_LIMIT, GRANTABLE, INVITABLE_ROLES, INVITE_DAYS, inviteExpired, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval, sanitizeTaxCheck, taxNameMatches, type TaxCheck } from "@/lib/company";
 import { DOCUMENT_CHECK_PROMPT, VERIFICATION_LABELS, normalizeAiCheck, statusFromAi } from "@/lib/verification";
 import { percentOf, resultState, summarizeResults, shuffleQuestions, cleanAnswers, combinedScore, isExpired, parseSnapshot, publicQuestions, sanitizeGrades, sanitizeQuestions, textQuestions, type Question } from "@/lib/assessments";
 export const dynamic = "force-dynamic";
@@ -717,6 +717,10 @@ async function route(request: Request) {
       .bind(...(user ? [user, user] : []))
       .all<{ id: string; name: string; open_jobs: number; followers: number; verification: string | null; details: string | null; has_logo: number }>()
       .catch(() => ({ results: [] as { id: string; name: string; open_jobs: number; followers: number; verification: string | null; details: string | null; has_logo: number }[] }));
+    const gallery = new Map<string, string[]>();
+    const images = await db.prepare("SELECT id,company_id FROM company_images ORDER BY company_id,position,created")
+      .all<{ id: string; company_id: string }>().catch(() => ({ results: [] as { id: string; company_id: string }[] }));
+    for (const image of images.results) gallery.set(image.company_id, [...(gallery.get(image.company_id) || []), image.id]);
     // Only public profile fields; legal and banking details stay private.
     return ok({
       companies: rows.results.map((r) => {
@@ -739,6 +743,7 @@ async function route(request: Request) {
           facebook: d.facebook,
           foundedYear: d.foundedYear,
           logo: r.has_logo === 1,
+          gallery: gallery.get(r.id) || [],
         };
       }),
     });
@@ -769,6 +774,14 @@ async function route(request: Request) {
     if (!row?.logo_data) throw new HttpError(404, "Loqo tapılmadı.");
     return new Response(Uint8Array.from(atob(row.logo_data), (c) => c.charCodeAt(0)), {
       headers: { "Content-Type": row.logo_type, "Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff" },
+    });
+  }
+  if (request.method === "GET" && path === "companies/image") {
+    const row = await db.prepare("SELECT type,data FROM company_images WHERE id=?").bind(str(requestUrl.searchParams.get("id"), 100))
+      .first<{ type: string; data: string }>().catch(() => null);
+    if (!row?.data) throw new HttpError(404, "Şəkil tapılmadı.");
+    return new Response(Uint8Array.from(atob(row.data), (c) => c.charCodeAt(0)), {
+      headers: { "Content-Type": row.type, "Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff" },
     });
   }
   if (request.method === "GET" && path === "state") {
@@ -902,7 +915,17 @@ async function route(request: Request) {
       } catch {
         memberGrants = [];
       }
-    } else memberRole = "owner";
+    } else {
+      // A suspended member must not fall back to an empty company of their own.
+      const suspended = await db
+        .prepare("SELECT 1 AS yes FROM company_members WHERE user_id=? AND status='suspended'")
+        .bind(userId)
+        .first()
+        .catch(() => null);
+      if (suspended && path !== "state" && !path.startsWith("auth/") && path !== "account/export")
+        throw new HttpError(403, "Şirkət hesabındakı girişiniz müvəqqəti dayandırılıb. Hesab sahibi ilə əlaqə saxlayın.");
+      memberRole = "owner";
+    }
   }
   const requirePermission = (permission: CompanyPermission, message = "Bu əməliyyat üçün rolunuzun icazəsi yoxdur.") => {
     if (accountRole !== "company" || !can(memberRole, permission, memberGrants)) throw new HttpError(403, message);
@@ -2616,13 +2639,25 @@ async function route(request: Request) {
       .bind(id)
       .first<{ id: string; name: string; email: string }>();
     const members = await db
-      .prepare(`SELECT m.id,m.user_id,m.email,m.role,m.department,m.grants,m.status,m.created,COALESCE(a.name,'') AS name FROM company_members m
+      .prepare(`SELECT m.id,m.user_id,m.email,m.role,m.department,m.grants,m.status,m.created,m.updated,COALESCE(a.name,'') AS name FROM company_members m
         LEFT JOIN accounts a ON a.id=m.user_id WHERE m.company_id=? AND m.status<>'removed' ORDER BY m.created`)
       .bind(id)
       .all<Record<string, unknown> & { grants: string }>();
+    const lastSeen = await db
+      .prepare("SELECT actor_id,MAX(created) AS last FROM company_audit WHERE company_id=? GROUP BY actor_id")
+      .bind(id)
+      .all<{ actor_id: string; last: string }>()
+      .catch(() => ({ results: [] as { actor_id: string; last: string }[] }));
+    const last = new Map(lastSeen.results.map((r) => [r.actor_id, r.last]));
     return ok({
       owner,
-      members: members.results.map((m) => ({ ...m, grants: (() => { try { return normalizeGrants(JSON.parse(m.grants)); } catch { return []; } })() })),
+      members: members.results.map((m) => ({
+        ...m,
+        grants: (() => { try { return normalizeGrants(JSON.parse(m.grants)); } catch { return []; } })(),
+        lastActive: last.get(String(m.user_id)) || "",
+        expired: m.status === "invited" && inviteExpired(String(m.updated || m.created)),
+      })),
+      inviteDays: INVITE_DAYS,
       roles: COMPANY_ROLES,
       grantable: GRANTABLE,
       canManage: can(memberRole, "team"),
@@ -2676,6 +2711,41 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "member-role", member.email, `${roleLabel(member.role)} → ${roleLabel(role)}${grants.length ? ` (+${grants.join(", ")})` : ""}`);
     return ok({ ok: true });
   }
+  if (request.method === "POST" && path === "company/team/resend") {
+    requirePermission("team");
+    const b = await jsonBody(request);
+    const member = await db.prepare("SELECT id,email,role FROM company_members WHERE id=? AND company_id=? AND status='invited'").bind(str(b.id, 100), id).first<{ id: string; email: string; role: string }>();
+    if (!member) throw new HttpError(404, "Gözləyən dəvət tapılmadı.");
+    await db.prepare("UPDATE company_members SET updated=?,invited_by=? WHERE id=?").bind(new Date().toISOString(), userId, member.id).run();
+    const invitee = await db.prepare("SELECT user_id FROM password_accounts WHERE email=?").bind(member.email).first<{ user_id: string }>();
+    const company = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>();
+    if (invitee) await notify(db, { userId: invitee.user_id, type: "team-invite", title: `${company?.name || "Şirkət"} sizi komandaya dəvət etdi (${roleLabel(member.role)})`, link: "hr-team" });
+    const settings = runtime();
+    if (settings.EMAIL && settings.EMAIL_FROM)
+      await settings.EMAIL.send({
+        to: [member.email],
+        from: { email: settings.EMAIL_FROM, name: "Joblink" },
+        subject: `${company?.name || "Şirkət"} sizi Joblink-də komandaya dəvət edir`,
+        text: `${company?.name || "Şirkət"} sizi "${roleLabel(member.role)}" rolu ilə Joblink-dəki şirkət hesabına yenidən dəvət edir. Bu e-poçtla şirkət hesabı kimi daxil olun və dəvəti qəbul edin. Dəvət ${INVITE_DAYS} gün qüvvədədir.`,
+      }).catch(() => {});
+    await companyAudit(db, id, userId, "member-invite-resent", member.email, roleLabel(member.role));
+    return ok({ ok: true });
+  }
+  // A suspended member keeps the seat and role but cannot act for the company.
+  if (request.method === "POST" && path === "company/team/status") {
+    requirePermission("team");
+    const b = await jsonBody(request);
+    const member = await db.prepare("SELECT id,email,role,user_id,status FROM company_members WHERE id=? AND company_id=? AND status IN ('active','suspended')").bind(str(b.id, 100), id).first<{ id: string; email: string; role: string; user_id: string; status: string }>();
+    if (!member) throw new HttpError(404, "Üzv tapılmadı.");
+    if (member.user_id === userId) throw new HttpError(400, "Özünüzü dayandıra bilməzsiniz.");
+    if (member.role === "director" && memberRole !== "owner") throw new HttpError(403, "Direktoru yalnız hesab sahibi dayandıra bilər.");
+    const next = b.suspended === true ? "suspended" : "active";
+    await db.prepare("UPDATE company_members SET status=?,updated=? WHERE id=?").bind(next, new Date().toISOString(), member.id).run();
+    if (member.user_id)
+      await notify(db, { userId: member.user_id, type: "team", title: next === "suspended" ? "Şirkət hesabındakı girişiniz müvəqqəti dayandırıldı" : "Şirkət hesabındakı girişiniz bərpa olundu", link: "hr-team" });
+    await companyAudit(db, id, userId, next === "suspended" ? "member-suspended" : "member-reactivated", member.email, roleLabel(member.role));
+    return ok({ ok: true });
+  }
   if (request.method === "POST" && path === "company/team/remove") {
     requirePermission("team");
     const b = await jsonBody(request);
@@ -2691,10 +2761,10 @@ async function route(request: Request) {
     const me = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(userId).first<{ email: string }>();
     if (!me) return ok({ invites: [] });
     const rows = await db
-      .prepare("SELECT m.id,m.role,m.department,m.created,a.name AS company FROM company_members m JOIN accounts a ON a.id=m.company_id WHERE m.email=? AND m.status='invited'")
+      .prepare("SELECT m.id,m.role,m.department,m.created,m.updated,a.name AS company FROM company_members m JOIN accounts a ON a.id=m.company_id WHERE m.email=? AND m.status='invited'")
       .bind(me.email)
-      .all();
-    return ok({ invites: rows.results });
+      .all<{ updated: string; created: string }>();
+    return ok({ invites: rows.results.filter((row) => !inviteExpired(String(row.updated || row.created))) });
   }
   if (request.method === "POST" && path === "company/invites/respond") {
     const b = await jsonBody(request);
@@ -2703,6 +2773,8 @@ async function route(request: Request) {
       ? await db.prepare("SELECT id,company_id,role FROM company_members WHERE id=? AND email=? AND status='invited'").bind(str(b.id, 100), me.email).first<{ id: string; company_id: string; role: string }>()
       : null;
     if (!invite) throw new HttpError(404, "Dəvət tapılmadı.");
+    const sent = await db.prepare("SELECT updated FROM company_members WHERE id=?").bind(invite.id).first<{ updated: string }>();
+    if (sent && inviteExpired(sent.updated)) throw new HttpError(410, `Dəvətin ${INVITE_DAYS} günlük müddəti bitib. Şirkətdən yenidən göndərməsini xahiş edin.`);
     const now = new Date().toISOString();
     if (b.accept !== true) {
       await db.prepare("UPDATE company_members SET status='removed',updated=? WHERE id=?").bind(now, invite.id).run();
@@ -2794,9 +2866,10 @@ async function route(request: Request) {
     return ok({ ok: true, status: "pending_approval" });
   }
   if (request.method === "GET" && path === "company/profile") {
-    const row = await db.prepare("SELECT data,doc_name,verification_status,verification_note,submitted_at,reviewed_at FROM company_profiles WHERE company_id=?").bind(id)
-      .first<{ data: string; doc_name: string; verification_status: string; verification_note: string; submitted_at: string; reviewed_at: string }>();
+    const row = await db.prepare("SELECT data,doc_name,verification_status,verification_note,submitted_at,reviewed_at,CASE WHEN COALESCE(logo_data,'')<>'' THEN 1 ELSE 0 END AS has_logo FROM company_profiles WHERE company_id=?").bind(id)
+      .first<{ data: string; doc_name: string; verification_status: string; verification_note: string; submitted_at: string; reviewed_at: string; has_logo: number }>();
     return ok({
+      hasLogo: row?.has_logo === 1,
       details: companyDetailsInput(row ? JSON.parse(row.data) : {}),
       docName: row?.doc_name || "",
       verification: row?.verification_status || "none",
@@ -2824,6 +2897,34 @@ async function route(request: Request) {
         ON CONFLICT(company_id) DO UPDATE SET logo_type=excluded.logo_type,logo_data=excluded.logo_data`)
       .bind(id, "{}", "none", new Date().toISOString(), type, data).run();
     await companyAudit(db, id, userId, "company-logo", "");
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "company/gallery") {
+    const rows = await db.prepare("SELECT id FROM company_images WHERE company_id=? ORDER BY position,created").bind(id).all<{ id: string }>();
+    return ok({ images: rows.results.map((r) => r.id), limit: GALLERY_LIMIT });
+  }
+  if (request.method === "POST" && path === "company/gallery") {
+    requirePermission("company-profile");
+    const raw = await request.text();
+    if (raw.length > 450_000) throw new HttpError(413, "Şəkil 300 KB-dan böyük olmamalıdır.");
+    let b: Record<string, unknown>;
+    try { b = JSON.parse(raw); } catch { throw new HttpError(400, "Məlumat oxunmadı."); }
+    const type = str(b.type, 40);
+    const data = str(b.data, 450_000);
+    if (!["image/png", "image/jpeg", "image/webp"].includes(type) || !data || !/^[A-Za-z0-9+/=]+$/.test(data)) throw new HttpError(400, "Şəkil PNG, JPG və ya WEBP olmalıdır.");
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM company_images WHERE company_id=?").bind(id).first<{ n: number }>();
+    if (Number(count?.n) >= GALLERY_LIMIT) throw new HttpError(409, `Qalereyada ən çox ${GALLERY_LIMIT} şəkil ola bilər.`);
+    const imageId = crypto.randomUUID();
+    await db.prepare("INSERT INTO company_images(id,company_id,type,data,position,created) VALUES(?,?,?,?,?,?)")
+      .bind(imageId, id, type, data, Number(count?.n) || 0, new Date().toISOString()).run();
+    await companyAudit(db, id, userId, "company-gallery", "added");
+    return ok({ id: imageId }, 201);
+  }
+  if (request.method === "POST" && path === "company/gallery/delete") {
+    requirePermission("company-profile");
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM company_images WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    await companyAudit(db, id, userId, "company-gallery", "removed");
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/profile") {

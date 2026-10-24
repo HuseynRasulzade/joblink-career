@@ -53,6 +53,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0055_error_log_privacy` | Xəta jurnalı (`error_log`, şəxsi məlumatsız, 30 gün) və şəxsi məlumat sorğularının qeydi (`privacy_requests`) |
 | `0056_admin_tools` | Gecikmiş faktura xatırlatması (`billing_invoices.reminded_at`), AI qiymətləndirmə “səhvdir” işarəsi (`ai_job_ratings.flagged`), ayarların tarixçəsi (`setting_history`) |
 | `0057_profile_versions` | Profilin əvvəlki vəziyyətləri (`profile_versions`, ən çoxu 10, 10 dəqiqədə bir); geri qaytarmaq mümkündür |
+| `0058_company_gallery` | Şirkət səhifəsinin şəkil qalereyası (`company_images`, ən çoxu 6 şəkil, hər biri 300 KB-a qədər) |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 

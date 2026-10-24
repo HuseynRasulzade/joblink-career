@@ -407,6 +407,13 @@
       "when": 1795892400000,
       "tag": "0057_profile_versions",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "6",
+      "when": 1795978800000,
+      "tag": "0058_company_gallery",
+      "breakpoints": true
     }
   ]
 }

@@ -22,26 +22,47 @@ export type CompanyInfo = {
   facebook?: string;
   foundedYear?: string;
   logo?: boolean;
+  gallery?: string[];
 };
 
-export function CompanyMark({ company }: { company: Pick<CompanyInfo, "id" | "name" | "logo"> }) {
+export function CompanyMark({
+  company,
+}: {
+  company: Pick<CompanyInfo, "id" | "name" | "logo">;
+}) {
   return company.logo ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img className="vacancy-company-mark" src={`/api/joblink/companies/logo?id=${encodeURIComponent(company.id)}`} alt={company.name} style={{ objectFit: "contain", background: "#fff" }} />
+    <img
+      className="vacancy-company-mark"
+      src={`/api/joblink/companies/logo?id=${encodeURIComponent(company.id)}`}
+      alt={company.name}
+      style={{ objectFit: "contain", background: "#fff" }}
+    />
   ) : (
-    <span className="vacancy-company-mark" aria-hidden="true">{company.name.slice(0, 1).toLocaleUpperCase("az")}</span>
+    <span className="vacancy-company-mark" aria-hidden="true">
+      {company.name.slice(0, 1).toLocaleUpperCase("az")}
+    </span>
   );
 }
 
 export function VerifiedBadge({ small }: { small?: boolean }) {
   return (
-    <span className={small ? "verified-badge small" : "verified-badge"} title="Sənədlə təsdiqlənmiş şirkət">
+    <span
+      className={small ? "verified-badge small" : "verified-badge"}
+      title="Sənədlə təsdiqlənmiş şirkət"
+    >
       <BadgeCheck size={small ? 13 : 16} /> Təsdiqlənmiş şirkət
     </span>
   );
 }
 
-export function CompaniesPage({ onOpen, notify }: { onOpen: (company: CompanyInfo) => void; notify: (m: string) => void }) {
+export function CompaniesPage({
+  onOpen,
+  notify,
+}: {
+  onOpen: (company: CompanyInfo) => void;
+  notify: (m: string) => void;
+}) {
   const [list, setList] = useState<CompanyInfo[] | null>(null);
   const [query, setQuery] = useState("");
   const [withJobs, setWithJobs] = useState(false);
@@ -56,7 +77,9 @@ export function CompaniesPage({ onOpen, notify }: { onOpen: (company: CompanyInf
       (list || []).filter(
         (c) =>
           (!withJobs || c.openJobs > 0) &&
-          `${c.name} ${c.industry}`.toLocaleLowerCase("az").includes(query.toLocaleLowerCase("az")),
+          `${c.name} ${c.industry}`
+            .toLocaleLowerCase("az")
+            .includes(query.toLocaleLowerCase("az")),
       ),
     [list, query, withJobs],
   );
@@ -64,9 +87,19 @@ export function CompaniesPage({ onOpen, notify }: { onOpen: (company: CompanyInf
   return (
     <div className="companies-page">
       <div className="jobs-toolbar">
-        <input className="search-input" placeholder="Şirkət və ya sahə axtar" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input
+          className="search-input"
+          placeholder="Şirkət və ya sahə axtar"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         <label className="check-inline">
-          <input type="checkbox" checked={withJobs} onChange={(e) => setWithJobs(e.target.checked)} /> Yalnız açıq vakansiyası olanlar
+          <input
+            type="checkbox"
+            checked={withJobs}
+            onChange={(e) => setWithJobs(e.target.checked)}
+          />{" "}
+          Yalnız açıq vakansiyası olanlar
         </label>
       </div>
       <p className="muted">{shown.length} şirkət</p>
@@ -76,8 +109,14 @@ export function CompaniesPage({ onOpen, notify }: { onOpen: (company: CompanyInf
             <CompanyMark company={c} />
             <strong>{c.name}</strong>
             {c.verified && <VerifiedBadge small />}
-            <small>{[c.industry, c.size && `${c.size} işçi`].filter(Boolean).join(" · ") || "—"}</small>
-            <em className={c.openJobs ? "company-jobs has" : "company-jobs"}>{c.openJobs} açıq vakansiya</em>
+            <small>
+              {[c.industry, c.size && `${c.size} işçi`]
+                .filter(Boolean)
+                .join(" · ") || "—"}
+            </small>
+            <em className={c.openJobs ? "company-jobs has" : "company-jobs"}>
+              {c.openJobs} açıq vakansiya
+            </em>
           </button>
         ))}
         {!shown.length && <p className="admin-empty">Şirkət tapılmadı.</p>}
@@ -113,11 +152,33 @@ export function CompanyView({
         <CompanyMark company={company} />
         <div>
           <h3>{company.name}</h3>
-          <span>{[company.industry, company.size && `${company.size} işçi`, company.foundedYear && `${company.foundedYear}-ci ildən`].filter(Boolean).join(" · ")}</span>
+          <span>
+            {[
+              company.industry,
+              company.size && `${company.size} işçi`,
+              company.foundedYear && `${company.foundedYear}-ci ildən`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
         </div>
         {company.verified && <VerifiedBadge />}
       </header>
       {company.about && <p>{company.about}</p>}
+      {!!company.gallery?.length && (
+        <div className="gallery-grid public" aria-label="Şirkətin şəkilləri">
+          {company.gallery.map((imageId) => (
+            <figure key={imageId}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/joblink/companies/image?id=${encodeURIComponent(imageId)}`}
+                alt={`${company.name} şəkli`}
+                loading="lazy"
+              />
+            </figure>
+          ))}
+        </div>
+      )}
       <p className="muted">
         <Building2 size={14} /> {company.followers} izləyici
         {company.website && (
@@ -127,14 +188,86 @@ export function CompanyView({
           </>
         )}
       </p>
-      {(company.officeAddress || company.mapUrl || company.videoUrl || company.linkedin || company.instagram || company.facebook) && (
+      {(company.officeAddress ||
+        company.mapUrl ||
+        company.videoUrl ||
+        company.linkedin ||
+        company.instagram ||
+        company.facebook) && (
         <ul className="company-links">
-          {company.officeAddress && <li>Ofis: {company.officeAddress}{company.mapUrl && <> · <a href={company.mapUrl} target="_blank" rel="noopener noreferrer nofollow">Xəritədə bax</a></>}</li>}
-          {!company.officeAddress && company.mapUrl && <li><a href={company.mapUrl} target="_blank" rel="noopener noreferrer nofollow">Ofisin xəritədəki yeri</a></li>}
-          {company.videoUrl && <li><a href={company.videoUrl} target="_blank" rel="noopener noreferrer nofollow">Şirkət haqqında video</a></li>}
-          {company.linkedin && <li><a href={company.linkedin} target="_blank" rel="noopener noreferrer nofollow">LinkedIn</a></li>}
-          {company.instagram && <li><a href={company.instagram} target="_blank" rel="noopener noreferrer nofollow">Instagram</a></li>}
-          {company.facebook && <li><a href={company.facebook} target="_blank" rel="noopener noreferrer nofollow">Facebook</a></li>}
+          {company.officeAddress && (
+            <li>
+              Ofis: {company.officeAddress}
+              {company.mapUrl && (
+                <>
+                  {" "}
+                  ·{" "}
+                  <a
+                    href={company.mapUrl}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                  >
+                    Xəritədə bax
+                  </a>
+                </>
+              )}
+            </li>
+          )}
+          {!company.officeAddress && company.mapUrl && (
+            <li>
+              <a
+                href={company.mapUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+              >
+                Ofisin xəritədəki yeri
+              </a>
+            </li>
+          )}
+          {company.videoUrl && (
+            <li>
+              <a
+                href={company.videoUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+              >
+                Şirkət haqqında video
+              </a>
+            </li>
+          )}
+          {company.linkedin && (
+            <li>
+              <a
+                href={company.linkedin}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+              >
+                LinkedIn
+              </a>
+            </li>
+          )}
+          {company.instagram && (
+            <li>
+              <a
+                href={company.instagram}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+              >
+                Instagram
+              </a>
+            </li>
+          )}
+          {company.facebook && (
+            <li>
+              <a
+                href={company.facebook}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+              >
+                Facebook
+              </a>
+            </li>
+          )}
         </ul>
       )}
       {signedIn && (
@@ -142,21 +275,37 @@ export function CompanyView({
           <button className="secondary" onClick={() => onFollow(!following)}>
             {following ? "İzlənilir ✓" : "Şirkəti izlə"}
           </button>
-          <button className="text-button" onClick={onBlock}>Blokla</button>
+          <button className="text-button" onClick={onBlock}>
+            Blokla
+          </button>
         </div>
       )}
-      <CompanyReviews companyId={company.id} signedIn={signedIn} isCandidate={isCandidate} notify={onNotify || (() => {})} />
+      <CompanyReviews
+        companyId={company.id}
+        signedIn={signedIn}
+        isCandidate={isCandidate}
+        notify={onNotify || (() => {})}
+      />
       <h3>Açıq vakansiyalar ({jobs.length})</h3>
       <div className="company-jobs-list">
         {jobs.map((j) => (
-          <button key={j.id} className="company-job-row" onClick={() => onOpenJob(j)}>
+          <button
+            key={j.id}
+            className="company-job-row"
+            onClick={() => onOpenJob(j)}
+          >
             <strong>{j.title}</strong>
             <span>
-              {j.city} · {j.minSalary || j.maxSalary ? `${j.minSalary}–${j.maxSalary} AZN` : "Razılaşma yolu ilə"}
+              {j.city} ·{" "}
+              {j.minSalary || j.maxSalary
+                ? `${j.minSalary}–${j.maxSalary} AZN`
+                : "Razılaşma yolu ilə"}
             </span>
           </button>
         ))}
-        {!jobs.length && <p className="admin-empty">Hazırda açıq vakansiya yoxdur.</p>}
+        {!jobs.length && (
+          <p className="admin-empty">Hazırda açıq vakansiya yoxdur.</p>
+        )}
       </div>
     </div>
   );

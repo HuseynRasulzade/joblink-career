@@ -163,6 +163,19 @@ export const profileVersions = sqliteTable(
   },
   (t) => [index("profile_versions_user").on(t.userId, t.created)],
 );
+// Photos on a company's public employer page (at most 6, each up to 300 KB).
+export const companyImages = sqliteTable(
+  "company_images",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    type: text("type").notNull(),
+    data: text("data").notNull(),
+    position: integer("position").notNull().default(0),
+    created: text("created").notNull(),
+  },
+  (t) => [index("company_images_company").on(t.companyId, t.position)],
+);
 export const settingHistory = sqliteTable(
   "setting_history",
   {

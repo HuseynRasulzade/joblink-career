@@ -1,14 +1,43 @@
 // Company team: roles, permissions, company details.
 export type CompanyRole = "owner" | "director" | "hr" | "manager" | "recruiter";
-export const COMPANY_ROLES: { id: CompanyRole; label: string; description: string }[] = [
-  { id: "owner", label: "Hesab sahibi", description: "Bütün hüquqlar, komandanı idarə edir" },
-  { id: "director", label: "Direktor", description: "Vakansiyaları yekun təsdiq edir, maaşları və hesabları görür" },
-  { id: "hr", label: "HR meneceri", description: "Vakansiyaları təsdiq edir, təklif göndərir, işçiləri və maaşları idarə edir" },
-  { id: "manager", label: "Şöbə rəhbəri", description: "Vakansiya yaradır (HR və direktor təsdiqi ilə), namizədlərə baxır" },
-  { id: "recruiter", label: "Rekruter", description: "Namizədlərlə işləyir, vakansiyanı təsdiqə göndərir" },
+export const COMPANY_ROLES: {
+  id: CompanyRole;
+  label: string;
+  description: string;
+}[] = [
+  {
+    id: "owner",
+    label: "Hesab sahibi",
+    description: "Bütün hüquqlar, komandanı idarə edir",
+  },
+  {
+    id: "director",
+    label: "Direktor",
+    description: "Vakansiyaları yekun təsdiq edir, maaşları və hesabları görür",
+  },
+  {
+    id: "hr",
+    label: "HR meneceri",
+    description:
+      "Vakansiyaları təsdiq edir, təklif göndərir, işçiləri və maaşları idarə edir",
+  },
+  {
+    id: "manager",
+    label: "Şöbə rəhbəri",
+    description:
+      "Vakansiya yaradır (HR və direktor təsdiqi ilə), namizədlərə baxır",
+  },
+  {
+    id: "recruiter",
+    label: "Rekruter",
+    description: "Namizədlərlə işləyir, vakansiyanı təsdiqə göndərir",
+  },
 ];
-export const INVITABLE_ROLES = COMPANY_ROLES.filter((role) => role.id !== "owner").map((role) => role.id);
-export const roleLabel = (role: string) => COMPANY_ROLES.find((r) => r.id === role)?.label || role;
+export const INVITABLE_ROLES = COMPANY_ROLES.filter(
+  (role) => role.id !== "owner",
+).map((role) => role.id);
+export const roleLabel = (role: string) =>
+  COMPANY_ROLES.find((r) => r.id === role)?.label || role;
 
 export type CompanyPermission =
   | "team" // invite and remove members
@@ -23,46 +52,152 @@ export type CompanyPermission =
   | "tests"; // employer tests: create, send, results and the exam file
 
 const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
-  owner: ["team", "publish", "approve-hr", "approve-director", "salaries", "billing", "company-profile", "offers", "reports", "tests"],
-  director: ["team", "publish", "approve-director", "salaries", "billing", "company-profile", "offers", "reports", "tests"],
-  hr: ["publish", "approve-hr", "salaries", "billing", "company-profile", "offers", "reports", "tests"],
+  owner: [
+    "team",
+    "publish",
+    "approve-hr",
+    "approve-director",
+    "salaries",
+    "billing",
+    "company-profile",
+    "offers",
+    "reports",
+    "tests",
+  ],
+  director: [
+    "team",
+    "publish",
+    "approve-director",
+    "salaries",
+    "billing",
+    "company-profile",
+    "offers",
+    "reports",
+    "tests",
+  ],
+  hr: [
+    "publish",
+    "approve-hr",
+    "salaries",
+    "billing",
+    "company-profile",
+    "offers",
+    "reports",
+    "tests",
+  ],
   manager: ["reports"],
   recruiter: [],
 };
 // Permissions the account owner may give to one person beyond their role.
 export const GRANTABLE: { id: CompanyPermission; label: string }[] = [
-  { id: "tests", label: "Testlərə giriş (yaratmaq, göndərmək, nəticələr, test faylı)" },
+  {
+    id: "tests",
+    label: "Testlərə giriş (yaratmaq, göndərmək, nəticələr, test faylı)",
+  },
   { id: "reports", label: "Hesabatların ixracı" },
 ];
 // Ready role + extra-permission combinations offered when inviting a member.
-export const ROLE_PRESETS: { id: string; label: string; role: CompanyRole; grants: CompanyPermission[]; description: string }[] = [
-  { id: "test-owner", label: "Test məsul şəxsi", role: "recruiter", grants: ["tests"], description: "Rekruter + testləri yaradır, göndərir və nəticələri görür" },
-  { id: "analyst", label: "Hesabat analitiki", role: "manager", grants: ["reports"], description: "Şöbə rəhbəri + hesabatları Excel-ə ixrac edir" },
-  { id: "screening", label: "İlkin seçim üzrə rekruter", role: "recruiter", grants: ["tests", "reports"], description: "Rekruter + testlər və hesabatlar" },
-  { id: "dept-head", label: "Şöbə rəhbəri (testlərlə)", role: "manager", grants: ["tests"], description: "Şöbə rəhbəri + namizədlərə test göndərir" },
+export const ROLE_PRESETS: {
+  id: string;
+  label: string;
+  role: CompanyRole;
+  grants: CompanyPermission[];
+  description: string;
+}[] = [
+  {
+    id: "test-owner",
+    label: "Test məsul şəxsi",
+    role: "recruiter",
+    grants: ["tests"],
+    description: "Rekruter + testləri yaradır, göndərir və nəticələri görür",
+  },
+  {
+    id: "analyst",
+    label: "Hesabat analitiki",
+    role: "manager",
+    grants: ["reports"],
+    description: "Şöbə rəhbəri + hesabatları Excel-ə ixrac edir",
+  },
+  {
+    id: "screening",
+    label: "İlkin seçim üzrə rekruter",
+    role: "recruiter",
+    grants: ["tests", "reports"],
+    description: "Rekruter + testlər və hesabatlar",
+  },
+  {
+    id: "dept-head",
+    label: "Şöbə rəhbəri (testlərlə)",
+    role: "manager",
+    grants: ["tests"],
+    description: "Şöbə rəhbəri + namizədlərə test göndərir",
+  },
 ];
 export const normalizeGrants = (value: unknown): CompanyPermission[] =>
-  [...new Set((Array.isArray(value) ? value : []).map(String))].filter((g): g is CompanyPermission => GRANTABLE.some((x) => x.id === g));
-export function can(role: string, permission: CompanyPermission, grants: readonly string[] = []) {
-  return (PERMISSIONS[role as CompanyRole] || []).includes(permission) || (grants.includes(permission) && GRANTABLE.some((g) => g.id === permission));
+  [...new Set((Array.isArray(value) ? value : []).map(String))].filter(
+    (g): g is CompanyPermission => GRANTABLE.some((x) => x.id === g),
+  );
+export function can(
+  role: string,
+  permission: CompanyPermission,
+  grants: readonly string[] = [],
+) {
+  return (
+    (PERMISSIONS[role as CompanyRole] || []).includes(permission) ||
+    (grants.includes(permission) && GRANTABLE.some((g) => g.id === permission))
+  );
 }
-export function permissionsOf(role: string, grants: readonly string[] = []): CompanyPermission[] {
-  return [...new Set([...(PERMISSIONS[role as CompanyRole] || []), ...normalizeGrants(grants)])];
+export function permissionsOf(
+  role: string,
+  grants: readonly string[] = [],
+): CompanyPermission[] {
+  return [
+    ...new Set([
+      ...(PERMISSIONS[role as CompanyRole] || []),
+      ...normalizeGrants(grants),
+    ]),
+  ];
 }
 
 // Approval chain for vacancies created by roles without "publish".
-export type ApprovalStep = { role: "hr" | "director"; decision: "" | "approved" | "rejected"; by: string; byName: string; at: string; note: string };
-export type JobApproval = { requestedBy: string; requestedByName: string; requestedAt: string; steps: ApprovalStep[] };
+export type ApprovalStep = {
+  role: "hr" | "director";
+  decision: "" | "approved" | "rejected";
+  by: string;
+  byName: string;
+  at: string;
+  note: string;
+};
+export type JobApproval = {
+  requestedBy: string;
+  requestedByName: string;
+  requestedAt: string;
+  steps: ApprovalStep[];
+};
 export function newApproval(userId: string, name: string): JobApproval {
-  const step = (role: "hr" | "director"): ApprovalStep => ({ role, decision: "", by: "", byName: "", at: "", note: "" });
-  return { requestedBy: userId, requestedByName: name, requestedAt: new Date().toISOString(), steps: [step("hr"), step("director")] };
+  const step = (role: "hr" | "director"): ApprovalStep => ({
+    role,
+    decision: "",
+    by: "",
+    byName: "",
+    at: "",
+    note: "",
+  });
+  return {
+    requestedBy: userId,
+    requestedByName: name,
+    requestedAt: new Date().toISOString(),
+    steps: [step("hr"), step("director")],
+  };
 }
 export function pendingStep(approval: JobApproval | undefined) {
   return approval?.steps.find((step) => step.decision === "") || null;
 }
 export function canDecide(role: string, step: ApprovalStep | null) {
   if (!step) return false;
-  return step.role === "hr" ? can(role, "approve-hr") : can(role, "approve-director");
+  return step.role === "hr"
+    ? can(role, "approve-hr")
+    : can(role, "approve-director");
 }
 
 export type CompanyDetails = {
@@ -87,21 +222,36 @@ export type CompanyDetails = {
   facebook: string;
   foundedYear: string;
 };
-export const COMPANY_SIZES = ["1–10", "11–50", "51–200", "201–500", "501–1000", "1000+"];
+export const COMPANY_SIZES = [
+  "1–10",
+  "11–50",
+  "51–200",
+  "201–500",
+  "501–1000",
+  "1000+",
+];
 // Only plain https links are kept for public pages (no javascript:, data: or http:).
 export function safeUrl(value: unknown, max = 300) {
   const raw = typeof value === "string" ? value.trim().slice(0, max) : "";
   if (!raw) return "";
   try {
     const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
-    return url.protocol === "https:" || url.protocol === "http:" ? (url.protocol === "http:" ? `https://${url.host}${url.pathname}${url.search}` : url.href) : "";
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.protocol === "http:"
+        ? `https://${url.host}${url.pathname}${url.search}`
+        : url.href
+      : "";
   } catch {
     return "";
   }
 }
-const clean = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+const clean = (value: unknown, max: number) =>
+  typeof value === "string" ? value.trim().slice(0, max) : "";
 export function companyDetailsInput(value: unknown): CompanyDetails {
-  const v = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const v = (value && typeof value === "object" ? value : {}) as Record<
+    string,
+    unknown
+  >;
   return {
     legalName: clean(v.legalName, 200),
     voen: clean(v.voen, 20).replace(/\D/g, ""),
@@ -121,7 +271,9 @@ export function companyDetailsInput(value: unknown): CompanyDetails {
     linkedin: safeUrl(v.linkedin),
     instagram: safeUrl(v.instagram),
     facebook: safeUrl(v.facebook),
-    foundedYear: /^(19|20)\d{2}$/.test(clean(v.foundedYear, 4)) ? clean(v.foundedYear, 4) : "",
+    foundedYear: /^(19|20)\d{2}$/.test(clean(v.foundedYear, 4))
+      ? clean(v.foundedYear, 4)
+      : "",
   };
 }
 // Azerbaijani taxpayer ID: 10 digits.
@@ -138,7 +290,8 @@ export const VOEN_TYPE_LABEL: Record<VoenType, string> = {
   individual: "Fiziki şəxs (nömrəyə görə)",
   unknown: "Tip naməlum",
 };
-export const VOEN_LOOKUP_URL = "https://new.e-taxes.gov.az/etaxes/services/taxpayer-info";
+export const VOEN_LOOKUP_URL =
+  "https://new.e-taxes.gov.az/etaxes/services/taxpayer-info";
 export const VERIFICATION_STATUS: Record<string, string> = {
   none: "Təsdiqlənməyib",
   pending: "Yoxlanılır",
@@ -159,9 +312,20 @@ export type TaxCheck = {
   checkedBy: string;
   source: "manual" | "auto";
 };
-const one = (value: unknown, max: number) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "");
-export function sanitizeTaxCheck(input: unknown, voen: string, checkedBy: string, now = new Date().toISOString()): TaxCheck | null {
-  const v = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+const one = (value: unknown, max: number) =>
+  typeof value === "string"
+    ? value.replace(/\s+/g, " ").trim().slice(0, max)
+    : "";
+export function sanitizeTaxCheck(
+  input: unknown,
+  voen: string,
+  checkedBy: string,
+  now = new Date().toISOString(),
+): TaxCheck | null {
+  const v =
+    input && typeof input === "object"
+      ? (input as Record<string, unknown>)
+      : {};
   const name = one(v.name, 240);
   if (!validVoen(voen) || name.length < 2) return null;
   const debt = Math.max(0, Math.round(Number(v.debt) * 100) / 100);
@@ -178,12 +342,34 @@ export function sanitizeTaxCheck(input: unknown, voen: string, checkedBy: string
     source: "manual",
   };
 }
-const LEGAL_FORMS = ["mehdud mesuliyyetli cemiyyeti", "mehdud mesuliyyetli cemiyyet", "mmc", "qapali sehmdar cemiyyeti", "qsc", "acik sehmdar cemiyyeti", "asc", "sehmdar cemiyyeti", "ictimai birlik", "ib", "fondu", "ltd", "llc", "limited"];
+const LEGAL_FORMS = [
+  "mehdud mesuliyyetli cemiyyeti",
+  "mehdud mesuliyyetli cemiyyet",
+  "mmc",
+  "qapali sehmdar cemiyyeti",
+  "qsc",
+  "acik sehmdar cemiyyeti",
+  "asc",
+  "sehmdar cemiyyeti",
+  "ictimai birlik",
+  "ib",
+  "fondu",
+  "ltd",
+  "llc",
+  "limited",
+];
 const fold = (value: string) =>
   value
     .toLowerCase()
-    .replace(/ə/g, "e").replace(/ı/g, "i").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ç/g, "c").replace(/ş/g, "s").replace(/ğ/g, "g")
-    .normalize("NFKD").replace(/[̀-ͯ]/g, "")
+    .replace(/ə/g, "e")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ü/g, "u")
+    .replace(/ç/g, "c")
+    .replace(/ş/g, "s")
+    .replace(/ğ/g, "g")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 // The declared legal name and the registered name match when their core words are the same
@@ -191,7 +377,8 @@ const fold = (value: string) =>
 export function taxNameMatches(declared: string, registered: string) {
   const core = (value: string) => {
     let text = ` ${fold(value)} `;
-    for (const form of [...LEGAL_FORMS].sort((a, b) => b.length - a.length)) text = text.replaceAll(` ${form} `, " ");
+    for (const form of [...LEGAL_FORMS].sort((a, b) => b.length - a.length))
+      text = text.replaceAll(` ${form} `, " ");
     return text.trim();
   };
   const a = core(declared);
@@ -207,7 +394,59 @@ export function addMonthsIso(date: string, months: number) {
   d.setUTCDate(1);
   d.setUTCMonth(d.getUTCMonth() + months);
   // 31 Aug + 6 months stays in the last month: clamp to its last day.
-  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  const last = new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0),
+  ).getUTCDate();
   d.setUTCDate(Math.min(day, last));
   return d.toISOString().slice(0, 10);
+}
+
+// Photos on the public employer page.
+export const GALLERY_LIMIT = 6;
+// A team invitation stays open this long; it can be sent again after that.
+export const INVITE_DAYS = 14;
+export const inviteExpired = (updated: string, now = new Date()) =>
+  now.getTime() - new Date(updated).getTime() > INVITE_DAYS * 86_400_000;
+// Share of the public employer page that is filled in.
+export function profileCompleteness(
+  details: Pick<
+    CompanyDetails,
+    | "about"
+    | "industry"
+    | "size"
+    | "website"
+    | "officeAddress"
+    | "foundedYear"
+    | "videoUrl"
+    | "linkedin"
+    | "instagram"
+    | "facebook"
+  >,
+  hasLogo: boolean,
+  galleryCount: number,
+) {
+  const checks: Array<[string, boolean]> = [
+    ["Loqo", hasLogo],
+    ["Şirkət haqqında", details.about.trim().length >= 80],
+    ["Sahə", !!details.industry.trim()],
+    ["İşçi sayı", !!details.size],
+    ["Vebsayt", !!details.website.trim()],
+    ["Ofis ünvanı", !!details.officeAddress.trim()],
+    ["Yarandığı il", !!details.foundedYear.trim()],
+    [
+      "Sosial şəbəkə və ya video",
+      !!(
+        details.videoUrl ||
+        details.linkedin ||
+        details.instagram ||
+        details.facebook
+      ),
+    ],
+    ["Şəkil qalereyası", galleryCount > 0],
+  ];
+  const done = checks.filter(([, ok]) => ok).length;
+  return {
+    percent: Math.round((done / checks.length) * 100),
+    missing: checks.filter(([, ok]) => !ok).map(([label]) => label),
+  };
 }
