@@ -1898,6 +1898,15 @@ export default function Joblink() {
                       .map((x) => x.skill)
                       .join(", ") || "—"}
                   </p>
+                  {!!activeJobMatch?.skillEvidence.some((x) => x.level === "implied") && (
+                    <p>
+                      <b>Microsoft Office-dən təxmin edilən (qismən sayılır):</b>{" "}
+                      {activeJobMatch.skillEvidence
+                        .filter((x) => x.level === "implied")
+                        .map((x) => x.skill)
+                        .join(", ")}
+                    </p>
+                  )}
                   <p>
                     <b>İnkişaf sahələri:</b>{" "}
                     {activeJobMatch?.missing.join(", ") ||

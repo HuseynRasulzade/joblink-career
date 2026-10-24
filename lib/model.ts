@@ -1,5 +1,9 @@
 import { skillMatches } from "./skill-synonyms.ts";
-import { normalizeSkillKey, normalizeSkills, skillId } from "./skill-catalog.ts";
+import {
+  normalizeSkillKey,
+  normalizeSkills,
+  skillId,
+} from "./skill-catalog.ts";
 import {
   certificationById,
   certificationLevelRank,
@@ -9,7 +13,11 @@ import {
   type CandidateCertification,
   type JobCertification,
 } from "./certification-catalog.ts";
-import { canonicalJobTitle, jobTitleFamily, JOB_TITLE_FAMILIES } from "./job-title-catalog.ts";
+import {
+  canonicalJobTitle,
+  jobTitleFamily,
+  JOB_TITLE_FAMILIES,
+} from "./job-title-catalog.ts";
 export type Experience = {
   id: string;
   title: string;
@@ -34,25 +42,54 @@ export const EMPLOYMENT_TYPES = [
 ] as const;
 
 export function normalizeEmploymentType(value: unknown) {
-  const input = typeof value === "string"
-    ? value.toLocaleLowerCase("az").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").trim()
-    : "";
+  const input =
+    typeof value === "string"
+      ? value
+          .toLocaleLowerCase("az")
+          .normalize("NFKD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim()
+      : "";
   if (!input) return "";
   const aliases: Array<[string, string[]]> = [
-    ["Tam ştat", ["tam stat", "full time", "full-time", "fulltime", "полная занятость"]],
-    ["Yarımştat", ["yarimstat", "part time", "part-time", "parttime", "частичная занятость"]],
-    ["Özünüməşğul", ["ozunumesgul", "self employed", "self-employed", "самозанятый"]],
+    [
+      "Tam ştat",
+      ["tam stat", "full time", "full-time", "fulltime", "полная занятость"],
+    ],
+    [
+      "Yarımştat",
+      [
+        "yarimstat",
+        "part time",
+        "part-time",
+        "parttime",
+        "частичная занятость",
+      ],
+    ],
+    [
+      "Özünüməşğul",
+      ["ozunumesgul", "self employed", "self-employed", "самозанятый"],
+    ],
     ["Sərbəst", ["serbest", "freelance", "freelancer", "фриланс"]],
-    ["Müqavilə", ["muqavile", "contract", "contractor", "müqavilə əsasında", "контракт"]],
-    ["Təcrübəçi", ["tecrubeci", "intern", "internship", "стажировка", "стажер"]],
+    [
+      "Müqavilə",
+      ["muqavile", "contract", "contractor", "müqavilə əsasında", "контракт"],
+    ],
+    [
+      "Təcrübəçi",
+      ["tecrubeci", "intern", "internship", "стажировка", "стажер"],
+    ],
     ["Şagirdlik", ["sagirdlik", "apprentice", "apprenticeship"]],
     ["Mövsümi", ["movsumi", "seasonal", "сезонная"]],
     ["Müvəqqəti", ["muveqqeti", "temporary", "temp", "временная"]],
     ["Könüllü", ["konullu", "volunteer", "voluntary", "волонтер"]],
   ];
-  return aliases.find(([canonical, values]) =>
-    canonical.toLocaleLowerCase("az") === input || values.includes(input),
-  )?.[0] || "";
+  return (
+    aliases.find(
+      ([canonical, values]) =>
+        canonical.toLocaleLowerCase("az") === input || values.includes(input),
+    )?.[0] || ""
+  );
 }
 export type Education = {
   id: string;
@@ -73,7 +110,12 @@ export type CvParserRecord = {
   reviewReasons: string[];
   ocrUsed: boolean;
 };
-export type Reference = { name: string; position: string; company: string; contact: string };
+export type Reference = {
+  name: string;
+  position: string;
+  company: string;
+  contact: string;
+};
 export type Profile = {
   name: string;
   title: string;
@@ -174,7 +216,13 @@ export type Application = {
   auto?: boolean;
   stage?: string;
   duplicate?: { otherVacancies: number; sameContactAs: string[] } | null;
-  events?: { type: string; from_value: string; to_value: string; note?: string; created: string }[];
+  events?: {
+    type: string;
+    from_value: string;
+    to_value: string;
+    note?: string;
+    created: string;
+  }[];
 };
 export const blankProfile: Profile = {
   name: "",
@@ -359,21 +407,25 @@ export function years(p: Profile) {
           : value,
     );
   const structuredExperiences = Array.isArray(p.structuredCv?.work_experience)
-    ? (p.structuredCv.work_experience as Record<string, unknown>[]).map((item) => ({
-        start: typeof item.start_date === "string" ? item.start_date : "",
-        end: typeof item.end_date === "string" ? item.end_date : "",
-        current: item.is_current === true,
-      }))
+    ? (p.structuredCv.work_experience as Record<string, unknown>[]).map(
+        (item) => ({
+          start: typeof item.start_date === "string" ? item.start_date : "",
+          end: typeof item.end_date === "string" ? item.end_date : "",
+          current: item.is_current === true,
+        }),
+      )
     : [];
-  const experienceYears = (records: { start: string; end: string; current: boolean }[]) => {
+  const experienceYears = (
+    records: { start: string; end: string; current: boolean }[],
+  ) => {
     const ranges = records
-    .map((e) => [
-      timestamp(e.start),
-      e.current
-        ? Date.now()
-        : Math.min(Date.now(), timestamp(e.end || e.start, true)),
-    ])
-    .filter(([s, e]) => Number.isFinite(s) && Number.isFinite(e) && e >= s)
+      .map((e) => [
+        timestamp(e.start),
+        e.current
+          ? Date.now()
+          : Math.min(Date.now(), timestamp(e.end || e.start, true)),
+      ])
+      .filter(([s, e]) => Number.isFinite(s) && Number.isFinite(e) && e >= s)
       .sort((a, b) => a[0] - b[0]);
     let total = 0,
       start = 0,
@@ -387,7 +439,10 @@ export function years(p: Profile) {
     }
     return Math.round((total + end - start) / 3155760000) / 10;
   };
-  return Math.max(experienceYears(p.experiences), experienceYears(structuredExperiences));
+  return Math.max(
+    experienceYears(p.experiences),
+    experienceYears(structuredExperiences),
+  );
 }
 export const normalize = (s: string) =>
   s
@@ -401,37 +456,365 @@ export const MATCH_VERSION = "2026-10-18.1";
 // Profession families used to decide whether a candidate's past roles are
 // related to a vacancy. Words are normalized prefixes (see `normalize`).
 export const ROLE_FAMILIES: { family: string; words: string[] }[] = [
-  { family: "finance", words: ["muhasib", "maliyy", "audit", "xezinedar", "kassir", "bank", "kredit", "byudce", "budce", "accountant", "accounting", "finance", "financial", "auditor", "treasur", "economist", "iqtisadci", "vergi", "tax"] },
-  { family: "hr", words: ["hr", "insan resurs", "rekruter", "recruit", "ise qebul", "kadr", "talent", "human resource"] },
-  { family: "sales", words: ["satis", "musteri", "sales", "retail", "merchandis", "call center", "zeng merkez", "operator", "account manager", "customer"] },
-  { family: "supply", words: ["satinalma", "tehcizat", "logistik", "anbar", "procurement", "supply", "warehouse", "kuryer", "courier", "surucu", "driver", "ekspeditor", "gomruk", "customs"] },
-  { family: "engineering", words: ["muhendis", "mexanik", "elektrik", "texnik", "insaat", "engineer", "technician", "santexnik", "qaynaq"] },
-  { family: "it", words: ["python", "backend", "frontend", "react", "developer", "proqramci", "programmer", "software", "data", "analyst", "analitik", "devops", "sistem admin", "qa ", "tester", "it "] },
-  { family: "marketing", words: ["marketinq", "marketing", "kontent", "content", "smm", "kommunikasiya", "brand", "pr ", "copywrit", "dizayn", "design", "qrafik"] },
-  { family: "legal", words: ["huquq", "legal", "compliance", "uygunluq", "lawyer", "vekil", "notarius"] },
-  { family: "education", words: ["muellim", "telim", "teacher", "trainer", "tedris", "pedaqoq", "tutor"] },
-  { family: "hospitality", words: ["otel", "turizm", "reseps", "asbaz", "ofisiant", "barista", "hotel", "chef", "cook", "waiter", "restoran"] },
-  { family: "health", words: ["hekim", "eczaci", "tibb", "pharma", "doctor", "nurse", "feldser", "stomatoloq"] },
-  { family: "security", words: ["tehlukesizlik", "muhafize", "hse", "security", "safety"] },
-  { family: "admin", words: ["ofis", "office", "katib", "sekretar", "assistant", "inzibati", "administrator", "resepsion"] },
-  { family: "oilgas", words: ["neft", "petroleum", "drilling", "qazma", "buruq", "refiner", "offshore", "boru kemeri", "pipeline", "energetik", "madenci", "mining"] },
-  { family: "agriculture", words: ["agronom", "fermer", "farm", "kend teserrufat", "agricultur", "heyvandarliq", "baytar", "bagban", "arici"] },
-  { family: "trades", words: ["derzi", "tikis", "tailor", "seamstress", "zergher", "jewel", "dulger", "carpenter", "mebel", "furniture", "xalca", "dulus"] },
-  { family: "transport", words: ["pilot", "aviadispet", "aviation", "qatar", "railway", "gemi", "kapitan", "denizci", "seafarer", "liman", "port operator", "dispetcer"] },
-  { family: "science", words: ["tedqiqatci", "researcher", "scientist", "elmi", "laborator", "kimyaci", "chemist", "fizik", "bioloq", "biolog", "riyaziyyat", "mathematic"] },
-  { family: "social", words: ["sosial isci", "social worker", "qht", "ngo", "humanitar", "humanitarian", "konullu", "volunteer", "fundrais"] },
-  { family: "personal", words: ["berber", "barber", "hairdress", "kosmetolog", "cosmetolog", "makiyaj", "makeup", "manikur", "fitnes", "fitness", "yoqa", "yoga", "stilist", "stylist"] },
-  { family: "public", words: ["dovlet qulluqcu", "civil servant", "belediyye", "municipal", "vergi inspektor", "gomruk emekdas", "polis", "diplomat", "konsul"] },
+  {
+    family: "finance",
+    words: [
+      "muhasib",
+      "maliyy",
+      "audit",
+      "xezinedar",
+      "kassir",
+      "bank",
+      "kredit",
+      "byudce",
+      "budce",
+      "accountant",
+      "accounting",
+      "finance",
+      "financial",
+      "auditor",
+      "treasur",
+      "economist",
+      "iqtisadci",
+      "vergi",
+      "tax",
+    ],
+  },
+  {
+    family: "hr",
+    words: [
+      "hr",
+      "insan resurs",
+      "rekruter",
+      "recruit",
+      "ise qebul",
+      "kadr",
+      "talent",
+      "human resource",
+    ],
+  },
+  {
+    family: "sales",
+    words: [
+      "satis",
+      "musteri",
+      "sales",
+      "retail",
+      "merchandis",
+      "call center",
+      "zeng merkez",
+      "operator",
+      "account manager",
+      "customer",
+    ],
+  },
+  {
+    family: "supply",
+    words: [
+      "satinalma",
+      "tehcizat",
+      "logistik",
+      "anbar",
+      "procurement",
+      "supply",
+      "warehouse",
+      "kuryer",
+      "courier",
+      "surucu",
+      "driver",
+      "ekspeditor",
+      "gomruk",
+      "customs",
+    ],
+  },
+  {
+    family: "engineering",
+    words: [
+      "muhendis",
+      "mexanik",
+      "elektrik",
+      "texnik",
+      "insaat",
+      "engineer",
+      "technician",
+      "santexnik",
+      "qaynaq",
+    ],
+  },
+  {
+    family: "it",
+    words: [
+      "python",
+      "backend",
+      "frontend",
+      "react",
+      "developer",
+      "proqramci",
+      "programmer",
+      "software",
+      "data",
+      "analyst",
+      "analitik",
+      "devops",
+      "sistem admin",
+      "qa ",
+      "tester",
+      "it ",
+    ],
+  },
+  {
+    family: "marketing",
+    words: [
+      "marketinq",
+      "marketing",
+      "kontent",
+      "content",
+      "smm",
+      "kommunikasiya",
+      "brand",
+      "pr ",
+      "copywrit",
+      "dizayn",
+      "design",
+      "qrafik",
+    ],
+  },
+  {
+    family: "legal",
+    words: [
+      "huquq",
+      "legal",
+      "compliance",
+      "uygunluq",
+      "lawyer",
+      "vekil",
+      "notarius",
+    ],
+  },
+  {
+    family: "education",
+    words: [
+      "muellim",
+      "telim",
+      "teacher",
+      "trainer",
+      "tedris",
+      "pedaqoq",
+      "tutor",
+    ],
+  },
+  {
+    family: "hospitality",
+    words: [
+      "otel",
+      "turizm",
+      "reseps",
+      "asbaz",
+      "ofisiant",
+      "barista",
+      "hotel",
+      "chef",
+      "cook",
+      "waiter",
+      "restoran",
+    ],
+  },
+  {
+    family: "health",
+    words: [
+      "hekim",
+      "eczaci",
+      "tibb",
+      "pharma",
+      "doctor",
+      "nurse",
+      "feldser",
+      "stomatoloq",
+    ],
+  },
+  {
+    family: "security",
+    words: ["tehlukesizlik", "muhafize", "hse", "security", "safety"],
+  },
+  {
+    family: "admin",
+    words: [
+      "ofis",
+      "office",
+      "katib",
+      "sekretar",
+      "assistant",
+      "inzibati",
+      "administrator",
+      "resepsion",
+    ],
+  },
+  {
+    family: "oilgas",
+    words: [
+      "neft",
+      "petroleum",
+      "drilling",
+      "qazma",
+      "buruq",
+      "refiner",
+      "offshore",
+      "boru kemeri",
+      "pipeline",
+      "energetik",
+      "madenci",
+      "mining",
+    ],
+  },
+  {
+    family: "agriculture",
+    words: [
+      "agronom",
+      "fermer",
+      "farm",
+      "kend teserrufat",
+      "agricultur",
+      "heyvandarliq",
+      "baytar",
+      "bagban",
+      "arici",
+    ],
+  },
+  {
+    family: "trades",
+    words: [
+      "derzi",
+      "tikis",
+      "tailor",
+      "seamstress",
+      "zergher",
+      "jewel",
+      "dulger",
+      "carpenter",
+      "mebel",
+      "furniture",
+      "xalca",
+      "dulus",
+    ],
+  },
+  {
+    family: "transport",
+    words: [
+      "pilot",
+      "aviadispet",
+      "aviation",
+      "qatar",
+      "railway",
+      "gemi",
+      "kapitan",
+      "denizci",
+      "seafarer",
+      "liman",
+      "port operator",
+      "dispetcer",
+    ],
+  },
+  {
+    family: "science",
+    words: [
+      "tedqiqatci",
+      "researcher",
+      "scientist",
+      "elmi",
+      "laborator",
+      "kimyaci",
+      "chemist",
+      "fizik",
+      "bioloq",
+      "biolog",
+      "riyaziyyat",
+      "mathematic",
+    ],
+  },
+  {
+    family: "social",
+    words: [
+      "sosial isci",
+      "social worker",
+      "qht",
+      "ngo",
+      "humanitar",
+      "humanitarian",
+      "konullu",
+      "volunteer",
+      "fundrais",
+    ],
+  },
+  {
+    family: "personal",
+    words: [
+      "berber",
+      "barber",
+      "hairdress",
+      "kosmetolog",
+      "cosmetolog",
+      "makiyaj",
+      "makeup",
+      "manikur",
+      "fitnes",
+      "fitness",
+      "yoqa",
+      "yoga",
+      "stilist",
+      "stylist",
+    ],
+  },
+  {
+    family: "public",
+    words: [
+      "dovlet qulluqcu",
+      "civil servant",
+      "belediyye",
+      "municipal",
+      "vergi inspektor",
+      "gomruk emekdas",
+      "polis",
+      "diplomat",
+      "konsul",
+    ],
+  },
 ];
 // Folds Azerbaijani letters to plain Latin so "öyrənmək" matches "oyren".
 const fold = (s: string) => normalize(s).replace(/ə/g, "e");
 const ASPIRATION =
   /(oyren|kurs|istey|maraql|planlas|hedef|arzu|oxumusam|oxuyuram|niyyet|want|wish|learn|course|interested|plan to|aspir|goal|hope)/;
 const GENERIC_TITLE_WORDS = new Set([
-  "bas", "boyuk", "kicik", "uzre", "mutexessis", "mutexessisi", "menecer", "meneceri",
-  "rehber", "rehberi", "direktor", "direktoru", "komekci", "komekcisi", "senior", "junior",
-  "middle", "lead", "head", "chief", "manager", "specialist", "assistant", "officer",
-  "isci", "emekdas", "shobe", "sobe", "department", "and", "for",
+  "bas",
+  "boyuk",
+  "kicik",
+  "uzre",
+  "mutexessis",
+  "mutexessisi",
+  "menecer",
+  "meneceri",
+  "rehber",
+  "rehberi",
+  "direktor",
+  "direktoru",
+  "komekci",
+  "komekcisi",
+  "senior",
+  "junior",
+  "middle",
+  "lead",
+  "head",
+  "chief",
+  "manager",
+  "specialist",
+  "assistant",
+  "officer",
+  "isci",
+  "emekdas",
+  "shobe",
+  "sobe",
+  "department",
+  "and",
+  "for",
 ]);
 const roleTokens = (title: string) =>
   fold(title)
@@ -442,7 +825,9 @@ const sameStem = (a: string, b: string) =>
 export function roleFamilies(text: string) {
   const t = ` ${fold(text)} `;
   const families = new Set(
-    ROLE_FAMILIES.filter((f) => f.words.some((w) => t.includes(w))).map((f) => f.family),
+    ROLE_FAMILIES.filter((f) => f.words.some((w) => t.includes(w))).map(
+      (f) => f.family,
+    ),
   );
   // A title from the shared catalog carries its own profession family.
   const catalogFamily = jobTitleFamily(text.trim());
@@ -455,30 +840,56 @@ export function roleRelevance(candidateTitle: string, j: Job) {
   // The same catalog title in any language or spelling is the same profession.
   const own = canonicalJobTitle(candidateTitle.trim());
   const wanted = canonicalJobTitle(j.title.trim());
-  if (own && wanted && (own.base || own.id) === (wanted.base || wanted.id)) return 1;
+  if (own && wanted && (own.base || own.id) === (wanted.base || wanted.id))
+    return 1;
   const jobTokens = roleTokens(j.title);
-  if (roleTokens(candidateTitle).some((a) => jobTokens.some((b) => sameStem(a, b))))
+  if (
+    roleTokens(candidateTitle).some((a) =>
+      jobTokens.some((b) => sameStem(a, b)),
+    )
+  )
     return 1;
   const jobFamilies = roleFamilies(`${j.title} ${j.category}`);
   const families = roleFamilies(candidateTitle);
   if (!families.size || !jobFamilies.size) return 0.4;
   return [...families].some((f) => jobFamilies.has(f)) ? 0.7 : 0.1;
 }
-type RoleRecord = { title: string; text: string; start: string; end: string; current: boolean };
+type RoleRecord = {
+  title: string;
+  text: string;
+  start: string;
+  end: string;
+  current: boolean;
+};
 function roleRecords(p: Profile): RoleRecord[] {
   const list = (value: unknown) =>
-    Array.isArray(value) ? value.filter((x) => typeof x === "string").join(". ") : "";
+    Array.isArray(value)
+      ? value.filter((x) => typeof x === "string").join(". ")
+      : "";
   const structured = Array.isArray(p.structuredCv?.work_experience)
-    ? (p.structuredCv.work_experience as Record<string, unknown>[]).map((item) => ({
-        title: typeof item.position === "string" ? item.position : "",
-        text: [list(item.responsibilities), list(item.achievements), list(item.technologies), list(item.skills_used)].join(". "),
-        start: typeof item.start_date === "string" ? item.start_date : "",
-        end: typeof item.end_date === "string" ? item.end_date : "",
-        current: item.is_current === true,
-      }))
+    ? (p.structuredCv.work_experience as Record<string, unknown>[]).map(
+        (item) => ({
+          title: typeof item.position === "string" ? item.position : "",
+          text: [
+            list(item.responsibilities),
+            list(item.achievements),
+            list(item.technologies),
+            list(item.skills_used),
+          ].join(". "),
+          start: typeof item.start_date === "string" ? item.start_date : "",
+          end: typeof item.end_date === "string" ? item.end_date : "",
+          current: item.is_current === true,
+        }),
+      )
     : [];
   return [
-    ...p.experiences.map((e) => ({ title: e.title, text: e.description, start: e.start, end: e.end, current: e.current })),
+    ...p.experiences.map((e) => ({
+      title: e.title,
+      text: e.description,
+      start: e.start,
+      end: e.end,
+      current: e.current,
+    })),
     ...structured,
   ];
 }
@@ -488,11 +899,23 @@ const factualText = (text: string) =>
     .split(/[\n.;!?•]+/)
     .filter((sentence) => !ASPIRATION.test(fold(sentence)))
     .join(". ");
-export type SkillEvidence = "experience" | "certified" | "declared" | "mentioned" | "none";
+// Only the suite's full names count; a bare "office" also appears in "front office".
+const OFFICE_SUITE =
+  /\b(?:microsoft|ms)[\s-]*office\b|\bmicrosoft[\s-]*365\b|\boffice[\s-]*365\b|\bm365\b/i;
+export const OFFICE_PROGRAMS = new Set([
+  "excel",
+  "microsoft-word",
+  "microsoft-powerpoint",
+  "microsoft-outlook",
+]);
+export type SkillEvidence =
+  "experience" | "certified" | "declared" | "implied" | "mentioned" | "none";
 const EVIDENCE_WEIGHT: Record<SkillEvidence, number> = {
   experience: 1,
   certified: 0.85,
   declared: 0.7,
+  // Named only as part of a suite, e.g. Excel from "Microsoft Office".
+  implied: 0.5,
   mentioned: 0.5,
   none: 0,
 };
@@ -502,7 +925,12 @@ export function certificationSourceText(p: Profile) {
   const structured = Array.isArray(p.structuredCv?.certifications)
     ? (p.structuredCv.certifications as Record<string, unknown>[])
         .map((item) =>
-          [item.certificate_name, item.issuing_organization, item.status, item.issue_date]
+          [
+            item.certificate_name,
+            item.issuing_organization,
+            item.status,
+            item.issue_date,
+          ]
             .filter((x) => typeof x === "string")
             .join(" "),
         )
@@ -515,15 +943,13 @@ export function candidateCertifications(p: Profile): CandidateCertification[] {
   const dismissed = new Set(p.certificationsDismissed || []);
   const detected = detectCertifications(certificationSourceText(p));
   const ids = new Set(explicit.map((c) => c.id));
-  return [...explicit, ...detected.filter((c) => !ids.has(c.id) && !dismissed.has(c.id))];
+  return [
+    ...explicit,
+    ...detected.filter((c) => !ids.has(c.id) && !dismissed.has(c.id)),
+  ];
 }
 export type CertificationEvidence =
-  | "held"
-  | "below_level"
-  | "equivalent"
-  | "in_progress"
-  | "expired"
-  | "none";
+  "held" | "below_level" | "equivalent" | "in_progress" | "expired" | "none";
 const CERT_WEIGHT: Record<CertificationEvidence, number> = {
   held: 1,
   below_level: 0.6,
@@ -544,7 +970,8 @@ function certificationEvidence(
     if (wanted.modules?.length && own.status !== "expired") {
       const passed = new Set(own.passed || []);
       const complete = own.status === "active" && !(own.passed || []).length;
-      if (complete || wanted.modules.every((code) => passed.has(code))) return "held";
+      if (complete || wanted.modules.every((code) => passed.has(code)))
+        return "held";
       return "in_progress";
     }
     if (own.status === "in_progress") return "in_progress";
@@ -558,23 +985,35 @@ function certificationEvidence(
   }
   if (
     definition?.group &&
-    held.some((c) => c.status === "active" && certificationById(c.id)?.group === definition.group)
+    held.some(
+      (c) =>
+        c.status === "active" &&
+        certificationById(c.id)?.group === definition.group,
+    )
   )
     return "equivalent";
   return "none";
 }
 export function match(p: Profile, j: Job) {
-  const profileSkillIds = new Set(normalizeSkills(p.skills, { max: 50 }).map(skillId));
+  const profileSkillIds = new Set(
+    normalizeSkills(p.skills, { max: 50 }).map(skillId),
+  );
   const roles = roleRecords(p);
   const relevance = roles.map((r) => roleRelevance(r.title, j));
   // Titles whose profession could not be recognized (0.4) neither help nor hurt.
-  const known = [roleRelevance(p.title, j), ...relevance].filter((r) => r !== 0.4);
+  const known = [roleRelevance(p.title, j), ...relevance].filter(
+    (r) => r !== 0.4,
+  );
   const summaryFamilies = roleFamilies(p.summary);
-  const summaryRelated = [...roleFamilies(`${j.title} ${j.category}`)].some((f) => summaryFamilies.has(f));
+  const summaryRelated = [...roleFamilies(`${j.title} ${j.category}`)].some(
+    (f) => summaryFamilies.has(f),
+  );
   // Without recognizable titles, a professional summary may still name the field.
   const role = known.length ? Math.max(...known) : summaryRelated ? 0.7 : 0.4;
   const relatedHistory = relevance.some((r) => r >= 0.7);
-  const experienceText = factualText(roles.map((r) => `${r.title}. ${r.text}`).join(". "));
+  const experienceText = factualText(
+    roles.map((r) => `${r.title}. ${r.text}`).join(". "),
+  );
   const declaredText = factualText(p.summary);
   const mentionedText = factualText(p.cvText);
   const requiredSkills = normalizeSkills(j.skills, { max: 30 });
@@ -585,12 +1024,24 @@ export function match(p: Profile, j: Job) {
       .filter((c) => c.status === "active")
       .flatMap((c) => certificationById(c.id)?.skills || []),
   );
+  // "Microsoft Office" says a person uses the suite, not how well they know
+  // each program, so its programs count as partial evidence.
+  const officeStated =
+    profileSkillIds.has("microsoft-office") ||
+    OFFICE_SUITE.test(declaredText) ||
+    OFFICE_SUITE.test(mentionedText);
   const skillEvidence = requiredSkills.map((skill) => {
     let level: SkillEvidence = "none";
     if (skillMatches(skill, experienceText)) level = "experience";
     else if (certifiedSkillIds.has(skillId(skill))) level = "certified";
-    else if (profileSkillIds.has(skillId(skill)) || skillMatches(skill, declaredText)) level = "declared";
+    else if (
+      profileSkillIds.has(skillId(skill)) ||
+      skillMatches(skill, declaredText)
+    )
+      level = "declared";
     else if (skillMatches(skill, mentionedText)) level = "mentioned";
+    else if (officeStated && OFFICE_PROGRAMS.has(skillId(skill)))
+      level = "implied";
     return { skill, level };
   });
   const jobCertifications = normalizeJobCertifications(j.certifications);
@@ -611,8 +1062,12 @@ export function match(p: Profile, j: Job) {
   );
   const weight = (level: SkillEvidence) =>
     level === "declared" && relatedHistory ? 0.9 : EVIDENCE_WEIGHT[level];
-  const matched = skillEvidence.filter((x) => x.level !== "none").map((x) => x.skill);
-  const missing = skillEvidence.filter((x) => x.level === "none").map((x) => x.skill);
+  const matched = skillEvidence
+    .filter((x) => x.level !== "none")
+    .map((x) => x.skill);
+  const missing = skillEvidence
+    .filter((x) => x.level === "none")
+    .map((x) => x.skill);
   // Required certifications sit in the same evidence pool as required skills.
   const evidenceItems = requiredSkills.length + requiredCerts.length;
   const skills = evidenceItems
@@ -622,42 +1077,68 @@ export function match(p: Profile, j: Job) {
     : role;
   const totalYears = years(p);
   // Only years spent in related roles count toward the vacancy requirement.
-  const relevantYears = !roles.length || relevance.every((r) => r === 0.4)
-    ? totalYears
-    : years({
-        ...p,
-        experiences: p.experiences.filter((e) => roleRelevance(e.title, j) >= 0.7),
-        structuredCv: p.structuredCv && Array.isArray(p.structuredCv.work_experience)
-          ? {
-              ...p.structuredCv,
-              work_experience: (p.structuredCv.work_experience as Record<string, unknown>[]).filter(
-                (item) => roleRelevance(typeof item.position === "string" ? item.position : "", j) >= 0.7,
-              ),
-            }
-          : p.structuredCv,
-      });
+  const relevantYears =
+    !roles.length || relevance.every((r) => r === 0.4)
+      ? totalYears
+      : years({
+          ...p,
+          experiences: p.experiences.filter(
+            (e) => roleRelevance(e.title, j) >= 0.7,
+          ),
+          structuredCv:
+            p.structuredCv && Array.isArray(p.structuredCv.work_experience)
+              ? {
+                  ...p.structuredCv,
+                  work_experience: (
+                    p.structuredCv.work_experience as Record<string, unknown>[]
+                  ).filter(
+                    (item) =>
+                      roleRelevance(
+                        typeof item.position === "string" ? item.position : "",
+                        j,
+                      ) >= 0.7,
+                  ),
+                }
+              : p.structuredCv,
+        });
   const ratio = j.minYears ? relevantYears / j.minYears : 1;
-  const overqualified = j.maxYears > j.minYears && relevantYears > j.maxYears + 5;
+  const overqualified =
+    j.maxYears > j.minYears && relevantYears > j.maxYears + 5;
   // A vacancy without a minimum still favours someone with related work
   // behind them over a newcomer, and a newcomer in the same field over one
   // from another profession.
   const exp = overqualified
     ? 0.7
     : !j.minYears
-      ? relevantYears > 0 ? 1 : role >= 0.7 ? 0.8 : 0.3
-      : ratio >= 1 ? 1 : Math.pow(ratio, 1.5);
+      ? relevantYears > 0
+        ? 1
+        : role >= 0.7
+          ? 0.8
+          : 0.3
+      : ratio >= 1
+        ? 1
+        : Math.pow(ratio, 1.5);
   // City and work mode are practical preferences, not qualifications, so
   // they are reported but never add to the fit score.
   const city =
-    normalizeSkillKey(p.city) === normalizeSkillKey(j.city) || j.mode === "Uzaqdan";
+    normalizeSkillKey(p.city) === normalizeSkillKey(j.city) ||
+    j.mode === "Uzaqdan";
   const mode = !j.mode || p.mode === j.mode;
-  let score = Math.min(100, Math.round(skills * 50 + role * 25 + exp * 25 + preferredBonus));
+  let score = Math.min(
+    100,
+    Math.round(skills * 50 + role * 25 + exp * 25 + preferredBonus),
+  );
   const caps: string[] = [];
   // A profile with nothing to evaluate must not score at all.
   const hasEvidence =
     profileSkillIds.size > 0 ||
     certifications.length > 0 ||
-    [p.title, p.summary, p.cvText, ...roles.flatMap((r) => [r.title, r.text])].some((x) => x?.trim());
+    [
+      p.title,
+      p.summary,
+      p.cvText,
+      ...roles.flatMap((r) => [r.title, r.text]),
+    ].some((x) => x?.trim());
   if (!hasEvidence) {
     score = 0;
     caps.push("empty-profile");
@@ -704,12 +1185,18 @@ export function match(p: Profile, j: Job) {
 // Auto-apply acts on the candidate's behalf, so it needs stronger evidence
 // than a ranking: a related role, most skills evidenced and enough experience.
 export const AUTO_APPLY_FLOOR = 80;
-export function autoApplyEligible(result: ReturnType<typeof match>, minScore: number) {
-  const evidenced = result.skillEvidence.filter((x) => x.level === "experience" || x.level === "declared").length;
+export function autoApplyEligible(
+  result: ReturnType<typeof match>,
+  minScore: number,
+) {
+  const evidenced = result.skillEvidence.filter(
+    (x) => x.level === "experience" || x.level === "declared",
+  ).length;
   return (
     result.score >= Math.max(AUTO_APPLY_FLOOR, minScore) &&
     result.roleRelevance >= 0.7 &&
-    (!result.skillEvidence.length || evidenced / result.skillEvidence.length >= 0.6) &&
+    (!result.skillEvidence.length ||
+      evidenced / result.skillEvidence.length >= 0.6) &&
     !result.caps.length
   );
 }
@@ -744,7 +1231,11 @@ export function analyze(p: Profile) {
     100,
     p.skills.filter(Boolean).length * 15 +
       // Only recognized, completed certifications add to the score.
-      Math.min(20, candidateCertifications(p).filter((c) => c.status === "active").length * 10),
+      Math.min(
+        20,
+        candidateCertifications(p).filter((c) => c.status === "active").length *
+          10,
+      ),
   );
   const readability = Math.min(
     100,
@@ -829,7 +1320,8 @@ function titleFromPrompt(prompt: string) {
       const phrase = words.slice(i, i + size).join(" ");
       // "3-5 il təcrübəli satış mütəxəssisi" asks for experience, not a senior title.
       if (/^təcrübəli\b/i.test(phrase)) continue;
-      if (phrase.length >= 4 && canonicalJobTitle(phrase)) return phrase.charAt(0).toLocaleUpperCase("az") + phrase.slice(1);
+      if (phrase.length >= 4 && canonicalJobTitle(phrase))
+        return phrase.charAt(0).toLocaleUpperCase("az") + phrase.slice(1);
     }
   }
   return "";
@@ -842,109 +1334,286 @@ export function draftJob(prompt: string): Job | null {
       title: t.includes("muhasib") ? "Mühasib" : "Maliyyə üzrə mütəxəssis",
       category: "Maliyyə, bankçılıq və sığorta",
       skills: ["Excel", "Hesabatlılıq", "Maliyyə təhlili"],
-      duties: ["Gündəlik maliyyə əməliyyatlarını düzgün və vaxtında icra etmək", "Aylıq hesabatları hazırlamaq və məlumatların dəqiqliyini yoxlamaq", "Sənədləri sistemləşdirmək və aidiyyəti tərəflərlə uzlaşdırmaq"],
-      requirements: ["Maliyyə, mühasibatlıq və ya uyğun sahə üzrə təhsil", "Excel və maliyyə hesabatları ilə işləmək bacarığı", "Dəqiqlik, analitik düşüncə və məsuliyyət"],
+      duties: [
+        "Gündəlik maliyyə əməliyyatlarını düzgün və vaxtında icra etmək",
+        "Aylıq hesabatları hazırlamaq və məlumatların dəqiqliyini yoxlamaq",
+        "Sənədləri sistemləşdirmək və aidiyyəti tərəflərlə uzlaşdırmaq",
+      ],
+      requirements: [
+        "Maliyyə, mühasibatlıq və ya uyğun sahə üzrə təhsil",
+        "Excel və maliyyə hesabatları ilə işləmək bacarığı",
+        "Dəqiqlik, analitik düşüncə və məsuliyyət",
+      ],
     },
     {
       words: ["hr", "insan resurs", "rekruter", "ise qebul"],
       title: "HR mütəxəssisi",
       category: "Biznes, idarəetmə və HR",
       skills: ["İşə qəbul", "HR əməliyyatları", "Excel"],
-      duties: ["İşə qəbul prosesini vakansiya tələbindən təklif mərhələsinədək idarə etmək", "Namizəd bazasını və müsahibə qeydlərini aktual saxlamaq", "HR sənədləşməsi və hesabatların hazırlanmasında iştirak etmək"],
-      requirements: ["İnsan resursları, biznes və ya uyğun sahə üzrə təhsil", "Namizəd seçimi və müsahibə üsulları üzrə bilik", "Güclü ünsiyyət, məxfilik və təşkilatçılıq bacarığı"],
+      duties: [
+        "İşə qəbul prosesini vakansiya tələbindən təklif mərhələsinədək idarə etmək",
+        "Namizəd bazasını və müsahibə qeydlərini aktual saxlamaq",
+        "HR sənədləşməsi və hesabatların hazırlanmasında iştirak etmək",
+      ],
+      requirements: [
+        "İnsan resursları, biznes və ya uyğun sahə üzrə təhsil",
+        "Namizəd seçimi və müsahibə üsulları üzrə bilik",
+        "Güclü ünsiyyət, məxfilik və təşkilatçılıq bacarığı",
+      ],
     },
     {
       words: ["satis", "satış", "musteri", "müştəri", "kassir", "retail"],
-      title: t.includes("musteri") || t.includes("müştəri") ? "Müştəri xidməti üzrə mütəxəssis" : "Satış mütəxəssisi",
+      title:
+        t.includes("musteri") || t.includes("müştəri")
+          ? "Müştəri xidməti üzrə mütəxəssis"
+          : "Satış mütəxəssisi",
       category: "Satış və müştəri xidməti",
       skills: ["Satış", "Müştəri xidməti", "Danışıqlar"],
-      duties: ["Müştəri ehtiyaclarını müəyyənləşdirərək uyğun həlləri təqdim etmək", "Satış müraciətlərini və nəticələri sistemdə qeyd etmək", "Müştəri məmnuniyyətini qorumaq və satış hədəflərinin icrasında iştirak etmək"],
-      requirements: ["Satış və ya müştəri xidməti sahəsinə maraq", "Aydın ünsiyyət və etirazlarla işləmək bacarığı", "Nəticəyönümlülük və komanda işi"],
+      duties: [
+        "Müştəri ehtiyaclarını müəyyənləşdirərək uyğun həlləri təqdim etmək",
+        "Satış müraciətlərini və nəticələri sistemdə qeyd etmək",
+        "Müştəri məmnuniyyətini qorumaq və satış hədəflərinin icrasında iştirak etmək",
+      ],
+      requirements: [
+        "Satış və ya müştəri xidməti sahəsinə maraq",
+        "Aydın ünsiyyət və etirazlarla işləmək bacarığı",
+        "Nəticəyönümlülük və komanda işi",
+      ],
     },
     {
-      words: ["satinalma", "satınalma", "tehcizat", "təchizat", "logistika", "anbar"],
-      title: t.includes("logistika") ? "Logistika üzrə mütəxəssis" : "Satınalma üzrə mütəxəssis",
+      words: [
+        "satinalma",
+        "satınalma",
+        "tehcizat",
+        "təchizat",
+        "logistika",
+        "anbar",
+      ],
+      title: t.includes("logistika")
+        ? "Logistika üzrə mütəxəssis"
+        : "Satınalma üzrə mütəxəssis",
       category: "Satınalma və təchizat zənciri",
       skills: ["Satınalma", "Təchizat zənciri", "Təchizatçı danışıqları"],
-      duties: ["Satınalma tələblərini toplamaq və təklifləri müqayisə etmək", "Təchizatçılarla kommersiya şərtlərini dəqiqləşdirmək", "Sifariş, çatdırılma və sənədləşmə prosesini izləmək"],
-      requirements: ["Satınalma, logistika və ya uyğun sahə üzrə bilik", "Qiymət təhlili və danışıqlar aparmaq bacarığı", "Excel və sənəd dövriyyəsi ilə işləmək bacarığı"],
+      duties: [
+        "Satınalma tələblərini toplamaq və təklifləri müqayisə etmək",
+        "Təchizatçılarla kommersiya şərtlərini dəqiqləşdirmək",
+        "Sifariş, çatdırılma və sənədləşmə prosesini izləmək",
+      ],
+      requirements: [
+        "Satınalma, logistika və ya uyğun sahə üzrə bilik",
+        "Qiymət təhlili və danışıqlar aparmaq bacarığı",
+        "Excel və sənəd dövriyyəsi ilə işləmək bacarığı",
+      ],
     },
     {
-      words: ["muhendis", "mühəndis", "mexanik", "elektrik", "texnik", "inşaat", "insaat"],
+      words: [
+        "muhendis",
+        "mühəndis",
+        "mexanik",
+        "elektrik",
+        "texnik",
+        "inşaat",
+        "insaat",
+      ],
       title: "Mühəndis",
       category: "Mühəndislik və texniki sahələr",
-      skills: ["Texniki sənədləşmə", "Problemlərin həlli", "Təhlükəsizlik standartları"],
-      duties: ["Texniki işləri plan və standartlara uyğun icra etmək", "Avadanlıq və proses göstəricilərini izləyərək nasazlıqları araşdırmaq", "Texniki hesabat və sənədləri hazırlamaq"],
-      requirements: ["Uyğun mühəndislik ixtisası üzrə təhsil", "Texniki çertyoj və sənədləri oxumaq bacarığı", "Təhlükəsizlik qaydaları və keyfiyyət standartları üzrə bilik"],
+      skills: [
+        "Texniki sənədləşmə",
+        "Problemlərin həlli",
+        "Təhlükəsizlik standartları",
+      ],
+      duties: [
+        "Texniki işləri plan və standartlara uyğun icra etmək",
+        "Avadanlıq və proses göstəricilərini izləyərək nasazlıqları araşdırmaq",
+        "Texniki hesabat və sənədləri hazırlamaq",
+      ],
+      requirements: [
+        "Uyğun mühəndislik ixtisası üzrə təhsil",
+        "Texniki çertyoj və sənədləri oxumaq bacarığı",
+        "Təhlükəsizlik qaydaları və keyfiyyət standartları üzrə bilik",
+      ],
     },
     {
-      words: ["python", "backend", "frontend", "react", "developer", "proqramci", "proqramçı", "data", "it "],
-      title: t.includes("frontend") || t.includes("react") ? "Frontend Developer" : t.includes("data") ? "Data Analyst" : "Backend Developer",
+      words: [
+        "python",
+        "backend",
+        "frontend",
+        "react",
+        "developer",
+        "proqramci",
+        "proqramçı",
+        "data",
+        "it ",
+      ],
+      title:
+        t.includes("frontend") || t.includes("react")
+          ? "Frontend Developer"
+          : t.includes("data")
+            ? "Data Analyst"
+            : "Backend Developer",
       category: "İT və məlumat analitikası",
-      skills: t.includes("frontend") || t.includes("react") ? ["JavaScript", "React", "HTML/CSS"] : t.includes("data") ? ["SQL", "Excel", "Məlumat təhlili"] : ["Python", "API", "SQL"],
-      duties: ["Tələblərə uyğun dayanıqlı həllər hazırlamaq və test etmək", "Kod keyfiyyətini qorumaq və texniki sənədləşmə aparmaq", "Komanda ilə planlaşdırma, yoxlama və buraxılış proseslərində iştirak etmək"],
-      requirements: ["Uyğun texnologiyalar üzrə praktik bilik", "Versiya nəzarəti və test prinsipləri ilə işləmək bacarığı", "Analitik düşüncə və komanda daxilində ünsiyyət bacarığı"],
+      skills:
+        t.includes("frontend") || t.includes("react")
+          ? ["JavaScript", "React", "HTML/CSS"]
+          : t.includes("data")
+            ? ["SQL", "Excel", "Məlumat təhlili"]
+            : ["Python", "API", "SQL"],
+      duties: [
+        "Tələblərə uyğun dayanıqlı həllər hazırlamaq və test etmək",
+        "Kod keyfiyyətini qorumaq və texniki sənədləşmə aparmaq",
+        "Komanda ilə planlaşdırma, yoxlama və buraxılış proseslərində iştirak etmək",
+      ],
+      requirements: [
+        "Uyğun texnologiyalar üzrə praktik bilik",
+        "Versiya nəzarəti və test prinsipləri ilə işləmək bacarığı",
+        "Analitik düşüncə və komanda daxilində ünsiyyət bacarığı",
+      ],
     },
     {
-      words: ["marketinq", "marketing", "kontent", "content", "smm", "kommunikasiya", "pr "],
-      title: t.includes("kontent") || t.includes("content") ? "Kontent mütəxəssisi" : "Marketinq mütəxəssisi",
+      words: [
+        "marketinq",
+        "marketing",
+        "kontent",
+        "content",
+        "smm",
+        "kommunikasiya",
+        "pr ",
+      ],
+      title:
+        t.includes("kontent") || t.includes("content")
+          ? "Kontent mütəxəssisi"
+          : "Marketinq mütəxəssisi",
       category: "Marketinq və kommunikasiya",
       skills: ["Kontent planlama", "Rəqəmsal marketinq", "Analitika"],
-      duties: ["Hədəf auditoriyaya uyğun kontent və kampaniya planı hazırlamaq", "Materialların hazırlanmasını və vaxtında yayımlanmasını koordinasiya etmək", "Kampaniya göstəricilərini təhlil edib təkmilləşdirmə təklifləri vermək"],
-      requirements: ["Marketinq, kommunikasiya və ya uyğun sahə üzrə bilik", "Yazılı ünsiyyət və kontent hazırlamaq bacarığı", "Rəqəmsal kanallar və analitika alətləri ilə işləmək bacarığı"],
+      duties: [
+        "Hədəf auditoriyaya uyğun kontent və kampaniya planı hazırlamaq",
+        "Materialların hazırlanmasını və vaxtında yayımlanmasını koordinasiya etmək",
+        "Kampaniya göstəricilərini təhlil edib təkmilləşdirmə təklifləri vermək",
+      ],
+      requirements: [
+        "Marketinq, kommunikasiya və ya uyğun sahə üzrə bilik",
+        "Yazılı ünsiyyət və kontent hazırlamaq bacarığı",
+        "Rəqəmsal kanallar və analitika alətləri ilə işləmək bacarığı",
+      ],
     },
     {
       words: ["huquq", "hüquq", "legal", "compliance", "uygunluq", "uyğunluq"],
-      title: t.includes("uygunluq") || t.includes("uyğunluq") || t.includes("compliance") ? "Uyğunluq üzrə mütəxəssis" : "Hüquqşünas",
+      title:
+        t.includes("uygunluq") ||
+        t.includes("uyğunluq") ||
+        t.includes("compliance")
+          ? "Uyğunluq üzrə mütəxəssis"
+          : "Hüquqşünas",
       category: "Hüquq və uyğunluq",
       skills: ["Hüquqi araşdırma", "Müqavilələr", "Uyğunluq"],
-      duties: ["Müqavilə və daxili sənədləri hüquqi baxımdan yoxlamaq", "Qanunvericilik dəyişikliklərini izləyib riskləri qiymətləndirmək", "Aidiyyəti bölmələrə hüquqi və uyğunluq dəstəyi göstərmək"],
-      requirements: ["Hüquq üzrə ali təhsil", "Müqavilə və normativ sənədlərlə işləmək bacarığı", "Diqqətlilik, məxfilik və əsaslandırılmış yazı bacarığı"],
+      duties: [
+        "Müqavilə və daxili sənədləri hüquqi baxımdan yoxlamaq",
+        "Qanunvericilik dəyişikliklərini izləyib riskləri qiymətləndirmək",
+        "Aidiyyəti bölmələrə hüquqi və uyğunluq dəstəyi göstərmək",
+      ],
+      requirements: [
+        "Hüquq üzrə ali təhsil",
+        "Müqavilə və normativ sənədlərlə işləmək bacarığı",
+        "Diqqətlilik, məxfilik və əsaslandırılmış yazı bacarığı",
+      ],
     },
     {
       words: ["muellim", "müəllim", "telim", "təlim", "teacher", "trainer"],
       title: t.includes("telim") || t.includes("təlim") ? "Təlimçi" : "Müəllim",
       category: "Təhsil və təlim",
       skills: ["Tədris planlaması", "Təqdimat", "Qiymətləndirmə"],
-      duties: ["Tədris məqsədlərinə uyğun dərs və materiallar hazırlamaq", "İştirakçıların inkişafını qiymətləndirmək və geribildirim vermək", "Tədris nəticələrini izləyib proqramı təkmilləşdirmək"],
-      requirements: ["Müvafiq sahə üzrə təhsil və mövzu biliyi", "Təqdimat və auditoriya ilə işləmək bacarığı", "Aydın ünsiyyət və planlaşdırma bacarığı"],
+      duties: [
+        "Tədris məqsədlərinə uyğun dərs və materiallar hazırlamaq",
+        "İştirakçıların inkişafını qiymətləndirmək və geribildirim vermək",
+        "Tədris nəticələrini izləyib proqramı təkmilləşdirmək",
+      ],
+      requirements: [
+        "Müvafiq sahə üzrə təhsil və mövzu biliyi",
+        "Təqdimat və auditoriya ilə işləmək bacarığı",
+        "Aydın ünsiyyət və planlaşdırma bacarığı",
+      ],
     },
     {
       words: ["otel", "turizm", "reseps", "asbaz", "aşbaz", "ofisiant"],
-      title: t.includes("reseps") ? "Resepşn" : "Otel və qonaqpərvərlik üzrə əməkdaş",
+      title: t.includes("reseps")
+        ? "Resepşn"
+        : "Otel və qonaqpərvərlik üzrə əməkdaş",
       category: "Otel, iaşə və turizm",
       skills: ["Qonaq xidməti", "Ünsiyyət", "Əməliyyatların koordinasiyası"],
-      duties: ["Qonaqları peşəkar şəkildə qarşılamaq və sorğularını cavablandırmaq", "Gündəlik əməliyyatları daxili standartlara uyğun icra etmək", "Xidmət keyfiyyəti və qonaq məmnuniyyətini izləmək"],
-      requirements: ["Xidmət və qonaqpərvərlik sahəsinə maraq", "Nəzakətli ünsiyyət və problem həll etmə bacarığı", "Növbəli iş rejiminə uyğunluq yalnız tələb olunduqda"],
+      duties: [
+        "Qonaqları peşəkar şəkildə qarşılamaq və sorğularını cavablandırmaq",
+        "Gündəlik əməliyyatları daxili standartlara uyğun icra etmək",
+        "Xidmət keyfiyyəti və qonaq məmnuniyyətini izləmək",
+      ],
+      requirements: [
+        "Xidmət və qonaqpərvərlik sahəsinə maraq",
+        "Nəzakətli ünsiyyət və problem həll etmə bacarığı",
+        "Növbəli iş rejiminə uyğunluq yalnız tələb olunduqda",
+      ],
     },
     {
       words: ["dizayn", "designer", "qrafik", "videoqraf", "fotoqraf"],
       title: "Qrafik dizayner",
       category: "Dizayn və yaradıcı sahələr",
       skills: ["Qrafik dizayn", "Vizual kommunikasiya", "Portfolio"],
-      duties: ["Brend tələblərinə uyğun vizual materiallar hazırlamaq", "Tapşırıqları son tarixlərə uyğun planlaşdırmaq və təqdim etmək", "Geribildirim əsasında dizaynları təkmilləşdirmək"],
-      requirements: ["Müvafiq dizayn alətləri ilə işləmək bacarığı", "İş nümunələrindən ibarət portfolio", "Kompozisiya, tipoqrafiya və rəng prinsipləri üzrə bilik"],
+      duties: [
+        "Brend tələblərinə uyğun vizual materiallar hazırlamaq",
+        "Tapşırıqları son tarixlərə uyğun planlaşdırmaq və təqdim etmək",
+        "Geribildirim əsasında dizaynları təkmilləşdirmək",
+      ],
+      requirements: [
+        "Müvafiq dizayn alətləri ilə işləmək bacarığı",
+        "İş nümunələrindən ibarət portfolio",
+        "Kompozisiya, tipoqrafiya və rəng prinsipləri üzrə bilik",
+      ],
     },
     {
       words: ["hekim", "həkim", "eczaci", "əczaçı", "tibb", "pharma"],
-      title: t.includes("ecz") || t.includes("əcz") ? "Əczaçı" : "Tibb mütəxəssisi",
+      title:
+        t.includes("ecz") || t.includes("əcz") ? "Əczaçı" : "Tibb mütəxəssisi",
       category: "Səhiyyə və əczaçılıq",
       skills: ["Peşə standartları", "Sənədləşmə", "Pasiyent xidməti"],
-      duties: ["Peşə fəaliyyətini qüvvədə olan standartlara uyğun icra etmək", "Məlumat və sənədləri dəqiq şəkildə qeyd etmək", "Pasiyent və aidiyyəti əməkdaşlarla etik ünsiyyət qurmaq"],
-      requirements: ["Vəzifəyə uyğun ixtisas təhsili və tələb olunan icazələr", "Peşə standartları və məxfilik qaydaları üzrə bilik", "Diqqətlilik və məsuliyyət"],
+      duties: [
+        "Peşə fəaliyyətini qüvvədə olan standartlara uyğun icra etmək",
+        "Məlumat və sənədləri dəqiq şəkildə qeyd etmək",
+        "Pasiyent və aidiyyəti əməkdaşlarla etik ünsiyyət qurmaq",
+      ],
+      requirements: [
+        "Vəzifəyə uyğun ixtisas təhsili və tələb olunan icazələr",
+        "Peşə standartları və məxfilik qaydaları üzrə bilik",
+        "Diqqətlilik və məsuliyyət",
+      ],
     },
     {
       words: ["tehlukesizlik", "təhlükəsizlik", "muhafize", "mühafizə", "hse"],
-      title: t.includes("hse") ? "HSE mütəxəssisi" : "Təhlükəsizlik üzrə mütəxəssis",
+      title: t.includes("hse")
+        ? "HSE mütəxəssisi"
+        : "Təhlükəsizlik üzrə mütəxəssis",
       category: "Təhlükəsizlik",
-      skills: ["Risk qiymətləndirməsi", "Təhlükəsizlik prosedurları", "Hesabatlılıq"],
-      duties: ["Təhlükəsizlik tələblərinə əməl olunmasını izləmək", "Riskləri müəyyənləşdirib qabaqlayıcı tədbirlər təklif etmək", "Hadisə və yoxlama nəticələrini sənədləşdirmək"],
-      requirements: ["Müvafiq təhlükəsizlik qaydaları üzrə bilik", "Risk qiymətləndirməsi və hesabat hazırlamaq bacarığı", "Diqqətlilik və operativ qərarvermə"],
+      skills: [
+        "Risk qiymətləndirməsi",
+        "Təhlükəsizlik prosedurları",
+        "Hesabatlılıq",
+      ],
+      duties: [
+        "Təhlükəsizlik tələblərinə əməl olunmasını izləmək",
+        "Riskləri müəyyənləşdirib qabaqlayıcı tədbirlər təklif etmək",
+        "Hadisə və yoxlama nəticələrini sənədləşdirmək",
+      ],
+      requirements: [
+        "Müvafiq təhlükəsizlik qaydaları üzrə bilik",
+        "Risk qiymətləndirməsi və hesabat hazırlamaq bacarığı",
+        "Diqqətlilik və operativ qərarvermə",
+      ],
     },
   ];
-  const role = roles.find((r) => r.words.some((word) => t.includes(normalize(word))));
+  const role = roles.find((r) =>
+    r.words.some((word) => t.includes(normalize(word))),
+  );
   if (!role) return null;
-  const yearRange = t.match(/(\d{1,2})\s*(?:-|–|—|ile|və)\s*(\d{1,2})\s*il/) || t.match(/(\d{1,2})\s*il/);
+  const yearRange =
+    t.match(/(\d{1,2})\s*(?:-|–|—|ile|və)\s*(\d{1,2})\s*il/) ||
+    t.match(/(\d{1,2})\s*il/);
   const minYears = yearRange ? Number(yearRange[1]) : 0;
   const maxYears = yearRange?.[2] ? Number(yearRange[2]) : minYears;
   return {
@@ -982,12 +1651,16 @@ export function jobDraftMissingFields(job: Job) {
 
 // A vacancy with a published range fits when it overlaps the candidate's
 // acceptable range. Vacancies without a range ("by agreement") always fit.
-export function salaryFits(profile: Pick<Profile, "salary" | "salaryMax">, job: Pick<Job, "minSalary" | "maxSalary">) {
+export function salaryFits(
+  profile: Pick<Profile, "salary" | "salaryMax">,
+  job: Pick<Job, "minSalary" | "maxSalary">,
+) {
   if (!job.minSalary && !job.maxSalary) return true;
   const top = job.maxSalary || job.minSalary;
   const bottom = job.minSalary || job.maxSalary;
   if (profile.salary > 0 && top < profile.salary) return false;
-  if ((profile.salaryMax || 0) > 0 && bottom > (profile.salaryMax as number)) return false;
+  if ((profile.salaryMax || 0) > 0 && bottom > (profile.salaryMax as number))
+    return false;
   return true;
 }
 
@@ -996,7 +1669,12 @@ export function salaryFits(profile: Pick<Profile, "salary" | "salaryMax">, job: 
 // reasoning so that the field, certificates, courses and test scores are
 // weighed together rather than only the latest job title.
 export type CareerContext = {
-  fields: { field: string; fieldAz: string; months: number; titles: string[] }[];
+  fields: {
+    field: string;
+    fieldAz: string;
+    months: number;
+    titles: string[];
+  }[];
   currentField: string;
   credentials: { name: string; status: string; detail: string }[];
   coursesAndAchievements: string[];
@@ -1007,7 +1685,10 @@ const monthNumber = (value: string) => {
 };
 export function careerContext(p: Profile, now = new Date()): CareerContext {
   const nowMonth = now.getFullYear() * 12 + now.getMonth();
-  const byField = new Map<string, { months: number; titles: Set<string>; az: string }>();
+  const byField = new Map<
+    string,
+    { months: number; titles: Set<string>; az: string }
+  >();
   let currentField = "";
   for (const e of p.experiences) {
     const family = jobTitleFamily(e.title);
@@ -1015,8 +1696,13 @@ export function careerContext(p: Profile, now = new Date()): CareerContext {
     if (!label) continue;
     const start = monthNumber(e.start);
     const end = e.current ? nowMonth : monthNumber(e.end);
-    const months = start !== null && end !== null && end >= start ? end - start + 1 : 0;
-    const entry = byField.get(label) || { months: 0, titles: new Set<string>(), az: JOB_TITLE_FAMILIES[family]?.az || label };
+    const months =
+      start !== null && end !== null && end >= start ? end - start + 1 : 0;
+    const entry = byField.get(label) || {
+      months: 0,
+      titles: new Set<string>(),
+      az: JOB_TITLE_FAMILIES[family]?.az || label,
+    };
     entry.months += months;
     if (e.title) entry.titles.add(e.title);
     byField.set(label, entry);
@@ -1025,17 +1711,36 @@ export function careerContext(p: Profile, now = new Date()): CareerContext {
   const structured = (p.structuredCv || {}) as Record<string, unknown>;
   const list = (value: unknown) => (Array.isArray(value) ? value : []);
   const lines: string[] = [];
-  for (const course of list(structured.courses_and_training) as Record<string, unknown>[])
-    if (course?.course_name) lines.push(`Course: ${course.course_name}${course.provider ? ` — ${course.provider}` : ""}`);
+  for (const course of list(structured.courses_and_training) as Record<
+    string,
+    unknown
+  >[])
+    if (course?.course_name)
+      lines.push(
+        `Course: ${course.course_name}${course.provider ? ` — ${course.provider}` : ""}`,
+      );
   for (const project of list(structured.projects) as Record<string, unknown>[])
-    if (project?.project_name) lines.push(`Project: ${project.project_name}${project.role ? ` (${project.role})` : ""}`);
+    if (project?.project_name)
+      lines.push(
+        `Project: ${project.project_name}${project.role ? ` (${project.role})` : ""}`,
+      );
   for (const item of list(structured.additional_information))
     if (typeof item === "string" && item.trim()) lines.push(item.trim());
-  for (const job of list(structured.work_experience) as Record<string, unknown>[])
-    for (const a of list(job?.achievements)) if (typeof a === "string" && a.trim()) lines.push(`Achievement: ${a.trim()}`);
+  for (const job of list(structured.work_experience) as Record<
+    string,
+    unknown
+  >[])
+    for (const a of list(job?.achievements))
+      if (typeof a === "string" && a.trim())
+        lines.push(`Achievement: ${a.trim()}`);
   return {
     fields: [...byField.entries()]
-      .map(([field, v]) => ({ field, fieldAz: v.az, months: v.months, titles: [...v.titles].slice(0, 6) }))
+      .map(([field, v]) => ({
+        field,
+        fieldAz: v.az,
+        months: v.months,
+        titles: [...v.titles].slice(0, 6),
+      }))
       .sort((a, b) => b.months - a.months),
     currentField,
     credentials: candidateCertifications(p).map((c) => ({

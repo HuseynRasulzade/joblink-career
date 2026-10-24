@@ -663,6 +663,8 @@ test("Sadiq CV receives a fair finance match across vacancy phrasing variants", 
     "Pul vəsaitlərinin hərəkəti",
     "Debitor və kreditor uçotu",
     "Maliyyə təhlili",
+    // "Microsoft Office" in the profile counts partly for Excel.
+    "Microsoft Excel",
   ]);
   assert.equal(result.experienceMet, true);
   // A genuine finance specialist with related titles should rank strongly;
