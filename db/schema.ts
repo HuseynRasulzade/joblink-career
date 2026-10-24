@@ -46,6 +46,7 @@ export const billingInvoices = sqliteTable(
     accountId: text("account_id").notNull(),
     description: text("description").notNull(),
     amountCents: integer("amount_cents").notNull(),
+    remindedAt: text("reminded_at").notNull().default(""),
     currency: text("currency").notNull().default("AZN"),
     vatPercent: integer("vat_percent").notNull().default(0),
     dueDate: text("due_date").notNull(),
@@ -150,6 +151,17 @@ export const sessions = sqliteTable(
     agent: text("agent").notNull().default(""),
   },
   (t) => [index("sessions_expiry").on(t.expires)],
+);
+export const settingHistory = sqliteTable(
+  "setting_history",
+  {
+    id: text("id").primaryKey(),
+    key: text("key").notNull(),
+    summary: text("summary").notNull(),
+    actorId: text("actor_id").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [index("setting_history_key").on(t.key, t.created)],
 );
 export const errorLog = sqliteTable(
   "error_log",
@@ -901,6 +913,7 @@ export const aiJobRatings = sqliteTable(
     inputHash: text("input_hash").notNull(),
     score: integer("score").notNull(),
     reason: text("reason").notNull(),
+    flagged: integer("flagged").notNull().default(0),
     created: text("created").notNull(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.jobId] }), index("ai_job_ratings_created").on(t.created)],

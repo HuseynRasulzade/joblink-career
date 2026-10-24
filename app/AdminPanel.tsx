@@ -58,6 +58,7 @@ type AdminData = {
     created: string;
     ownerName: string;
     applicationsCount: number;
+    signals?: { id: string; label: string }[];
   }>;
   applications: Array<{
     id: string;
@@ -318,6 +319,22 @@ export default function AdminPanel({
     }
   }
 
+  const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
+  async function bulkJobs(nextAction: "pause" | "archive") {
+    if (!window.confirm(`${selectedJobs.length} vakansiya ${nextAction === "pause" ? "dayandırılsın" : "arxivlənsin"}? Şirkətlər bunları özləri yenidən yayımlaya bilməyəcək.`)) return;
+    setBusy("jobs:bulk");
+    try {
+      const result = (await api("admin/jobs/bulk", { ids: selectedJobs, action: nextAction })) as { done: number };
+      notify(`${result.done} vakansiya üzrə əməliyyat tamamlandı.`);
+      setSelectedJobs([]);
+      await load();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function createInvoice(event: React.FormEvent) {
     event.preventDefault();
     setBusy("billing:invoice");
@@ -530,8 +547,16 @@ export default function AdminPanel({
         <section className="panel admin-table-card">
           <div className="section-heading"><div><h2>Vakansiya moderasiyası</h2><p>{filteredJobs.length} vakansiya göstərilir</p></div></div>
           {toolbar([["published","Yayımlanıb"],["paused","Dayandırılıb"],["archived","Arxivlənib"]])}
-          <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Vakansiya</th><th>Şirkət</th><th>Müraciət</th><th>Tarix</th><th>Status</th><th /></tr></thead><tbody>
-            {filteredJobs.map((job) => <tr key={job.id}><td><div className="admin-job"><strong>{job.title}</strong><small>{job.category} · {job.city}</small></div></td><td>{job.company || job.ownerName}</td><td><b>{job.applicationsCount}</b></td><td>{date(job.created, language)}</td><td><span className={`admin-status ${job.status}`}>{statusLabel(job.status)}</span></td><td><div className="admin-actions">{job.status !== "published" && <button disabled={busy===`job:${job.id}`} onClick={() => action("job",job.id,"publish",`“${job.title}” vakansiyasını yayımlamaq istəyirsiniz?`)}>Yayımla</button>}{job.status === "published" && <button disabled={busy===`job:${job.id}`} onClick={() => action("job",job.id,"pause",`“${job.title}” vakansiyasını dayandırmaq istəyirsiniz?`)}>Dayandır</button>}{job.status !== "archived" && <button disabled={busy===`job:${job.id}`} onClick={() => action("job",job.id,"archive",`“${job.title}” vakansiyasını arxivləmək istəyirsiniz?`)}>Arxivlə</button>}</div></td></tr>)}
+          {selectedJobs.length > 0 && (
+            <div className="admin-actions">
+              <b>{selectedJobs.length} seçilib</b>
+              <button onClick={() => bulkJobs("pause")}>Seçilmişləri dayandır</button>
+              <button onClick={() => bulkJobs("archive")}>Seçilmişləri arxivlə</button>
+              <button className="text-button" onClick={() => setSelectedJobs([])}>Seçimi təmizlə</button>
+            </div>
+          )}
+          <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th /><th>Vakansiya</th><th>Şirkət</th><th>Müraciət</th><th>Tarix</th><th>Status</th><th /></tr></thead><tbody>
+            {filteredJobs.map((job) => <tr key={job.id}><td><input type="checkbox" aria-label={`${job.title} seç`} checked={selectedJobs.includes(job.id)} onChange={(e) => setSelectedJobs(e.target.checked ? [...selectedJobs, job.id] : selectedJobs.filter((x) => x !== job.id))} /></td><td><div className="admin-job"><strong>{job.title}</strong><small>{job.category} · {job.city}</small>{!!job.signals?.length && <small style={{ color: "#b45309" }} title={job.signals.map((s) => s.label).join("\n")}>⚠ {job.signals.map((s) => s.label).join(" · ")}</small>}</div></td><td>{job.company || job.ownerName}</td><td><b>{job.applicationsCount}</b></td><td>{date(job.created, language)}</td><td><span className={`admin-status ${job.status}`}>{statusLabel(job.status)}</span></td><td><div className="admin-actions">{job.status !== "published" && <button disabled={busy===`job:${job.id}`} onClick={() => action("job",job.id,"publish",`“${job.title}” vakansiyasını yayımlamaq istəyirsiniz?`)}>Yayımla</button>}{job.status === "published" && <button disabled={busy===`job:${job.id}`} onClick={() => action("job",job.id,"pause",`“${job.title}” vakansiyasını dayandırmaq istəyirsiniz?`)}>Dayandır</button>}{job.status !== "archived" && <button disabled={busy===`job:${job.id}`} onClick={() => action("job",job.id,"archive",`“${job.title}” vakansiyasını arxivləmək istəyirsiniz?`)}>Arxivlə</button>}</div></td></tr>)}
           </tbody></table></div>
         </section>
       )}

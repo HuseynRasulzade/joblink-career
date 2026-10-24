@@ -49,3 +49,13 @@ export async function ratingHash(input: unknown, version: string) {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+const FIELD_LABELS: Record<string, string> = {
+  candidate: "Namizəd üçün bal rejimi", employer: "İşəgötürən üçün bal rejimi", autoApply: "Avtomatik müraciət rejimi", autoJobs: "Avtomatik analiz olunan vakansiya", minRuleScore: "AI üçün minimum qayda balı", dailyAiRatings: "Gündəlik AI limiti",
+};
+// A readable list of what changed between two settings objects ("field: old → new").
+export function describeSettingChanges(before: Record<string, unknown>, after: Record<string, unknown>) {
+  return Object.keys(after)
+    .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
+    .map((key) => `${FIELD_LABELS[key] || key}: ${String(before[key] ?? "—")} → ${String(after[key])}`);
+}

@@ -60,6 +60,48 @@ export default function AdminMatching({ api, notify }: { api: (path: string, bod
         </div>
         <button className="primary" disabled={busy} onClick={save}>Yadda saxla</button>
       </section>
+      <MatchingHistory api={api} refresh={settings} />
     </div>
+  );
+}
+
+type Rating = { user_id: string; job_id: string; score: number; reason: string; flagged: number; created: string; job_title: string; candidate_title: string };
+// What changed in the settings and when, and a sample of recent AI ratings to check their quality.
+function MatchingHistory({ api, refresh }: { api: (path: string, body?: unknown) => Promise<unknown>; refresh: unknown }) {
+  const [history, setHistory] = useState<{ summary: string; created: string; admin_name: string }[]>([]);
+  const [ratings, setRatings] = useState<{ ratings: Rating[]; flagged: number; total: number } | null>(null);
+  const load = () => {
+    (api("admin/matching-history") as Promise<{ history: typeof history }>).then((d) => setHistory(d.history)).catch(() => {});
+    (api("admin/ai-ratings") as Promise<NonNullable<typeof ratings>>).then(setRatings).catch(() => {});
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [refresh]);
+  return (
+    <>
+      <section className="panel">
+        <h3>Ayarların dəyişmə tarixçəsi</h3>
+        <ol className="event-timeline">
+          {history.map((h, i) => <li key={i}><time>{new Date(h.created).toLocaleString("az-AZ")}</time><span>{h.admin_name}: {h.summary}</span></li>)}
+          {!history.length && <li>Hələ dəyişiklik qeydə alınmayıb.</li>}
+        </ol>
+      </section>
+      <section className="panel">
+        <h3>AI qiymətləndirmə nümunələri {ratings && <small className="muted">· {ratings.total} qiymətləndirmə, {ratings.flagged} “səhvdir” işarəsi</small>}</h3>
+        {ratings?.ratings.map((r) => (
+          <article key={`${r.user_id}${r.job_id}`} className="repeat-card">
+            <b>{r.score}%</b> · {r.candidate_title || "Namizəd"} → {r.job_title || "Vakansiya"}
+            <p>{r.reason}</p>
+            <button
+              type="button"
+              className="text-button"
+              onClick={async () => { await api("admin/ai-ratings/flag", { userId: r.user_id, jobId: r.job_id, flagged: !r.flagged }); load(); }}
+            >
+              {r.flagged ? "İşarəni götür" : "Səhvdir"}
+            </button>
+          </article>
+        ))}
+        {ratings && !ratings.ratings.length && <p className="muted">Hələ AI qiymətləndirməsi yoxdur.</p>}
+      </section>
+    </>
   );
 }

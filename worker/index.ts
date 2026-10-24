@@ -1,7 +1,7 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { purgeOldJobViews, runDigests, runInterviewReminders, runJobAlerts, runPlanReminders, runProbationReminders, runTestReminders, type Mailer } from "../lib/digest-job.ts";
+import { purgeOldJobViews, runDigests, runInterviewReminders, runInvoiceReminders, runJobAlerts, runPlanReminders, runProbationReminders, runTestReminders, type Mailer } from "../lib/digest-job.ts";
 
 interface Env {
   ASSETS: Fetcher;
@@ -47,7 +47,7 @@ const worker = {
   },
   // Daily cron: sends the weekly and monthly summaries that are due and interview reminders.
   async scheduled(_controller: unknown, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(Promise.all([runDigests(env.DB, env.EMAIL, env.EMAIL_FROM), runInterviewReminders(env.DB, env.EMAIL, env.EMAIL_FROM), runTestReminders(env.DB, env.EMAIL, env.EMAIL_FROM), runProbationReminders(env.DB, env.EMAIL, env.EMAIL_FROM), runJobAlerts(env.DB, env.EMAIL, env.EMAIL_FROM), runPlanReminders(env.DB, env.EMAIL, env.EMAIL_FROM), purgeOldJobViews(env.DB)]));
+    ctx.waitUntil(Promise.all([runDigests(env.DB, env.EMAIL, env.EMAIL_FROM), runInterviewReminders(env.DB, env.EMAIL, env.EMAIL_FROM), runTestReminders(env.DB, env.EMAIL, env.EMAIL_FROM), runProbationReminders(env.DB, env.EMAIL, env.EMAIL_FROM), runJobAlerts(env.DB, env.EMAIL, env.EMAIL_FROM), runPlanReminders(env.DB, env.EMAIL, env.EMAIL_FROM), runInvoiceReminders(env.DB, env.EMAIL, env.EMAIL_FROM), purgeOldJobViews(env.DB)]));
   },
 };
 

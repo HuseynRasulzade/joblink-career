@@ -61,6 +61,7 @@ import { findDuplicates } from "@/lib/duplicates";
 import { normalizeVat, vatParts } from "@/lib/vat";
 import { sanitizeReview, summarizeRatings } from "@/lib/reviews";
 import { summarizeAiUsage } from "@/lib/ai-cost";
+import { jobSpamSignals } from "@/lib/job-spam";
 import { cleanErrorMessage, cleanWhere, errorFingerprint } from "@/lib/error-log";
 import { AUTO_EMAIL_TYPES, EMAIL_CATEGORIES, emailAllowedFor, sanitizeEmailOff } from "@/lib/notification-prefs";
 import { alertIsEmpty, describeAlert, jobMatchesAlert, sanitizeAlertFilters, type AlertJob } from "@/lib/job-alerts";
@@ -127,7 +128,7 @@ import { TEMPLATE_LIMIT, cleanTemplateName, copyableJob, draftFromContent } from
 import { CLOSE_REASONS, changedFields, describeMaterialChanges, isEditableStatus, isEndedJob, pickEditable, repostedJob, validDeadline } from "@/lib/job-edit";
 import { conversionPercent, viewerKey } from "@/lib/job-views";
 import { purgeOldJobViews, runDigests, runInterviewReminders } from "@/lib/digest-job";
-import { MATCHING_KEY, normalizeMatching, ratingHash, type MatchingSettings } from "@/lib/matching-settings";
+import { MATCHING_KEY, describeSettingChanges, normalizeMatching, ratingHash, type MatchingSettings } from "@/lib/matching-settings";
 import { FIT_REVIEW_PROMPT, fitFacts, validateFitReview, type FitReview } from "@/lib/fit-review";
 import { COUNTRIES, canonicalUniversity, setCustomUniversities, type University } from "@/lib/university-catalog";
 import { MAJOR_FIELDS, canonicalMajor, setCustomMajors, type Major } from "@/lib/major-catalog";
@@ -2178,9 +2179,31 @@ async function route(request: Request) {
     if (request.method === "POST" && path === "admin/matching-settings") {
       const body = await jsonBody(request);
       const settings = normalizeMatching(body);
+      const before = await readMatching(db);
       await db.prepare("INSERT INTO app_settings(key,value,updated) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated=excluded.updated")
         .bind(MATCHING_KEY, JSON.stringify(settings), new Date().toISOString()).run();
+      const changes = describeSettingChanges(before as unknown as Record<string, unknown>, settings as unknown as Record<string, unknown>);
+      if (changes.length)
+        await db.prepare("INSERT INTO setting_history(id,key,summary,actor_id,created) VALUES(?,?,?,?,?)").bind(crypto.randomUUID(), MATCHING_KEY, changes.join("; ").slice(0, 600), id, new Date().toISOString()).run().catch(() => {});
       return ok({ settings });
+    }
+    if (request.method === "GET" && path === "admin/matching-history") {
+      const rows = await db.prepare("SELECT h.summary,h.created,COALESCE(a.name,'Administrator') AS admin_name FROM setting_history h LEFT JOIN accounts a ON a.id=h.actor_id WHERE h.key=? ORDER BY h.created DESC LIMIT 50")
+        .bind(MATCHING_KEY).all().catch(() => ({ results: [] }));
+      return ok({ history: rows.results });
+    }
+    // A few recent AI ratings the admin can read and mark as wrong, to judge their quality.
+    if (request.method === "GET" && path === "admin/ai-ratings") {
+      const rows = await db.prepare(`SELECT r.user_id,r.job_id,r.score,r.reason,r.flagged,r.created,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(json_extract(p.data,'$.title'),'') AS candidate_title
+        FROM ai_job_ratings r LEFT JOIN jobs j ON j.id=r.job_id LEFT JOIN profiles p ON p.user_id=r.user_id ORDER BY r.created DESC LIMIT 30`).all().catch(() => ({ results: [] }));
+      const flagged = await db.prepare("SELECT COUNT(*) AS n FROM ai_job_ratings WHERE flagged=1").first<{ n: number }>().catch(() => null);
+      const total = await db.prepare("SELECT COUNT(*) AS n FROM ai_job_ratings").first<{ n: number }>().catch(() => null);
+      return ok({ ratings: rows.results, flagged: Number(flagged?.n) || 0, total: Number(total?.n) || 0 });
+    }
+    if (request.method === "POST" && path === "admin/ai-ratings/flag") {
+      const body = await jsonBody(request);
+      await db.prepare("UPDATE ai_job_ratings SET flagged=? WHERE user_id=? AND job_id=?").bind(body.flagged === false ? 0 : 1, str(body.userId, 100), str(body.jobId, 100)).run();
+      return ok({ ok: true });
     }
     if (request.method === "GET" && path === "admin/education") {
       const education = await readCustomEducation(db);
@@ -2390,12 +2413,18 @@ async function route(request: Request) {
       return ok({
         metrics: metrics || {},
         users: userRows.results,
-        jobs: jobRows.results.map((row) => ({
-          ...normalizedJobRecord(JSON.parse(row.data), customSkillLabels),
-          status: row.status,
-          ownerName: row.owner_name,
-          applicationsCount: Number(row.applications_count) || 0,
-        })),
+        jobs: (() => {
+          const parsed = jobRows.results.map((row) => ({ row, job: normalizedJobRecord(JSON.parse(row.data), customSkillLabels) }));
+          const repeats = new Map<string, number>();
+          for (const { job } of parsed) repeats.set(`${job.owner}|${job.title.toLowerCase()}`, (repeats.get(`${job.owner}|${job.title.toLowerCase()}`) || 0) + 1);
+          return parsed.map(({ row, job }) => ({
+            ...job,
+            status: row.status,
+            ownerName: row.owner_name,
+            applicationsCount: Number(row.applications_count) || 0,
+            signals: jobSpamSignals(job, repeats.get(`${job.owner}|${job.title.toLowerCase()}`) || 0),
+          }));
+        })(),
         applications: applicationRows.results,
         audit: auditRows.results.map((row) => ({
           ...row,
@@ -2623,6 +2652,31 @@ async function route(request: Request) {
           .bind(crypto.randomUUID(), id, "payment-recorded", "payment", paymentId, JSON.stringify({ invoiceId, amountCents, method }), now),
       ]);
       return ok({ ok: true, id: paymentId }, 201);
+    }
+    // Several vacancies at once (spam waves): pause or archive; each is marked as moderated and logged.
+    if (request.method === "POST" && path === "admin/jobs/bulk") {
+      const origin = request.headers.get("origin");
+      if (origin && origin !== new URL(request.url).origin) throw new HttpError(403, "Bu sorğuya icazə verilmir.");
+      const body = await jsonBody(request);
+      const action = body.action === "archive" ? "archive" : body.action === "pause" ? "pause" : "";
+      if (!action) throw new HttpError(400, "Əməliyyat yanlışdır.");
+      const ids = [...new Set((Array.isArray(body.ids) ? body.ids : []).map((x: unknown) => str(x, 100)).filter(Boolean))].slice(0, 100) as string[];
+      if (!ids.length) throw new HttpError(400, "Vakansiya seçilməyib.");
+      const status = action === "pause" ? "paused" : "archived";
+      const note = str(body.note, 200);
+      const now = new Date().toISOString();
+      let done = 0;
+      for (const jobId of ids) {
+        const job = await db.prepare("SELECT data FROM jobs WHERE id=?").bind(jobId).first<Row>();
+        if (!job) continue;
+        const data = { ...normalizedJobRecord(JSON.parse(job.data), customSkillLabels), status, moderated: true };
+        await db.batch([
+          db.prepare("UPDATE jobs SET status=?,data=? WHERE id=?").bind(status, JSON.stringify(data), jobId),
+          db.prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, action, "job", jobId, JSON.stringify({ source: "bulk", note }), now),
+        ]);
+        done++;
+      }
+      return ok({ ok: true, done });
     }
     if (request.method === "POST" && path === "admin/action") {
       const origin = request.headers.get("origin");

@@ -75,3 +75,29 @@ test("plan reminder goes out once, three days before the period ends", async () 
   assert.match(rows[0].body, /2026-10-25/);
   assert.match(rows[0].body, /söndürülüdür/);
 });
+
+test("overdue invoice reminder: unpaid only, once a week", async () => {
+  const { runInvoiceReminders } = await import("../lib/digest-job.ts");
+  const db = memoryD1(`
+    CREATE TABLE billing_invoices(id text primary key,account_id text,description text,amount_cents integer,due_date text,status text,reminded_at text default '');
+    CREATE TABLE billing_payments(id text primary key,invoice_id text,amount_cents integer);
+    CREATE TABLE accounts(id text primary key,role text);
+    CREATE TABLE notifications(id text primary key,user_id text,type text,title text,body text,link text,read integer,created text);
+    CREATE TABLE password_accounts(email text,user_id text);
+    INSERT INTO accounts VALUES('c1','company'),('u1','candidate');
+    INSERT INTO billing_invoices(id,account_id,description,amount_cents,due_date,status) VALUES
+      ('i1','c1','Paket',10000,'2026-10-10','open'),
+      ('i2','u1','Paylanıb',10000,'2026-10-10','open'),
+      ('i3','u1','Vaxtı çatmayıb',10000,'2026-11-10','open'),
+      ('i4','u1','Ləğv',10000,'2026-10-10','cancelled');
+    INSERT INTO billing_payments VALUES('p1','i2',10000);`);
+  const now = new Date("2026-10-23T05:00:00Z");
+  assert.equal(await runInvoiceReminders(db, null, undefined, now), 1);
+  assert.equal(await runInvoiceReminders(db, null, undefined, now), 0);
+  assert.equal(await runInvoiceReminders(db, null, undefined, new Date("2026-10-31T05:00:00Z")), 1);
+  const rows = db.raw.prepare("SELECT user_id,link,body FROM notifications").all();
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].user_id, "c1");
+  assert.equal(rows[0].link, "hr-billing");
+  assert.match(rows[0].body, /100\.00 AZN/);
+});

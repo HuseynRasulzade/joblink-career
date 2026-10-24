@@ -263,6 +263,37 @@ export async function runPlanReminders(db: D1Database, mail: Mailer, fromEmail: 
   return sent;
 }
 
+// Overdue unpaid invoices: one reminder to the account every 7 days.
+export async function runInvoiceReminders(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+  const today = now.toISOString().slice(0, 10);
+  const rows = await db
+    .prepare(`SELECT bi.id,bi.account_id,bi.description,bi.amount_cents,bi.due_date,COALESCE(a.role,'candidate') AS role,
+        bi.amount_cents-COALESCE((SELECT SUM(bp.amount_cents) FROM billing_payments bp WHERE bp.invoice_id=bi.id),0) AS due_cents
+      FROM billing_invoices bi LEFT JOIN accounts a ON a.id=bi.account_id
+      WHERE bi.status='open' AND bi.due_date<? AND (bi.reminded_at='' OR bi.reminded_at<?) LIMIT 300`)
+    .bind(today, new Date(now.getTime() - 7 * DAY).toISOString())
+    .all<{ id: string; account_id: string; description: string; amount_cents: number; due_date: string; role: string; due_cents: number }>()
+    .catch(() => ({ results: [] as { id: string; account_id: string; description: string; amount_cents: number; due_date: string; role: string; due_cents: number }[] }));
+  let sent = 0;
+  for (const row of rows.results) {
+    try {
+      if (row.due_cents <= 0) continue;
+      const claimed = await db.prepare("UPDATE billing_invoices SET reminded_at=? WHERE id=? AND (reminded_at='' OR reminded_at<?)").bind(now.toISOString(), row.id, new Date(now.getTime() - 7 * DAY).toISOString()).run();
+      if (!claimed.meta.changes) continue;
+      const text = `“${row.description}” hesab-fakturası üzrə ${(row.due_cents / 100).toFixed(2)} AZN ödəniş gecikir (son tarix ${row.due_date}). Zəhmət olmasa ödənişi tamamlayın.`;
+      await db
+        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
+        .bind(crypto.randomUUID(), row.account_id, "billing", "Ödəniş gecikir", text.slice(0, 600), row.role === "company" ? "hr-billing" : "packages", now.toISOString())
+        .run();
+      await sendTo(db, mail, fromEmail, row.account_id, "Joblink: ödəniş gecikir", text, "billing");
+      sent++;
+    } catch {
+      // One failing reminder must not stop the others.
+    }
+  }
+  return sent;
+}
+
 // Vacancy views are kept for a limited time only.
 export async function purgeOldJobViews(db: D1Database, now = new Date()) {
   const cutoff = new Date(now.getTime() - 180 * DAY).toISOString().slice(0, 10);
