@@ -69,3 +69,30 @@ test("a job title such as front office does not count as Microsoft Office", () =
   });
   assert.equal(level(p, "Microsoft Word"), "none");
 });
+
+test("programs added automatically from Office stay partial, hand-picked ones do not", () => {
+  const auto = person({
+    skills: ["Microsoft Office", "Microsoft Excel"],
+    inferredSkills: ["excel"],
+  });
+  assert.equal(level(auto, "Microsoft Excel"), "implied");
+  const hand = person({ skills: ["Microsoft Office", "Microsoft Excel"] });
+  assert.equal(level(hand, "Microsoft Excel"), "declared");
+  const worked = person({
+    skills: ["Microsoft Office", "Microsoft Excel"],
+    inferredSkills: ["excel"],
+    experiences: [
+      {
+        id: "e",
+        title: "Ofis meneceri",
+        company: "T",
+        employmentType: "",
+        start: "2020-01",
+        end: "",
+        description: "Excel ilə hesabatlar",
+        current: true,
+      },
+    ],
+  });
+  assert.equal(level(worked, "Microsoft Excel"), "experience");
+});

@@ -12,6 +12,7 @@ import {
   searchSkills,
   skillId,
   type SkillDefinition,
+  SKILL_CATALOG,
 } from "@/lib/skill-catalog";
 import {
   X,
@@ -58,6 +59,8 @@ import {
   JOB_CATEGORIES,
   EMPLOYMENT_TYPES,
   certificationSourceText,
+  OFFICE_PROGRAMS,
+  OFFICE_SUITE,
 } from "@/lib/model";
 export function Modal({
   title,
@@ -793,7 +796,10 @@ export function ProfileEditor({
   const [tab, setTab] = useState("Şəxsi məlumatlar");
   // New profiles start by choosing how to fill: from a CV or by hand.
   const [fillMode, setFillMode] = useState<"choose" | "cv" | "manual">(
-    !isSample && !profile.cvText.trim() && !profile.experiences.length && !profile.summary.trim()
+    !isSample &&
+      !profile.cvText.trim() &&
+      !profile.experiences.length &&
+      !profile.summary.trim()
       ? "choose"
       : "manual",
   );
@@ -938,7 +944,9 @@ export function ProfileEditor({
     const own = p.certifications || [];
     const dismissed = new Set(p.certificationsDismissed || []);
     const detected = detectCertifications(certSource);
-    const found = detected.filter((c) => !own.some((o) => o.id === c.id) && !dismissed.has(c.id));
+    const found = detected.filter(
+      (c) => !own.some((o) => o.id === c.id) && !dismissed.has(c.id),
+    );
     // A certification added by hand gets the exams the CV lists for it.
     let enriched = 0;
     const updated = own.map((item) => {
@@ -954,18 +962,24 @@ export function ProfileEditor({
         detail: fromCv.detail,
       };
     });
-    if (!found.length && !enriched) return;
-    const nextOwn = [...updated, ...found.map((c) => ({ ...c, source: "profile" as const }))];
-    set("certifications", nextOwn);
+    const nextOwn = [
+      ...updated,
+      ...found.map((c) => ({ ...c, source: "profile" as const })),
+    ];
     // Course lines that are now a certification card leave the free-text field.
     const remaining = (p.certificates || "")
       .split("\n")
       .filter((line) => {
         const hits = detectCertifications(line);
-        return !hits.length || !hits.every((hit) => nextOwn.some((o) => o.id === hit.id));
+        return (
+          !hits.length ||
+          !hits.every((hit) => nextOwn.some((o) => o.id === hit.id))
+        );
       })
       .join("\n");
     if (remaining !== (p.certificates || "")) set("certificates", remaining);
+    if (!found.length && !enriched) return;
+    set("certifications", nextOwn);
     onNotice(
       found.length
         ? `CV-dən ${found.length} sertifikat avtomatik əlavə edildi. Yoxlayıb profili yadda saxlayın.`
@@ -974,6 +988,39 @@ export function ProfileEditor({
     // Runs only when the CV-derived text changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [certSource, isSample]);
+  // "Microsoft Office" in the skills or CV adds its programs once. They are
+  // remembered in inferredSkills so matching counts them partly, and a program
+  // the candidate removes is not added back.
+  useEffect(() => {
+    if (isSample) return;
+    const stated =
+      normalizeSkills(p.skills, { max: 50 }).some(
+        (skill) => skillId(skill) === "microsoft-office",
+      ) || OFFICE_SUITE.test(`${p.summary}\n${p.cvText}`);
+    if (!stated) return;
+    const have = new Set(normalizeSkills(p.skills, { max: 50 }).map(skillId));
+    const tried = new Set(p.inferredSkills || []);
+    const add = [...OFFICE_PROGRAMS].filter(
+      (id) => !have.has(id) && !tried.has(id),
+    );
+    if (!add.length) return;
+    const labels = add
+      .map(
+        (id) => SKILL_CATALOG.find((item) => skillId(item.label) === id)?.label,
+      )
+      .filter((x): x is string => !!x);
+    if (!labels.length) return;
+    setDirty(true);
+    setP((prev) => ({
+      ...prev,
+      skills: [...prev.skills, ...labels],
+      inferredSkills: [...new Set([...(prev.inferredSkills || []), ...add])],
+    }));
+    onNotice(
+      `Microsoft Office əsasında ${labels.join(", ")} bacarıqları əlavə edildi (qismən sayılır). Yoxlayıb profili yadda saxlayın.`,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.skills, p.summary, p.cvText, isSample]);
   useEffect(() => {
     const fn = (e: BeforeUnloadEvent) => {
       if (dirty) {
@@ -1190,7 +1237,10 @@ export function ProfileEditor({
             >
               <Upload size={22} />
               <strong>Hazır CV-dən doldur</strong>
-              <span>PDF, DOCX və ya şəkil yükləyin, sahələri AI avtomatik doldursun. Sonra yoxlayıb düzəldə bilərsiniz.</span>
+              <span>
+                PDF, DOCX və ya şəkil yükləyin, sahələri AI avtomatik doldursun.
+                Sonra yoxlayıb düzəldə bilərsiniz.
+              </span>
             </button>
             <button
               type="button"
@@ -1201,7 +1251,10 @@ export function ProfileEditor({
             >
               <FileText size={22} />
               <strong>Əl ilə doldur</strong>
-              <span>CV-niz yoxdursa, məlumatları özünüz yazın. Peşəkar xülasəni AI sizin yazdıqlarınız əsasında hazırlayacaq.</span>
+              <span>
+                CV-niz yoxdursa, məlumatları özünüz yazın. Peşəkar xülasəni AI
+                sizin yazdıqlarınız əsasında hazırlayacaq.
+              </span>
             </button>
           </div>
         </section>
@@ -1297,7 +1350,16 @@ export function ProfileEditor({
                       value={p.salaryMax || 0}
                       onChange={(e) => set("salaryMax", Number(e.target.value))}
                     />
-                    <select aria-label="Maaş növü" value={p.salaryKind || ""} onChange={(e) => set("salaryKind", e.target.value as "net" | "gross" | "")}>
+                    <select
+                      aria-label="Maaş növü"
+                      value={p.salaryKind || ""}
+                      onChange={(e) =>
+                        set(
+                          "salaryKind",
+                          e.target.value as "net" | "gross" | "",
+                        )
+                      }
+                    >
                       <option value="">Gross/net göstərilməyib</option>
                       <option value="net">Net (əlimə)</option>
                       <option value="gross">Gross (vergilər daxil)</option>
@@ -1332,20 +1394,38 @@ export function ProfileEditor({
                     <button
                       type="button"
                       className="secondary"
-                      disabled={summaryBusy || !p.title.trim() || (!p.experiences.length && !p.skills.length)}
+                      disabled={
+                        summaryBusy ||
+                        !p.title.trim() ||
+                        (!p.experiences.length && !p.skills.length)
+                      }
                       onClick={async () => {
                         setSummaryBusy(true);
                         try {
-                          const response = await fetch("/api/joblink/profile/summary", {
-                            method: "POST",
-                            credentials: "same-origin",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ profile: p, language: siteLanguage() }),
-                          });
-                          const data = (await response.json()) as { summary?: string; error?: string };
-                          if (!response.ok || !data.summary) throw new Error(data.error || "AI xülasə yaza bilmədi.");
+                          const response = await fetch(
+                            "/api/joblink/profile/summary",
+                            {
+                              method: "POST",
+                              credentials: "same-origin",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                profile: p,
+                                language: siteLanguage(),
+                              }),
+                            },
+                          );
+                          const data = (await response.json()) as {
+                            summary?: string;
+                            error?: string;
+                          };
+                          if (!response.ok || !data.summary)
+                            throw new Error(
+                              data.error || "AI xülasə yaza bilmədi.",
+                            );
                           set("summary", data.summary);
-                          onNotice("Peşəkar xülasə AI ilə hazırlandı. Yoxlayıb profili yadda saxlayın.");
+                          onNotice(
+                            "Peşəkar xülasə AI ilə hazırlandı. Yoxlayıb profili yadda saxlayın.",
+                          );
                         } catch (error) {
                           onNotice((error as Error).message);
                         } finally {
@@ -1353,10 +1433,16 @@ export function ProfileEditor({
                         }
                       }}
                     >
-                      <Sparkles size={15} /> {summaryBusy ? "Yazılır…" : p.summary.trim() ? "AI ilə yenidən yaz" : "AI ilə yaz"}
+                      <Sparkles size={15} />{" "}
+                      {summaryBusy
+                        ? "Yazılır…"
+                        : p.summary.trim()
+                          ? "AI ilə yenidən yaz"
+                          : "AI ilə yaz"}
                     </button>
                     <small>
-                      {!p.title.trim() || (!p.experiences.length && !p.skills.length)
+                      {!p.title.trim() ||
+                      (!p.experiences.length && !p.skills.length)
                         ? "Əvvəlcə peşənizi və ən azı bir iş təcrübəsi və ya bacarıq əlavə edin."
                         : `Vəzifə, iş təcrübəsi, təhsil, bacarıq və sertifikatlarınız əsasında yazılır; olmayan fakt əlavə edilmir. Bu məlumatlar ${aiProvider} ilə emal olunur.`}
                     </small>
@@ -1371,24 +1457,65 @@ export function ProfileEditor({
                   />
                 </Field>
                 <fieldset className="field">
-                  <legend>İstinad şəxsləri (ən çoxu 3, yalnız müraciət etdiyiniz işəgötürənlərə görünür)</legend>
+                  <legend>
+                    İstinad şəxsləri (ən çoxu 3, yalnız müraciət etdiyiniz
+                    işəgötürənlərə görünür)
+                  </legend>
                   {(p.references || []).map((ref, index) => (
                     <div className="form-grid" key={index}>
-                      {([["name", "Ad Soyad"], ["position", "Vəzifə"], ["company", "Şirkət"], ["contact", "Telefon və ya e-poçt"]] as const).map(([key, label]) => (
+                      {(
+                        [
+                          ["name", "Ad Soyad"],
+                          ["position", "Vəzifə"],
+                          ["company", "Şirkət"],
+                          ["contact", "Telefon və ya e-poçt"],
+                        ] as const
+                      ).map(([key, label]) => (
                         <input
                           key={key}
                           aria-label={`${label} (${index + 1}-ci istinad)`}
                           placeholder={label}
                           value={ref[key]}
                           maxLength={160}
-                          onChange={(e) => set("references", (p.references || []).map((r, i) => (i === index ? { ...r, [key]: e.target.value } : r)))}
+                          onChange={(e) =>
+                            set(
+                              "references",
+                              (p.references || []).map((r, i) =>
+                                i === index
+                                  ? { ...r, [key]: e.target.value }
+                                  : r,
+                              ),
+                            )
+                          }
                         />
                       ))}
-                      <button type="button" className="text-button" onClick={() => set("references", (p.references || []).filter((_, i) => i !== index))}>Sil</button>
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() =>
+                          set(
+                            "references",
+                            (p.references || []).filter((_, i) => i !== index),
+                          )
+                        }
+                      >
+                        Sil
+                      </button>
                     </div>
                   ))}
                   {(p.references || []).length < 3 && (
-                    <button type="button" className="secondary" onClick={() => set("references", [...(p.references || []), { name: "", position: "", company: "", contact: "" }])}>+ İstinad şəxsi əlavə et</button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() =>
+                        set("references", [
+                          ...(p.references || []),
+                          { name: "", position: "", company: "", contact: "" },
+                        ])
+                      }
+                    >
+                      + İstinad şəxsi əlavə et
+                    </button>
                   )}
                 </fieldset>
                 <label className="switch-row">
@@ -1415,13 +1542,13 @@ export function ProfileEditor({
                   <span>
                     <b>AI mənim əvəzimdən avtomatik müraciət etsin</b>
                     <small>
-                      Sistem yalnız əvvəlki vəzifələrinizə uyğun, bacarıqlarınızın
-                      çoxu iş təcrübənizdə və ya bacarıq siyahınızda təsdiqlənən,
-                      təcrübə tələbini qarşılayan və aşağıdakı həddi keçən
-                      vakansiyalara sizin əvəzinizə müraciət göndərir. Gündəlik
-                      ən çoxu 10 avtomatik müraciət göndərilir; hər birini
-                      “Müraciətlərim” bölməsində görəcək və geri götürə
-                      biləcəksiniz.
+                      Sistem yalnız əvvəlki vəzifələrinizə uyğun,
+                      bacarıqlarınızın çoxu iş təcrübənizdə və ya bacarıq
+                      siyahınızda təsdiqlənən, təcrübə tələbini qarşılayan və
+                      aşağıdakı həddi keçən vakansiyalara sizin əvəzinizə
+                      müraciət göndərir. Gündəlik ən çoxu 10 avtomatik müraciət
+                      göndərilir; hər birini “Müraciətlərim” bölməsində görəcək
+                      və geri götürə biləcəksiniz.
                     </small>
                   </span>
                 </label>
@@ -1429,10 +1556,19 @@ export function ProfileEditor({
                   <Field label="Hansı şirkətlərə göndərilsin">
                     <select
                       value={p.autoApplyScope || "all"}
-                      onChange={(e) => set("autoApplyScope", e.target.value as "all" | "followed")}
+                      onChange={(e) =>
+                        set(
+                          "autoApplyScope",
+                          e.target.value as "all" | "followed",
+                        )
+                      }
                     >
-                      <option value="all">Bütün şirkətlərin uyğun vakansiyalarına</option>
-                      <option value="followed">Yalnız izlədiyim şirkətlərə</option>
+                      <option value="all">
+                        Bütün şirkətlərin uyğun vakansiyalarına
+                      </option>
+                      <option value="followed">
+                        Yalnız izlədiyim şirkətlərə
+                      </option>
                     </select>
                   </Field>
                 )}
@@ -1485,7 +1621,9 @@ export function ProfileEditor({
                           onChange={(value) =>
                             set(
                               "experiences",
-                              p.experiences.map((x) => (x.id === e.id ? { ...x, title: value } : x)),
+                              p.experiences.map((x) =>
+                                x.id === e.id ? { ...x, title: value } : x,
+                              ),
                             )
                           }
                         />
@@ -1637,7 +1775,9 @@ export function ProfileEditor({
                         onChange={(school) =>
                           set(
                             "education",
-                            p.education.map((x) => (x.id === e.id ? { ...x, school } : x)),
+                            p.education.map((x) =>
+                              x.id === e.id ? { ...x, school } : x,
+                            ),
                           )
                         }
                       />
@@ -1648,7 +1788,9 @@ export function ProfileEditor({
                         onChange={(degree) =>
                           set(
                             "education",
-                            p.education.map((x) => (x.id === e.id ? { ...x, degree } : x)),
+                            p.education.map((x) =>
+                              x.id === e.id ? { ...x, degree } : x,
+                            ),
                           )
                         }
                       />
@@ -1658,7 +1800,11 @@ export function ProfileEditor({
                           onChange={(v) =>
                             set(
                               "education",
-                              p.education.map((x) => (x.id === e.id ? { ...x, year: v.target.value } : x)),
+                              p.education.map((x) =>
+                                x.id === e.id
+                                  ? { ...x, year: v.target.value }
+                                  : x,
+                              ),
                             )
                           }
                         />
@@ -1709,7 +1855,9 @@ export function ProfileEditor({
                   onChange={(value) => set("certifications", value)}
                   detectFrom={certSource}
                   onDismiss={(id) =>
-                    set("certificationsDismissed", [...new Set([...(p.certificationsDismissed || []), id])])
+                    set("certificationsDismissed", [
+                      ...new Set([...(p.certificationsDismissed || []), id]),
+                    ])
                   }
                 />
                 <Field label="Digər kurslar və təlimlər">
@@ -1864,7 +2012,11 @@ export function ProfileEditor({
         </aside>
       </div>
       {preview && (
-        <Modal title="CV önizləmə" onClose={() => setPreview(false)} className="cv-preview-modal">
+        <Modal
+          title="CV önizləmə"
+          onClose={() => setPreview(false)}
+          className="cv-preview-modal"
+        >
           <div className="cv-print-area">
             <BrandedCv profile={p} />
           </div>
@@ -1957,12 +2109,20 @@ export function JobForm({
           />
         </Field>
         <Field label="Maaş növü">
-          <select value={job.salaryKind || ""} onChange={(e) => set("salaryKind", e.target.value as "net" | "gross" | "")}>
+          <select
+            value={job.salaryKind || ""}
+            onChange={(e) =>
+              set("salaryKind", e.target.value as "net" | "gross" | "")
+            }
+          >
             <option value="">Göstərilməyib</option>
             <option value="net">Net (əlinə)</option>
             <option value="gross">Gross (vergilər daxil)</option>
           </select>
-          <small>Namizədlərə təxmini net/gross qarşılığı və gözləntiylə müqayisə göstərilir.</small>
+          <small>
+            Namizədlərə təxmini net/gross qarşılığı və gözləntiylə müqayisə
+            göstərilir.
+          </small>
         </Field>
         <Field label="Minimum təcrübə (il)">
           <input
@@ -2004,15 +2164,26 @@ export function JobForm({
         value={job.certifications}
         onChange={(value) => set("certifications", value)}
       />
-      <StageEditor value={job.stages} onChange={(stages) => set("stages", stages)} />
+      <StageEditor
+        value={job.stages}
+        onChange={(stages) => set("stages", stages)}
+      />
       <div className="internal-fields">
-        <p className="internal-note">Yalnız şirkət daxili məlumat — namizədlər görmür, hesabatlarda istifadə olunur.</p>
+        <p className="internal-note">
+          Yalnız şirkət daxili məlumat — namizədlər görmür, hesabatlarda
+          istifadə olunur.
+        </p>
         <div className="form-grid">
           <Field label="Vakansiyanın yaradılma səbəbi *">
-            <select value={job.reason || ""} onChange={(e) => set("reason", e.target.value)}>
+            <select
+              value={job.reason || ""}
+              onChange={(e) => set("reason", e.target.value)}
+            >
               <option value="">Səbəbi seçin</option>
               {VACANCY_REASONS.map((reason) => (
-                <option key={reason.id} value={reason.id}>{reason.label}</option>
+                <option key={reason.id} value={reason.id}>
+                  {reason.label}
+                </option>
               ))}
             </select>
           </Field>

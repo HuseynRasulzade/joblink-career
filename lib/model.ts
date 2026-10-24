@@ -153,6 +153,8 @@ export type Profile = {
   verified?: { experience: string[]; certification: string[] };
   // Certifications the candidate removed; never re-added from the CV.
   certificationsDismissed?: string[];
+  // Skill ids added automatically from "Microsoft Office"; they count partly.
+  inferredSkills?: string[];
 };
 export type Job = {
   id: string;
@@ -900,7 +902,7 @@ const factualText = (text: string) =>
     .filter((sentence) => !ASPIRATION.test(fold(sentence)))
     .join(". ");
 // Only the suite's full names count; a bare "office" also appears in "front office".
-const OFFICE_SUITE =
+export const OFFICE_SUITE =
   /\b(?:microsoft|ms)[\s-]*office\b|\bmicrosoft[\s-]*365\b|\boffice[\s-]*365\b|\bm365\b/i;
 export const OFFICE_PROGRAMS = new Set([
   "excel",
@@ -1030,10 +1032,12 @@ export function match(p: Profile, j: Job) {
     profileSkillIds.has("microsoft-office") ||
     OFFICE_SUITE.test(declaredText) ||
     OFFICE_SUITE.test(mentionedText);
+  const inferredIds = new Set(p.inferredSkills || []);
   const skillEvidence = requiredSkills.map((skill) => {
     let level: SkillEvidence = "none";
     if (skillMatches(skill, experienceText)) level = "experience";
     else if (certifiedSkillIds.has(skillId(skill))) level = "certified";
+    else if (inferredIds.has(skillId(skill)) && officeStated) level = "implied";
     else if (
       profileSkillIds.has(skillId(skill)) ||
       skillMatches(skill, declaredText)

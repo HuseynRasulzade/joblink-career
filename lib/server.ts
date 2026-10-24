@@ -1,8 +1,20 @@
 import { env } from "cloudflare:workers";
-import { AUTO_APPLY_FLOOR, blankProfile, normalizeEmploymentType, type Profile, type Job } from "./model";
+import {
+  AUTO_APPLY_FLOOR,
+  blankProfile,
+  normalizeEmploymentType,
+  type Profile,
+  type Job,
+} from "./model";
 import { MAX_CV_TEXT_CHARS } from "./cv-limits";
-import { normalizeSkills, normalizeSkillsWithAllowedCustom } from "./skill-catalog";
-import { normalizeCandidateCertifications, normalizeJobCertifications } from "./certification-catalog";
+import {
+  normalizeSkills,
+  normalizeSkillsWithAllowedCustom,
+} from "./skill-catalog";
+import {
+  normalizeCandidateCertifications,
+  normalizeJobCertifications,
+} from "./certification-catalog";
 import { VACANCY_REASONS, sanitizeStages } from "./recruitment";
 export function runtime() {
   return env as unknown as {
@@ -103,24 +115,32 @@ export function profileInput(
         "cvName",
       ].map((k) => [
         k,
-        str(
-          p[k as keyof Profile],
-          k === "cvText" ? MAX_CV_TEXT_CHARS : 5000,
-        ),
+        str(p[k as keyof Profile], k === "cvText" ? MAX_CV_TEXT_CHARS : 5000),
       ]),
     ),
     skills: options.preserveStoredSkills
       ? normalizeSkills(p.skills, { allowCustom: true, max: 50 })
       : allowedCustomSkills.length
-        ? normalizeSkillsWithAllowedCustom(p.skills, allowedCustomSkills, { max: 50 })
+        ? normalizeSkillsWithAllowedCustom(p.skills, allowedCustomSkills, {
+            max: 50,
+          })
         : normalizeSkills(p.skills, { max: 50 }),
     active: p.active === true,
     mode: ["Hibrid", "Ofisdə", "Uzaqdan"].includes(p.mode) ? p.mode : "Hibrid",
     salary: Math.max(0, Math.min(100000, Number(p.salary) || 0)),
     salaryMax: Math.max(0, Math.min(100000, Number(p.salaryMax) || 0)),
-    salaryKind: p.salaryKind === "gross" || p.salaryKind === "net" ? p.salaryKind : "",
+    salaryKind:
+      p.salaryKind === "gross" || p.salaryKind === "net" ? p.salaryKind : "",
     references: Array.isArray(p.references)
-      ? p.references.slice(0, 3).map((r) => ({ name: str(r?.name, 120), position: str(r?.position, 120), company: str(r?.company, 120), contact: str(r?.contact, 160) })).filter((r) => r.name)
+      ? p.references
+          .slice(0, 3)
+          .map((r) => ({
+            name: str(r?.name, 120),
+            position: str(r?.position, 120),
+            company: str(r?.company, 120),
+            contact: str(r?.contact, 160),
+          }))
+          .filter((r) => r.name)
       : [],
     autoApply: p.autoApply === true,
     autoApplyScope: p.autoApplyScope === "followed" ? "followed" : "all",
@@ -151,33 +171,60 @@ export function profileInput(
     structuredCv: profileJson(p.structuredCv),
     certifications: normalizeCandidateCertifications(p.certifications),
     certificationsDismissed: Array.isArray(p.certificationsDismissed)
-      ? [...new Set(p.certificationsDismissed.filter((id): id is string => typeof id === "string").map((id) => id.slice(0, 100)))].slice(0, 60)
+      ? [
+          ...new Set(
+            p.certificationsDismissed
+              .filter((id): id is string => typeof id === "string")
+              .map((id) => id.slice(0, 100)),
+          ),
+        ].slice(0, 60)
+      : [],
+    inferredSkills: Array.isArray(p.inferredSkills)
+      ? [
+          ...new Set(
+            p.inferredSkills
+              .filter((id): id is string => typeof id === "string")
+              .map((id) => id.slice(0, 100)),
+          ),
+        ].slice(0, 20)
       : [],
     cvFieldConfidence: Array.isArray(p.cvFieldConfidence)
-      ? p.cvFieldConfidence.slice(0, 250).map((item) => ({
-          path: str(item?.path, 240),
-          confidence: Math.max(0, Math.min(1, Number(item?.confidence) || 0)),
-          needsReview: item?.needsReview === true,
-          evidence: str(item?.evidence, 500),
-        })).filter((item) => item.path)
+      ? p.cvFieldConfidence
+          .slice(0, 250)
+          .map((item) => ({
+            path: str(item?.path, 240),
+            confidence: Math.max(0, Math.min(1, Number(item?.confidence) || 0)),
+            needsReview: item?.needsReview === true,
+            evidence: str(item?.evidence, 500),
+          }))
+          .filter((item) => item.path)
       : [],
     cvParserMetadata:
       p.cvParserMetadata && typeof p.cvParserMetadata === "object"
         ? {
-            detectedCvLanguage: Array.isArray(p.cvParserMetadata.detectedCvLanguage)
-              ? p.cvParserMetadata.detectedCvLanguage.slice(0, 10).map((x) => str(x, 50)).filter(Boolean)
+            detectedCvLanguage: Array.isArray(
+              p.cvParserMetadata.detectedCvLanguage,
+            )
+              ? p.cvParserMetadata.detectedCvLanguage
+                  .slice(0, 10)
+                  .map((x) => str(x, 50))
+                  .filter(Boolean)
               : [],
             detectedFormat: str(p.cvParserMetadata.detectedFormat, 100),
             needsManualReview: p.cvParserMetadata.needsManualReview === true,
             reviewReasons: Array.isArray(p.cvParserMetadata.reviewReasons)
-              ? p.cvParserMetadata.reviewReasons.slice(0, 30).map((x) => str(x, 500)).filter(Boolean)
+              ? p.cvParserMetadata.reviewReasons
+                  .slice(0, 30)
+                  .map((x) => str(x, 500))
+                  .filter(Boolean)
               : [],
             ocrUsed: p.cvParserMetadata.ocrUsed === true,
           }
         : null,
   };
   for (const e of clean.experiences) {
-    const datePattern = /^\d{4}(?:-(0[1-9]|1[0-2])(?:-(0[1-9]|[12]\d|3[01]))?)?$/;
+    const datePattern =
+      /^\d{4}(?:-(0[1-9]|1[0-2])(?:-(0[1-9]|[12]\d|3[01]))?)?$/;
     const start = Date.parse(
         e.start.length === 4
           ? e.start + "-01-01"
@@ -214,10 +261,15 @@ export function profileInput(
       throw new HttpError(400, "Təhsil müəssisəsi və ixtisası doldurun.");
   return clean;
 }
-export function jobInput(value: unknown, allowedCustomSkills: string[] = []): Job {
+export function jobInput(
+  value: unknown,
+  allowedCustomSkills: string[] = [],
+): Job {
   const j = value as Job;
   const skills = allowedCustomSkills.length
-    ? normalizeSkillsWithAllowedCustom(j?.skills, allowedCustomSkills, { max: 30 })
+    ? normalizeSkillsWithAllowedCustom(j?.skills, allowedCustomSkills, {
+        max: 30,
+      })
     : normalizeSkills(j?.skills, { max: 30 });
   if (
     !j ||
@@ -228,7 +280,10 @@ export function jobInput(value: unknown, allowedCustomSkills: string[] = []): Jo
   )
     throw new HttpError(400, "Vəzifə, şirkət, təsvir və bacarıqları doldurun.");
   if (!VACANCY_REASONS.some((reason) => reason.id === j.reason))
-    throw new HttpError(400, "Vakansiyanın yaradılma səbəbini seçin (bu məlumat yalnız şirkət üçündür).");
+    throw new HttpError(
+      400,
+      "Vakansiyanın yaradılma səbəbini seçin (bu məlumat yalnız şirkət üçündür).",
+    );
   const min = Number(j.minSalary),
     max = Number(j.maxSalary),
     yrs = Number(j.minYears);
@@ -255,7 +310,8 @@ export function jobInput(value: unknown, allowedCustomSkills: string[] = []): Jo
     category: str(j.category, 50),
     minSalary: min,
     maxSalary: max,
-    salaryKind: j.salaryKind === "gross" || j.salaryKind === "net" ? j.salaryKind : "",
+    salaryKind:
+      j.salaryKind === "gross" || j.salaryKind === "net" ? j.salaryKind : "",
     minYears: yrs,
     maxYears: Math.max(yrs, Number(j.maxYears) || yrs + 3),
     skills,
@@ -295,23 +351,56 @@ type AiLimits = {
   user?: string;
 };
 // One row per day, feature, provider and user; counts calls, text sizes and failures (never the text itself).
-export async function recordAiUsage(entry: { feature: string; provider: string; user: string; charsIn: number; charsOut: number; error: boolean }) {
+export async function recordAiUsage(entry: {
+  feature: string;
+  provider: string;
+  user: string;
+  charsIn: number;
+  charsOut: number;
+  error: boolean;
+}) {
   try {
     const db = await store();
     await db
-      .prepare(`INSERT INTO ai_usage(day,feature,provider,user_id,calls,chars_in,chars_out,errors) VALUES(?,?,?,?,1,?,?,?)
-        ON CONFLICT(day,feature,provider,user_id) DO UPDATE SET calls=calls+1,chars_in=chars_in+excluded.chars_in,chars_out=chars_out+excluded.chars_out,errors=errors+excluded.errors`)
-      .bind(new Date().toISOString().slice(0, 10), entry.feature.slice(0, 40), entry.provider, entry.user.slice(0, 100), entry.charsIn, entry.charsOut, entry.error ? 1 : 0)
+      .prepare(
+        `INSERT INTO ai_usage(day,feature,provider,user_id,calls,chars_in,chars_out,errors) VALUES(?,?,?,?,1,?,?,?)
+        ON CONFLICT(day,feature,provider,user_id) DO UPDATE SET calls=calls+1,chars_in=chars_in+excluded.chars_in,chars_out=chars_out+excluded.chars_out,errors=errors+excluded.errors`,
+      )
+      .bind(
+        new Date().toISOString().slice(0, 10),
+        entry.feature.slice(0, 40),
+        entry.provider,
+        entry.user.slice(0, 100),
+        entry.charsIn,
+        entry.charsOut,
+        entry.error ? 1 : 0,
+      )
       .run();
   } catch {
     // Usage statistics are best-effort (before the migration they are simply not kept).
   }
 }
-export async function aiText(instructions: string, input: string, json = false, limits: AiLimits = {}) {
+export async function aiText(
+  instructions: string,
+  input: string,
+  json = false,
+  limits: AiLimits = {},
+) {
   const settings = runtime();
-  const provider = settings.AI_PROVIDER !== "openai" && settings.DEEPSEEK_API_KEY ? "deepseek" : "openai";
-  if (provider === "openai" && !settings.OPENAI_API_KEY) return aiTextRaw(instructions, input, json, limits);
-  const base = { feature: limits.feature || "other", provider, user: limits.user || "", charsIn: instructions.length + Math.min(input.length, limits.maxInputChars || 30000) };
+  const provider =
+    settings.AI_PROVIDER !== "openai" && settings.DEEPSEEK_API_KEY
+      ? "deepseek"
+      : "openai";
+  if (provider === "openai" && !settings.OPENAI_API_KEY)
+    return aiTextRaw(instructions, input, json, limits);
+  const base = {
+    feature: limits.feature || "other",
+    provider,
+    user: limits.user || "",
+    charsIn:
+      instructions.length +
+      Math.min(input.length, limits.maxInputChars || 30000),
+  };
   try {
     const text = await aiTextRaw(instructions, input, json, limits);
     await recordAiUsage({ ...base, charsOut: text?.length || 0, error: false });
@@ -321,7 +410,12 @@ export async function aiText(instructions: string, input: string, json = false, 
     throw error;
   }
 }
-async function aiTextRaw(instructions: string, input: string, json: boolean, limits: AiLimits) {
+async function aiTextRaw(
+  instructions: string,
+  input: string,
+  json: boolean,
+  limits: AiLimits,
+) {
   const settings = runtime();
   const maxInputChars = Math.min(120000, limits.maxInputChars || 30000);
   const maxOutputTokens = Math.min(16000, limits.maxOutputTokens || 3500);
@@ -374,7 +468,8 @@ async function aiTextRaw(instructions: string, input: string, json: boolean, lim
       model: settings.OPENAI_MODEL || "gpt-5.2",
       instructions,
       // JSON mode requires the word "json" in the input itself.
-      input: (json ? "Return the answer as a JSON object. Input data:\n" : "") +
+      input:
+        (json ? "Return the answer as a JSON object. Input data:\n" : "") +
         input.slice(0, maxInputChars),
       store: false,
       max_output_tokens: maxOutputTokens,
@@ -419,7 +514,11 @@ export async function cachedAiText(
   input: string,
   json = false,
   limits: AiLimits = {},
-): Promise<{ text: string | null; cached: boolean; save: () => Promise<void> }> {
+): Promise<{
+  text: string | null;
+  cached: boolean;
+  save: () => Promise<void>;
+}> {
   const settings = runtime();
   const model =
     settings.AI_PROVIDER !== "openai" && settings.DEEPSEEK_API_KEY
@@ -427,27 +526,37 @@ export async function cachedAiText(
       : `openai:${settings.OPENAI_MODEL || "gpt-5.2"}`;
   const digest = await crypto.subtle.digest(
     "SHA-256",
-    new TextEncoder().encode([kind, model, userId, instructions, input].join("\u0000")),
+    new TextEncoder().encode(
+      [kind, model, userId, instructions, input].join("\u0000"),
+    ),
   );
   const key = `${kind}:${Buffer.from(digest).toString("hex")}`;
   const db = await store();
   const noop = async () => {};
   try {
     const hit = await db
-      .prepare("SELECT value FROM ai_cache WHERE key=? AND created>=datetime('now',?)")
+      .prepare(
+        "SELECT value FROM ai_cache WHERE key=? AND created>=datetime('now',?)",
+      )
       .bind(key, `-${AI_CACHE_DAYS} days`)
       .first<{ value: string }>();
     if (hit) return { text: hit.value, cached: true, save: noop };
   } catch {
     // Cache table not migrated yet.
   }
-  const text = await aiText(instructions, input, json, { feature: kind, user: userId, ...limits });
+  const text = await aiText(instructions, input, json, {
+    feature: kind,
+    user: userId,
+    ...limits,
+  });
   const save = async () => {
     if (!text) return;
     try {
       await db.batch([
         db
-          .prepare("INSERT OR REPLACE INTO ai_cache(key,user_id,kind,value,created) VALUES(?,?,?,?,datetime('now'))")
+          .prepare(
+            "INSERT OR REPLACE INTO ai_cache(key,user_id,kind,value,created) VALUES(?,?,?,?,datetime('now'))",
+          )
           .bind(key, userId, kind, text),
         db
           .prepare("DELETE FROM ai_cache WHERE created<datetime('now',?)")
