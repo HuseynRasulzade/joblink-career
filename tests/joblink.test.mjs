@@ -365,6 +365,8 @@ test("universal parser mapping keeps promotions separate and generates an eviden
     "1C",
     "Microsoft Excel",
     "Əsas vəsaitlərin uçotu",
+    // Found in the achievement "100 aktiv inventarlaşdırıldı", not in the skills list.
+    "İnventarizasiya",
   ]);
   assert.equal(parsed.metadata.detectedFormat, "two-column");
 });

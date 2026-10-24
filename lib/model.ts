@@ -1,4 +1,5 @@
 import { skillMatches } from "./skill-synonyms.ts";
+import { candidateLevel, dutyFit, levelFit, titleLevel } from "./role-level.ts";
 import {
   normalizeSkillKey,
   normalizeSkills,
@@ -1012,6 +1013,18 @@ export function match(p: Profile, j: Job) {
   );
   // Without recognizable titles, a professional summary may still name the field.
   const role = known.length ? Math.max(...known) : summaryRelated ? 0.7 : 0.4;
+  // The same profession at another level is a different job: a finance
+  // manager is not an accountant-operator, and a clerk is not a department head.
+  const ownLevel = candidateLevel(roles, p.title);
+  const jobLevel = titleLevel(j.title);
+  const { fit: levelFactor, gap: levelGap } = levelFit(ownLevel, jobLevel);
+  // What the person actually does day to day, against the vacancy's duties.
+  const dutyMatch = dutyFit(
+    `${j.description || ""} ${j.requirements || ""}`,
+    `${p.summary || ""} ${roles.map((r) => r.text).join(" ")}`,
+  );
+  const roleScore =
+    role * levelFactor * (dutyMatch === null ? 1 : 0.8 + 0.2 * dutyMatch);
   const relatedHistory = relevance.some((r) => r >= 0.7);
   const experienceText = factualText(
     roles.map((r) => `${r.title}. ${r.text}`).join(". "),
@@ -1147,7 +1160,7 @@ export function match(p: Profile, j: Job) {
   const mode = !j.mode || p.mode === j.mode;
   let score = Math.min(
     100,
-    Math.round(skills * 50 + role * 25 + exp * 25 + preferredBonus),
+    Math.round(skills * 50 + roleScore * 25 + exp * 25 + preferredBonus),
   );
   const caps: string[] = [];
   // A profile with nothing to evaluate must not score at all.
@@ -1176,6 +1189,14 @@ export function match(p: Profile, j: Job) {
     score = Math.min(score, 45);
     caps.push("unrelated-role");
   }
+  // Same field, but the position level is far above or below the vacancy.
+  if (levelGap >= 3) {
+    score = Math.min(score, 55);
+    caps.push("overqualified-level");
+  } else if (levelGap <= -3) {
+    score = Math.min(score, 50);
+    caps.push("underqualified-level");
+  }
   if (j.minYears && relevantYears < j.minYears * 0.5) {
     // No related experience at all for a role that requires it is a weaker
     // fit than some experience that falls short.
@@ -1192,7 +1213,7 @@ export function match(p: Profile, j: Job) {
     experienceMet: relevantYears >= j.minYears,
     breakdown: {
       skills: Math.round(skills * 50),
-      role: Math.round(role * 25),
+      role: Math.round(roleScore * 25),
       experience: Math.round(exp * 25),
       certifications: preferredBonus,
     },
@@ -1200,6 +1221,13 @@ export function match(p: Profile, j: Job) {
     certifications,
     locationFit: { city, mode },
     roleRelevance: role,
+    levelFit: {
+      factor: levelFactor,
+      gap: levelGap,
+      candidate: ownLevel,
+      vacancy: jobLevel,
+    },
+    dutyFit: dutyMatch,
     caps,
   };
 }

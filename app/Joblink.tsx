@@ -80,17 +80,33 @@ import AssessmentsPage from "./AssessmentsPage";
 import { CandidateInterviews, InterviewsPage } from "./Interviews";
 import { TalentPage } from "./BulkTalent";
 import { AdminVerifications, VerificationPanel } from "./Verifications";
-import { AdminCompanies, ApprovalsPage, BillingPage, CompanyDashboard, CompanyProfilePage, EmployeesPage, TeamPage, WorkforcePage, type CompanyMe } from "./CompanyPages";
+import {
+  AdminCompanies,
+  ApprovalsPage,
+  BillingPage,
+  CompanyDashboard,
+  CompanyProfilePage,
+  EmployeesPage,
+  TeamPage,
+  WorkforcePage,
+  type CompanyMe,
+} from "./CompanyPages";
 import { ExamList } from "./ExamRoom";
 import { OFFER_STATUS, OfferResponse, type Offer } from "./Offers";
 import { CompareBar, JobComparison } from "./Comparison";
+import { LEVEL_NAMES } from "@/lib/role-level";
 import NotificationBell from "./NotificationBell";
 import { JobCertificationList } from "./CertificationPickers";
 import { setCustomCertifications } from "@/lib/certification-catalog";
 import { setCustomJobTitles } from "@/lib/job-title-catalog";
 import { setCustomUniversities } from "@/lib/university-catalog";
 import { setCustomMajors } from "@/lib/major-catalog";
-import { CompaniesPage, CompanyView, VerifiedBadge, type CompanyInfo } from "./CompaniesPage";
+import {
+  CompaniesPage,
+  CompanyView,
+  VerifiedBadge,
+  type CompanyInfo,
+} from "./CompaniesPage";
 import { SalaryCalculator } from "./SalaryCalculator";
 import { FitReviewPanel } from "./FitReview";
 import PackagesPage from "./PackagesPage";
@@ -165,12 +181,15 @@ const titles: Record<string, string> = {
 };
 const descriptions: Record<string, string> = {
   jobs: "Bacarıqlarınıza, təcrübənizə və gözləntilərinizə uyğun işlər.",
-  companies: "Şirkətə toxunub bütün açıq vakansiyalarına baxın, izləyin və ya bloklayın.",
-  calculator: "Gross maaşdan net maaşı (və ya əksinə) 2026-cı il dərəcələri ilə hesablayın.",
+  companies:
+    "Şirkətə toxunub bütün açıq vakansiyalarına baxın, izləyin və ya bloklayın.",
+  calculator:
+    "Gross maaşdan net maaşı (və ya əksinə) 2026-cı il dərəcələri ilə hesablayın.",
   analysis:
     "CV-nizdə nəyin yaxşı işlədiyini və nəyin dəyişməli olduğunu görün.",
   advice: "Təcrübənizdən yeni karyera imkanlarına gedən yol.",
-  assistant: "Profiliniz və vakansiyalar barədə AI ilə danışın; hər söhbət yadda qalır.",
+  assistant:
+    "Profiliniz və vakansiyalar barədə AI ilə danışın; hər söhbət yadda qalır.",
   profile: "Təcrübənizi, bacarıqlarınızı və karyera hekayənizi birləşdirin.",
   applications: "Hər müraciətin statusunu və növbəti addımını izləyin.",
 };
@@ -186,9 +205,48 @@ function vacancyDate(value: string, language: "az" | "en" | "ru") {
   return `${date.getUTCDate()} ${MONTH_NAMES[language][date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
 const MONTH_NAMES = {
-  az: ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avq", "sen", "okt", "noy", "dek"],
-  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-  ru: ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"],
+  az: [
+    "yan",
+    "fev",
+    "mar",
+    "apr",
+    "may",
+    "iyn",
+    "iyl",
+    "avq",
+    "sen",
+    "okt",
+    "noy",
+    "dek",
+  ],
+  en: [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ],
+  ru: [
+    "янв",
+    "фев",
+    "мар",
+    "апр",
+    "мая",
+    "июн",
+    "июл",
+    "авг",
+    "сен",
+    "окт",
+    "ноя",
+    "дек",
+  ],
 };
 type CvDeepReport = {
   executiveSummary: string;
@@ -203,7 +261,13 @@ type CvDeepReport = {
     field?: string;
     experienceIndex?: number;
   }[];
-  atsRisks: { issue: string; evidence: string; fix: string; field?: string; experienceIndex?: number }[];
+  atsRisks: {
+    issue: string;
+    evidence: string;
+    fix: string;
+    field?: string;
+    experienceIndex?: number;
+  }[];
   roleFit: {
     role: string;
     fit: "strong" | "developing";
@@ -211,7 +275,13 @@ type CvDeepReport = {
     reason: string;
     gap: string;
   }[];
-  rewrites: { original: string; improved: string; note: string; field?: string; experienceIndex?: number }[];
+  rewrites: {
+    original: string;
+    improved: string;
+    note: string;
+    field?: string;
+    experienceIndex?: number;
+  }[];
   nextSteps: string[];
   issues?: {
     type: string;
@@ -225,7 +295,11 @@ type CvDeepReport = {
   }[];
 };
 type ProfileTarget = { field?: string; experienceIndex?: number };
-const PRIORITY_LABELS: Record<string, string> = { high: "Yüksək", medium: "Orta", low: "Aşağı" };
+const PRIORITY_LABELS: Record<string, string> = {
+  high: "Yüksək",
+  medium: "Orta",
+  low: "Aşağı",
+};
 const ISSUE_TYPE_LABELS: Record<string, string> = {
   spelling: "Orfoqrafiya",
   grammar: "Qrammatika",
@@ -266,21 +340,37 @@ export default function Joblink() {
   const [login, setLogin] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [company, setCompany] = useState<CompanyInfo | null>(null);
-  const [tabs, setTabs] = useState<{ key: string; kind: "page" | "job" | "company"; ref: string; title: string; job?: Job; company?: CompanyInfo }[]>([]);
+  const [tabs, setTabs] = useState<
+    {
+      key: string;
+      kind: "page" | "job" | "company";
+      ref: string;
+      title: string;
+      job?: Job;
+      company?: CompanyInfo;
+    }[]
+  >([]);
   const [matchOnly, setMatchOnly] = useState(false);
   const [applyConfirm, setApplyConfirm] = useState(false);
   const [accountSettings, setAccountSettings] = useState(false);
   const [tailorFor, setTailorFor] = useState<Job | null>(null);
   const [resetToken, setResetToken] = useState("");
-  const [rewriteSuggestions, setRewriteSuggestions] = useState<string[] | null>(null);
+  const [rewriteSuggestions, setRewriteSuggestions] = useState<string[] | null>(
+    null,
+  );
   const [assistantJob, setAssistantJob] = useState<Job | null>(null);
-  const [messageTarget, setMessageTarget] = useState<MessageTarget | null>(null);
+  const [messageTarget, setMessageTarget] = useState<MessageTarget | null>(
+    null,
+  );
   const [unread, setUnread] = useState({ messages: 0, support: 0 });
   const [companyMe, setCompanyMe] = useState<CompanyMe | null>(null);
   const [offers, setOffers] = useState<Record<string, Offer>>({});
   const [openOffer, setOpenOffer] = useState<Offer | null>(null);
   const [compareJobs, setCompareJobs] = useState<string[]>([]);
-  const [relations, setRelations] = useState<{ following: string[]; blocked: string[] }>({ following: [], blocked: [] });
+  const [relations, setRelations] = useState<{
+    following: string[];
+    blocked: string[];
+  }>({ following: [], blocked: [] });
   const [comparing, setComparing] = useState(false);
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("");
@@ -333,8 +423,17 @@ export default function Joblink() {
       ? "Nümunə hesab"
       : profile.name || "Joblink";
   // Company sections follow the team member's role.
-  const hrNeeds: Record<string, string> = { "hr-billing": "billing", "hr-tests": "tests", "hr-reports": "reports" };
-  const hrVisible = hrNav.filter((item) => !hrNeeds[item.id] || !companyMe || companyMe.permissions.includes(hrNeeds[item.id] as never));
+  const hrNeeds: Record<string, string> = {
+    "hr-billing": "billing",
+    "hr-tests": "tests",
+    "hr-reports": "reports",
+  };
+  const hrVisible = hrNav.filter(
+    (item) =>
+      !hrNeeds[item.id] ||
+      !companyMe ||
+      companyMe.permissions.includes(hrNeeds[item.id] as never),
+  );
   const navigation = admin ? adminNav : hr ? hrVisible : candidateNav;
   const label = navigation.find((n) => n.id === page)?.label || "Ümumi baxış";
   const fingerprint = JSON.stringify(profile);
@@ -383,18 +482,58 @@ export default function Joblink() {
     }
     setCompany(null);
     setJob(j);
-    setTabs((t) => (t.some((x) => x.key === `job:${j.id}`) ? t : [...t, { key: `job:${j.id}`, kind: "job", ref: j.id, title: j.title, job: j }]));
+    setTabs((t) =>
+      t.some((x) => x.key === `job:${j.id}`)
+        ? t
+        : [
+            ...t,
+            {
+              key: `job:${j.id}`,
+              kind: "job",
+              ref: j.id,
+              title: j.title,
+              job: j,
+            },
+          ],
+    );
   }
   function openCompany(c: CompanyInfo) {
     setJob(null);
     setCompany(c);
-    setTabs((t) => (t.some((x) => x.key === `company:${c.id}`) ? t : [...t, { key: `company:${c.id}`, kind: "company", ref: c.id, title: c.name, company: c }]));
+    setTabs((t) =>
+      t.some((x) => x.key === `company:${c.id}`)
+        ? t
+        : [
+            ...t,
+            {
+              key: `company:${c.id}`,
+              kind: "company",
+              ref: c.id,
+              title: c.name,
+              company: c,
+            },
+          ],
+    );
   }
   async function openCompanyByOwner(owner: string, name: string) {
     try {
-      const data = (await fetch("/api/joblink/companies", { cache: "no-store" }).then((r) => r.json())) as { companies?: CompanyInfo[] };
+      const data = (await fetch("/api/joblink/companies", {
+        cache: "no-store",
+      }).then((r) => r.json())) as { companies?: CompanyInfo[] };
       const found = data.companies?.find((c) => c.id === owner);
-      openCompany(found || { id: owner, name, openJobs: 0, followers: 0, verified: false, industry: "", size: "", website: "", about: "" });
+      openCompany(
+        found || {
+          id: owner,
+          name,
+          openJobs: 0,
+          followers: 0,
+          verified: false,
+          industry: "",
+          size: "",
+          website: "",
+          about: "",
+        },
+      );
     } catch {
       notify("Şirkət məlumatı yüklənmədi.");
     }
@@ -414,14 +553,26 @@ export default function Joblink() {
     setTabs(remaining);
     const closing = tabs[index];
     if (!closing) return;
-    const active = closing.kind === "job" ? job?.id === closing.ref : closing.kind === "company" ? company?.id === closing.ref : !job && !company && page === closing.ref;
+    const active =
+      closing.kind === "job"
+        ? job?.id === closing.ref
+        : closing.kind === "company"
+          ? company?.id === closing.ref
+          : !job && !company && page === closing.ref;
     if (!active) return;
     setJob(null);
     setCompany(null);
     setApplyConfirm(false);
     const neighbour = remaining[Math.max(0, index - 1)];
     if (neighbour) activateTab(neighbour);
-    else go(accountRole === "admin" ? "admin-overview" : accountRole === "company" ? "hr-overview" : "overview");
+    else
+      go(
+        accountRole === "admin"
+          ? "admin-overview"
+          : accountRole === "company"
+            ? "hr-overview"
+            : "overview",
+      );
   }
   function go(id: string) {
     setJob(null);
@@ -445,7 +596,10 @@ export default function Joblink() {
   }
   // Opens the exact profile field an analysis finding refers to; falls back
   // to keyword matching when the finding has no field.
-  function openProfileTarget(target: ProfileTarget, ...details: (string | undefined)[]) {
+  function openProfileTarget(
+    target: ProfileTarget,
+    ...details: (string | undefined)[]
+  ) {
     const direct: Record<string, [string, string]> = {
       name: ["Şəxsi məlumatlar", "profile-name"],
       title: ["Şəxsi məlumatlar", "profile-title"],
@@ -472,7 +626,9 @@ export default function Joblink() {
           : undefined) || profile.experiences[0];
       setProfileFocus({
         tab: "Təcrübə və təhsil",
-        elementId: experience ? `profile-experience-${experience.id}-description` : "profile-add-experience",
+        elementId: experience
+          ? `profile-experience-${experience.id}-description`
+          : "profile-add-experience",
         token: Date.now(),
       });
       go("profile");
@@ -481,7 +637,9 @@ export default function Joblink() {
     if (target.field === "education") {
       setProfileFocus({
         tab: "Təcrübə və təhsil",
-        elementId: profile.education[0] ? `profile-education-${profile.education[0].id}` : "profile-add-education",
+        elementId: profile.education[0]
+          ? `profile-education-${profile.education[0].id}`
+          : "profile-add-education",
         token: Date.now(),
       });
       go("profile");
@@ -630,12 +788,17 @@ export default function Joblink() {
     try {
       const b = await api("state");
       if (b.signedIn && b.account?.role === "candidate")
-        api("relations").then((data) => setRelations({ following: data.following, blocked: data.blocked })).catch(() => {});
+        api("relations")
+          .then((data) =>
+            setRelations({ following: data.following, blocked: data.blocked }),
+          )
+          .catch(() => {});
       if (b.signedIn && b.account?.role === "candidate")
         api("offers")
           .then((data) => {
             const map: Record<string, Offer> = {};
-            for (const offer of data.offers as Offer[]) if (!map[offer.application_id]) map[offer.application_id] = offer;
+            for (const offer of data.offers as Offer[])
+              if (!map[offer.application_id]) map[offer.application_id] = offer;
             setOffers(map);
           })
           .catch(() => setOffers({}));
@@ -726,7 +889,11 @@ export default function Joblink() {
     setCompany(null);
   }, [signedIn, accountRole]);
   useEffect(() => {
-    setTabs((t) => (t.some((x) => x.key === `page:${page}`) ? t : [...t, { key: `page:${page}`, kind: "page", ref: page, title: page }]));
+    setTabs((t) =>
+      t.some((x) => x.key === `page:${page}`)
+        ? t
+        : [...t, { key: `page:${page}`, kind: "page", ref: page, title: page }],
+    );
   }, [page, signedIn, accountRole]);
   useEffect(() => {
     refresh();
@@ -926,7 +1093,11 @@ export default function Joblink() {
     deepLinked.current = wanted;
     const src = (params.get("src") || "").toLowerCase();
     try {
-      if (src) window.localStorage.setItem("joblink-src", JSON.stringify({ job: wanted, src }));
+      if (src)
+        window.localStorage.setItem(
+          "joblink-src",
+          JSON.stringify({ job: wanted, src }),
+        );
     } catch {
       // Storage is optional.
     }
@@ -938,27 +1109,57 @@ export default function Joblink() {
   useEffect(() => {
     if (!signedIn || hr || admin) return;
     try {
-      if (window.localStorage.getItem("joblink-ai-ranking-consent") === "1") setRankingConsent(true);
+      if (window.localStorage.getItem("joblink-ai-ranking-consent") === "1")
+        setRankingConsent(true);
     } catch {
       // Storage is optional.
     }
     api("matching-settings")
-      .then((b: { settings: { candidate: "rules" | "ai" } }) => setMatchingMode(b.settings.candidate))
+      .then((b: { settings: { candidate: "rules" | "ai" } }) =>
+        setMatchingMode(b.settings.candidate),
+      )
       .catch(() => setMatchingMode("rules"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn, hr, admin]);
   // Automatic AI rating: once per vacancy, repeated only when the CV or vacancy changes.
   const autoRanked = useRef("");
   useEffect(() => {
-    if (matchingMode !== "ai" || !signedIn || hr || admin || !aiEnabled || !rankingConsent) return;
-    if (profile.cvText.trim().length < 80 || !jobs.length || autoRanked.current === rankingKey) return;
+    if (
+      matchingMode !== "ai" ||
+      !signedIn ||
+      hr ||
+      admin ||
+      !aiEnabled ||
+      !rankingConsent
+    )
+      return;
+    if (
+      profile.cvText.trim().length < 80 ||
+      !jobs.length ||
+      autoRanked.current === rankingKey
+    )
+      return;
     const timer = window.setTimeout(async () => {
       autoRanked.current = rankingKey;
       try {
-        const ids = [...jobs].sort((a, b) => match(profile, b).score - match(profile, a).score).slice(0, 50).map((j) => j.id);
-        const b = await api("rank-jobs", { profile, language, jobIds: ids, auto: true });
+        const ids = [...jobs]
+          .sort((a, b) => match(profile, b).score - match(profile, a).score)
+          .slice(0, 50)
+          .map((j) => j.id);
+        const b = await api("rank-jobs", {
+          profile,
+          language,
+          jobIds: ids,
+          auto: true,
+        });
         if (!b.ratings?.length) return;
-        setAiRatings(Object.fromEntries((b.ratings as { id: string; score: number; reason: string }[]).map((r) => [r.id, { score: r.score, reason: r.reason }])));
+        setAiRatings(
+          Object.fromEntries(
+            (b.ratings as { id: string; score: number; reason: string }[]).map(
+              (r) => [r.id, { score: r.score, reason: r.reason }],
+            ),
+          ),
+        );
         setRankingFingerprint(rankingKey);
       } catch {
         autoRanked.current = "";
@@ -966,14 +1167,24 @@ export default function Joblink() {
     }, 1500);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchingMode, signedIn, hr, admin, aiEnabled, rankingConsent, rankingKey]);
+  }, [
+    matchingMode,
+    signedIn,
+    hr,
+    admin,
+    aiEnabled,
+    rankingConsent,
+    rankingKey,
+  ]);
   async function apply() {
     if (!job) return;
     setBusy(true);
     try {
       let source = "";
       try {
-        const stored = JSON.parse(window.localStorage.getItem("joblink-src") || "null") as { job: string; src: string } | null;
+        const stored = JSON.parse(
+          window.localStorage.getItem("joblink-src") || "null",
+        ) as { job: string; src: string } | null;
         if (stored?.job === job.id) source = stored.src;
       } catch {
         // Storage is optional.
@@ -996,7 +1207,10 @@ export default function Joblink() {
   const clearMessageTarget = useCallback(() => setMessageTarget(null), []);
   const refreshCompany = useCallback(async () => {
     try {
-      const response = await fetch("/api/joblink/company/me", { credentials: "same-origin", cache: "no-store" });
+      const response = await fetch("/api/joblink/company/me", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
       setCompanyMe(response.ok ? await response.json() : null);
     } catch {
       setCompanyMe(null);
@@ -1009,7 +1223,10 @@ export default function Joblink() {
   }, [signedIn, hr, refreshCompany]);
   const refreshUnread = useCallback(async () => {
     try {
-      const response = await fetch("/api/joblink/messages/unread", { credentials: "same-origin", cache: "no-store" });
+      const response = await fetch("/api/joblink/messages/unread", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
       if (response.ok) setUnread(await response.json());
     } catch {
       /* counters are best-effort */
@@ -1036,7 +1253,10 @@ export default function Joblink() {
   }
   async function withdraw(applicationId: string) {
     // The reason is optional; the employer sees it in the application history.
-    const reason = window.prompt("Bu müraciəti geri götürmək istəyirsiniz? İşəgötürən statusu görəcək.\nSəbəbi qısa yaza bilərsiniz (istəyə bağlı):", "");
+    const reason = window.prompt(
+      "Bu müraciəti geri götürmək istəyirsiniz? İşəgötürən statusu görəcək.\nSəbəbi qısa yaza bilərsiniz (istəyə bağlı):",
+      "",
+    );
     if (reason === null) return;
     setBusy(true);
     try {
@@ -1101,9 +1321,15 @@ export default function Joblink() {
                 <input
                   type="checkbox"
                   checked={compareJobs.includes(j.id)}
-                  disabled={!compareJobs.includes(j.id) && compareJobs.length >= 4}
+                  disabled={
+                    !compareJobs.includes(j.id) && compareJobs.length >= 4
+                  }
                   onChange={(e) =>
-                    setCompareJobs((list) => (e.target.checked ? [...list, j.id] : list.filter((x) => x !== j.id)))
+                    setCompareJobs((list) =>
+                      e.target.checked
+                        ? [...list, j.id]
+                        : list.filter((x) => x !== j.id),
+                    )
                   }
                 />{" "}
                 Müqayisə et
@@ -1119,7 +1345,12 @@ export default function Joblink() {
                   <Building2 size={13} /> {j.mode}
                 </span>
                 <span>
-                  {j.minYears}–{j.maxYears} {language === "en" ? "years" : language === "ru" ? "лет" : "il"}
+                  {j.minYears}–{j.maxYears}{" "}
+                  {language === "en"
+                    ? "years"
+                    : language === "ru"
+                      ? "лет"
+                      : "il"}
                 </span>
               </div>
               <div className="skill-tags">
@@ -1129,7 +1360,8 @@ export default function Joblink() {
               </div>
               {"aiReason" in j.ranking && (
                 <p className="muted fine-print">
-                  AI rəyi: {String(j.ranking.aiReason)} · qaydalarla: {j.ranking.ruleScore}%
+                  AI rəyi: {String(j.ranking.aiReason)} · qaydalarla:{" "}
+                  {j.ranking.ruleScore}%
                 </p>
               )}
               <div className="job-footer">
@@ -1137,7 +1369,8 @@ export default function Joblink() {
                   {j.minSalary || j.maxSalary ? (
                     <>
                       {j.minSalary.toLocaleString("fr-FR")} –{" "}
-                      {j.maxSalary.toLocaleString("fr-FR")} <small>AZN / ay</small>
+                      {j.maxSalary.toLocaleString("fr-FR")}{" "}
+                      <small>AZN / ay</small>
                     </>
                   ) : (
                     "Razılaşma yolu ilə"
@@ -1180,7 +1413,10 @@ export default function Joblink() {
                 onChange={(e) => {
                   setRankingConsent(e.target.checked);
                   try {
-                    window.localStorage.setItem("joblink-ai-ranking-consent", e.target.checked ? "1" : "0");
+                    window.localStorage.setItem(
+                      "joblink-ai-ranking-consent",
+                      e.target.checked ? "1" : "0",
+                    );
                   } catch {
                     // Storage is optional.
                   }
@@ -1198,7 +1434,10 @@ export default function Joblink() {
             </button>
             {rankingFingerprint === rankingKey && (
               <span className="muted">
-                AI reytinqi aktivdir{matchingMode === "ai" ? " · avtomatik, hər vakansiya üçün bir dəfə" : " · ilk 30 vakansiya"}
+                AI reytinqi aktivdir
+                {matchingMode === "ai"
+                  ? " · avtomatik, hər vakansiya üçün bir dəfə"
+                  : " · ilk 30 vakansiya"}
               </span>
             )}
           </div>
@@ -1525,13 +1764,19 @@ export default function Joblink() {
               </span>
               <em>{label}</em>
               {id.includes("ai") || id === "advice" ? <b>AI</b> : null}
-              {(id === "messages" || id === "hr-messages") && unread.messages > 0 ? (
+              {(id === "messages" || id === "hr-messages") &&
+              unread.messages > 0 ? (
                 <i className="nav-count">{unread.messages}</i>
               ) : null}
-              {id === "hr-approvals" && companyMe && companyMe.awaitingApproval > 0 ? (
+              {id === "hr-approvals" &&
+              companyMe &&
+              companyMe.awaitingApproval > 0 ? (
                 <i className="nav-count">{companyMe.awaitingApproval}</i>
               ) : null}
-              {(id === "support" || id === "hr-support" || id === "admin-support") && unread.support > 0 ? (
+              {(id === "support" ||
+                id === "hr-support" ||
+                id === "admin-support") &&
+              unread.support > 0 ? (
                 <i className="nav-count">{unread.support}</i>
               ) : null}
             </button>
@@ -1645,7 +1890,9 @@ export default function Joblink() {
             )}
             {comparing && (
               <JobComparison
-                jobs={compareJobs.map((id) => jobs.find((x) => x.id === id)).filter((x): x is Job => !!x)}
+                jobs={compareJobs
+                  .map((id) => jobs.find((x) => x.id === id))
+                  .filter((x): x is Job => !!x)}
                 profile={profile}
                 onClose={() => setComparing(false)}
               />
@@ -1668,8 +1915,14 @@ export default function Joblink() {
                 notify={notify}
               />
             )}
-            {tailorFor && <TailoredCv profile={profile} job={tailorFor} onClose={() => setTailorFor(null)} />}
-      {accountSettings && (
+            {tailorFor && (
+              <TailoredCv
+                profile={profile}
+                job={tailorFor}
+                onClose={() => setTailorFor(null)}
+              />
+            )}
+            {accountSettings && (
               <AccountSettings
                 api={api}
                 notify={notify}
@@ -1702,15 +1955,39 @@ export default function Joblink() {
           {tabs.length > 0 && (
             <div className="tab-strip">
               {tabs
-                .filter((t) => t.kind !== "page" || navigation.some((n) => n.id === t.ref))
+                .filter(
+                  (t) =>
+                    t.kind !== "page" || navigation.some((n) => n.id === t.ref),
+                )
                 .map((t) => {
-                  const title = t.kind === "page" ? navigation.find((n) => n.id === t.ref)?.label || t.title : t.title;
+                  const title =
+                    t.kind === "page"
+                      ? navigation.find((n) => n.id === t.ref)?.label || t.title
+                      : t.title;
                   const active =
-                    t.kind === "job" ? job?.id === t.ref : t.kind === "company" ? company?.id === t.ref : !job && !company && page === t.ref;
+                    t.kind === "job"
+                      ? job?.id === t.ref
+                      : t.kind === "company"
+                        ? company?.id === t.ref
+                        : !job && !company && page === t.ref;
                   return (
                     <div key={t.key} className={active ? "tab active" : "tab"}>
-                      <button type="button" aria-current={active ? "page" : undefined} className="tab-label" onClick={() => activateTab(t)}>{title}</button>
-                      <button className="tab-close" aria-label="Bağla" onClick={(e) => { e.stopPropagation(); closeTab(t.key); }}>
+                      <button
+                        type="button"
+                        aria-current={active ? "page" : undefined}
+                        className="tab-label"
+                        onClick={() => activateTab(t)}
+                      >
+                        {title}
+                      </button>
+                      <button
+                        className="tab-close"
+                        aria-label="Bağla"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeTab(t.key);
+                        }}
+                      >
                         <X size={13} />
                       </button>
                     </div>
@@ -1720,379 +1997,506 @@ export default function Joblink() {
           )}
           {job ? (
             <section className="job-tab-view">
-          <div className="job-detail">
-            <header className="vacancy-company">
-              <div className="vacancy-company-mark" aria-hidden="true">
-                {job.company.trim().slice(0, 1).toLocaleUpperCase("az")}
-              </div>
-              <div>
-                <h3>
-                  {job.owner && !job.demo ? (
-                    <button className="text-button" onClick={() => openCompanyByOwner(job.owner, job.company)}>{job.company}</button>
-                  ) : (
-                    job.company
-                  )}{" "}
-                  {job.companyVerified && <VerifiedBadge small />}
-                </h3>
-                <span>{job.category || "Digər"}</span>
-              </div>
-              <div className="vacancy-dates">
-                <span>
-                  <CalendarDays size={15} /> Yerləşdirilib:{" "}
-                  {vacancyDate(job.created, language)}
-                </span>
-                {job.deadline && (
-                  <strong>
-                    Son tarix: {vacancyDate(job.deadline, language)}
-                  </strong>
-                )}
-              </div>
-              {job.demo && (
-                <span className="sample-label">Nümunə vakansiya</span>
-              )}
-            </header>
+              <div className="job-detail">
+                <header className="vacancy-company">
+                  <div className="vacancy-company-mark" aria-hidden="true">
+                    {job.company.trim().slice(0, 1).toLocaleUpperCase("az")}
+                  </div>
+                  <div>
+                    <h3>
+                      {job.owner && !job.demo ? (
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            openCompanyByOwner(job.owner, job.company)
+                          }
+                        >
+                          {job.company}
+                        </button>
+                      ) : (
+                        job.company
+                      )}{" "}
+                      {job.companyVerified && <VerifiedBadge small />}
+                    </h3>
+                    <span>{job.category || "Digər"}</span>
+                  </div>
+                  <div className="vacancy-dates">
+                    <span>
+                      <CalendarDays size={15} /> Yerləşdirilib:{" "}
+                      {vacancyDate(job.created, language)}
+                    </span>
+                    {job.deadline && (
+                      <strong>
+                        Son tarix: {vacancyDate(job.deadline, language)}
+                      </strong>
+                    )}
+                  </div>
+                  {job.demo && (
+                    <span className="sample-label">Nümunə vakansiya</span>
+                  )}
+                </header>
 
-            <div className="vacancy-facts">
-              <div>
-                <span>Maaş</span>
-                <strong>
-                  {job.minSalary || job.maxSalary
-                    ? `${job.minSalary.toLocaleString("fr-FR")}–${job.maxSalary.toLocaleString("fr-FR")} AZN${job.salaryKind ? ` (${job.salaryKind === "gross" ? "gross" : "net"})` : ""}`
-                    : "Razılaşma yolu ilə"}
-                </strong>
-                {salaryInsight(job, signedIn ? profile : null).lines.map((line) => (
-                  <small key={line} className="muted">{line}</small>
-                ))}
-              </div>
-              <div>
-                <span>Ərazi</span>
-                <strong>
-                  <MapPin size={15} /> {job.city || "Göstərilməyib"}
-                </strong>
-              </div>
-              <div>
-                <span>Məşğulluq</span>
-                <strong>
-                  <Clock3 size={15} /> {job.type || "Göstərilməyib"}
-                </strong>
-              </div>
-              <div>
-                <span>İş formatı</span>
-                <strong>
-                  <Building2 size={15} /> {job.mode || "Göstərilməyib"}
-                </strong>
-              </div>
-              <div>
-                <span>Təcrübə</span>
-                <strong>
-                  {job.minYears || job.maxYears
-                    ? `${job.minYears}–${job.maxYears} ${language === "en" ? "years" : language === "ru" ? "лет" : "il"}`
-                    : "Göstərilməyib"}
-                </strong>
-              </div>
-            </div>
+                <div className="vacancy-facts">
+                  <div>
+                    <span>Maaş</span>
+                    <strong>
+                      {job.minSalary || job.maxSalary
+                        ? `${job.minSalary.toLocaleString("fr-FR")}–${job.maxSalary.toLocaleString("fr-FR")} AZN${job.salaryKind ? ` (${job.salaryKind === "gross" ? "gross" : "net"})` : ""}`
+                        : "Razılaşma yolu ilə"}
+                    </strong>
+                    {salaryInsight(job, signedIn ? profile : null).lines.map(
+                      (line) => (
+                        <small key={line} className="muted">
+                          {line}
+                        </small>
+                      ),
+                    )}
+                  </div>
+                  <div>
+                    <span>Ərazi</span>
+                    <strong>
+                      <MapPin size={15} /> {job.city || "Göstərilməyib"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Məşğulluq</span>
+                    <strong>
+                      <Clock3 size={15} /> {job.type || "Göstərilməyib"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>İş formatı</span>
+                    <strong>
+                      <Building2 size={15} /> {job.mode || "Göstərilməyib"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Təcrübə</span>
+                    <strong>
+                      {job.minYears || job.maxYears
+                        ? `${job.minYears}–${job.maxYears} ${language === "en" ? "years" : language === "ru" ? "лет" : "il"}`
+                        : "Göstərilməyib"}
+                    </strong>
+                  </div>
+                </div>
 
-            <div className="vacancy-detail-layout">
-              <div className="vacancy-content">
-                <section>
-                  <h3>İşin təsviri</h3>
-                  <ul>
-                    {vacancyItems(job.description).map((item, index) => (
-                      <li key={`${index}-${item}`}>{item}</li>
-                    ))}
-                  </ul>
-                </section>
-                <section>
-                  <h3>Namizəddən tələb olunanlar</h3>
-                  <ul>
-                    {vacancyItems(job.requirements).map((item, index) => (
-                      <li key={`${index}-${item}`}>{item}</li>
-                    ))}
-                  </ul>
-                </section>
-                {(job.workSchedule || job.benefits) && (
-                  <section>
-                    <h3>İş şəraiti</h3>
-                    <ul>
-                      {job.workSchedule && (
-                        <li>İş qrafiki: {job.workSchedule}</li>
-                      )}
-                      {job.benefits &&
-                        vacancyItems(job.benefits).map((item, index) => (
+                <div className="vacancy-detail-layout">
+                  <div className="vacancy-content">
+                    <section>
+                      <h3>İşin təsviri</h3>
+                      <ul>
+                        {vacancyItems(job.description).map((item, index) => (
                           <li key={`${index}-${item}`}>{item}</li>
                         ))}
-                    </ul>
-                  </section>
-                )}
-                {job.address && (
-                  <section>
-                    <h3>Ünvan</h3>
-                    <a
-                      className="vacancy-map-link"
-                      href={googleMapsSearchUrl(job.address)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <MapPin size={16} /> {job.address}{" "}
-                      <ArrowUpRight size={15} />
-                    </a>
-                  </section>
-                )}
-              </div>
+                      </ul>
+                    </section>
+                    <section>
+                      <h3>Namizəddən tələb olunanlar</h3>
+                      <ul>
+                        {vacancyItems(job.requirements).map((item, index) => (
+                          <li key={`${index}-${item}`}>{item}</li>
+                        ))}
+                      </ul>
+                    </section>
+                    {(job.workSchedule || job.benefits) && (
+                      <section>
+                        <h3>İş şəraiti</h3>
+                        <ul>
+                          {job.workSchedule && (
+                            <li>İş qrafiki: {job.workSchedule}</li>
+                          )}
+                          {job.benefits &&
+                            vacancyItems(job.benefits).map((item, index) => (
+                              <li key={`${index}-${item}`}>{item}</li>
+                            ))}
+                        </ul>
+                      </section>
+                    )}
+                    {job.address && (
+                      <section>
+                        <h3>Ünvan</h3>
+                        <a
+                          className="vacancy-map-link"
+                          href={googleMapsSearchUrl(job.address)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <MapPin size={16} /> {job.address}{" "}
+                          <ArrowUpRight size={15} />
+                        </a>
+                      </section>
+                    )}
+                  </div>
 
-              <aside className="vacancy-sidebar">
-                <div className="vacancy-skills">
-                  <h3>Tələb olunan bacarıqlar</h3>
-                  <div className="skill-tags">
-                    {job.skills.map((s) => (
-                      <span key={s}>{s}</span>
-                    ))}
-                  </div>
-                  {!!job.certifications?.length && (
-                    <>
-                      <h3>Sertifikat tələbləri</h3>
-                      <JobCertificationList
-                        items={job.certifications}
-                        evidence={activeJobMatch?.certEvidence}
-                      />
-                    </>
-                  )}
-                </div>
-                <div className="match-explanation">
-                  <h3>
-                    <Sparkles size={18} /> {activeJobMatch?.score}% profil
-                    uyğunluğu
-                  </h3>
-                  {activeJobMatch && (
-                    <ul className="match-breakdown">
-                      {(
-                        [
-                          ["Bacarıq dəlili", activeJobMatch.breakdown.skills, 50],
-                          ["Vəzifə uyğunluğu", activeJobMatch.breakdown.role, 25],
-                          ["Uyğun təcrübə", activeJobMatch.breakdown.experience, 25],
-                        ] as const
-                      ).map(([label, value, max]) => (
-                        <li key={label}>
-                          <span>{label}</span>
-                          <i>
-                            <em style={{ width: `${(value / max) * 100}%` }} />
-                          </i>
+                  <aside className="vacancy-sidebar">
+                    <div className="vacancy-skills">
+                      <h3>Tələb olunan bacarıqlar</h3>
+                      <div className="skill-tags">
+                        {job.skills.map((s) => (
+                          <span key={s}>{s}</span>
+                        ))}
+                      </div>
+                      {!!job.certifications?.length && (
+                        <>
+                          <h3>Sertifikat tələbləri</h3>
+                          <JobCertificationList
+                            items={job.certifications}
+                            evidence={activeJobMatch?.certEvidence}
+                          />
+                        </>
+                      )}
+                    </div>
+                    <div className="match-explanation">
+                      <h3>
+                        <Sparkles size={18} /> {activeJobMatch?.score}% profil
+                        uyğunluğu
+                      </h3>
+                      {activeJobMatch && (
+                        <ul className="match-breakdown">
+                          {(
+                            [
+                              [
+                                "Bacarıq dəlili",
+                                activeJobMatch.breakdown.skills,
+                                50,
+                              ],
+                              [
+                                "Vəzifə uyğunluğu",
+                                activeJobMatch.breakdown.role,
+                                25,
+                              ],
+                              [
+                                "Uyğun təcrübə",
+                                activeJobMatch.breakdown.experience,
+                                25,
+                              ],
+                            ] as const
+                          ).map(([label, value, max]) => (
+                            <li key={label}>
+                              <span>{label}</span>
+                              <i>
+                                <em
+                                  style={{ width: `${(value / max) * 100}%` }}
+                                />
+                              </i>
+                              <b>
+                                {value}/{max}
+                              </b>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <p>
+                        <b>Təcrübədə təsdiqlənən:</b>{" "}
+                        {activeJobMatch?.skillEvidence
+                          .filter((x) => x.level === "experience")
+                          .map((x) => x.skill)
+                          .join(", ") || "—"}
+                      </p>
+                      <p>
+                        <b>Yalnız siyahıda və ya CV mətnində:</b>{" "}
+                        {activeJobMatch?.skillEvidence
+                          .filter(
+                            (x) =>
+                              x.level === "declared" || x.level === "mentioned",
+                          )
+                          .map((x) => x.skill)
+                          .join(", ") || "—"}
+                      </p>
+                      {!!activeJobMatch?.skillEvidence.some(
+                        (x) => x.level === "implied",
+                      ) && (
+                        <p>
                           <b>
-                            {value}/{max}
-                          </b>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <p>
-                    <b>Təcrübədə təsdiqlənən:</b>{" "}
-                    {activeJobMatch?.skillEvidence
-                      .filter((x) => x.level === "experience")
-                      .map((x) => x.skill)
-                      .join(", ") || "—"}
-                  </p>
-                  <p>
-                    <b>Yalnız siyahıda və ya CV mətnində:</b>{" "}
-                    {activeJobMatch?.skillEvidence
-                      .filter((x) => x.level === "declared" || x.level === "mentioned")
-                      .map((x) => x.skill)
-                      .join(", ") || "—"}
-                  </p>
-                  {!!activeJobMatch?.skillEvidence.some((x) => x.level === "implied") && (
-                    <p>
-                      <b>Microsoft Office-dən təxmin edilən (qismən sayılır):</b>{" "}
-                      {activeJobMatch.skillEvidence
-                        .filter((x) => x.level === "implied")
-                        .map((x) => x.skill)
-                        .join(", ")}
-                    </p>
-                  )}
-                  <p>
-                    <b>İnkişaf sahələri:</b>{" "}
-                    {activeJobMatch?.missing.join(", ") ||
-                      "Əsas bacarıqlarınız tələblərlə üst-üstə düşür"}
-                  </p>
-                  {!!activeJobMatch?.skillEvidence.some((x) => x.level === "certified") && (
-                    <p>
-                      <b>Sertifikatla təsdiqlənən:</b>{" "}
-                      {activeJobMatch.skillEvidence
-                        .filter((x) => x.level === "certified")
-                        .map((x) => x.skill)
-                        .join(", ")}
-                    </p>
-                  )}
-                  <p>
-                    <b>Uyğun təcrübə:</b> {activeJobMatch?.relevantYears ?? 0} il
-                    / tələb olunan {job.minYears} il
-                  </p>
-                  <small>
-                    Bacarıq və sertifikat dəlili 50%, vəzifə uyğunluğu 25%, uyğun
-                    təcrübə 25%. Şəhər və iş formatı bala təsir etmir. Bacarıq iş
-                    təcrübəsində göstərilibsə tam, yalnız siyahıda və ya mətndə
-                    keçirsə qismən sayılır. İşə qəbul ehtimalı deyil.
-                  </small>
-                  {signedIn && (
-                    <FitReviewPanel api={api} jobId={job.id} language={language} audience="candidate" />
-                  )}
+                            Microsoft Office-dən təxmin edilən (qismən sayılır):
+                          </b>{" "}
+                          {activeJobMatch.skillEvidence
+                            .filter((x) => x.level === "implied")
+                            .map((x) => x.skill)
+                            .join(", ")}
+                        </p>
+                      )}
+                      {!!activeJobMatch &&
+                        Math.abs(activeJobMatch.levelFit.gap) >= 2 && (
+                          <p>
+                            <b>Vəzifə səviyyəsi:</b>{" "}
+                            {activeJobMatch.levelFit.gap > 0
+                              ? `Siz bu vakansiyadan yüksək səviyyədə işləyirsiniz (${LEVEL_NAMES[activeJobMatch.levelFit.candidate ?? 0]} → ${LEVEL_NAMES[activeJobMatch.levelFit.vacancy ?? 0]}), uyğunluq azaldılıb.`
+                              : `Vakansiya sizin hazırkı səviyyənizdən yüksəkdir (${LEVEL_NAMES[activeJobMatch.levelFit.candidate ?? 0]} → ${LEVEL_NAMES[activeJobMatch.levelFit.vacancy ?? 0]}), uyğunluq azaldılıb.`}
+                          </p>
+                        )}
+                      {activeJobMatch?.dutyFit !== null &&
+                        activeJobMatch?.dutyFit !== undefined && (
+                          <p>
+                            <b>İş funksiyalarının uyğunluğu:</b>{" "}
+                            {Math.round(activeJobMatch.dutyFit * 100)}%
+                          </p>
+                        )}
+                      <p>
+                        <b>İnkişaf sahələri:</b>{" "}
+                        {activeJobMatch?.missing.join(", ") ||
+                          "Əsas bacarıqlarınız tələblərlə üst-üstə düşür"}
+                      </p>
+                      {!!activeJobMatch?.skillEvidence.some(
+                        (x) => x.level === "certified",
+                      ) && (
+                        <p>
+                          <b>Sertifikatla təsdiqlənən:</b>{" "}
+                          {activeJobMatch.skillEvidence
+                            .filter((x) => x.level === "certified")
+                            .map((x) => x.skill)
+                            .join(", ")}
+                        </p>
+                      )}
+                      <p>
+                        <b>Uyğun təcrübə:</b>{" "}
+                        {activeJobMatch?.relevantYears ?? 0} il / tələb olunan{" "}
+                        {job.minYears} il
+                      </p>
+                      <small>
+                        Bacarıq və sertifikat dəlili 50%, vəzifə uyğunluğu 25%,
+                        uyğun təcrübə 25%. Şəhər və iş formatı bala təsir etmir.
+                        Bacarıq iş təcrübəsində göstərilibsə tam, yalnız
+                        siyahıda və ya mətndə keçirsə qismən sayılır. İşə qəbul
+                        ehtimalı deyil.
+                      </small>
+                      {signedIn && (
+                        <FitReviewPanel
+                          api={api}
+                          jobId={job.id}
+                          language={language}
+                          audience="candidate"
+                        />
+                      )}
+                    </div>
+                  </aside>
                 </div>
-              </aside>
-            </div>
-            {(() => {
-              const similar = similarJobs(job, jobs);
-              return similar.length ? (
-                <section className="panel similar-jobs">
-                  <h3>Oxşar vakansiyalar</h3>
-                  <div className="company-jobs-list">
-                    {similar.map((x) => (
-                      <button key={x.id} className="company-job-row" onClick={() => openJob(x)}>
-                        <strong>{x.title}</strong>
-                        <span>{x.company} · {x.city}</span>
+                {(() => {
+                  const similar = similarJobs(job, jobs);
+                  return similar.length ? (
+                    <section className="panel similar-jobs">
+                      <h3>Oxşar vakansiyalar</h3>
+                      <div className="company-jobs-list">
+                        {similar.map((x) => (
+                          <button
+                            key={x.id}
+                            className="company-job-row"
+                            onClick={() => openJob(x)}
+                          >
+                            <strong>{x.title}</strong>
+                            <span>
+                              {x.company} · {x.city}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null;
+                })()}
+                {job.demo && (
+                  <p className="demo-notice">
+                    Bu elan nümayiş üçündür. Müraciət real şirkətə göndərilmir.
+                  </p>
+                )}
+                {applyConfirm ? (
+                  <div className="apply-confirm">
+                    <h3>Profilinizi göndərməyə hazırsınız?</h3>
+                    <p>
+                      CV, əlaqə məlumatlarınız və təcrübəniz{" "}
+                      {job.demo
+                        ? "nümunə müraciətdə saxlanılacaq"
+                        : job.company + " ilə paylaşılacaq"}
+                      .
+                    </p>
+                    <div className="form-actions">
+                      <button
+                        className="secondary"
+                        onClick={() => setApplyConfirm(false)}
+                      >
+                        Geri
                       </button>
-                    ))}
-                  </div>
-                </section>
-              ) : null;
-            })()}
-            {job.demo && (
-              <p className="demo-notice">
-                Bu elan nümayiş üçündür. Müraciət real şirkətə göndərilmir.
-              </p>
-            )}
-            {applyConfirm ? (
-              <div className="apply-confirm">
-                <h3>Profilinizi göndərməyə hazırsınız?</h3>
-                <p>
-                  CV, əlaqə məlumatlarınız və təcrübəniz{" "}
-                  {job.demo
-                    ? "nümunə müraciətdə saxlanılacaq"
-                    : job.company + " ilə paylaşılacaq"}
-                  .
-                </p>
-                <div className="form-actions">
-                  <button
-                    className="secondary"
-                    onClick={() => setApplyConfirm(false)}
-                  >
-                    Geri
-                  </button>
-                  <button className="primary" disabled={busy} onClick={apply}>
-                    {busy ? "Göndərilir..." : "Təsdiq et və göndər"}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="form-actions">
-                {signedIn && accountRole === "candidate" && profile.name && (
-                  <button className="secondary" onClick={() => setTailorFor(job)}>
-                    <FileText size={16} /> Bu vakansiya üçün CV
-                  </button>
-                )}
-                <button className="secondary" onClick={() => saveJob(job)}>
-                  <Bookmark size={16} />
-                  {saved.includes(job.id) ? "Yadda saxlanıb" : "Yadda saxla"}
-                </button>
-                {signedIn && !job.demo && job.owner && (
-                  <>
-                    <button
-                      className="secondary"
-                      onClick={async () => {
-                        const on = !relations.following.includes(job.owner);
-                        try {
-                          await api("relations/follow", { targetId: job.owner, on });
-                          setRelations((r) => ({ ...r, following: on ? [...r.following, job.owner] : r.following.filter((x) => x !== job.owner) }));
-                          notify(on ? `${job.company} izlənilir. Yeni vakansiyalardan xəbərdar olacaqsınız.` : "İzləmə dayandırıldı.");
-                        } catch (e) {
-                          notify((e as Error).message);
-                        }
-                      }}
-                    >
-                      {relations.following.includes(job.owner) ? "İzlənilir ✓" : "Şirkəti izlə"}
-                    </button>
-                    <button
-                      className="text-button"
-                      onClick={async () => {
-                        if (!window.confirm(`${job.company} bloklansın? Bu şirkətin vakansiyaları və mesajları sizə göstərilməyəcək.`)) return;
-                        try {
-                          await api("relations/block", { targetId: job.owner, on: true });
-                          closeTab(`job:${job.id}`);
-                          await refresh();
-                          notify(`${job.company} bloklandı.`);
-                        } catch (e) {
-                          notify((e as Error).message);
-                        }
-                      }}
-                    >
-                      Blokla
-                    </button>
-                    <button
-                      className="text-button"
-                      onClick={async () => {
-                        const reason = window.prompt("Bu vakansiyanın nəyi şübhəlidir? (administrator baxacaq)");
-                        if (!reason || reason.trim().length < 5) return;
-                        try {
-                          await api("support/create", { topic: "complaint", subject: `Vakansiya şikayəti: ${job.title}`.slice(0, 160), body: reason, meta: { jobId: job.id, company: job.company } });
-                          notify("Şikayət administratora göndərildi.");
-                        } catch (e) {
-                          notify((e as Error).message);
-                        }
-                      }}
-                    >
-                      Şikayət et
-                    </button>
-                  </>
-                )}
-                {aiEnabled && signedIn && (
-                  <button
-                    className="secondary"
-                    onClick={() => {
-                      setAssistantJob(job);
-                      setJob(null);
-                      go("assistant");
-                    }}
-                  >
-                    <MessagesSquare size={16} /> AI ilə soruş
-                  </button>
-                )}
-                <button
-                  className="primary"
-                  disabled={applications.some((a) => a.jobId === job.id && a.status !== "Geri götürülüb")}
-                  onClick={() => {
-                    if (!signedIn) {
-                      setJob(null);
-                      setLogin(true);
-                    } else if (sample) {
-                      setJob(null);
-                      go("profile");
-                      notify(
-                        "Əvvəlcə öz profilinizi yaradın və yadda saxlayın.",
-                      );
-                    } else setApplyConfirm(true);
-                  }}
-                >
-                  {applications.some((a) => a.jobId === job.id && a.status !== "Geri götürülüb")
-                    ? "Müraciət edilib"
-                    : "Müraciət et"}
-                </button>
-              </div>
-            )}
-                      {(() => {
-              const others = jobs.filter((x) => x.owner && x.owner === job.owner && x.id !== job.id);
-              return others.length ? (
-                <section className="other-jobs">
-                  <h3>{job.company} şirkətinin digər vakansiyaları ({others.length})</h3>
-                  <div className="company-jobs-list">
-                    {others.map((x) => (
-                      <button key={x.id} className="company-job-row" onClick={() => openJob(x)}>
-                        <strong>{x.title}</strong>
-                        <span>{x.city} · {x.minSalary || x.maxSalary ? `${x.minSalary}–${x.maxSalary} AZN` : "Razılaşma yolu ilə"}</span>
+                      <button
+                        className="primary"
+                        disabled={busy}
+                        onClick={apply}
+                      >
+                        {busy ? "Göndərilir..." : "Təsdiq et və göndər"}
                       </button>
-                    ))}
+                    </div>
                   </div>
-                </section>
-              ) : null;
-            })()}
-</div>
-</section>
+                ) : (
+                  <div className="form-actions">
+                    {signedIn &&
+                      accountRole === "candidate" &&
+                      profile.name && (
+                        <button
+                          className="secondary"
+                          onClick={() => setTailorFor(job)}
+                        >
+                          <FileText size={16} /> Bu vakansiya üçün CV
+                        </button>
+                      )}
+                    <button className="secondary" onClick={() => saveJob(job)}>
+                      <Bookmark size={16} />
+                      {saved.includes(job.id)
+                        ? "Yadda saxlanıb"
+                        : "Yadda saxla"}
+                    </button>
+                    {signedIn && !job.demo && job.owner && (
+                      <>
+                        <button
+                          className="secondary"
+                          onClick={async () => {
+                            const on = !relations.following.includes(job.owner);
+                            try {
+                              await api("relations/follow", {
+                                targetId: job.owner,
+                                on,
+                              });
+                              setRelations((r) => ({
+                                ...r,
+                                following: on
+                                  ? [...r.following, job.owner]
+                                  : r.following.filter((x) => x !== job.owner),
+                              }));
+                              notify(
+                                on
+                                  ? `${job.company} izlənilir. Yeni vakansiyalardan xəbərdar olacaqsınız.`
+                                  : "İzləmə dayandırıldı.",
+                              );
+                            } catch (e) {
+                              notify((e as Error).message);
+                            }
+                          }}
+                        >
+                          {relations.following.includes(job.owner)
+                            ? "İzlənilir ✓"
+                            : "Şirkəti izlə"}
+                        </button>
+                        <button
+                          className="text-button"
+                          onClick={async () => {
+                            if (
+                              !window.confirm(
+                                `${job.company} bloklansın? Bu şirkətin vakansiyaları və mesajları sizə göstərilməyəcək.`,
+                              )
+                            )
+                              return;
+                            try {
+                              await api("relations/block", {
+                                targetId: job.owner,
+                                on: true,
+                              });
+                              closeTab(`job:${job.id}`);
+                              await refresh();
+                              notify(`${job.company} bloklandı.`);
+                            } catch (e) {
+                              notify((e as Error).message);
+                            }
+                          }}
+                        >
+                          Blokla
+                        </button>
+                        <button
+                          className="text-button"
+                          onClick={async () => {
+                            const reason = window.prompt(
+                              "Bu vakansiyanın nəyi şübhəlidir? (administrator baxacaq)",
+                            );
+                            if (!reason || reason.trim().length < 5) return;
+                            try {
+                              await api("support/create", {
+                                topic: "complaint",
+                                subject:
+                                  `Vakansiya şikayəti: ${job.title}`.slice(
+                                    0,
+                                    160,
+                                  ),
+                                body: reason,
+                                meta: { jobId: job.id, company: job.company },
+                              });
+                              notify("Şikayət administratora göndərildi.");
+                            } catch (e) {
+                              notify((e as Error).message);
+                            }
+                          }}
+                        >
+                          Şikayət et
+                        </button>
+                      </>
+                    )}
+                    {aiEnabled && signedIn && (
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          setAssistantJob(job);
+                          setJob(null);
+                          go("assistant");
+                        }}
+                      >
+                        <MessagesSquare size={16} /> AI ilə soruş
+                      </button>
+                    )}
+                    <button
+                      className="primary"
+                      disabled={applications.some(
+                        (a) =>
+                          a.jobId === job.id && a.status !== "Geri götürülüb",
+                      )}
+                      onClick={() => {
+                        if (!signedIn) {
+                          setJob(null);
+                          setLogin(true);
+                        } else if (sample) {
+                          setJob(null);
+                          go("profile");
+                          notify(
+                            "Əvvəlcə öz profilinizi yaradın və yadda saxlayın.",
+                          );
+                        } else setApplyConfirm(true);
+                      }}
+                    >
+                      {applications.some(
+                        (a) =>
+                          a.jobId === job.id && a.status !== "Geri götürülüb",
+                      )
+                        ? "Müraciət edilib"
+                        : "Müraciət et"}
+                    </button>
+                  </div>
+                )}
+                {(() => {
+                  const others = jobs.filter(
+                    (x) => x.owner && x.owner === job.owner && x.id !== job.id,
+                  );
+                  return others.length ? (
+                    <section className="other-jobs">
+                      <h3>
+                        {job.company} şirkətinin digər vakansiyaları (
+                        {others.length})
+                      </h3>
+                      <div className="company-jobs-list">
+                        {others.map((x) => (
+                          <button
+                            key={x.id}
+                            className="company-job-row"
+                            onClick={() => openJob(x)}
+                          >
+                            <strong>{x.title}</strong>
+                            <span>
+                              {x.city} ·{" "}
+                              {x.minSalary || x.maxSalary
+                                ? `${x.minSalary}–${x.maxSalary} AZN`
+                                : "Razılaşma yolu ilə"}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null;
+                })()}
+              </div>
+            </section>
           ) : company ? (
             <CompanyView
               company={company}
@@ -2105,16 +2509,31 @@ export default function Joblink() {
               onFollow={async (on) => {
                 try {
                   await api("relations/follow", { targetId: company.id, on });
-                  setRelations((r) => ({ ...r, following: on ? [...r.following, company.id] : r.following.filter((x) => x !== company.id) }));
-                  notify(on ? `${company.name} izlənilir.` : "İzləmə dayandırıldı.");
+                  setRelations((r) => ({
+                    ...r,
+                    following: on
+                      ? [...r.following, company.id]
+                      : r.following.filter((x) => x !== company.id),
+                  }));
+                  notify(
+                    on ? `${company.name} izlənilir.` : "İzləmə dayandırıldı.",
+                  );
                 } catch (e) {
                   notify((e as Error).message);
                 }
               }}
               onBlock={async () => {
-                if (!window.confirm(`${company.name} bloklansın? Bu şirkətin vakansiyaları və mesajları sizə göstərilməyəcək.`)) return;
+                if (
+                  !window.confirm(
+                    `${company.name} bloklansın? Bu şirkətin vakansiyaları və mesajları sizə göstərilməyəcək.`,
+                  )
+                )
+                  return;
                 try {
-                  await api("relations/block", { targetId: company.id, on: true });
+                  await api("relations/block", {
+                    targetId: company.id,
+                    on: true,
+                  });
                   closeTab(`company:${company.id}`);
                   await refresh();
                 } catch (e) {
@@ -2124,57 +2543,177 @@ export default function Joblink() {
             />
           ) : admin && page === "admin-ops" ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>Xəta jurnalı və məxfilik</h1><p>Xətalar, şəxsi məlumat sorğuları, audit ixracı, ehtiyat nüsxə</p></div></div></section>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>Xəta jurnalı və məxfilik</h1>
+                    <p>
+                      Xətalar, şəxsi məlumat sorğuları, audit ixracı, ehtiyat
+                      nüsxə
+                    </p>
+                  </div>
+                </div>
+              </section>
               <AdminOps notify={notify} />
             </>
           ) : admin && page === "admin-ai-usage" ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>AI istifadə və xərc</h1><p>Sorğu sayı, token və təxmini xərc</p></div></div></section>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>AI istifadə və xərc</h1>
+                    <p>Sorğu sayı, token və təxmini xərc</p>
+                  </div>
+                </div>
+              </section>
               <AdminAiUsage notify={notify} />
             </>
           ) : admin && page === "admin-reviews" ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>Şirkət rəyləri</h1><p>Namizədlərin yazdığı rəylər dərc olunmazdan əvvəl burada yoxlanılır</p></div></div></section>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>Şirkət rəyləri</h1>
+                    <p>
+                      Namizədlərin yazdığı rəylər dərc olunmazdan əvvəl burada
+                      yoxlanılır
+                    </p>
+                  </div>
+                </div>
+              </section>
               <AdminReviews notify={notify} />
             </>
           ) : admin && page === "admin-support" ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>Sorğular və mesajlar</h1><p>Şirkət və işçilərin şikayət, təklif və sorğuları</p></div></div></section>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>Sorğular və mesajlar</h1>
+                    <p>Şirkət və işçilərin şikayət, təklif və sorğuları</p>
+                  </div>
+                </div>
+              </section>
               <SupportPage admin onRead={refreshUnread} notify={notify} />
             </>
-          ) : !admin && signedIn && (page === "messages" || page === "hr-messages") ? (
+          ) : !admin &&
+            signedIn &&
+            (page === "messages" || page === "hr-messages") ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>Mesajlar</h1><p>{hr ? "Namizədlərlə yazışmalarınız" : "İşəgötürənlərlə yazışmalarınız"}</p></div></div></section>
-              <MessagesPage role={hr ? "company" : "candidate"} target={messageTarget} onTargetHandled={clearMessageTarget} onRead={refreshUnread} notify={notify} />
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>Mesajlar</h1>
+                    <p>
+                      {hr
+                        ? "Namizədlərlə yazışmalarınız"
+                        : "İşəgötürənlərlə yazışmalarınız"}
+                    </p>
+                  </div>
+                </div>
+              </section>
+              <MessagesPage
+                role={hr ? "company" : "candidate"}
+                target={messageTarget}
+                onTargetHandled={clearMessageTarget}
+                onRead={refreshUnread}
+                notify={notify}
+              />
             </>
-          ) : !admin && signedIn && hr && ["hr-approvals", "hr-reports", "hr-employees", "hr-workforce", "hr-team", "hr-company", "hr-billing", "hr-calculator"].includes(page) ? (
+          ) : !admin &&
+            signedIn &&
+            hr &&
+            [
+              "hr-approvals",
+              "hr-reports",
+              "hr-employees",
+              "hr-workforce",
+              "hr-team",
+              "hr-company",
+              "hr-billing",
+              "hr-calculator",
+            ].includes(page) ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div>
-                <h1>{navigation.find((n) => n.id === page)?.label}</h1>
-                <p>{companyMe?.company?.name}{companyMe ? ` · ${companyMe.roleLabel}` : ""}</p>
-              </div></div></section>
-              {page === "hr-approvals" && <ApprovalsPage notify={notify} onChange={() => { void refreshCompany(); void refresh(); }} />}
-              {page === "hr-reports" && <CompanyDashboard me={companyMe} notify={notify} />}
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>{navigation.find((n) => n.id === page)?.label}</h1>
+                    <p>
+                      {companyMe?.company?.name}
+                      {companyMe ? ` · ${companyMe.roleLabel}` : ""}
+                    </p>
+                  </div>
+                </div>
+              </section>
+              {page === "hr-approvals" && (
+                <ApprovalsPage
+                  notify={notify}
+                  onChange={() => {
+                    void refreshCompany();
+                    void refresh();
+                  }}
+                />
+              )}
+              {page === "hr-reports" && (
+                <CompanyDashboard me={companyMe} notify={notify} />
+              )}
               {page === "hr-employees" && <EmployeesPage notify={notify} />}
-              {page === "hr-workforce" && <WorkforcePage me={companyMe} notify={notify} />}
-              {page === "hr-team" && <TeamPage me={companyMe} notify={notify} onJoined={() => { void refreshCompany(); void refresh(); }} />}
-              {page === "hr-company" && <CompanyProfilePage notify={notify} onChange={refreshCompany} />}
+              {page === "hr-workforce" && (
+                <WorkforcePage me={companyMe} notify={notify} />
+              )}
+              {page === "hr-team" && (
+                <TeamPage
+                  me={companyMe}
+                  notify={notify}
+                  onJoined={() => {
+                    void refreshCompany();
+                    void refresh();
+                  }}
+                />
+              )}
+              {page === "hr-company" && (
+                <CompanyProfilePage notify={notify} onChange={refreshCompany} />
+              )}
               {page === "hr-billing" && <BillingPage notify={notify} />}
-              {page === "hr-calculator" && <SalaryCalculator employer api={api} notify={notify} />}
+              {page === "hr-calculator" && (
+                <SalaryCalculator employer api={api} notify={notify} />
+              )}
             </>
           ) : admin && page === "admin-verifications" ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>Sənəd yoxlaması</h1><p>İş yeri və sertifikat sənədləri: AI rəyi və yekun qərar</p></div></div></section>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>Sənəd yoxlaması</h1>
+                    <p>
+                      İş yeri və sertifikat sənədləri: AI rəyi və yekun qərar
+                    </p>
+                  </div>
+                </div>
+              </section>
               <AdminVerifications notify={notify} />
             </>
           ) : admin && page === "admin-companies" ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>Şirkət yoxlaması</h1><p>e-taxes VÖEN sənədləri və şirkət rekvizitləri</p></div></div></section>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>Şirkət yoxlaması</h1>
+                    <p>e-taxes VÖEN sənədləri və şirkət rekvizitləri</p>
+                  </div>
+                </div>
+              </section>
               <AdminCompanies notify={notify} />
             </>
           ) : !admin && signedIn && hr && page === "hr-talent" ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>İstedad bazası</h1><p>Saxladığınız namizədlər, etiket və qeydlər</p></div></div></section>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>İstedad bazası</h1>
+                    <p>Saxladığınız namizədlər, etiket və qeydlər</p>
+                  </div>
+                </div>
+              </section>
               <TalentPage
                 notify={notify}
                 onMessage={(target) => {
@@ -2185,18 +2724,48 @@ export default function Joblink() {
             </>
           ) : !admin && signedIn && hr && page === "hr-interviews" ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>Müsahibələr</h1><p>Təyin olunmuş müsahibələr, namizədin cavabı və rəylər</p></div></div></section>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>Müsahibələr</h1>
+                    <p>Təyin olunmuş müsahibələr, namizədin cavabı və rəylər</p>
+                  </div>
+                </div>
+              </section>
               <InterviewsPage notify={notify} />
             </>
           ) : !admin && signedIn && hr && page === "hr-tests" ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>Testlər</h1><p>Vakansiyalar üzrə testlər, nəticələr və dəyişiklik tarixçəsi</p></div></div></section>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>Testlər</h1>
+                    <p>
+                      Vakansiyalar üzrə testlər, nəticələr və dəyişiklik
+                      tarixçəsi
+                    </p>
+                  </div>
+                </div>
+              </section>
               <AssessmentsPage notify={notify} />
             </>
-          ) : !admin && signedIn && (page === "support" || page === "hr-support") ? (
+          ) : !admin &&
+            signedIn &&
+            (page === "support" || page === "hr-support") ? (
             <>
-              <section className="page-heading"><div className="heading-row"><div><h1>Dəstək</h1><p>Şikayət, təklif və sorğularınız</p></div></div></section>
-              <SupportPage role={hr ? "company" : "candidate"} onRead={refreshUnread} notify={notify} />
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>Dəstək</h1>
+                    <p>Şikayət, təklif və sorğularınız</p>
+                  </div>
+                </div>
+              </section>
+              <SupportPage
+                role={hr ? "company" : "candidate"}
+                onRead={refreshUnread}
+                notify={notify}
+              />
             </>
           ) : admin ? (
             <AdminPanel
@@ -2216,7 +2785,9 @@ export default function Joblink() {
               language={language}
               signedIn={signedIn}
               onPublished={refresh}
-              canPublish={!companyMe || companyMe.permissions.includes("publish")}
+              canPublish={
+                !companyMe || companyMe.permissions.includes("publish")
+              }
               onMessage={(target) => {
                 setMessageTarget(target);
                 go("hr-messages");
@@ -2412,7 +2983,17 @@ export default function Joblink() {
               {page === "jobs" && (
                 <>
                   {signedIn && accountRole === "candidate" && (
-                    <JobAlerts current={{ query, city, mode, category, type, minSalary: salary }} notify={notify} />
+                    <JobAlerts
+                      current={{
+                        query,
+                        city,
+                        mode,
+                        category,
+                        type,
+                        minSalary: salary,
+                      }}
+                      notify={notify}
+                    />
                   )}
                   <div className="jobs-toolbar">
                     <div className="search-input">
@@ -2458,7 +3039,9 @@ export default function Joblink() {
                   <div className="job-list-grid">{cards(filtered)}</div>
                 </>
               )}
-              {page === "companies" && <CompaniesPage onOpen={openCompany} notify={notify} />}
+              {page === "companies" && (
+                <CompaniesPage onOpen={openCompany} notify={notify} />
+              )}
               {page === "calculator" && <SalaryCalculator notify={notify} />}
               {page === "packages" && <PackagesPage notify={notify} />}
               {page === "profile" && (
@@ -2476,10 +3059,15 @@ export default function Joblink() {
               )}
               {page === "profile" && signedIn && !sample && (
                 <div className="form-actions">
-                  <ProfileVersions onRestored={(restored) => setProfile(restored)} notify={notify} />
+                  <ProfileVersions
+                    onRestored={(restored) => setProfile(restored)}
+                    notify={notify}
+                  />
                 </div>
               )}
-              {page === "profile" && signedIn && !sample && <VerificationPanel profile={profile} notify={notify} />}
+              {page === "profile" && signedIn && !sample && (
+                <VerificationPanel profile={profile} notify={notify} />
+              )}
               {page === "analysis" && (
                 <>
                   <div className="analysis-layout">
@@ -2509,13 +3097,21 @@ export default function Joblink() {
                       </p>
                       {(() => {
                         const context = careerContext(profile);
-                        if (!context.fields.length && !context.credentials.length && !context.coursesAndAchievements.length)
+                        if (
+                          !context.fields.length &&
+                          !context.credentials.length &&
+                          !context.coursesAndAchievements.length
+                        )
                           return null;
                         const duration = (months: number) =>
                           months >= 12
                             ? `${Math.floor(months / 12)} il${months % 12 ? ` ${months % 12} ay` : ""}`
                             : `${months} ay`;
-                        const status: Record<string, string> = { active: "Aktiv", in_progress: "Davam edir", expired: "Müddəti bitib" };
+                        const status: Record<string, string> = {
+                          active: "Aktiv",
+                          in_progress: "Davam edir",
+                          expired: "Müddəti bitib",
+                        };
                         return (
                           <div className="career-map">
                             <h3>Karyera xəritəsi</h3>
@@ -2526,8 +3122,16 @@ export default function Joblink() {
                                   {context.fields.map((f) => (
                                     <li key={f.field}>
                                       <strong>{f.fieldAz}</strong>
-                                      {f.field === context.currentField ? <em className="pill"> hazırkı</em> : null}
-                                      <span> · {f.months ? duration(f.months) : "tarix yoxdur"}</span>
+                                      {f.field === context.currentField ? (
+                                        <em className="pill"> hazırkı</em>
+                                      ) : null}
+                                      <span>
+                                        {" "}
+                                        ·{" "}
+                                        {f.months
+                                          ? duration(f.months)
+                                          : "tarix yoxdur"}
+                                      </span>
                                       <small>{f.titles.join(", ")}</small>
                                     </li>
                                   ))}
@@ -2541,7 +3145,10 @@ export default function Joblink() {
                                   {context.credentials.map((c) => (
                                     <li key={c.name}>
                                       <strong>{c.name}</strong>
-                                      <span> · {status[c.status] || c.status}</span>
+                                      <span>
+                                        {" "}
+                                        · {status[c.status] || c.status}
+                                      </span>
                                       {c.detail && <small>{c.detail}</small>}
                                     </li>
                                   ))}
@@ -2552,9 +3159,11 @@ export default function Joblink() {
                               <div>
                                 <h4>Kurslar və nailiyyətlər</h4>
                                 <ul>
-                                  {context.coursesAndAchievements.slice(0, 8).map((line) => (
-                                    <li key={line}>{line}</li>
-                                  ))}
+                                  {context.coursesAndAchievements
+                                    .slice(0, 8)
+                                    .map((line) => (
+                                      <li key={line}>{line}</li>
+                                    ))}
                                 </ul>
                               </div>
                             )}
@@ -2690,14 +3299,24 @@ export default function Joblink() {
                           className="primary report-rewrite-button"
                           onClick={() =>
                             setRewriteSuggestions([
-                              ...deepReport.improvements.map((item) => `${item.title}: ${item.action}`),
-                              ...(deepReport.issues || []).map((issue) => `${issue.problem} → ${issue.fix}`),
-                              ...deepReport.atsRisks.map((item) => `${item.issue}: ${item.fix}`),
-                              ...deepReport.rewrites.map((item) => `“${item.original}” → “${item.improved}”`),
+                              ...deepReport.improvements.map(
+                                (item) => `${item.title}: ${item.action}`,
+                              ),
+                              ...(deepReport.issues || []).map(
+                                (issue) => `${issue.problem} → ${issue.fix}`,
+                              ),
+                              ...deepReport.atsRisks.map(
+                                (item) => `${item.issue}: ${item.fix}`,
+                              ),
+                              ...deepReport.rewrites.map(
+                                (item) =>
+                                  `“${item.original}” → “${item.improved}”`,
+                              ),
                             ])
                           }
                         >
-                          <Sparkles size={16} /> CV-ni təkliflərə əsasən yenidən hazırla
+                          <Sparkles size={16} /> CV-ni təkliflərə əsasən yenidən
+                          hazırla
                         </button>
                         <div className="score-reasons">
                           {[
@@ -2753,7 +3372,8 @@ export default function Joblink() {
                                 key={`${item.title}-${index}`}
                               >
                                 <span className={`priority ${item.priority}`}>
-                                  {PRIORITY_LABELS[item.priority] || item.priority}
+                                  {PRIORITY_LABELS[item.priority] ||
+                                    item.priority}
                                 </span>
                                 <div>
                                   <h3>{item.title}</h3>
@@ -2791,18 +3411,34 @@ export default function Joblink() {
                         <div className="panel report-section">
                           <div className="section-heading">
                             <h2>
-                              <FileText /> Bütün tapılan səhvlər və çatışmazlıqlar
+                              <FileText /> Bütün tapılan səhvlər və
+                              çatışmazlıqlar
                             </h2>
-                            <span className="pill">{deepReport.issues.length}</span>
+                            <span className="pill">
+                              {deepReport.issues.length}
+                            </span>
                           </div>
                           <div className="issue-list">
                             {deepReport.issues.map((issue, index) => (
-                              <article className={`issue-item ${issue.severity}`} key={`${issue.problem}-${index}`}>
+                              <article
+                                className={`issue-item ${issue.severity}`}
+                                key={`${issue.problem}-${index}`}
+                              >
                                 <div className="issue-tags">
-                                  <span className={`priority ${issue.severity}`}>{PRIORITY_LABELS[issue.severity] || issue.severity}</span>
-                                  <span className="pill">{ISSUE_TYPE_LABELS[issue.type] || issue.type}</span>
+                                  <span
+                                    className={`priority ${issue.severity}`}
+                                  >
+                                    {PRIORITY_LABELS[issue.severity] ||
+                                      issue.severity}
+                                  </span>
+                                  <span className="pill">
+                                    {ISSUE_TYPE_LABELS[issue.type] ||
+                                      issue.type}
+                                  </span>
                                 </div>
-                                {issue.quote && <blockquote>“{issue.quote}”</blockquote>}
+                                {issue.quote && (
+                                  <blockquote>“{issue.quote}”</blockquote>
+                                )}
                                 <p>
                                   <strong>Problem:</strong> {issue.problem}
                                 </p>
@@ -2816,9 +3452,17 @@ export default function Joblink() {
                                 </p>
                                 <button
                                   className="text-button"
-                                  onClick={() => openProfileTarget(issue, issue.problem, issue.quote, issue.fix)}
+                                  onClick={() =>
+                                    openProfileTarget(
+                                      issue,
+                                      issue.problem,
+                                      issue.quote,
+                                      issue.fix,
+                                    )
+                                  }
                                 >
-                                  Həmin yerə get və düzəlt <ArrowUpRight size={13} />
+                                  Həmin yerə get və düzəlt{" "}
+                                  <ArrowUpRight size={13} />
                                 </button>
                               </article>
                             ))}
@@ -2909,7 +3553,9 @@ export default function Joblink() {
                                   className="text-button"
                                   onClick={() =>
                                     openProfileTarget(
-                                      item.field ? item : { field: "experience" },
+                                      item.field
+                                        ? item
+                                        : { field: "experience" },
                                       "nailiyyət cümləsi",
                                       item.original,
                                       item.improved,
@@ -3150,12 +3796,13 @@ export default function Joblink() {
                             <div>
                               <h3>{j?.title || "Vakansiya"}</h3>
                               <p>
-                                {j?.company} ·{" "}
-                                {formatDate(a.created, language)}
+                                {j?.company} · {formatDate(a.created, language)}
                                 {j?.demo && " · Nümunə müraciət"}
                               </p>
                             </div>
-                            <span className="status-badge">{a.stage ? `${a.status}: ${a.stage}` : a.status}</span>
+                            <span className="status-badge">
+                              {a.stage ? `${a.status}: ${a.stage}` : a.status}
+                            </span>
                             {a.auto && (
                               <span
                                 className="ai-badge"
@@ -3164,7 +3811,11 @@ export default function Joblink() {
                                 AI
                               </span>
                             )}
-                            {!["İşə qəbul edildi", "Uyğun deyil", "Geri götürülüb"].includes(a.status) && (
+                            {![
+                              "İşə qəbul edildi",
+                              "Uyğun deyil",
+                              "Geri götürülüb",
+                            ].includes(a.status) && (
                               <button
                                 className="text-button"
                                 disabled={busy}
@@ -3174,15 +3825,24 @@ export default function Joblink() {
                               </button>
                             )}
                             {offers[a.id] && (
-                              <button className={`offer-chip ${offers[a.id].status}`} onClick={() => setOpenOffer(offers[a.id])}>
-                                İş təklifi: {OFFER_STATUS[offers[a.id].status]} ↗
+                              <button
+                                className={`offer-chip ${offers[a.id].status}`}
+                                onClick={() => setOpenOffer(offers[a.id])}
+                              >
+                                İş təklifi: {OFFER_STATUS[offers[a.id].status]}{" "}
+                                ↗
                               </button>
                             )}
                             {!j?.demo && (
                               <button
                                 className="text-button"
                                 onClick={() => {
-                                  setMessageTarget({ applicationId: a.id, jobId: a.jobId, name: j?.company || "Şirkət", jobTitle: j?.title });
+                                  setMessageTarget({
+                                    applicationId: a.id,
+                                    jobId: a.jobId,
+                                    name: j?.company || "Şirkət",
+                                    jobTitle: j?.title,
+                                  });
                                   go("messages");
                                 }}
                               >
@@ -3197,26 +3857,49 @@ export default function Joblink() {
                                 Ətraflı ↗
                               </button>
                             )}
-                            {((a.job?.stages || []).length > 0 || (a.events || []).length > 1) && (
+                            {((a.job?.stages || []).length > 0 ||
+                              (a.events || []).length > 1) && (
                               <details className="application-progress">
                                 <summary>Mərhələlər və tarixçə</summary>
                                 {(a.job?.stages || []).length > 0 && (
                                   <ol className="stage-progress">
-                                    {(a.job?.stages || []).map((stage, index) => {
-                                      const current = (a.job?.stages || []).indexOf(a.stage || "");
-                                      const done = ["Təklif edildi", "İşə qəbul edildi"].includes(a.status) || index < current;
-                                      return (
-                                        <li key={stage} className={done ? "done" : index === current ? "current" : ""}>
-                                          <b>{index + 1}</b> {stage}
-                                        </li>
-                                      );
-                                    })}
+                                    {(a.job?.stages || []).map(
+                                      (stage, index) => {
+                                        const current = (
+                                          a.job?.stages || []
+                                        ).indexOf(a.stage || "");
+                                        const done =
+                                          [
+                                            "Təklif edildi",
+                                            "İşə qəbul edildi",
+                                          ].includes(a.status) ||
+                                          index < current;
+                                        return (
+                                          <li
+                                            key={stage}
+                                            className={
+                                              done
+                                                ? "done"
+                                                : index === current
+                                                  ? "current"
+                                                  : ""
+                                            }
+                                          >
+                                            <b>{index + 1}</b> {stage}
+                                          </li>
+                                        );
+                                      },
+                                    )}
                                   </ol>
                                 )}
                                 <ol className="event-timeline">
                                   {(a.events || []).map((event, index) => (
                                     <li key={index}>
-                                      <time>{formatDate(event.created, language, { time: true })}</time>
+                                      <time>
+                                        {formatDate(event.created, language, {
+                                          time: true,
+                                        })}
+                                      </time>
                                       <span>
                                         {event.type === "applied"
                                           ? "Müraciət göndərildi"

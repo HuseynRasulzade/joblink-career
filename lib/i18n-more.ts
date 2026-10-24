@@ -1,5 +1,7 @@
 // Strings added after the main translation batches.
 export const EN_MORE: Record<string, string> = {
+  "Vəzifə səviyyəsi:": "Position level:",
+  "İş funksiyalarının uyğunluğu:": "Duties match:",
   "Hər imtahana basın: məcburi → üstünlük → seçilməyib":
     "Click each exam: required → preferred → not selected",
   "Məcburi imtahanlar": "Required exams",
@@ -13,6 +15,8 @@ export const EN_MORE: Record<string, string> = {
     "Inferred from Microsoft Office (counts partly):",
 };
 export const RU_MORE: Record<string, string> = {
+  "Vəzifə səviyyəsi:": "Уровень должности:",
+  "İş funksiyalarının uyğunluğu:": "Соответствие обязанностей:",
   "Hər imtahana basın: məcburi → üstünlük → seçilməyib":
     "Нажимайте на экзамен: обязательный → желательный → не выбран",
   "Məcburi imtahanlar": "Обязательные экзамены",
