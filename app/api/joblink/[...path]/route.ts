@@ -62,6 +62,7 @@ import { normalizeVat, vatParts } from "@/lib/vat";
 import { sanitizeReview, summarizeRatings } from "@/lib/reviews";
 import { summarizeAiUsage } from "@/lib/ai-cost";
 import { jobSpamSignals } from "@/lib/job-spam";
+import { accountSignals } from "@/lib/account-signals";
 import { cleanErrorMessage, cleanWhere, errorFingerprint } from "@/lib/error-log";
 import { AUTO_EMAIL_TYPES, EMAIL_CATEGORIES, emailAllowedFor, sanitizeEmailOff } from "@/lib/notification-prefs";
 import { alertIsEmpty, describeAlert, jobMatchesAlert, sanitizeAlertFilters, type AlertJob } from "@/lib/job-alerts";
@@ -83,7 +84,7 @@ import {
   setCustomJobTitles,
   type JobTitleDefinition,
 } from "@/lib/job-title-catalog";
-import { SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
+import { supportSla, SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
 import { sanitizeRejection, APPLICATION_STATUSES, STAGE_VISIBLE_STATUSES, VACANCY_REASONS, WITHDRAWN_STATUS } from "@/lib/recruitment";
 import { addMonthsIso, COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, normalizeGrants, VERIFICATION_STATUS, can, canDecide, companyDetailsInput, newApproval, pendingStep, permissionsOf, roleLabel, validVoen, type CompanyPermission, type JobApproval, sanitizeTaxCheck, taxNameMatches, type TaxCheck } from "@/lib/company";
 import { DOCUMENT_CHECK_PROMPT, VERIFICATION_LABELS, normalizeAiCheck, statusFromAi, type AiDocumentCheck } from "@/lib/verification";
@@ -2080,7 +2081,12 @@ async function route(request: Request) {
       (SELECT COUNT(*) FROM support_messages m WHERE m.thread_id=t.id AND m.author_role='admin' AND m.created>t.user_read) AS unread_replies
       FROM support_threads t LEFT JOIN accounts a ON a.id=t.user_id ${where} ORDER BY t.updated DESC LIMIT 300`);
     const rows = accountRole === "admin" ? await statement.all() : await statement.bind(id).all();
-    return ok({ threads: rows.results, topics: SUPPORT_TOPICS, statuses: SUPPORT_STATUSES });
+    // Admin sees how fast requests of the last 30 days got their first answer.
+    const sla = accountRole === "admin"
+      ? supportSla((await db.prepare(`SELECT t.created,(SELECT MIN(m.created) FROM support_messages m WHERE m.thread_id=t.id AND m.author_role='admin') AS firstReply
+          FROM support_threads t WHERE t.created>=?`).bind(new Date(Date.now() - 30 * 86400000).toISOString()).all<{ created: string; firstReply: string | null }>()).results)
+      : null;
+    return ok({ threads: rows.results, topics: SUPPORT_TOPICS, statuses: SUPPORT_STATUSES, sla });
   }
   if (request.method === "GET" && path === "support/thread") {
     const threadId = str(requestUrl.searchParams.get("id"), 100);
@@ -2338,7 +2344,8 @@ async function route(request: Request) {
           CASE WHEN pr.user_id IS NULL THEN 0 ELSE 1 END AS has_profile,
           COALESCE(json_extract(pr.data,'$.title'),'') AS title,
           (SELECT COUNT(*) FROM jobs j WHERE j.owner=a.id) AS jobs_count,
-          (SELECT COUNT(*) FROM applications ap WHERE ap.candidate_id=a.id) AS applications_count
+          (SELECT COUNT(*) FROM applications ap WHERE ap.candidate_id=a.id) AS applications_count,
+          CASE WHEN (SELECT verification_status FROM company_profiles cp WHERE cp.company_id=a.id)='verified' THEN 1 ELSE 0 END AS verified
           FROM accounts a
           LEFT JOIN password_accounts p ON p.user_id=a.id
           LEFT JOIN profiles pr ON pr.user_id=a.id
@@ -2412,7 +2419,10 @@ async function route(request: Request) {
         ORDER BY sr.created DESC LIMIT 100`).all<Record<string, unknown>>();
       return ok({
         metrics: metrics || {},
-        users: userRows.results,
+        users: userRows.results.map((u) => ({
+          ...u,
+          signals: accountSignals({ name: String(u.name || ""), email: String(u.email || ""), role: String(u.role), jobsCount: Number(u.jobs_count) || 0, applicationsCount: Number(u.applications_count) || 0, created: String(u.created || ""), verified: u.verified === 1 }),
+        })),
         jobs: (() => {
           const parsed = jobRows.results.map((row) => ({ row, job: normalizedJobRecord(JSON.parse(row.data), customSkillLabels) }));
           const repeats = new Map<string, number>();

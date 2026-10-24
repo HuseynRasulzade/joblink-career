@@ -2023,6 +2023,21 @@ export default function Joblink() {
                     >
                       Blokla
                     </button>
+                    <button
+                      className="text-button"
+                      onClick={async () => {
+                        const reason = window.prompt("Bu vakansiyanın nəyi şübhəlidir? (administrator baxacaq)");
+                        if (!reason || reason.trim().length < 5) return;
+                        try {
+                          await api("support/create", { topic: "complaint", subject: `Vakansiya şikayəti: ${job.title}`.slice(0, 160), body: reason, meta: { jobId: job.id, company: job.company } });
+                          notify("Şikayət administratora göndərildi.");
+                        } catch (e) {
+                          notify((e as Error).message);
+                        }
+                      }}
+                    >
+                      Şikayət et
+                    </button>
                   </>
                 )}
                 {aiEnabled && signedIn && (

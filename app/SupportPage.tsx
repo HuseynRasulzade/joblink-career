@@ -3,7 +3,7 @@ import { formatDate } from "@/lib/dates";
 import { useEffect, useState } from "react";
 import { Inbox, LifeBuoy, Paperclip, Plus, Send } from "lucide-react";
 import { FAQ } from "@/lib/faq";
-import { SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
+import { SUPPORT_REPLY_TEMPLATES, SUPPORT_STATUSES, SUPPORT_TOPICS, supportTopicLabel } from "@/lib/support-topics";
 import { siteLanguage, translate } from "./i18n";
 
 type Thread = {
@@ -62,6 +62,7 @@ export default function SupportPage({
   notify: (message: string) => void;
 }) {
   const [threads, setThreads] = useState<Thread[]>([]);
+  const [sla, setSla] = useState<{ answered: number; unanswered: number; avgFirstReplyHours: number | null; oldestWaitingHours: number | null } | null>(null);
   const [active, setActive] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [creating, setCreating] = useState(false);
@@ -75,8 +76,9 @@ export default function SupportPage({
 
   async function load() {
     try {
-      const data = await request<{ threads: Thread[] }>("support");
+      const data = await request<{ threads: Thread[]; sla?: typeof sla }>("support");
       setThreads(data.threads);
+      setSla(data.sla || null);
     } catch (error) {
       notify((error as Error).message);
     }
@@ -144,6 +146,11 @@ export default function SupportPage({
           <button type="button" className="primary conversation-new" onClick={() => { setCreating(true); setActive(null); }}>
             <Plus size={16} /> {t("Yeni sorğu")}
           </button>
+        )}
+        {admin && sla && (
+          <p className="muted fine-print" title="Son 30 gündə açılan sorğular üzrə">
+            İlk cavab: orta {sla.avgFirstReplyHours === null ? "—" : `${sla.avgFirstReplyHours} saat`} · cavabsız {sla.unanswered}{sla.oldestWaitingHours !== null ? ` (ən köhnəsi ${Math.round(sla.oldestWaitingHours)} saat)` : ""}
+          </p>
         )}
         {admin && (
           <div className="support-filters">
@@ -228,6 +235,12 @@ export default function SupportPage({
                   <input type="file" hidden accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => pickFile(e, setReplyFile, notify)} />
                 </label>
                 {replyFile && <small className="muted">📎 {replyFile.name}</small>}
+                {admin && (
+                  <select value="" aria-label={t("Hazır cavab")} onChange={(e) => { const tpl = SUPPORT_REPLY_TEMPLATES.find((x) => x.id === e.target.value); if (tpl) setReply(tpl.text); }}>
+                    <option value="">{t("Hazır cavab…")}</option>
+                    {SUPPORT_REPLY_TEMPLATES.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+                  </select>
+                )}
                 {admin && (
                   <select value={nextStatus} onChange={(e) => setNextStatus(e.target.value)} aria-label={t("Yeni status")}>
                     <option value="">{t("Statusu dəyişmə")}</option>

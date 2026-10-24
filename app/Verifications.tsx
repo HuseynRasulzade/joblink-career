@@ -1,4 +1,5 @@
 "use client";
+import { REJECTION_NOTE_TEMPLATES, waitingLabel } from "@/lib/review-queue";
 import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, FileText, ShieldCheck, Upload } from "lucide-react";
 import { type Profile, candidateCertifications } from "@/lib/model";
@@ -149,13 +150,17 @@ export function AdminVerifications({ notify }: { notify: Notify }) {
           <tbody>
             {list.map((v) => (
               <tr key={v.id}>
-                <td><strong>{v.user_name}</strong><small className="skill-description">{when(v.updated)}</small></td>
+                <td><strong>{v.user_name}</strong><small className="skill-description">{when(v.updated)}{["pending", "ai_consistent", "ai_issue"].includes(v.status) ? ` · ${waitingLabel(v.updated)}` : ""}</small></td>
                 <td>{v.kind === "experience" ? "İş yeri" : "Sertifikat"}<small className="skill-description">{v.item_label}</small></td>
                 <td><a href={`/api/joblink/admin/verification-doc?id=${encodeURIComponent(v.id)}`} target="_blank" rel="noreferrer"><FileText size={13} /> {v.doc_name}</a></td>
                 <td><span className={`verification-status ${v.status}`}>{VERIFICATION_LABELS[v.status] || v.status}</span><AiSummary check={v.ai_result} /></td>
                 <td>
                   {["pending", "ai_consistent", "ai_issue"].includes(v.status) ? (
                     <div className="approval-actions">
+                      <select aria-label="Rədd səbəbi şablonu" value="" onChange={(e) => { const tpl = REJECTION_NOTE_TEMPLATES.find((x) => x.id === e.target.value); if (tpl) setNotes({ ...notes, [v.id]: tpl.text }); }}>
+                        <option value="">Hazır səbəb…</option>
+                        {REJECTION_NOTE_TEMPLATES.map((x) => <option key={x.id} value={x.id}>{x.text.slice(0, 40)}…</option>)}
+                      </select>
                       <input placeholder="Qeyd (rədd üçün məcburi)" value={notes[v.id] || ""} onChange={(e) => setNotes({ ...notes, [v.id]: e.target.value })} />
                       <button onClick={() => decide(v.id, "rejected")}>Rədd et</button>
                       <button className="primary" onClick={() => decide(v.id, "verified")}>Təsdiqlə</button>

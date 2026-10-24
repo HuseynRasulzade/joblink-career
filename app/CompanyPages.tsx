@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Building2, CheckCircle2, Download, FileText, Plus, Receipt, Trash2, UserPlus, Users, XCircle } from "lucide-react";
+import { REJECTION_NOTE_TEMPLATES, waitingLabel } from "@/lib/review-queue";
 import { COMPANY_SIZES, ROLE_PRESETS, VOEN_LOOKUP_URL, VOEN_TYPE_LABEL, validVoen, voenType, type CompanyDetails, type TaxCheck, type CompanyPermission, type JobApproval } from "@/lib/company";
 import { Field, Modal } from "./components";
 import { formatDate } from "@/lib/dates";
@@ -911,11 +912,15 @@ export function AdminCompanies({ notify }: { notify: Notify }) {
                     }}>{c.taxCheck ? "e-taxes nəticəsini yenilə" : "e-taxes nəticəsini yaz"}</button>
                   )}
                   <small className="skill-description">{c.data.director}{c.data.legalAddress ? ` · ${c.data.legalAddress}` : ""}</small></td>
-                <td>{c.doc_name ? <a href={`/api/joblink/admin/company-doc?id=${encodeURIComponent(c.company_id)}`} target="_blank" rel="noreferrer"><FileText size={13} /> {c.doc_name}</a> : "—"}<small className="skill-description">{c.submitted_at ? when(c.submitted_at) : ""}</small></td>
+                <td>{c.doc_name ? <a href={`/api/joblink/admin/company-doc?id=${encodeURIComponent(c.company_id)}`} target="_blank" rel="noreferrer"><FileText size={13} /> {c.doc_name}</a> : "—"}<small className="skill-description">{c.submitted_at ? when(c.submitted_at) : ""}{c.submitted_at && c.verification_status === "pending" ? ` · ${waitingLabel(c.submitted_at)}` : ""}</small></td>
                 <td><span className={`admin-status ${c.verification_status === "verified" ? "active" : c.verification_status === "pending" ? "paused" : "archived"}`}>{c.verification_status}</span>{c.verification_note && <small className="skill-description">{c.verification_note}</small>}</td>
                 <td>
                   {c.doc_name && c.verification_status === "pending" ? (
                     <div className="approval-actions">
+                      <select aria-label="Rədd səbəbi şablonu" value="" onChange={(e) => { const tpl = REJECTION_NOTE_TEMPLATES.find((x) => x.id === e.target.value); if (tpl) setNotes({ ...notes, [c.company_id]: tpl.text }); }}>
+                        <option value="">Hazır səbəb…</option>
+                        {REJECTION_NOTE_TEMPLATES.map((x) => <option key={x.id} value={x.id}>{x.text.slice(0, 40)}…</option>)}
+                      </select>
                       <input placeholder="Qeyd (rədd üçün məcburi)" value={notes[c.company_id] || ""} onChange={(e) => setNotes({ ...notes, [c.company_id]: e.target.value })} />
                       <button onClick={() => decide(c.company_id, "rejected")}>Rədd et</button>
                       <button className="primary" onClick={() => decide(c.company_id, "verified")}>Təsdiqlə</button>

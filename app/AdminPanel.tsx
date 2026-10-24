@@ -47,6 +47,7 @@ type AdminData = {
     title: string;
     jobs_count: number;
     applications_count: number;
+    signals?: string[];
   }>;
   jobs: Array<{
     id: string;
@@ -538,7 +539,7 @@ export default function AdminPanel({
           <div className="section-heading"><div><h2>İstifadəçi idarəetməsi</h2><p>{filteredUsers.length} hesab göstərilir</p></div></div>
           {toolbar([["candidate","Namizəd"],["company","Şirkət"],["active","Aktiv"],["suspended","Dayandırılıb"]])}
           <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>İstifadəçi</th><th>Hesab növü</th><th>Fəaliyyət</th><th>Qeydiyyat</th><th>Status</th><th /></tr></thead><tbody>
-            {filteredUsers.map((user) => <tr key={user.id}><td><div className="admin-person"><span>{user.name?.[0] || "J"}</span><div><strong>{user.name}</strong><small>{user.email || user.title || "Profil məlumatı yoxdur"}</small></div></div></td><td><span className="admin-role">{user.role === "company" ? "Şirkət" : user.role === "admin" ? "Admin" : "Namizəd"}</span></td><td><b>{user.role === "company" ? `${user.jobs_count} vakansiya` : `${user.applications_count} müraciət`}</b></td><td>{date(user.created, language)}</td><td><span className={`admin-status ${user.status}`}>{statusLabel(user.status)}</span></td><td>{user.role !== "admin" && <button className="admin-action" disabled={busy===`user:${user.id}`} onClick={() => action("user",user.id,user.status === "active" ? "suspend" : "activate",user.status === "active" ? `${user.name} hesabını dayandırmaq istəyirsiniz?` : `${user.name} hesabını aktivləşdirmək istəyirsiniz?`)}>{user.status === "active" ? "Dayandır" : "Aktivləşdir"}</button>}</td></tr>)}
+            {filteredUsers.map((user) => <tr key={user.id}><td><div className="admin-person"><span>{user.name?.[0] || "J"}</span><div><strong>{user.name}</strong><small>{user.email || user.title || "Profil məlumatı yoxdur"}</small>{!!user.signals?.length && <small style={{ color: "#b45309" }} title={user.signals.join("\n")}>⚠ {user.signals.join(" · ")}</small>}</div></div></td><td><span className="admin-role">{user.role === "company" ? "Şirkət" : user.role === "admin" ? "Admin" : "Namizəd"}</span></td><td><b>{user.role === "company" ? `${user.jobs_count} vakansiya` : `${user.applications_count} müraciət`}</b></td><td>{date(user.created, language)}</td><td><span className={`admin-status ${user.status}`}>{statusLabel(user.status)}</span></td><td>{user.role !== "admin" && <button className="admin-action" disabled={busy===`user:${user.id}`} onClick={() => action("user",user.id,user.status === "active" ? "suspend" : "activate",user.status === "active" ? `${user.name} hesabını dayandırmaq istəyirsiniz?` : `${user.name} hesabını aktivləşdirmək istəyirsiniz?`)}>{user.status === "active" ? "Dayandır" : "Aktivləşdir"}</button>}</td></tr>)}
           </tbody></table></div>
         </section>
       )}
