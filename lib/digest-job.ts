@@ -1,48 +1,161 @@
 // The daily job that sends the scheduled summaries. It is called by the Worker's cron trigger
 // and by the admin "send now" action.
 import { emailAllowedFor, sanitizeEmailOff } from "./notification-prefs.ts";
-import { jobMatchesAlert, sanitizeAlertFilters, type AlertJob } from "./job-alerts.ts";
-import { digestSubject, digestText, isDue, normalizeFrequency, type DigestData } from "./digest.ts";
+import {
+  jobMatchesAlert,
+  sanitizeAlertFilters,
+  type AlertJob,
+} from "./job-alerts.ts";
+import {
+  digestSubject,
+  digestText,
+  isDue,
+  normalizeFrequency,
+  type DigestData,
+} from "./digest.ts";
 
-export type Mailer = { send(message: { to: string[]; from: { email: string; name: string }; subject: string; text: string }): Promise<unknown> } | null | undefined;
+export type Mailer =
+  | {
+      send(message: {
+        to: string[];
+        from: { email: string; name: string };
+        subject: string;
+        text: string;
+      }): Promise<unknown>;
+    }
+  | null
+  | undefined;
 
 const DAY = 86400000;
 
 // Sends one e-mail unless the person switched that category off (see lib/notification-prefs.ts).
-async function sendTo(db: D1Database, mail: Mailer, fromEmail: string | undefined, userId: string, subject: string, text: string, type: string) {
+async function sendTo(
+  db: D1Database,
+  mail: Mailer,
+  fromEmail: string | undefined,
+  userId: string,
+  subject: string,
+  text: string,
+  type: string,
+) {
   if (!mail || !fromEmail) return;
-  const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(userId).first<{ email: string }>().catch(() => null);
+  const account = await db
+    .prepare("SELECT email FROM password_accounts WHERE user_id=?")
+    .bind(userId)
+    .first<{ email: string }>()
+    .catch(() => null);
   if (!account?.email) return;
-  const prefs = await db.prepare("SELECT email_off FROM notification_prefs WHERE user_id=?").bind(userId).first<{ email_off: string }>().catch(() => null);
+  const prefs = await db
+    .prepare("SELECT email_off FROM notification_prefs WHERE user_id=?")
+    .bind(userId)
+    .first<{ email_off: string }>()
+    .catch(() => null);
   let off: string[] = [];
-  try { off = prefs ? sanitizeEmailOff(JSON.parse(prefs.email_off)) : []; } catch { off = []; }
+  try {
+    off = prefs ? sanitizeEmailOff(JSON.parse(prefs.email_off)) : [];
+  } catch {
+    off = [];
+  }
   if (!emailAllowedFor(off, type)) return;
-  await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject, text }).catch(() => {});
+  await mail
+    .send({
+      to: [account.email],
+      from: { email: fromEmail, name: "Joblink" },
+      subject,
+      text,
+    })
+    .catch(() => {});
 }
 
 const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 async function count(db: D1Database, sql: string, ...bind: unknown[]) {
-  const row = await db.prepare(sql).bind(...bind).first<{ n: number }>().catch(() => null);
+  const row = await db
+    .prepare(sql)
+    .bind(...bind)
+    .first<{ n: number }>()
+    .catch(() => null);
   return Number(row?.n) || 0;
 }
 
-export async function buildDigest(db: D1Database, companyId: string, frequency: "weekly" | "monthly", now: Date): Promise<DigestData> {
+export async function buildDigest(
+  db: D1Database,
+  companyId: string,
+  frequency: "weekly" | "monthly",
+  now: Date,
+): Promise<DigestData> {
   const days = frequency === "monthly" ? 30 : 7;
   const to = isoDay(now.getTime() - DAY);
   const from = isoDay(now.getTime() - days * DAY);
   const prevTo = isoDay(now.getTime() - (days + 1) * DAY);
-  const prevFrom = isoDay(now.getTime() - (2 * days) * DAY);
+  const prevFrom = isoDay(now.getTime() - 2 * days * DAY);
   const apps = (a: string, b: string) =>
-    count(db, "SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND substr(a.created,1,10)>=? AND substr(a.created,1,10)<=?", companyId, a, b);
-  const company = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(companyId).first<{ name: string }>().catch(() => null);
+    count(
+      db,
+      "SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND substr(a.created,1,10)>=? AND substr(a.created,1,10)<=?",
+      companyId,
+      a,
+      b,
+    );
+  const company = await db
+    .prepare("SELECT name FROM accounts WHERE id=?")
+    .bind(companyId)
+    .first<{ name: string }>()
+    .catch(() => null);
   const weekAhead = isoDay(now.getTime() + 7 * DAY);
   const attention = [
-    { label: "vakansiya təsdiq gözləyir", count: await count(db, "SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND status='pending_approval'", companyId) },
-    { label: "müraciətə 2 gündən çoxdur baxılmayıb", count: await count(db, "SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND a.status='Göndərildi' AND a.created<?", companyId, new Date(now.getTime() - 2 * DAY).toISOString()) },
-    { label: "test nəticəsinin açıq cavabları yoxlanmalıdır", count: await count(db, "SELECT COUNT(*) AS n FROM assessment_assignments WHERE company_id=? AND review_status='pending' AND status IN ('submitted','expired')", companyId) },
-    { label: "təklifə 5 gündən çoxdur cavab verilməyib", count: await count(db, "SELECT COUNT(*) AS n FROM offers WHERE company_id=? AND status='sent' AND created<?", companyId, new Date(now.getTime() - 5 * DAY).toISOString()) },
-    { label: "vakansiyanın son tarixinə 7 gündən az qalıb", count: await count(db, "SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND status='published' AND json_extract(data,'$.deadline')<>'' AND json_extract(data,'$.deadline')>=? AND json_extract(data,'$.deadline')<=?", companyId, isoDay(now.getTime()), weekAhead) },
+    {
+      label: "vakansiya təsdiq gözləyir",
+      count: await count(
+        db,
+        "SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND status='pending_approval'",
+        companyId,
+      ),
+    },
+    {
+      label: "təklif və ya maaş dəyişikliyi təsdiq gözləyir",
+      count: await count(
+        db,
+        "SELECT COUNT(*) AS n FROM approval_requests WHERE company_id=? AND status='pending'",
+        companyId,
+      ),
+    },
+    {
+      label: "müraciətə 2 gündən çoxdur baxılmayıb",
+      count: await count(
+        db,
+        "SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND a.status='Göndərildi' AND a.created<?",
+        companyId,
+        new Date(now.getTime() - 2 * DAY).toISOString(),
+      ),
+    },
+    {
+      label: "test nəticəsinin açıq cavabları yoxlanmalıdır",
+      count: await count(
+        db,
+        "SELECT COUNT(*) AS n FROM assessment_assignments WHERE company_id=? AND review_status='pending' AND status IN ('submitted','expired')",
+        companyId,
+      ),
+    },
+    {
+      label: "təklifə 5 gündən çoxdur cavab verilməyib",
+      count: await count(
+        db,
+        "SELECT COUNT(*) AS n FROM offers WHERE company_id=? AND status='sent' AND created<?",
+        companyId,
+        new Date(now.getTime() - 5 * DAY).toISOString(),
+      ),
+    },
+    {
+      label: "vakansiyanın son tarixinə 7 gündən az qalıb",
+      count: await count(
+        db,
+        "SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND status='published' AND json_extract(data,'$.deadline')<>'' AND json_extract(data,'$.deadline')>=? AND json_extract(data,'$.deadline')<=?",
+        companyId,
+        isoDay(now.getTime()),
+        weekAhead,
+      ),
+    },
   ].filter((item) => item.count > 0);
   return {
     companyName: company?.name || "Şirkət",
@@ -51,34 +164,88 @@ export async function buildDigest(db: D1Database, companyId: string, frequency: 
     to,
     applications: await apps(from, to),
     previousApplications: await apps(prevFrom, prevTo),
-    hires: await count(db, "SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND a.status='İşə qəbul edildi' AND substr(a.updated,1,10)>=? AND substr(a.updated,1,10)<=?", companyId, from, to),
+    hires: await count(
+      db,
+      "SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND a.status='İşə qəbul edildi' AND substr(a.updated,1,10)>=? AND substr(a.updated,1,10)<=?",
+      companyId,
+      from,
+      to,
+    ),
     attention,
   };
 }
 
 // Sends every digest that is due (or all of them with `force`). Returns how many were sent.
-export async function runDigests(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date(), force = false) {
+export async function runDigests(
+  db: D1Database,
+  mail: Mailer,
+  fromEmail: string | undefined,
+  now = new Date(),
+  force = false,
+) {
   const subs = await db
-    .prepare("SELECT user_id,company_id,frequency,last_sent FROM digest_subscriptions WHERE frequency<>'off'")
-    .all<{ user_id: string; company_id: string; frequency: string; last_sent: string }>()
-    .catch(() => ({ results: [] as { user_id: string; company_id: string; frequency: string; last_sent: string }[] }));
+    .prepare(
+      "SELECT user_id,company_id,frequency,last_sent FROM digest_subscriptions WHERE frequency<>'off'",
+    )
+    .all<{
+      user_id: string;
+      company_id: string;
+      frequency: string;
+      last_sent: string;
+    }>()
+    .catch(() => ({
+      results: [] as {
+        user_id: string;
+        company_id: string;
+        frequency: string;
+        last_sent: string;
+      }[],
+    }));
   let sent = 0;
   for (const sub of subs.results) {
     const frequency = normalizeFrequency(sub.frequency);
-    if (frequency === "off" || (!force && !isDue(frequency, sub.last_sent, now))) continue;
+    if (
+      frequency === "off" ||
+      (!force && !isDue(frequency, sub.last_sent, now))
+    )
+      continue;
     try {
       const data = await buildDigest(db, sub.company_id, frequency, now);
       const subject = digestSubject(data);
       const text = digestText(data);
       await db
-        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
-        .bind(crypto.randomUUID(), sub.user_id, "digest", subject.slice(0, 200), text.slice(0, 600), "hr-reports", now.toISOString())
+        .prepare(
+          "INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          sub.user_id,
+          "digest",
+          subject.slice(0, 200),
+          text.slice(0, 600),
+          "hr-reports",
+          now.toISOString(),
+        )
         .run();
       if (mail && fromEmail) {
-        const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(sub.user_id).first<{ email: string }>();
-        if (account?.email) await mail.send({ to: [account.email], from: { email: fromEmail, name: "Joblink" }, subject, text }).catch(() => {});
+        const account = await db
+          .prepare("SELECT email FROM password_accounts WHERE user_id=?")
+          .bind(sub.user_id)
+          .first<{ email: string }>();
+        if (account?.email)
+          await mail
+            .send({
+              to: [account.email],
+              from: { email: fromEmail, name: "Joblink" },
+              subject,
+              text,
+            })
+            .catch(() => {});
       }
-      await db.prepare("UPDATE digest_subscriptions SET last_sent=? WHERE user_id=?").bind(now.toISOString(), sub.user_id).run();
+      await db
+        .prepare("UPDATE digest_subscriptions SET last_sent=? WHERE user_id=?")
+        .bind(now.toISOString(), sub.user_id)
+        .run();
       sent++;
     } catch {
       // One failing subscription must not stop the others.
@@ -88,18 +255,53 @@ export async function runDigests(db: D1Database, mail: Mailer, fromEmail: string
 }
 
 // Reminds both sides about interviews in the next 30 hours (the job runs once a day).
-export async function runInterviewReminders(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+export async function runInterviewReminders(
+  db: D1Database,
+  mail: Mailer,
+  fromEmail: string | undefined,
+  now = new Date(),
+) {
   const rows = await db
-    .prepare(`SELECT i.id,i.scheduled_at,i.kind,i.location,i.company_id,i.candidate_id,i.created_by,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS company
+    .prepare(
+      `SELECT i.id,i.scheduled_at,i.kind,i.location,i.company_id,i.candidate_id,i.created_by,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS company
       FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.company_id
-      WHERE i.status IN ('scheduled','confirmed') AND i.reminded_at='' AND i.slots='[]' AND i.scheduled_at>? AND i.scheduled_at<=?`)
-    .bind(now.toISOString(), new Date(now.getTime() + 30 * 3600000).toISOString())
-    .all<{ id: string; scheduled_at: string; kind: string; location: string; company_id: string; candidate_id: string; created_by: string; job_title: string; company: string }>()
-    .catch(() => ({ results: [] as { id: string; scheduled_at: string; kind: string; location: string; company_id: string; candidate_id: string; created_by: string; job_title: string; company: string }[] }));
+      WHERE i.status IN ('scheduled','confirmed') AND i.reminded_at='' AND i.slots='[]' AND i.scheduled_at>? AND i.scheduled_at<=?`,
+    )
+    .bind(
+      now.toISOString(),
+      new Date(now.getTime() + 30 * 3600000).toISOString(),
+    )
+    .all<{
+      id: string;
+      scheduled_at: string;
+      kind: string;
+      location: string;
+      company_id: string;
+      candidate_id: string;
+      created_by: string;
+      job_title: string;
+      company: string;
+    }>()
+    .catch(() => ({
+      results: [] as {
+        id: string;
+        scheduled_at: string;
+        kind: string;
+        location: string;
+        company_id: string;
+        candidate_id: string;
+        created_by: string;
+        job_title: string;
+        company: string;
+      }[],
+    }));
   let sent = 0;
   for (const row of rows.results) {
     try {
-      const local = new Date(Date.parse(row.scheduled_at) + 4 * 3600000).toISOString().slice(0, 16).replace("T", " ");
+      const local = new Date(Date.parse(row.scheduled_at) + 4 * 3600000)
+        .toISOString()
+        .slice(0, 16)
+        .replace("T", " ");
       const where = row.location ? `: ${row.location}` : "";
       const text = `Xatırlatma: "${row.job_title}" müsahibəsi ${local} (Bakı vaxtı)${where}.`;
       const targets = [
@@ -108,14 +310,35 @@ export async function runInterviewReminders(db: D1Database, mail: Mailer, fromEm
       ];
       for (const target of targets) {
         await db
-          .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
-          .bind(crypto.randomUUID(), target.userId, "interview", `Müsahibə xatırlatması: ${row.job_title}`, text.slice(0, 600), target.link, now.toISOString())
+          .prepare(
+            "INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)",
+          )
+          .bind(
+            crypto.randomUUID(),
+            target.userId,
+            "interview",
+            `Müsahibə xatırlatması: ${row.job_title}`,
+            text.slice(0, 600),
+            target.link,
+            now.toISOString(),
+          )
           .run();
         if (mail && fromEmail) {
-          await sendTo(db, mail, fromEmail, target.userId, `Müsahibə xatırlatması: ${row.job_title}`, text, "interview");
+          await sendTo(
+            db,
+            mail,
+            fromEmail,
+            target.userId,
+            `Müsahibə xatırlatması: ${row.job_title}`,
+            text,
+            "interview",
+          );
         }
       }
-      await db.prepare("UPDATE interviews SET reminded_at=? WHERE id=?").bind(now.toISOString(), row.id).run();
+      await db
+        .prepare("UPDATE interviews SET reminded_at=? WHERE id=?")
+        .bind(now.toISOString(), row.id)
+        .run();
       sent++;
     } catch {
       // One failing reminder must not stop the others.
@@ -125,26 +348,66 @@ export async function runInterviewReminders(db: D1Database, mail: Mailer, fromEm
 }
 
 // A candidate who has not started a test two days after it was sent gets one reminder.
-export async function runTestReminders(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+export async function runTestReminders(
+  db: D1Database,
+  mail: Mailer,
+  fromEmail: string | undefined,
+  now = new Date(),
+) {
   const rows = await db
-    .prepare(`SELECT s.id,s.candidate_id,COALESCE(json_extract(s.snapshot,'$.title'),t.title) AS title,COALESCE(c.name,'') AS company
+    .prepare(
+      `SELECT s.id,s.candidate_id,COALESCE(json_extract(s.snapshot,'$.title'),t.title) AS title,COALESCE(c.name,'') AS company
       FROM assessment_assignments s JOIN assessments t ON t.id=s.assessment_id LEFT JOIN accounts c ON c.id=s.company_id
-      WHERE s.status='assigned' AND s.reminded_at='' AND s.assigned_at<? AND s.assigned_at>? LIMIT 200`)
-    .bind(new Date(now.getTime() - 2 * DAY).toISOString(), new Date(now.getTime() - 14 * DAY).toISOString())
+      WHERE s.status='assigned' AND s.reminded_at='' AND s.assigned_at<? AND s.assigned_at>? LIMIT 200`,
+    )
+    .bind(
+      new Date(now.getTime() - 2 * DAY).toISOString(),
+      new Date(now.getTime() - 14 * DAY).toISOString(),
+    )
     .all<{ id: string; candidate_id: string; title: string; company: string }>()
-    .catch(() => ({ results: [] as { id: string; candidate_id: string; title: string; company: string }[] }));
+    .catch(() => ({
+      results: [] as {
+        id: string;
+        candidate_id: string;
+        title: string;
+        company: string;
+      }[],
+    }));
   let sent = 0;
   for (const row of rows.results) {
     try {
-      const claimed = await db.prepare("UPDATE assessment_assignments SET reminded_at=? WHERE id=? AND reminded_at='' AND status='assigned'").bind(now.toISOString(), row.id).run();
+      const claimed = await db
+        .prepare(
+          "UPDATE assessment_assignments SET reminded_at=? WHERE id=? AND reminded_at='' AND status='assigned'",
+        )
+        .bind(now.toISOString(), row.id)
+        .run();
       if (!claimed.meta.changes) continue;
       const text = `${row.company ? `${row.company} sizə` : "Sizə"} “${row.title}” testi göndərib. Test hələ başlanmayıb; platformada “Testlər” bölməsindən verə bilərsiniz.`;
       await db
-        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
-        .bind(crypto.randomUUID(), row.candidate_id, "test", `Test xatırlatması: ${row.title}`, text.slice(0, 600), "applications", now.toISOString())
+        .prepare(
+          "INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          row.candidate_id,
+          "test",
+          `Test xatırlatması: ${row.title}`,
+          text.slice(0, 600),
+          "applications",
+          now.toISOString(),
+        )
         .run();
       if (mail && fromEmail) {
-        await sendTo(db, mail, fromEmail, row.candidate_id, `Test xatırlatması: ${row.title}`, text, "test");
+        await sendTo(
+          db,
+          mail,
+          fromEmail,
+          row.candidate_id,
+          `Test xatırlatması: ${row.title}`,
+          text,
+          "test",
+        );
       }
       sent++;
     } catch {
@@ -155,26 +418,70 @@ export async function runTestReminders(db: D1Database, mail: Mailer, fromEmail: 
 }
 
 // One reminder to the company when an employee's probation ends within a week.
-export async function runProbationReminders(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+export async function runProbationReminders(
+  db: D1Database,
+  mail: Mailer,
+  fromEmail: string | undefined,
+  now = new Date(),
+) {
   const today = now.toISOString().slice(0, 10);
   const rows = await db
-    .prepare("SELECT id,company_id,name,position,probation_end FROM company_employees WHERE status='active' AND probation_reminded=0 AND probation_end<>'' AND probation_end<=? LIMIT 200")
+    .prepare(
+      "SELECT id,company_id,name,position,probation_end FROM company_employees WHERE status='active' AND probation_reminded=0 AND probation_end<>'' AND probation_end<=? LIMIT 200",
+    )
     .bind(new Date(now.getTime() + 7 * DAY).toISOString().slice(0, 10))
-    .all<{ id: string; company_id: string; name: string; position: string; probation_end: string }>()
-    .catch(() => ({ results: [] as { id: string; company_id: string; name: string; position: string; probation_end: string }[] }));
+    .all<{
+      id: string;
+      company_id: string;
+      name: string;
+      position: string;
+      probation_end: string;
+    }>()
+    .catch(() => ({
+      results: [] as {
+        id: string;
+        company_id: string;
+        name: string;
+        position: string;
+        probation_end: string;
+      }[],
+    }));
   let sent = 0;
   for (const row of rows.results) {
     try {
-      const claimed = await db.prepare("UPDATE company_employees SET probation_reminded=1 WHERE id=? AND probation_reminded=0").bind(row.id).run();
+      const claimed = await db
+        .prepare(
+          "UPDATE company_employees SET probation_reminded=1 WHERE id=? AND probation_reminded=0",
+        )
+        .bind(row.id)
+        .run();
       if (!claimed.meta.changes) continue;
       const ended = row.probation_end < today;
       const text = `${row.name}${row.position ? ` (${row.position})` : ""} üçün sınaq müddəti ${ended ? "bitib" : "bitir"}: ${row.probation_end}. Qərarı (davam, uzatma və ya xitam) verin.`;
       await db
-        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
-        .bind(crypto.randomUUID(), row.company_id, "employee", `Sınaq müddəti: ${row.name}`, text.slice(0, 600), "hr-employees", now.toISOString())
+        .prepare(
+          "INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          row.company_id,
+          "employee",
+          `Sınaq müddəti: ${row.name}`,
+          text.slice(0, 600),
+          "hr-employees",
+          now.toISOString(),
+        )
         .run();
       if (mail && fromEmail) {
-        await sendTo(db, mail, fromEmail, row.company_id, `Sınaq müddəti: ${row.name}`, text, "other");
+        await sendTo(
+          db,
+          mail,
+          fromEmail,
+          row.company_id,
+          `Sınaq müddəti: ${row.name}`,
+          text,
+          "other",
+        );
       }
       sent++;
     } catch {
@@ -185,23 +492,61 @@ export async function runProbationReminders(db: D1Database, mail: Mailer, fromEm
 }
 
 // Tells each candidate about vacancies published since their alert last ran (at most 5 titles per alert).
-export async function runJobAlerts(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+export async function runJobAlerts(
+  db: D1Database,
+  mail: Mailer,
+  fromEmail: string | undefined,
+  now = new Date(),
+) {
   const alerts = await db
     .prepare("SELECT id,user_id,name,filters,seen FROM job_alerts LIMIT 2000")
-    .all<{ id: string; user_id: string; name: string; filters: string; seen: string }>()
-    .catch(() => ({ results: [] as { id: string; user_id: string; name: string; filters: string; seen: string }[] }));
+    .all<{
+      id: string;
+      user_id: string;
+      name: string;
+      filters: string;
+      seen: string;
+    }>()
+    .catch(() => ({
+      results: [] as {
+        id: string;
+        user_id: string;
+        name: string;
+        filters: string;
+        seen: string;
+      }[],
+    }));
   if (!alerts.results.length) return 0;
   const jobs = await db
-    .prepare("SELECT id,owner,created,data FROM jobs WHERE status='published' AND created>? ORDER BY created DESC LIMIT 1000")
+    .prepare(
+      "SELECT id,owner,created,data FROM jobs WHERE status='published' AND created>? ORDER BY created DESC LIMIT 1000",
+    )
     .bind(new Date(now.getTime() - 45 * DAY).toISOString())
     .all<{ id: string; owner: string; created: string; data: string }>()
-    .catch(() => ({ results: [] as { id: string; owner: string; created: string; data: string }[] }));
+    .catch(() => ({
+      results: [] as {
+        id: string;
+        owner: string;
+        created: string;
+        data: string;
+      }[],
+    }));
   const today = now.toISOString().slice(0, 10);
   const parsed = jobs.results.flatMap((r) => {
     try {
-      const d = JSON.parse(r.data) as AlertJob & { deadline?: string; demo?: boolean };
+      const d = JSON.parse(r.data) as AlertJob & {
+        deadline?: string;
+        demo?: boolean;
+      };
       if (d.demo || (d.deadline && d.deadline < today)) return [];
-      return [{ id: r.id, owner: r.owner, created: r.created, job: { ...d, skills: Array.isArray(d.skills) ? d.skills : [] } }];
+      return [
+        {
+          id: r.id,
+          owner: r.owner,
+          created: r.created,
+          job: { ...d, skills: Array.isArray(d.skills) ? d.skills : [] },
+        },
+      ];
     } catch {
       return [];
     }
@@ -210,22 +555,68 @@ export async function runJobAlerts(db: D1Database, mail: Mailer, fromEmail: stri
   for (const alert of alerts.results) {
     try {
       const filters = sanitizeAlertFilters(JSON.parse(alert.filters));
-      const blocked = await db.prepare("SELECT target_id FROM relations WHERE kind='block' AND actor_id=?").bind(alert.user_id).all<{ target_id: string }>().catch(() => ({ results: [] as { target_id: string }[] }));
+      const blocked = await db
+        .prepare(
+          "SELECT target_id FROM relations WHERE kind='block' AND actor_id=?",
+        )
+        .bind(alert.user_id)
+        .all<{ target_id: string }>()
+        .catch(() => ({ results: [] as { target_id: string }[] }));
       const hidden = new Set(blocked.results.map((b) => b.target_id));
       let seen: string[] = [];
-      try { seen = JSON.parse(alert.seen) as string[]; } catch { seen = []; }
+      try {
+        seen = JSON.parse(alert.seen) as string[];
+      } catch {
+        seen = [];
+      }
       const known = new Set(seen);
-      const fresh = parsed.filter((p) => !known.has(p.id) && p.owner !== alert.user_id && !hidden.has(p.owner) && jobMatchesAlert(p.job, filters));
-      await db.prepare("UPDATE job_alerts SET last_check=?,seen=? WHERE id=?").bind(now.toISOString(), JSON.stringify([...fresh.map((p) => p.id), ...seen].slice(0, 300)), alert.id).run();
+      const fresh = parsed.filter(
+        (p) =>
+          !known.has(p.id) &&
+          p.owner !== alert.user_id &&
+          !hidden.has(p.owner) &&
+          jobMatchesAlert(p.job, filters),
+      );
+      await db
+        .prepare("UPDATE job_alerts SET last_check=?,seen=? WHERE id=?")
+        .bind(
+          now.toISOString(),
+          JSON.stringify([...fresh.map((p) => p.id), ...seen].slice(0, 300)),
+          alert.id,
+        )
+        .run();
       if (!fresh.length) continue;
-      const titles = fresh.slice(0, 5).map((p) => `${p.job.title} — ${p.job.company}${p.job.city ? ` (${p.job.city})` : ""}`);
+      const titles = fresh
+        .slice(0, 5)
+        .map(
+          (p) =>
+            `${p.job.title} — ${p.job.company}${p.job.city ? ` (${p.job.city})` : ""}`,
+        );
       const text = `“${alert.name}” xəbərdarlığınıza uyğun ${fresh.length} yeni vakansiya var:\n${titles.join("\n")}${fresh.length > 5 ? `\n… və daha ${fresh.length - 5} vakansiya` : ""}\n\nJoblink-də baxın.`;
       await db
-        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
-        .bind(crypto.randomUUID(), alert.user_id, "job-alert", `Yeni vakansiya: ${alert.name}`, text.slice(0, 600), "jobs", now.toISOString())
+        .prepare(
+          "INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          alert.user_id,
+          "job-alert",
+          `Yeni vakansiya: ${alert.name}`,
+          text.slice(0, 600),
+          "jobs",
+          now.toISOString(),
+        )
         .run();
       if (mail && fromEmail) {
-        await sendTo(db, mail, fromEmail, alert.user_id, `Yeni vakansiya: ${alert.name}`, text, "job-alert");
+        await sendTo(
+          db,
+          mail,
+          fromEmail,
+          alert.user_id,
+          `Yeni vakansiya: ${alert.name}`,
+          text,
+          "job-alert",
+        );
       }
       sent++;
     } catch {
@@ -236,24 +627,70 @@ export async function runJobAlerts(db: D1Database, mail: Mailer, fromEmail: stri
 }
 
 // One reminder three days before a paid plan period ends.
-export async function runPlanReminders(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+export async function runPlanReminders(
+  db: D1Database,
+  mail: Mailer,
+  fromEmail: string | undefined,
+  now = new Date(),
+) {
   const rows = await db
-    .prepare("SELECT s.id,s.account_id,s.plan_id,s.period_end,s.auto_renew,COALESCE(a.role,'candidate') AS role FROM subscriptions s LEFT JOIN accounts a ON a.id=s.account_id WHERE s.status='active' AND s.renewal_reminded=0 AND s.period_end>? AND s.period_end<=? LIMIT 500")
+    .prepare(
+      "SELECT s.id,s.account_id,s.plan_id,s.period_end,s.auto_renew,COALESCE(a.role,'candidate') AS role FROM subscriptions s LEFT JOIN accounts a ON a.id=s.account_id WHERE s.status='active' AND s.renewal_reminded=0 AND s.period_end>? AND s.period_end<=? LIMIT 500",
+    )
     .bind(now.toISOString(), new Date(now.getTime() + 3 * DAY).toISOString())
-    .all<{ id: string; account_id: string; plan_id: string; period_end: string; auto_renew: number; role: string }>()
-    .catch(() => ({ results: [] as { id: string; account_id: string; plan_id: string; period_end: string; auto_renew: number; role: string }[] }));
+    .all<{
+      id: string;
+      account_id: string;
+      plan_id: string;
+      period_end: string;
+      auto_renew: number;
+      role: string;
+    }>()
+    .catch(() => ({
+      results: [] as {
+        id: string;
+        account_id: string;
+        plan_id: string;
+        period_end: string;
+        auto_renew: number;
+        role: string;
+      }[],
+    }));
   let sent = 0;
   for (const row of rows.results) {
     try {
-      const claimed = await db.prepare("UPDATE subscriptions SET renewal_reminded=1 WHERE id=? AND renewal_reminded=0").bind(row.id).run();
+      const claimed = await db
+        .prepare(
+          "UPDATE subscriptions SET renewal_reminded=1 WHERE id=? AND renewal_reminded=0",
+        )
+        .bind(row.id)
+        .run();
       if (!claimed.meta.changes) continue;
       const text = `Paketinizin dövrü ${row.period_end.slice(0, 10)} tarixində bitir. ${row.auto_renew ? "Avtomatik yenilənmə aktivdir, kartınızdan ödəniş götürüləcək." : "Avtomatik yenilənmə söndürülüdür; davam etmək üçün paketi yeniləyin."}`;
       await db
-        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
-        .bind(crypto.randomUUID(), row.account_id, "plan", "Paketin müddəti bitir", text, row.role === "company" ? "hr-billing" : "packages", now.toISOString())
+        .prepare(
+          "INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          row.account_id,
+          "plan",
+          "Paketin müddəti bitir",
+          text,
+          row.role === "company" ? "hr-billing" : "packages",
+          now.toISOString(),
+        )
         .run();
       if (mail && fromEmail) {
-        await sendTo(db, mail, fromEmail, row.account_id, "Joblink: paketin müddəti bitir", text, "plan");
+        await sendTo(
+          db,
+          mail,
+          fromEmail,
+          row.account_id,
+          "Joblink: paketin müddəti bitir",
+          text,
+          "plan",
+        );
       }
       sent++;
     } catch {
@@ -264,28 +701,80 @@ export async function runPlanReminders(db: D1Database, mail: Mailer, fromEmail: 
 }
 
 // Overdue unpaid invoices: one reminder to the account every 7 days.
-export async function runInvoiceReminders(db: D1Database, mail: Mailer, fromEmail: string | undefined, now = new Date()) {
+export async function runInvoiceReminders(
+  db: D1Database,
+  mail: Mailer,
+  fromEmail: string | undefined,
+  now = new Date(),
+) {
   const today = now.toISOString().slice(0, 10);
   const rows = await db
-    .prepare(`SELECT bi.id,bi.account_id,bi.description,bi.amount_cents,bi.due_date,COALESCE(a.role,'candidate') AS role,
+    .prepare(
+      `SELECT bi.id,bi.account_id,bi.description,bi.amount_cents,bi.due_date,COALESCE(a.role,'candidate') AS role,
         bi.amount_cents-COALESCE((SELECT SUM(bp.amount_cents) FROM billing_payments bp WHERE bp.invoice_id=bi.id),0) AS due_cents
       FROM billing_invoices bi LEFT JOIN accounts a ON a.id=bi.account_id
-      WHERE bi.status='open' AND bi.due_date<? AND (bi.reminded_at='' OR bi.reminded_at<?) LIMIT 300`)
+      WHERE bi.status='open' AND bi.due_date<? AND (bi.reminded_at='' OR bi.reminded_at<?) LIMIT 300`,
+    )
     .bind(today, new Date(now.getTime() - 7 * DAY).toISOString())
-    .all<{ id: string; account_id: string; description: string; amount_cents: number; due_date: string; role: string; due_cents: number }>()
-    .catch(() => ({ results: [] as { id: string; account_id: string; description: string; amount_cents: number; due_date: string; role: string; due_cents: number }[] }));
+    .all<{
+      id: string;
+      account_id: string;
+      description: string;
+      amount_cents: number;
+      due_date: string;
+      role: string;
+      due_cents: number;
+    }>()
+    .catch(() => ({
+      results: [] as {
+        id: string;
+        account_id: string;
+        description: string;
+        amount_cents: number;
+        due_date: string;
+        role: string;
+        due_cents: number;
+      }[],
+    }));
   let sent = 0;
   for (const row of rows.results) {
     try {
       if (row.due_cents <= 0) continue;
-      const claimed = await db.prepare("UPDATE billing_invoices SET reminded_at=? WHERE id=? AND (reminded_at='' OR reminded_at<?)").bind(now.toISOString(), row.id, new Date(now.getTime() - 7 * DAY).toISOString()).run();
+      const claimed = await db
+        .prepare(
+          "UPDATE billing_invoices SET reminded_at=? WHERE id=? AND (reminded_at='' OR reminded_at<?)",
+        )
+        .bind(
+          now.toISOString(),
+          row.id,
+          new Date(now.getTime() - 7 * DAY).toISOString(),
+        )
+        .run();
       if (!claimed.meta.changes) continue;
       const text = `“${row.description}” hesab-fakturası üzrə ${(row.due_cents / 100).toFixed(2)} AZN ödəniş gecikir (son tarix ${row.due_date}). Zəhmət olmasa ödənişi tamamlayın.`;
       await db
-        .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
-        .bind(crypto.randomUUID(), row.account_id, "billing", "Ödəniş gecikir", text.slice(0, 600), row.role === "company" ? "hr-billing" : "packages", now.toISOString())
+        .prepare(
+          "INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          row.account_id,
+          "billing",
+          "Ödəniş gecikir",
+          text.slice(0, 600),
+          row.role === "company" ? "hr-billing" : "packages",
+          now.toISOString(),
+        )
         .run();
-      await sendTo(db, mail, fromEmail, row.account_id, "Joblink: ödəniş gecikir", text, "billing");
+      await sendTo(
+        db,
+        mail,
+        fromEmail,
+        row.account_id,
+        "Joblink: ödəniş gecikir",
+        text,
+        "billing",
+      );
       sent++;
     } catch {
       // One failing reminder must not stop the others.
@@ -297,6 +786,181 @@ export async function runInvoiceReminders(db: D1Database, mail: Mailer, fromEmai
 // Vacancy views are kept for a limited time only.
 export async function purgeOldJobViews(db: D1Database, now = new Date()) {
   const cutoff = new Date(now.getTime() - 180 * DAY).toISOString().slice(0, 10);
-  const result = await db.prepare("DELETE FROM job_views WHERE day<?").bind(cutoff).run().catch(() => null);
+  const result = await db
+    .prepare("DELETE FROM job_views WHERE day<?")
+    .bind(cutoff)
+    .run()
+    .catch(() => null);
   return result?.meta?.changes || 0;
+}
+
+// People who can decide a step: the owner, members of the roles that hold the
+// right, and anyone they named as a substitute who is still in date.
+async function approversFor(
+  db: D1Database,
+  companyId: string,
+  step: "hr" | "director",
+  today: string,
+) {
+  const roles = step === "hr" ? ["hr", "director"] : ["director"];
+  const members = await db
+    .prepare(
+      `SELECT user_id FROM company_members WHERE company_id=? AND status='active' AND user_id<>'' AND role IN (${roles.map(() => "?").join(",")})`,
+    )
+    .bind(companyId, ...roles)
+    .all<{ user_id: string }>()
+    .catch(() => ({ results: [] as { user_id: string }[] }));
+  const holders = [companyId, ...members.results.map((m) => m.user_id)];
+  const lent = await db
+    .prepare(
+      "SELECT from_user,to_user FROM approval_delegates WHERE company_id=? AND until>=?",
+    )
+    .bind(companyId, today)
+    .all<{ from_user: string; to_user: string }>()
+    .catch(() => ({ results: [] as { from_user: string; to_user: string }[] }));
+  return [
+    ...new Set([
+      ...holders,
+      ...lent.results
+        .filter((d) => holders.includes(d.from_user))
+        .map((d) => d.to_user),
+    ]),
+  ];
+}
+
+// Approvals (vacancies, offers, salary changes) that wait too long remind their
+// approvers every two days, at most four times each.
+export async function runApprovalReminders(
+  db: D1Database,
+  mail: Mailer,
+  fromEmail: string | undefined,
+  now = new Date(),
+) {
+  const due = new Date(now.getTime() - 2 * DAY).toISOString();
+  const today = now.toISOString().slice(0, 10);
+  let sent = 0;
+  const remind = async (
+    companyId: string,
+    step: "hr" | "director",
+    title: string,
+    body: string,
+  ) => {
+    for (const userId of await approversFor(db, companyId, step, today)) {
+      await db
+        .prepare(
+          "INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          userId,
+          "approval",
+          title,
+          body,
+          "hr-approvals",
+          now.toISOString(),
+        )
+        .run();
+      await sendTo(
+        db,
+        mail,
+        fromEmail,
+        userId,
+        `Joblink: ${title}`,
+        `${body}\n\nJoblink-də "Təsdiqlər" bölməsinə baxın.`,
+        "approval",
+      );
+    }
+  };
+  const jobs = await db
+    .prepare(
+      "SELECT id,owner,data FROM jobs WHERE status='pending_approval' LIMIT 300",
+    )
+    .all<{ id: string; owner: string; data: string }>()
+    .catch(() => ({
+      results: [] as { id: string; owner: string; data: string }[],
+    }));
+  for (const row of jobs.results) {
+    try {
+      const job = JSON.parse(row.data) as {
+        title?: string;
+        approval?: {
+          requestedAt?: string;
+          remindedAt?: string;
+          reminders?: number;
+          steps?: { role: "hr" | "director"; decision: string; at: string }[];
+        };
+      };
+      const steps = job.approval?.steps || [];
+      const step = steps.find((s) => !s.decision);
+      if (!step) continue;
+      const decided = steps.filter((s) => s.decision && s.at).map((s) => s.at);
+      const since =
+        [
+          job.approval?.requestedAt || "",
+          ...decided,
+          job.approval?.remindedAt || "",
+        ]
+          .sort()
+          .at(-1) || "";
+      if ((job.approval?.reminders || 0) >= 4 || !since || since > due)
+        continue;
+      await db
+        .prepare(
+          "UPDATE jobs SET data=json_set(data,'$.approval.remindedAt',?,'$.approval.reminders',?) WHERE id=? AND status='pending_approval'",
+        )
+        .bind(now.toISOString(), (job.approval?.reminders || 0) + 1, row.id)
+        .run();
+      await remind(
+        row.owner,
+        step.role,
+        "Təsdiq gözləyir",
+        `“${job.title || "Vakansiya"}” vakansiyası ${step.role === "hr" ? "HR" : "direktor"} təsdiqini gözləyir.`,
+      );
+      sent++;
+    } catch {
+      // One failing reminder must not stop the others.
+    }
+  }
+  const requests = await db
+    .prepare(
+      "SELECT id,company_id,kind,subject,reminders FROM approval_requests WHERE status='pending' AND reminders<4 AND ((reminded_at='' AND created<?) OR (reminded_at<>'' AND reminded_at<?)) LIMIT 300",
+    )
+    .bind(due, due)
+    .all<{
+      id: string;
+      company_id: string;
+      kind: string;
+      subject: string;
+      reminders: number;
+    }>()
+    .catch(() => ({
+      results: [] as {
+        id: string;
+        company_id: string;
+        kind: string;
+        subject: string;
+        reminders: number;
+      }[],
+    }));
+  for (const row of requests.results) {
+    try {
+      const claimed = await db
+        .prepare(
+          "UPDATE approval_requests SET reminded_at=?,reminders=reminders+1 WHERE id=? AND status='pending' AND reminders=?",
+        )
+        .bind(now.toISOString(), row.id, row.reminders)
+        .run();
+      if (!claimed.meta.changes) continue;
+      await remind(
+        row.company_id,
+        "director",
+        `Təsdiq gözləyir: ${row.kind === "offer" ? "iş təklifi" : "maaş dəyişikliyi"}`,
+        row.subject,
+      );
+      sent++;
+    } catch {
+      // One failing reminder must not stop the others.
+    }
+  }
+  return sent;
 }

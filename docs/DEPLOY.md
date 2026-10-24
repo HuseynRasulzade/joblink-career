@@ -54,6 +54,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0056_admin_tools` | Gecikmiş faktura xatırlatması (`billing_invoices.reminded_at`), AI qiymətləndirmə “səhvdir” işarəsi (`ai_job_ratings.flagged`), ayarların tarixçəsi (`setting_history`) |
 | `0057_profile_versions` | Profilin əvvəlki vəziyyətləri (`profile_versions`, ən çoxu 10, 10 dəqiqədə bir); geri qaytarmaq mümkündür |
 | `0058_company_gallery` | Şirkət səhifəsinin şəkil qalereyası (`company_images`, ən çoxu 6 şəkil, hər biri 300 KB-a qədər) |
+| `0059_approvals_delegation` | Təklif və maaş təsdiq sorğuları (`approval_requests`), əvəzedicilər (`approval_delegates`), şirkətin təsdiq qaydaları (`company_profiles.approval_rules`) |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 
@@ -93,7 +94,7 @@ Cloudflare → D1 → `joblink-career-db` → Console-da `scripts/seed-demo-acco
 
 ## Gündəlik cron işləri (`0 5 * * *`)
 
-Hesabat xülasələri, müsahibə xatırlatmaları, başlanmamış test xatırlatması, işçi sınaq müddəti xatırlatması, vakansiya xəbərdarlıqları, paket müddəti xatırlatması, gecikmiş faktura xatırlatması, vakansiya baxışlarının təmizlənməsi. E-poçt hissəsi `EMAIL` binding və `EMAIL_FROM` tələb edir; bildirişlər onsuz da sayt daxilində işləyir. Hər istifadəçi e-poçt kateqoriyalarını “Hesab” bölməsindən söndürə bilər.
+Hesabat xülasələri, müsahibə xatırlatmaları, başlanmamış test xatırlatması, işçi sınaq müddəti xatırlatması, vakansiya xəbərdarlıqları, paket müddəti xatırlatması, gecikmiş faktura xatırlatması, vakansiya baxışlarının təmizlənməsi, 2 gündən çox gözləyən təsdiqlərin xatırlatması. E-poçt hissəsi `EMAIL` binding və `EMAIL_FROM` tələb edir; bildirişlər onsuz da sayt daxilində işləyir. Hər istifadəçi e-poçt kateqoriyalarını “Hesab” bölməsindən söndürə bilər.
 
 ## PWA
 

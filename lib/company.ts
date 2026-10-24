@@ -450,3 +450,27 @@ export function profileCompleteness(
     missing: checks.filter(([, ok]) => !ok).map(([label]) => label),
   };
 }
+
+// ---- Approvals beyond vacancies: offers, salary changes, substitutes ----
+export type ApprovalRules = { offers: boolean; salaries: boolean };
+export function normalizeApprovalRules(value: unknown): ApprovalRules {
+  const v = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return { offers: v.offers === true, salaries: v.salaries === true };
+}
+export type ApprovalKind = "offer" | "salary";
+export const APPROVAL_KIND_LABEL: Record<ApprovalKind, string> = { offer: "İş təklifi", salary: "Maaş dəyişikliyi" };
+// A substitute is named for at most this many days.
+export const DELEGATE_MAX_DAYS = 30;
+export const REMINDER_AFTER_DAYS = 2;
+export const REMINDER_LIMIT = 4;
+export function delegateUntil(value: unknown, now = new Date()) {
+  const text = typeof value === "string" ? value.slice(0, 10) : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
+  const today = now.toISOString().slice(0, 10);
+  const last = new Date(now.getTime() + DELEGATE_MAX_DAYS * 86_400_000).toISOString().slice(0, 10);
+  return text >= today && text <= last ? text : "";
+}
+// Whether a request that skipped the director must wait for one.
+export function needsDirector(rules: ApprovalRules, kind: ApprovalKind, canDecideAsDirector: boolean) {
+  return !canDecideAsDirector && (kind === "offer" ? rules.offers : rules.salaries);
+}

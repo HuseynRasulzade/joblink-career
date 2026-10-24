@@ -176,6 +176,41 @@ export const companyImages = sqliteTable(
   },
   (t) => [index("company_images_company").on(t.companyId, t.position)],
 );
+// Offers and salary changes that wait for a director's decision.
+export const approvalRequests = sqliteTable(
+  "approval_requests",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    kind: text("kind").notNull(),
+    subject: text("subject").notNull(),
+    payload: text("payload").notNull(),
+    requestedBy: text("requested_by").notNull(),
+    requestedByName: text("requested_by_name").notNull().default(""),
+    status: text("status").notNull().default("pending"),
+    decidedBy: text("decided_by").notNull().default(""),
+    decidedByName: text("decided_by_name").notNull().default(""),
+    note: text("note").notNull().default(""),
+    created: text("created").notNull(),
+    decided: text("decided").notNull().default(""),
+    remindedAt: text("reminded_at").notNull().default(""),
+    reminders: integer("reminders").notNull().default(0),
+  },
+  (t) => [index("approval_requests_company").on(t.companyId, t.status, t.created)],
+);
+// A substitute who may decide in place of an approver until a date.
+export const approvalDelegates = sqliteTable(
+  "approval_delegates",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    fromUser: text("from_user").notNull(),
+    toUser: text("to_user").notNull(),
+    until: text("until").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [index("approval_delegates_company").on(t.companyId, t.until)],
+);
 export const settingHistory = sqliteTable(
   "setting_history",
   {
@@ -661,6 +696,7 @@ export const companyProfiles = sqliteTable(
     docData: text("doc_data").notNull().default(""),
     logoType: text("logo_type").notNull().default(""),
     logoData: text("logo_data").notNull().default(""),
+    approvalRules: text("approval_rules").notNull().default("{}"),
     verificationStatus: text("verification_status").notNull().default("none"),
     verificationNote: text("verification_note").notNull().default(""),
     submittedAt: text("submitted_at").notNull().default(""),

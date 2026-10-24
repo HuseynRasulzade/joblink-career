@@ -785,6 +785,8 @@ export function ApprovalsPage({
       {!data.jobs.length && (
         <p className="admin-empty">Təsdiq gözləyən vakansiya yoxdur.</p>
       )}
+      <RequestApprovals notify={notify} onChange={onChange} />
+      <DelegationPanel notify={notify} />
       {editing && (
         <Modal
           title={`Yenidən göndər — ${editing.title}`}
@@ -842,6 +844,258 @@ export function ApprovalsPage({
         </Modal>
       )}
     </div>
+  );
+}
+
+// ---------- Offers and salary changes that wait for a director ----------
+type ApprovalRequest = {
+  id: string;
+  kind: string;
+  subject: string;
+  requested_by_name: string;
+  status: string;
+  decided_by_name: string;
+  note: string;
+  created: string;
+  decided: string;
+  canDecide: boolean;
+};
+const REQUEST_STATUS: Record<string, string> = {
+  pending: "Təsdiq gözləyir",
+  approved: "Təsdiqləndi",
+  rejected: "Rədd edildi",
+};
+function RequestApprovals({
+  notify,
+  onChange,
+}: {
+  notify: Notify;
+  onChange: () => void;
+}) {
+  const [data, load] = useLoad<{ requests: ApprovalRequest[] }>(
+    "company/requests",
+    notify,
+  );
+  const [rules, loadRules] = useLoad<{
+    rules: { offers: boolean; salaries: boolean };
+    canEdit: boolean;
+  }>("company/approval-rules", notify);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  async function decide(item: ApprovalRequest, decision: "approve" | "reject") {
+    try {
+      await request("company/requests/decide", {
+        id: item.id,
+        decision,
+        note: notes[item.id] || "",
+      });
+      notify(decision === "approve" ? "Təsdiqləndi." : "Rədd edildi.");
+      load();
+      onChange();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function setRule(key: "offers" | "salaries", value: boolean) {
+    if (!rules) return;
+    try {
+      await request("company/approval-rules", { ...rules.rules, [key]: value });
+      notify("Təsdiq qaydası yadda saxlanıldı.");
+      loadRules();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  return (
+    <section className="panel">
+      <h3>İş təklifləri və maaş dəyişiklikləri</h3>
+      {rules && (
+        <fieldset className="field" disabled={!rules.canEdit}>
+          <legend>Direktor təsdiqi tələb olunan əməliyyatlar</legend>
+          <label>
+            <input
+              type="checkbox"
+              checked={rules.rules.offers}
+              onChange={(e) => setRule("offers", e.target.checked)}
+            />{" "}
+            İş təklifini direktor (və ya hesab sahibi) təsdiqləməlidir
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={rules.rules.salaries}
+              onChange={(e) => setRule("salaries", e.target.checked)}
+            />{" "}
+            İşçinin maaş dəyişikliyini direktor (və ya hesab sahibi)
+            təsdiqləməlidir
+          </label>
+          {!rules.canEdit && (
+            <small className="skill-picker-help">
+              Bu qaydaları yalnız direktor və ya hesab sahibi dəyişə bilər.
+            </small>
+          )}
+        </fieldset>
+      )}
+      {data?.requests.map((item) => (
+        <article key={item.id} className="approval-card">
+          <div className="section-heading">
+            <div>
+              <h4>
+                {item.kind === "offer" ? "İş təklifi" : "Maaş dəyişikliyi"}
+              </h4>
+              <p>{item.subject}</p>
+              <p className="muted">
+                göndərən: {item.requested_by_name || "—"} · {when(item.created)}
+              </p>
+              {item.status !== "pending" && (
+                <p className="muted">
+                  {item.decided_by_name} · {when(item.decided)}
+                  {item.note ? ` — ${item.note}` : ""}
+                </p>
+              )}
+            </div>
+            <span
+              className={`admin-status ${item.status === "approved" ? "active" : item.status === "rejected" ? "archived" : "paused"}`}
+            >
+              {REQUEST_STATUS[item.status] || item.status}
+            </span>
+          </div>
+          {item.canDecide && (
+            <div className="form-actions">
+              <input
+                placeholder="Qeyd (rədd üçün məcburi)"
+                aria-label="Qeyd"
+                value={notes[item.id] || ""}
+                onChange={(e) =>
+                  setNotes({ ...notes, [item.id]: e.target.value })
+                }
+              />
+              <button
+                className="secondary"
+                onClick={() => decide(item, "reject")}
+              >
+                Rədd et
+              </button>
+              <button
+                className="primary"
+                onClick={() => decide(item, "approve")}
+              >
+                Təsdiqlə
+              </button>
+            </div>
+          )}
+        </article>
+      ))}
+      {data && !data.requests.length && (
+        <p className="admin-empty">
+          Təsdiq gözləyən təklif və ya maaş dəyişikliyi yoxdur.
+        </p>
+      )}
+    </section>
+  );
+}
+
+// ---------- Substitutes ----------
+type Delegate = {
+  id: string;
+  from_name: string;
+  to_name: string;
+  until: string;
+  mine: boolean;
+  canRemove: boolean;
+};
+function DelegationPanel({ notify }: { notify: Notify }) {
+  const [data, load] = useLoad<{
+    delegates: Delegate[];
+    members: { id: string; name: string }[];
+    canDelegate: boolean;
+  }>("company/delegates", notify);
+  const [form, setForm] = useState({ userId: "", until: "" });
+  const today = new Date().toISOString().slice(0, 10);
+  const last = new Date(Date.now() + 30 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await request("company/delegates", form);
+      notify("Əvəzedici təyin edildi.");
+      setForm({ userId: "", until: "" });
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (!data) return null;
+  return (
+    <section className="panel">
+      <h3>Əvəzedici</h3>
+      <p className="muted">
+        Məzuniyyətdə və ya ezamiyyətdə olan təsdiqləyən işçi komanda üzvünü
+        müəyyən tarixə qədər (30 günədək) əvəzedici seçə bilər. Əvəzedici onun
+        adından vakansiya, təklif və maaş qərarı verə bilər; qərar “(əvəzedici)”
+        işarəsi ilə qeyd olunur.
+      </p>
+      {data.canDelegate && (
+        <form className="form-grid" onSubmit={save}>
+          <Field label="Əvəzedici">
+            <select
+              required
+              value={form.userId}
+              onChange={(e) => setForm({ ...form, userId: e.target.value })}
+            >
+              <option value="">Üzv seçin</option>
+              {data.members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Tarixədək">
+            <input
+              type="date"
+              required
+              min={today}
+              max={last}
+              value={form.until}
+              onChange={(e) => setForm({ ...form, until: e.target.value })}
+            />
+          </Field>
+          <button className="primary">Təyin et</button>
+        </form>
+      )}
+      <ul className="exam-list">
+        {data.delegates.map((d) => (
+          <li key={d.id} className="exam-row">
+            <div>
+              <strong>{d.to_name || "—"}</strong>
+              <small>
+                {d.from_name || "Hesab sahibi"} adından · {d.until} tarixədək
+              </small>
+            </div>
+            {d.canRemove && (
+              <button
+                className="secondary"
+                onClick={async () => {
+                  try {
+                    await request("company/delegates/delete", { id: d.id });
+                    notify("Əvəzedici geri götürüldü.");
+                    load();
+                  } catch (error) {
+                    notify((error as Error).message);
+                  }
+                }}
+              >
+                Geri götür
+              </button>
+            )}
+          </li>
+        ))}
+        {!data.delegates.length && (
+          <li className="admin-empty">Aktiv əvəzedici yoxdur.</li>
+        )}
+      </ul>
+    </section>
   );
 }
 
@@ -1378,6 +1632,12 @@ const AUDIT_LABELS: Record<string, string> = {
   "member-invited": "üzv dəvət etdi",
   "member-role": "rolu dəyişdi",
   "member-removed": "üzvü çıxardı",
+  "approval-requested": "təsdiq sorğusu göndərdi",
+  "request-approved": "sorğunu təsdiqlədi",
+  "request-rejected": "sorğunu rədd etdi",
+  "approval-rules": "təsdiq qaydasını dəyişdi",
+  "delegate-set": "əvəzedici təyin etdi",
+  "delegate-removed": "əvəzedicini geri götürdü",
   "member-suspended": "üzvü dayandırdı",
   "member-reactivated": "üzvün girişini bərpa etdi",
   "member-invite-resent": "dəvəti yenidən göndərdi",
@@ -1812,8 +2072,12 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const [query, setQuery] = useState("");
   async function save() {
     try {
-      await request("company/employees/save", editing);
-      notify("İşçi məlumatı yadda saxlanıldı.");
+      const saved = await request<{ salaryPending?: boolean }>("company/employees/save", editing);
+      notify(
+        saved.salaryPending
+          ? "Digər dəyişikliklər saxlanıldı. Maaş dəyişikliyi direktorun təsdiqinə göndərildi."
+          : "İşçi məlumatı yadda saxlanıldı.",
+      );
       setEditing(null);
       load();
     } catch (error) {
