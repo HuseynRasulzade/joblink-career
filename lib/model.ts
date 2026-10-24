@@ -1049,19 +1049,36 @@ export function match(p: Profile, j: Job) {
     return { skill, level };
   });
   const jobCertifications = normalizeJobCertifications(j.certifications);
-  const certEvidence = jobCertifications.map((wanted) => ({
-    id: wanted.id,
-    required: wanted.required,
-    minLevel: wanted.minLevel,
-    level: certificationEvidence(certifications, wanted),
-  }));
+  const certEvidence = jobCertifications.map((wanted) => {
+    const own = certifications.find((c) => c.id === wanted.id);
+    const preferred = wanted.preferredModules || [];
+    const passed = new Set(
+      own && own.status !== "expired" ? own.passed || [] : [],
+    );
+    return {
+      id: wanted.id,
+      required: wanted.required,
+      minLevel: wanted.minLevel,
+      level: certificationEvidence(certifications, wanted),
+      // Bonus exams of a required certification: how many the candidate has.
+      preferredTotal: preferred.length,
+      preferredPassed: preferred.filter((code) => passed.has(code)).length,
+    };
+  });
   const requiredCerts = certEvidence.filter((c) => c.required);
   const preferredBonus = Math.min(
     5,
     Math.round(
-      certEvidence
-        .filter((c) => !c.required)
-        .reduce((sum, c) => sum + CERT_WEIGHT[c.level] * 2.5, 0),
+      certEvidence.reduce(
+        (sum, c) =>
+          sum +
+          (c.required
+            ? c.preferredTotal
+              ? (c.preferredPassed / c.preferredTotal) * 2.5
+              : 0
+            : CERT_WEIGHT[c.level] * 2.5),
+        0,
+      ),
     ),
   );
   const weight = (level: SkillEvidence) =>

@@ -283,3 +283,33 @@ test("matching: employer-required exams are met by passed papers even before ful
   assert.equal(member.certEvidence[0].level, "held");
   assert.deepEqual(normalizeJobCertifications([{ id: "acca", modules: ["FR", "ZZ"] }])[0].modules, ["FR"]);
 });
+
+test("job certification: some exams required, others preferred", () => {
+  const [wanted] = normalizeJobCertifications([
+    { id: "acca", required: true, modules: ["BT", "MA"], preferredModules: ["FA", "MA", "XX"] },
+  ]);
+  assert.deepEqual(wanted.modules, ["BT", "MA"]);
+  // MA is already required and XX is not an ACCA exam.
+  assert.deepEqual(wanted.preferredModules, ["FA"]);
+  // A preferred certification keeps no separate bonus list.
+  const [soft] = normalizeJobCertifications([{ id: "acca", required: false, modules: ["BT"], preferredModules: ["FA"] }]);
+  assert.equal(soft.preferredModules, undefined);
+});
+
+test("matching: preferred exams of a required certification add points without being required", () => {
+  const job = vacancy({
+    certifications: [{ id: "acca", required: true, modules: ["BT", "MA"], preferredModules: ["FA", "LW"] }],
+  });
+  const profile = (passed) =>
+    accountant({ certifications: [{ id: "acca", status: "in_progress", level: "Applied Knowledge", passed }] });
+  const base = match(profile(["BT", "MA"]), job);
+  const more = match(profile(["BT", "MA", "FA", "LW"]), job);
+  const missing = match(profile(["BT"]), job);
+  assert.equal(base.certEvidence[0].level, "held");
+  assert.equal(base.certEvidence[0].preferredPassed, 0);
+  assert.equal(more.certEvidence[0].preferredPassed, 2);
+  assert.equal(more.certEvidence[0].preferredTotal, 2);
+  assert.ok(more.score > base.score, `${more.score} > ${base.score}`);
+  // Missing a required exam is still not met, however many bonus exams exist.
+  assert.notEqual(missing.certEvidence[0].level, "held");
+});

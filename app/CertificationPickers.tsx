@@ -38,7 +38,9 @@ function CertificationSearch({
   inputId?: string;
 }) {
   const [query, setQuery] = useState("");
-  const suggestions = query.trim() ? searchCertifications(query, selected, 8) : [];
+  const suggestions = query.trim()
+    ? searchCertifications(query, selected, 8)
+    : [];
   return (
     <div className="skill-picker-control">
       <input
@@ -116,7 +118,10 @@ function LevelInput({
   return (
     <label className="cert-mini-field">
       <span>{t(label)}</span>
-      <select value={value || ""} onChange={(event) => onChange(event.target.value)}>
+      <select
+        value={value || ""}
+        onChange={(event) => onChange(event.target.value)}
+      >
         <option value="">{t("Göstərilməyib")}</option>
         {definition.levels.map((level) => (
           <option key={level} value={level}>
@@ -144,11 +149,16 @@ export function CandidateCertificationEditor({
   const list = value || [];
   // Dismissed certifications stay available here as a manual suggestion.
   const detected = useMemo(
-    () => detectCertifications(detectFrom).filter((item) => !(value || []).some((own) => own.id === item.id)),
+    () =>
+      detectCertifications(detectFrom).filter(
+        (item) => !(value || []).some((own) => own.id === item.id),
+      ),
     [detectFrom, value],
   );
   const update = (id: string, patch: Partial<CandidateCertification>) =>
-    onChange(list.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    onChange(
+      list.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
   // Exams the CV lists per certification, used when the card has none yet.
   const fromCv = useMemo(() => detectCertifications(detectFrom), [detectFrom]);
   const add = (items: CandidateCertification[]) =>
@@ -162,7 +172,11 @@ export function CandidateCertificationEditor({
         })),
       ].slice(0, 40),
     );
-  const setModules = (item: CandidateCertification, passed: string[], preparing: string[]) => {
+  const setModules = (
+    item: CandidateCertification,
+    passed: string[],
+    preparing: string[],
+  ) => {
     const definition = certificationById(item.id);
     if (!definition) return;
     const summary = moduleSummary(definition, passed, preparing);
@@ -197,7 +211,11 @@ export function CandidateCertificationEditor({
               </button>
             ))}
             {detected.length > 1 && (
-              <button type="button" className="cert-add-all" onClick={() => add(detected)}>
+              <button
+                type="button"
+                className="cert-add-all"
+                onClick={() => add(detected)}
+              >
                 {t("Hamısını əlavə et")}
               </button>
             )}
@@ -236,9 +254,15 @@ export function CandidateCertificationEditor({
                     <span>{t("Status")}</span>
                     <select
                       value={item.status}
-                      onChange={(event) => update(item.id, { status: event.target.value as CertificationStatus })}
+                      onChange={(event) =>
+                        update(item.id, {
+                          status: event.target.value as CertificationStatus,
+                        })
+                      }
                     >
-                      {(Object.keys(STATUS_LABELS) as CertificationStatus[]).map((status) => (
+                      {(
+                        Object.keys(STATUS_LABELS) as CertificationStatus[]
+                      ).map((status) => (
                         <option key={status} value={status}>
                           {t(STATUS_LABELS[status])}
                         </option>
@@ -254,13 +278,20 @@ export function CandidateCertificationEditor({
                       // Choosing a level brings in the exams the CV lists.
                       if (!item.passed?.length && cv?.passed?.length)
                         update(item.id, {
-                          level: normalizeCertificationLevel(definition, level) || level,
+                          level:
+                            normalizeCertificationLevel(definition, level) ||
+                            level,
                           passed: cv.passed,
                           preparing: cv.preparing,
                           detail: cv.detail,
                           status: cv.status,
                         });
-                      else update(item.id, { level: normalizeCertificationLevel(definition, level) || level });
+                      else
+                        update(item.id, {
+                          level:
+                            normalizeCertificationLevel(definition, level) ||
+                            level,
+                        });
                     }}
                   />
                   <label className="cert-mini-field">
@@ -270,14 +301,22 @@ export function CandidateCertificationEditor({
                       maxLength={4}
                       value={item.year || ""}
                       placeholder="2024"
-                      onChange={(event) => update(item.id, { year: event.target.value.replace(/\D/g, "").slice(0, 4) })}
+                      onChange={(event) =>
+                        update(item.id, {
+                          year: event.target.value
+                            .replace(/\D/g, "")
+                            .slice(0, 4),
+                        })
+                      }
                     />
                   </label>
                   {definition.modules && (
                     <ModulePicker
                       definition={definition}
                       item={item}
-                      onChange={(passed, preparing) => setModules(item, passed, preparing)}
+                      onChange={(passed, preparing) =>
+                        setModules(item, passed, preparing)
+                      }
                     />
                   )}
                   <label className="cert-mini-field wide">
@@ -286,7 +325,9 @@ export function CandidateCertificationEditor({
                       type="url"
                       value={item.credentialUrl || ""}
                       placeholder="https://"
-                      onChange={(event) => update(item.id, { credentialUrl: event.target.value })}
+                      onChange={(event) =>
+                        update(item.id, { credentialUrl: event.target.value })
+                      }
                     />
                   </label>
                 </div>
@@ -296,7 +337,9 @@ export function CandidateCertificationEditor({
         </div>
       )}
       <small className="skill-picker-help">
-        {t("Sertifikatlar uyğunluq balına təsir edir: alınmış sertifikat əlaqəli bacarıqları təsdiqləyir, davam edən isə qismən sayılır.")}
+        {t(
+          "Sertifikatlar uyğunluq balına təsir edir: alınmış sertifikat əlaqəli bacarıqları təsdiqləyir, davam edən isə qismən sayılır.",
+        )}
       </small>
     </div>
   );
@@ -316,17 +359,28 @@ function ModulePicker({
   const modules = definition.modules || [];
   const moduleLevels = [...new Set(modules.map((mod) => mod.level))];
   const selectedRank = certificationLevelRank(definition, item.level);
-  const lastModuleRank = Math.max(...moduleLevels.map((level) => certificationLevelRank(definition, level)));
+  const lastModuleRank = Math.max(
+    ...moduleLevels.map((level) => certificationLevelRank(definition, level)),
+  );
   const visible = moduleLevels.filter(
-    (level) => selectedRank < 0 || selectedRank > lastModuleRank || certificationLevelRank(definition, level) <= selectedRank,
+    (level) =>
+      selectedRank < 0 ||
+      selectedRank > lastModuleRank ||
+      certificationLevelRank(definition, level) <= selectedRank,
   );
   const passed = item.passed || [];
   const preparing = item.preparing || [];
   const cycle = (code: string) => {
     if (passed.includes(code))
-      onChange(passed.filter((c) => c !== code), [...preparing, code]);
+      onChange(
+        passed.filter((c) => c !== code),
+        [...preparing, code],
+      );
     else if (preparing.includes(code))
-      onChange(passed, preparing.filter((c) => c !== code));
+      onChange(
+        passed,
+        preparing.filter((c) => c !== code),
+      );
     else onChange([...passed, code], preparing);
   };
   return (
@@ -342,7 +396,11 @@ function ModulePicker({
             {modules
               .filter((mod) => mod.level === level)
               .map((mod) => {
-                const state = passed.includes(mod.code) ? "passed" : preparing.includes(mod.code) ? "preparing" : "none";
+                const state = passed.includes(mod.code)
+                  ? "passed"
+                  : preparing.includes(mod.code)
+                    ? "preparing"
+                    : "none";
                 return (
                   <button
                     type="button"
@@ -352,8 +410,14 @@ function ModulePicker({
                     title={mod.name}
                     onClick={() => cycle(mod.code)}
                   >
-                    {state === "passed" ? "✓ " : state === "preparing" ? "◷ " : ""}
-                    {mod.code === mod.name ? mod.code : `${mod.name} (${mod.code})`}
+                    {state === "passed"
+                      ? "✓ "
+                      : state === "preparing"
+                        ? "◷ "
+                        : ""}
+                    {mod.code === mod.name
+                      ? mod.code
+                      : `${mod.name} (${mod.code})`}
                   </button>
                 );
               })}
@@ -373,14 +437,20 @@ export function JobCertificationPicker({
 }) {
   const list = value || [];
   const update = (id: string, patch: Partial<JobCertification>) =>
-    onChange(list.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    onChange(
+      list.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
   return (
     <div className="field cert-editor">
       <span>{t("Sertifikat tələbləri")}</span>
       <CertificationSearch
         selected={list.map((item) => item.id)}
         placeholder="Tələb olunan və ya üstünlük verilən sertifikat axtarın"
-        onPick={(definition) => onChange([...list, { id: definition.id, required: false }].slice(0, 12))}
+        onPick={(definition) =>
+          onChange(
+            [...list, { id: definition.id, required: false }].slice(0, 12),
+          )
+        }
       />
       {list.length > 0 && (
         <div className="cert-cards">
@@ -400,13 +470,19 @@ export function JobCertificationPicker({
                   <button
                     type="button"
                     aria-label={`${definition.name} ${t("sil")}`}
-                    onClick={() => onChange(list.filter((own) => own.id !== item.id))}
+                    onClick={() =>
+                      onChange(list.filter((own) => own.id !== item.id))
+                    }
                   >
                     <X size={15} />
                   </button>
                 </div>
                 <div className="cert-card-fields">
-                  <div className="cert-toggle" role="radiogroup" aria-label={t("Tələb növü")}>
+                  <div
+                    className="cert-toggle"
+                    role="radiogroup"
+                    aria-label={t("Tələb növü")}
+                  >
                     <button
                       type="button"
                       role="radio"
@@ -421,7 +497,18 @@ export function JobCertificationPicker({
                       role="radio"
                       aria-checked={!item.required}
                       className={!item.required ? "selected" : ""}
-                      onClick={() => update(item.id, { required: false })}
+                      onClick={() =>
+                        update(item.id, {
+                          required: false,
+                          modules: [
+                            ...new Set([
+                              ...(item.modules || []),
+                              ...(item.preferredModules || []),
+                            ]),
+                          ],
+                          preferredModules: undefined,
+                        })
+                      }
                     >
                       {t("Üstünlükdür")}
                     </button>
@@ -430,39 +517,101 @@ export function JobCertificationPicker({
                     definition={definition}
                     label={definition.scale ? "Minimum bal" : "Minimum səviyyə"}
                     value={item.minLevel}
-                    onChange={(minLevel) => update(item.id, { minLevel: normalizeCertificationLevel(definition, minLevel) || undefined })}
+                    onChange={(minLevel) =>
+                      update(item.id, {
+                        minLevel:
+                          normalizeCertificationLevel(definition, minLevel) ||
+                          undefined,
+                      })
+                    }
                   />
                   {definition.modules && (
                     <div className="cert-modules">
                       <span>
                         {t("Tələb olunan imtahanlar")}
-                        <small>{t("İstəyə bağlı: namizəd bu imtahanları veribsə tələb ödənmiş sayılır")}</small>
+                        <small>
+                          {item.required
+                            ? t(
+                                "Hər imtahana basın: məcburi → üstünlük → seçilməyib",
+                              )
+                            : t(
+                                "İstəyə bağlı: namizəd bu imtahanları veribsə tələb ödənmiş sayılır",
+                              )}
+                        </small>
                       </span>
-                      {[...new Set(definition.modules.map((mod) => mod.level))].map((level) => (
+                      {[
+                        ...new Set(definition.modules.map((mod) => mod.level)),
+                      ].map((level) => (
                         <div className="cert-module-group" key={level}>
                           <b>{level}</b>
                           <div>
-                            {definition.modules!
-                              .filter((mod) => mod.level === level)
+                            {definition
+                              .modules!.filter((mod) => mod.level === level)
                               .map((mod) => {
-                                const on = (item.modules || []).includes(mod.code);
+                                const isMain = (item.modules || []).includes(
+                                  mod.code,
+                                );
+                                const isBonus = (
+                                  item.preferredModules || []
+                                ).includes(mod.code);
+                                const rest = (list: string[] | undefined) =>
+                                  (list || []).filter(
+                                    (code) => code !== mod.code,
+                                  );
+                                // Required certification: none -> required -> preferred -> none.
+                                // Preferred certification: every chosen exam is preferred.
+                                const cycle = () => {
+                                  if (!item.required)
+                                    return update(item.id, {
+                                      modules: isMain
+                                        ? rest(item.modules)
+                                        : [...(item.modules || []), mod.code],
+                                    });
+                                  if (!isMain && !isBonus)
+                                    return update(item.id, {
+                                      modules: [
+                                        ...(item.modules || []),
+                                        mod.code,
+                                      ],
+                                    });
+                                  if (isMain)
+                                    return update(item.id, {
+                                      modules: rest(item.modules),
+                                      preferredModules: [
+                                        ...(item.preferredModules || []),
+                                        mod.code,
+                                      ],
+                                    });
+                                  update(item.id, {
+                                    preferredModules: rest(
+                                      item.preferredModules,
+                                    ),
+                                  });
+                                };
+                                const state = isBonus
+                                  ? "bonus"
+                                  : isMain
+                                    ? item.required
+                                      ? "required"
+                                      : "passed"
+                                    : "none";
                                 return (
                                   <button
                                     type="button"
                                     key={mod.code}
-                                    className={`cert-module ${on ? "passed" : "none"}`}
-                                    aria-pressed={on}
-                                    title={mod.name}
-                                    onClick={() =>
-                                      update(item.id, {
-                                        modules: on
-                                          ? (item.modules || []).filter((code) => code !== mod.code)
-                                          : [...(item.modules || []), mod.code],
-                                      })
-                                    }
+                                    className={`cert-module ${state === "none" ? "none" : state === "bonus" ? "preparing" : "passed"}`}
+                                    aria-pressed={state !== "none"}
+                                    title={`${mod.name}${state === "required" ? ` — ${t("Məcburi")}` : state === "bonus" ? ` — ${t("Üstünlükdür")}` : ""}`}
+                                    onClick={cycle}
                                   >
-                                    {on ? "✓ " : ""}
-                                    {mod.code === mod.name ? mod.code : `${mod.name} (${mod.code})`}
+                                    {state === "bonus"
+                                      ? "★ "
+                                      : state === "none"
+                                        ? ""
+                                        : "✓ "}
+                                    {mod.code === mod.name
+                                      ? mod.code
+                                      : `${mod.name} (${mod.code})`}
                                   </button>
                                 );
                               })}
@@ -478,7 +627,9 @@ export function JobCertificationPicker({
         </div>
       )}
       <small className="skill-picker-help">
-        {t("Məcburi sertifikatı olmayan namizədin balı 70-dən yuxarı olmur; üstünlük verilən sertifikat əlavə bal verir.")}
+        {t(
+          "Məcburi sertifikatı olmayan namizədin balı 70-dən yuxarı olmur; üstünlük verilən sertifikat əlavə bal verir.",
+        )}
       </small>
     </div>
   );
@@ -505,11 +656,23 @@ export function CertificationBadges({
   return (
     <div className="cert-badges">
       {list.slice(0, limit).map((item) => (
-        <span key={item.id} className={`cert-badge ${item.status}`} title={[t(STATUS_LABELS[item.status]), item.detail].filter(Boolean).join(" · ")}>
-          {item.status === "active" && item.credentialUrl ? <BadgeCheck size={13} /> : <Award size={13} />}
+        <span
+          key={item.id}
+          className={`cert-badge ${item.status}`}
+          title={[t(STATUS_LABELS[item.status]), item.detail]
+            .filter(Boolean)
+            .join(" · ")}
+        >
+          {item.status === "active" && item.credentialUrl ? (
+            <BadgeCheck size={13} />
+          ) : (
+            <Award size={13} />
+          )}
           {certificationById(item.id)?.name}
           {item.level ? ` · ${item.level}` : ""}
-          {item.status !== "active" ? ` (${t(STATUS_LABELS[item.status])})` : ""}
+          {item.status !== "active"
+            ? ` (${t(STATUS_LABELS[item.status])})`
+            : ""}
         </span>
       ))}
       {list.length > limit && <small>+{list.length - limit}</small>}
@@ -522,7 +685,12 @@ export function JobCertificationList({
   evidence,
 }: {
   items: JobCertification[] | undefined;
-  evidence?: { id: string; level: string }[];
+  evidence?: {
+    id: string;
+    level: string;
+    preferredPassed?: number;
+    preferredTotal?: number;
+  }[];
 }) {
   const list = (items || []).filter((item) => certificationById(item.id));
   if (!list.length) return null;
@@ -530,7 +698,8 @@ export function JobCertificationList({
     <ul className="job-cert-list">
       {list.map((item) => {
         const definition = certificationById(item.id)!;
-        const state = evidence?.find((entry) => entry.id === item.id)?.level;
+        const entry = evidence?.find((own) => own.id === item.id);
+        const state = entry?.level;
         return (
           <li key={item.id} className={state ? `evidence-${state}` : ""}>
             <Award size={15} />
@@ -539,7 +708,16 @@ export function JobCertificationList({
               {item.minLevel ? ` · ${item.minLevel}+` : ""}
               <small>
                 {t(item.required ? "Məcburi" : "Üstünlükdür")}
-                {item.modules?.length ? ` · ${t("imtahanlar")}: ${item.modules.join(", ")}` : ""}
+                {item.modules?.length
+                  ? ` · ${item.required && item.preferredModules?.length ? t("Məcburi imtahanlar") : t("imtahanlar")}: ${item.modules.join(", ")}`
+                  : ""}
+                {item.preferredModules?.length
+                  ? ` · ${t("Üstünlük verilən imtahanlar")}: ${item.preferredModules.join(", ")}${
+                      entry?.preferredTotal
+                        ? ` (${entry.preferredPassed ?? 0}/${entry.preferredTotal})`
+                        : ""
+                    }`
+                  : ""}
               </small>
             </span>
             {state && <b>{t(EVIDENCE_LABELS[state] || state)}</b>}

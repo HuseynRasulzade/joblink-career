@@ -4191,7 +4191,11 @@ export type JobCertification = {
   id: string;
   required: boolean;
   minLevel?: string;
+  // Exams the candidate must have passed (or "preferred" ones when the
+  // certification itself is only preferred).
   modules?: string[];
+  // Exams that only add points while the certification itself is required.
+  preferredModules?: string[];
 };
 
 const PROGRESS =
@@ -4552,11 +4556,27 @@ export function normalizeJobCertifications(
           ),
         ]
       : [];
+    const required = item.required === true;
+    // A required exam is never also listed as a preferred one.
+    const preferredModules =
+      required && Array.isArray(item.preferredModules)
+        ? [
+            ...new Set(
+              item.preferredModules.filter(
+                (code): code is string =>
+                  typeof code === "string" &&
+                  codes.has(code) &&
+                  !modules.includes(code),
+              ),
+            ),
+          ]
+        : [];
     result.push({
       id: definition.id,
-      required: item.required === true,
+      required,
       ...(minLevel ? { minLevel } : {}),
       ...(modules.length ? { modules } : {}),
+      ...(preferredModules.length ? { preferredModules } : {}),
     });
   }
   return result;
