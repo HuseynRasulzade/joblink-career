@@ -345,6 +345,7 @@ export async function authRoute(request: Request, path: string) {
     if (account.role === "admin")
       throw new HttpError(403, "Administrator hesabı bu yolla silinə bilməz.");
     await db.batch([
+      db.prepare("INSERT INTO privacy_requests(id,kind,role,created) VALUES(?,'delete',?,?)").bind(crypto.randomUUID(), account.role, new Date().toISOString()),
       db.prepare("DELETE FROM application_events WHERE application_id IN (SELECT id FROM applications WHERE candidate_id=? OR job_id IN (SELECT id FROM jobs WHERE owner=?))").bind(userId, userId),
       db.prepare("DELETE FROM offers WHERE candidate_id=? OR company_id=?").bind(userId, userId),
       db.prepare("DELETE FROM assessment_assignments WHERE candidate_id=? OR company_id=?").bind(userId, userId),

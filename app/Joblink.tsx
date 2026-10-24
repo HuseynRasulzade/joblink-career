@@ -67,7 +67,7 @@ import AccountLogin from "./AccountLogin";
 import AdminPanel from "./AdminPanel";
 import AccountSettings from "./AccountSettings";
 import { JobAlerts } from "./JobAlerts";
-import { AdminAiUsage, AdminReviews } from "./CompanyReviews";
+import { AdminAiUsage, AdminOps, AdminReviews } from "./CompanyReviews";
 import { similarJobs } from "@/lib/similar-jobs";
 import CvRewrite from "./CvRewrite";
 import CareerAssistant from "./CareerAssistant";
@@ -144,6 +144,7 @@ const adminNav = [
   { id: "admin-support", label: "Sorğular və mesajlar", icon: Inbox },
   { id: "admin-reviews", label: "Şirkət rəyləri", icon: UserCheck },
   { id: "admin-ai-usage", label: "AI istifadə və xərc", icon: Sparkles },
+  { id: "admin-ops", label: "Xəta jurnalı və məxfilik", icon: ShieldCheck },
   { id: "admin-relations", label: "İzləmə və bloklar", icon: UserCheck },
   { id: "admin-companies", label: "Şirkət yoxlaması", icon: BadgeCheck },
   { id: "admin-verifications", label: "Sənəd yoxlaması", icon: ShieldCheck },
@@ -2105,6 +2106,11 @@ export default function Joblink() {
                 }
               }}
             />
+          ) : admin && page === "admin-ops" ? (
+            <>
+              <section className="page-heading"><div className="heading-row"><div><h1>Xəta jurnalı və məxfilik</h1><p>Xətalar, şəxsi məlumat sorğuları, audit ixracı, ehtiyat nüsxə</p></div></div></section>
+              <AdminOps notify={notify} />
+            </>
           ) : admin && page === "admin-ai-usage" ? (
             <>
               <section className="page-heading"><div className="heading-row"><div><h1>AI istifadə və xərc</h1><p>Sorğu sayı, token və təxmini xərc</p></div></div></section>

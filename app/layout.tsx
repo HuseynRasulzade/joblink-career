@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./joblink.css";
 import "./features.css";
 import RegisterServiceWorker from "./RegisterServiceWorker";
+import ClientErrorReporter from "./ClientErrorReporter";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,6 +42,7 @@ export default function RootLayout({
       >
         {children}
         <RegisterServiceWorker />
+        <ClientErrorReporter />
       </body>
     </html>
   );

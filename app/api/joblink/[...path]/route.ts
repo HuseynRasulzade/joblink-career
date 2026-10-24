@@ -61,6 +61,7 @@ import { findDuplicates } from "@/lib/duplicates";
 import { normalizeVat, vatParts } from "@/lib/vat";
 import { sanitizeReview, summarizeRatings } from "@/lib/reviews";
 import { summarizeAiUsage } from "@/lib/ai-cost";
+import { cleanErrorMessage, cleanWhere, errorFingerprint } from "@/lib/error-log";
 import { AUTO_EMAIL_TYPES, EMAIL_CATEGORIES, emailAllowedFor, sanitizeEmailOff } from "@/lib/notification-prefs";
 import { alertIsEmpty, describeAlert, jobMatchesAlert, sanitizeAlertFilters, type AlertJob } from "@/lib/job-alerts";
 import {
@@ -1094,6 +1095,12 @@ async function route(request: Request) {
       }),
     });
   }
+  // Browser errors reported by the page itself (anonymous allowed, trimmed and capped).
+  if (request.method === "POST" && path === "client-error") {
+    const b = await jsonBody(request);
+    await logError("client", b.message, b.where);
+    return ok({ ok: true });
+  }
   // Approved reviews of a company are public; the reviewer is never named.
   if (request.method === "GET" && path === "companies/reviews") {
     const companyId = str(requestUrl.searchParams.get("companyId"), 100);
@@ -1901,6 +1908,7 @@ async function route(request: Request) {
       support: await rows("SELECT t.subject,t.topic,t.status,t.created FROM support_threads t WHERE t.user_id=?", id),
       aiConversations: await rows("SELECT id,title,context_type,created FROM ai_conversations WHERE user_id=?", id),
     };
+    await db.prepare("INSERT INTO privacy_requests(id,kind,role,created) VALUES(?,'export',?,?)").bind(crypto.randomUUID(), accountRole, new Date().toISOString()).run().catch(() => {});
     return new Response(JSON.stringify(exportData, null, 2), {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
@@ -2104,6 +2112,25 @@ async function route(request: Request) {
     return ok({ ok: true, status: nextStatus });
   }
   if (accountRole === "admin") {
+    if (request.method === "GET" && path === "admin/ops") {
+      const since = new Date(Date.now() - 7 * 86400000).toISOString();
+      const errors = await db.prepare("SELECT source,message,where_at,COUNT(*) AS count,MAX(created) AS last FROM error_log WHERE created>=? GROUP BY fingerprint ORDER BY count DESC,last DESC LIMIT 50").bind(since).all().catch(() => ({ results: [] }));
+      const privacy = await db.prepare("SELECT kind,role,created FROM privacy_requests ORDER BY created DESC LIMIT 200").all().catch(() => ({ results: [] }));
+      const totals = await db.prepare("SELECT kind,COUNT(*) AS n FROM privacy_requests GROUP BY kind").all<{ kind: string; n: number }>().catch(() => ({ results: [] as { kind: string; n: number }[] }));
+      return ok({ errors: errors.results, privacy: privacy.results, privacyTotals: Object.fromEntries(totals.results.map((r) => [r.kind, r.n])) });
+    }
+    if (request.method === "GET" && path === "admin/audit-export") {
+      const rows = await db.prepare(`SELECT l.created,COALESCE(a.name,'Administrator') AS admin_name,l.action,l.entity_type,l.entity_id,l.details
+        FROM admin_audit_logs l LEFT JOIN accounts a ON a.id=l.admin_id ORDER BY l.created DESC LIMIT 5000`).all<{ created: string; admin_name: string; action: string; entity_type: string; entity_id: string; details: string }>();
+      const workbook = createXlsx(["Tarix", "Administrator", "Əməliyyat", "Obyekt", "Obyekt ID", "Təfərrüat"], rows.results.map((r) => [r.created, r.admin_name, r.action, r.entity_type, r.entity_id, r.details]), "Audit");
+      return new Response(Uint8Array.from(workbook).buffer, {
+        headers: {
+          "Cache-Control": "private, no-store",
+          "Content-Disposition": `attachment; filename="joblink-audit-${new Date().toISOString().slice(0, 10)}.xlsx"`,
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
+      });
+    }
     if (request.method === "GET" && path === "admin/ai-usage") {
       const days = Math.max(1, Math.min(90, Math.round(Number(requestUrl.searchParams.get("days"))) || 30));
       const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
@@ -6843,6 +6870,24 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
   }
   throw new HttpError(404, "Səhifə tapılmadı.");
 }
+// Unexpected failures and browser errors go to one table the admin can read (no personal data is kept).
+async function logError(source: "server" | "client", message: unknown, where: unknown) {
+  try {
+    const db = runtime().DB;
+    const text = cleanErrorMessage(message);
+    if (!db || !text) return;
+    const place = cleanWhere(where);
+    const day = new Date().toISOString().slice(0, 10);
+    // At most 300 rows a day, so a broken page cannot fill the database.
+    const today = await db.prepare("SELECT COUNT(*) AS n FROM error_log WHERE created>=?").bind(day).first<{ n: number }>();
+    if (Number(today?.n) >= 300) return;
+    await db.prepare("INSERT INTO error_log(id,created,source,message,where_at,fingerprint) VALUES(?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(), new Date().toISOString(), source, text, place, await errorFingerprint(source, text, place)).run();
+    await db.prepare("DELETE FROM error_log WHERE created<?").bind(new Date(Date.now() - 30 * 86400000).toISOString()).run();
+  } catch {
+    // Logging must never break a request.
+  }
+}
 async function handle(request: Request) {
   try {
     return await route(request);
@@ -6852,6 +6897,7 @@ async function handle(request: Request) {
       "Joblink API failure",
       e instanceof Error ? e.message : "Unknown",
     );
+    await logError("server", e instanceof Error ? e.message : "Unknown", new URL(request.url).pathname);
     return ok(
       { error: "Sorğu tamamlanmadı. Bir az sonra yenidən cəhd edin." },
       500,

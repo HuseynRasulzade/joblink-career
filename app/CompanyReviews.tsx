@@ -151,3 +151,41 @@ export function AdminAiUsage({ notify }: { notify: (m: string) => void }) {
     </div>
   );
 }
+
+type Ops = { errors: { source: string; message: string; where_at: string; count: number; last: string }[]; privacy: { kind: string; role: string; created: string }[]; privacyTotals: Record<string, number> };
+// Error log (last 7 days, grouped), data export/deletion requests and the full audit export.
+export function AdminOps({ notify }: { notify: (m: string) => void }) {
+  const [data, setData] = useState<Ops | null>(null);
+  useEffect(() => { request<Ops>("admin/ops").then(setData).catch((e) => notify((e as Error).message)); }, [notify]);
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  const roleLabel = (r: string) => (r === "company" ? "şirkət" : r === "admin" ? "admin" : "namizəd");
+  return (
+    <div className="company-page">
+      <div className="kpi-grid">
+        <div className="kpi"><small>Məlumat ixracı sorğuları</small><strong>{data.privacyTotals.export || 0}</strong></div>
+        <div className="kpi"><small>Hesab silmə sorğuları</small><strong>{data.privacyTotals.delete || 0}</strong></div>
+        <div className="kpi"><small>Xəta növləri (7 gün)</small><strong>{data.errors.length}</strong></div>
+      </div>
+      <div className="admin-actions"><a className="secondary" href="/api/joblink/admin/audit-export">Audit jurnalını Excel-ə yüklə</a></div>
+      <h3>Xəta jurnalı (son 7 gün)</h3>
+      <div className="admin-table-wrap"><table className="admin-table">
+        <thead><tr><th>Mənbə</th><th>Mesaj</th><th>Yer</th><th>Say</th><th>Sonuncu</th></tr></thead>
+        <tbody>
+          {data.errors.map((e, i) => <tr key={i}><td>{e.source === "server" ? "Server" : "Brauzer"}</td><td>{e.message}</td><td>{e.where_at}</td><td>{e.count}</td><td>{formatDate(e.last, siteLanguage(), { time: true })}</td></tr>)}
+          {!data.errors.length && <tr><td colSpan={5}><p className="admin-empty">Xəta qeydə alınmayıb.</p></td></tr>}
+        </tbody>
+      </table></div>
+      <h3>Şəxsi məlumat sorğuları</h3>
+      <p className="muted fine-print">Hər istifadəçi məlumatını “Hesab” bölməsindən özü yükləyir və ya hesabını silir; burada yalnız sorğunun növü, rolu və tarixi qalır (şəxs yox).</p>
+      <div className="admin-table-wrap"><table className="admin-table">
+        <thead><tr><th>Tarix</th><th>Növ</th><th>Rol</th></tr></thead>
+        <tbody>
+          {data.privacy.map((p, i) => <tr key={i}><td>{formatDate(p.created, siteLanguage(), { time: true })}</td><td>{p.kind === "export" ? "Məlumat ixracı" : "Hesabın silinməsi"}</td><td>{roleLabel(p.role)}</td></tr>)}
+          {!data.privacy.length && <tr><td colSpan={3}><p className="admin-empty">Hələ sorğu yoxdur.</p></td></tr>}
+        </tbody>
+      </table></div>
+      <h3>Ehtiyat nüsxə</h3>
+      <p className="muted fine-print">Verilənlər bazası Cloudflare D1-dədir. D1 “Time Travel” ilə son 30 günün istənilən anına bərpa mümkündür (Cloudflare panelində: Workers &amp; Pages → D1 → joblink-career-db → Time Travel). Bu saytdan avtomatik nüsxə çıxarılmır.</p>
+    </div>
+  );
+}

@@ -151,6 +151,25 @@ export const sessions = sqliteTable(
   },
   (t) => [index("sessions_expiry").on(t.expires)],
 );
+export const errorLog = sqliteTable(
+  "error_log",
+  {
+    id: text("id").primaryKey(),
+    created: text("created").notNull(),
+    source: text("source").notNull(),
+    message: text("message").notNull(),
+    whereAt: text("where_at").notNull().default(""),
+    fingerprint: text("fingerprint").notNull(),
+  },
+  (t) => [index("error_log_created").on(t.created), index("error_log_fingerprint").on(t.fingerprint, t.created)],
+);
+// Who asked for an export or deletion of their data: kind, role and date only, never the person.
+export const privacyRequests = sqliteTable("privacy_requests", {
+  id: text("id").primaryKey(),
+  kind: text("kind").notNull(),
+  role: text("role").notNull(),
+  created: text("created").notNull(),
+});
 export const aiUsage = sqliteTable(
   "ai_usage",
   {
