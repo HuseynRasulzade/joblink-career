@@ -7,7 +7,7 @@ export function parseSkillCsv(input: string, limit = 300): { rows: SkillImportRo
   const rows: SkillImportRow[] = [];
   const issues: SkillImportIssue[] = [];
   const seen = new Set<string>();
-  input.replace(/^﻿/, "").split(/\r?\n/).forEach((raw, index) => {
+  input.replace(/^\uFEFF/, "").split(/\r?\n/).forEach((raw, index) => {
     if (!raw.trim() || rows.length >= limit) return;
     const cells = raw.split(";");
     if (index === 0 && /^(ad|az|label|skill|bacar)/i.test(cells[0].trim()) && /^(name|en|label)/i.test((cells[1] || "").trim())) return;

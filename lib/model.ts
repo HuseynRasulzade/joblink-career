@@ -89,6 +89,8 @@ export type Profile = {
   salary: number;
   // Upper end of the acceptable range; 0 means no ceiling.
   salaryMax?: number;
+  // Whether the wished pay is gross (before tax) or net (in hand); empty when not said.
+  salaryKind?: "net" | "gross" | "";
   mode: string;
   experiences: Experience[];
   education: Education[];
@@ -121,6 +123,8 @@ export type Job = {
   category: string;
   minSalary: number;
   maxSalary: number;
+  // Whether the stated pay is gross or net; empty when the employer did not say.
+  salaryKind?: "net" | "gross" | "";
   minYears: number;
   maxYears: number;
   skills: string[];

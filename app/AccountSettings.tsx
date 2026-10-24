@@ -167,8 +167,8 @@ function SecurityPanel({ api, notify }: { api: (path: string, body?: unknown) =>
       /* the panel stays empty */
     }
   }, [api]);
-  useEffect(() => { void load(); // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { void load(); }, []);
   const run = async (action: () => Promise<void>) => {
     try { await action(); } catch (err) { notify((err as Error).message); }
   };

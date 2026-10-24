@@ -1,5 +1,5 @@
 import { runtime, store, HttpError, jsonBody, str } from "./server";
-import { base32Decode, generateSecret, otpauthUri, verifyTotp } from "./totp";
+import { generateSecret, otpauthUri, verifyTotp } from "./totp";
 
 type PasswordAccount = {
   user_id: string;
@@ -354,6 +354,7 @@ export async function authRoute(request: Request, path: string) {
       db.prepare("DELETE FROM job_views WHERE job_id IN (SELECT id FROM jobs WHERE owner=?)").bind(userId),
       db.prepare("DELETE FROM verifications WHERE user_id=?").bind(userId),
       db.prepare("DELETE FROM job_alerts WHERE user_id=?").bind(userId),
+      db.prepare("DELETE FROM profile_versions WHERE user_id=?").bind(userId),
       db.prepare("DELETE FROM company_reviews WHERE user_id=? OR company_id=?").bind(userId, userId),
       db.prepare("DELETE FROM passkeys WHERE user_id=?").bind(userId),
       db.prepare("DELETE FROM auth_challenges WHERE user_id=?").bind(userId),

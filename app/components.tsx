@@ -1286,6 +1286,11 @@ export function ProfileEditor({
                       value={p.salaryMax || 0}
                       onChange={(e) => set("salaryMax", Number(e.target.value))}
                     />
+                    <select aria-label="Maaş növü" value={p.salaryKind || ""} onChange={(e) => set("salaryKind", e.target.value as "net" | "gross" | "")}>
+                      <option value="">Gross/net göstərilməyib</option>
+                      <option value="net">Net (əlimə)</option>
+                      <option value="gross">Gross (vergilər daxil)</option>
+                    </select>
                     <small>
                       İş təklifləri və avtomatik müraciət bu maaş aralığına
                       uyğun vakansiyalarla məhdudlaşır. 0 — yuxarı hədd yoxdur.
@@ -1943,6 +1948,14 @@ export function JobForm({
             value={job.maxSalary}
             onChange={(e) => set("maxSalary", Number(e.target.value))}
           />
+        </Field>
+        <Field label="Maaş növü">
+          <select value={job.salaryKind || ""} onChange={(e) => set("salaryKind", e.target.value as "net" | "gross" | "")}>
+            <option value="">Göstərilməyib</option>
+            <option value="net">Net (əlinə)</option>
+            <option value="gross">Gross (vergilər daxil)</option>
+          </select>
+          <small>Namizədlərə təxmini net/gross qarşılığı və gözləntiylə müqayisə göstərilir.</small>
         </Field>
         <Field label="Minimum təcrübə (il)">
           <input

@@ -43,7 +43,7 @@ test("the calendar file has UTC times, the right length and escaped text", () =>
   assert.match(ics, /DTSTART:20261102T103000Z/);
   assert.match(ics, /DTEND:20261102T113000Z/);
   assert.match(ics, /SUMMARY:Müsahibə\\, FBCO/);
-  assert.match(ics, /LOCATION:Nizami 10\; 3-cü mərtəbə/);
+  assert.match(ics, /LOCATION:Nizami 10\\; 3-cü mərtəbə/);
   assert.match(ics, /DESCRIPTION:Sətir 1\\nSətir 2/);
   assert.ok(ics.startsWith("BEGIN:VCALENDAR") && ics.includes("END:VEVENT") && ics.includes("\r\n"));
 });

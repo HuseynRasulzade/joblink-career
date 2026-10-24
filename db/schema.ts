@@ -152,6 +152,17 @@ export const sessions = sqliteTable(
   },
   (t) => [index("sessions_expiry").on(t.expires)],
 );
+// Earlier states of a candidate's profile (at most 10), so a bad edit or rewrite can be undone.
+export const profileVersions = sqliteTable(
+  "profile_versions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    data: text("data").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [index("profile_versions_user").on(t.userId, t.created)],
+);
 export const settingHistory = sqliteTable(
   "setting_history",
   {

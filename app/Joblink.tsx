@@ -69,6 +69,9 @@ import AccountSettings from "./AccountSettings";
 import { JobAlerts } from "./JobAlerts";
 import { AdminAiUsage, AdminOps, AdminReviews } from "./CompanyReviews";
 import { similarJobs } from "@/lib/similar-jobs";
+import { salaryInsight } from "@/lib/salary-view";
+import TailoredCv from "./TailoredCv";
+import ProfileVersions from "./ProfileVersions";
 import CvRewrite from "./CvRewrite";
 import CareerAssistant from "./CareerAssistant";
 import MessagesPage, { type MessageTarget } from "./MessagesPage";
@@ -292,6 +295,7 @@ export default function Joblink() {
   const [matchOnly, setMatchOnly] = useState(false);
   const [applyConfirm, setApplyConfirm] = useState(false);
   const [accountSettings, setAccountSettings] = useState(false);
+  const [tailorFor, setTailorFor] = useState<Job | null>(null);
   const [resetToken, setResetToken] = useState("");
   const [rewriteSuggestions, setRewriteSuggestions] = useState<string[] | null>(null);
   const [assistantJob, setAssistantJob] = useState<Job | null>(null);
@@ -1685,7 +1689,8 @@ export default function Joblink() {
                 notify={notify}
               />
             )}
-            {accountSettings && (
+            {tailorFor && <TailoredCv profile={profile} job={tailorFor} onClose={() => setTailorFor(null)} />}
+      {accountSettings && (
               <AccountSettings
                 api={api}
                 notify={notify}
@@ -1716,7 +1721,7 @@ export default function Joblink() {
             </div>
           )}
           {tabs.length > 0 && (
-            <div className="tab-strip" role="tablist">
+            <div className="tab-strip">
               {tabs
                 .filter((t) => t.kind !== "page" || navigation.some((n) => n.id === t.ref))
                 .map((t) => {
@@ -1724,8 +1729,8 @@ export default function Joblink() {
                   const active =
                     t.kind === "job" ? job?.id === t.ref : t.kind === "company" ? company?.id === t.ref : !job && !company && page === t.ref;
                   return (
-                    <div key={t.key} role="tab" aria-selected={active} className={active ? "tab active" : "tab"} onClick={() => activateTab(t)}>
-                      <span>{title}</span>
+                    <div key={t.key} className={active ? "tab active" : "tab"}>
+                      <button type="button" aria-current={active ? "page" : undefined} className="tab-label" onClick={() => activateTab(t)}>{title}</button>
                       <button className="tab-close" aria-label="Bağla" onClick={(e) => { e.stopPropagation(); closeTab(t.key); }}>
                         <X size={13} />
                       </button>
@@ -1773,9 +1778,12 @@ export default function Joblink() {
                 <span>Maaş</span>
                 <strong>
                   {job.minSalary || job.maxSalary
-                    ? `${job.minSalary.toLocaleString("fr-FR")}–${job.maxSalary.toLocaleString("fr-FR")} AZN`
+                    ? `${job.minSalary.toLocaleString("fr-FR")}–${job.maxSalary.toLocaleString("fr-FR")} AZN${job.salaryKind ? ` (${job.salaryKind === "gross" ? "gross" : "net"})` : ""}`
                     : "Razılaşma yolu ilə"}
                 </strong>
+                {salaryInsight(job, signedIn ? profile : null).lines.map((line) => (
+                  <small key={line} className="muted">{line}</small>
+                ))}
               </div>
               <div>
                 <span>Ərazi</span>
@@ -1986,6 +1994,11 @@ export default function Joblink() {
               </div>
             ) : (
               <div className="form-actions">
+                {signedIn && accountRole === "candidate" && profile.name && (
+                  <button className="secondary" onClick={() => setTailorFor(job)}>
+                    <FileText size={16} /> Bu vakansiya üçün CV
+                  </button>
+                )}
                 <button className="secondary" onClick={() => saveJob(job)}>
                   <Bookmark size={16} />
                   {saved.includes(job.id) ? "Yadda saxlanıb" : "Yadda saxla"}
@@ -2472,6 +2485,11 @@ export default function Joblink() {
                   aiProvider={aiProvider}
                   focusTarget={profileFocus}
                 />
+              )}
+              {page === "profile" && signedIn && !sample && (
+                <div className="form-actions">
+                  <ProfileVersions onRestored={(restored) => setProfile(restored)} notify={notify} />
+                </div>
               )}
               {page === "profile" && signedIn && !sample && <VerificationPanel profile={profile} notify={notify} />}
               {page === "analysis" && (

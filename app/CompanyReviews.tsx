@@ -166,7 +166,7 @@ export function AdminOps({ notify }: { notify: (m: string) => void }) {
         <div className="kpi"><small>Hesab silmə sorğuları</small><strong>{data.privacyTotals.delete || 0}</strong></div>
         <div className="kpi"><small>Xəta növləri (7 gün)</small><strong>{data.errors.length}</strong></div>
       </div>
-      <div className="admin-actions"><a className="secondary" href="/api/joblink/admin/audit-export">Audit jurnalını Excel-ə yüklə</a></div>
+      <div className="admin-actions">{/* eslint-disable-next-line @next/next/no-html-link-for-pages */}<a className="secondary" href="/api/joblink/admin/audit-export" download>Audit jurnalını Excel-ə yüklə</a></div>
       <h3>Xəta jurnalı (son 7 gün)</h3>
       <div className="admin-table-wrap"><table className="admin-table">
         <thead><tr><th>Mənbə</th><th>Mesaj</th><th>Yer</th><th>Say</th><th>Sonuncu</th></tr></thead>

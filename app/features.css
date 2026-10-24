@@ -104,7 +104,7 @@ button:disabled {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  color: #187c6c;
+  color: #177868;
   background: #e9f6f1;
 }
 .admin-metric p {
@@ -143,7 +143,7 @@ button:disabled {
 .admin-system-card .section-heading p,
 .admin-audit-card .section-heading p {
   margin: 4px 0 0;
-  color: #87978f;
+  color: #69756f;
   font-size: 12px;
 }
 .admin-bars {
@@ -209,7 +209,7 @@ button:disabled {
   background: #e6f7f0;
 }
 .admin-attention li b.warning {
-  color: #a66b20;
+  color: #97611d;
   background: #fff4df;
 }
 .admin-recent {
@@ -239,11 +239,11 @@ button:disabled {
 }
 .audit-row p {
   margin: 3px 0 0;
-  color: #84938c;
+  color: #697570;
   font-size: 11px;
 }
 .audit-row time {
-  color: #87968f;
+  color: #6a7670;
   font-size: 11px;
   white-space: nowrap;
 }
@@ -290,7 +290,7 @@ button:disabled {
 .admin-table th {
   padding: 12px 13px;
   border-bottom: 1px solid #dfe8e3;
-  color: #819189;
+  color: #64706a;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -335,7 +335,7 @@ button:disabled {
   max-width: 270px;
   margin-top: 3px;
   overflow: hidden;
-  color: #8a9992;
+  color: #6a7570;
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -345,7 +345,7 @@ button:disabled {
   padding: 5px 8px;
   border: 1px solid #e0e8e4;
   border-radius: 7px;
-  color: #667970;
+  color: #61746b;
   background: #f8faf9;
   font-size: 10px;
   font-weight: 700;
@@ -374,12 +374,12 @@ button:disabled {
 }
 .admin-status.suspended,
 .admin-status.paused {
-  color: #9d6925;
+  color: #936222;
   background: #fff3df;
 }
 .admin-status.archived,
 .admin-status.expired {
-  color: #6f7a76;
+  color: #636d6a;
   background: #eef1f0;
 }
 .admin-action,
@@ -415,7 +415,7 @@ button:disabled {
   gap: 20px;
   padding: 15px 0;
   border-top: 1px solid #edf2ef;
-  color: #718179;
+  color: #67766f;
   font-size: 12px;
 }
 .system-row strong {
@@ -427,7 +427,7 @@ button:disabled {
 }
 .admin-empty {
   padding: 24px 0;
-  color: #8a9992;
+  color: #6a7570;
   text-align: center;
 }
 .admin-loading {
@@ -469,7 +469,7 @@ button:disabled {
   height: 42px;
   flex: 0 0 auto;
   border-radius: 12px;
-  color: #187c6c;
+  color: #177868;
   background: #e9f6f1;
 }
 .billing-summary div {
@@ -478,7 +478,7 @@ button:disabled {
 .billing-summary small {
   display: block;
   margin-bottom: 7px;
-  color: #778b82;
+  color: #66776f;
   font-size: 11px;
 }
 .billing-summary strong {
@@ -489,7 +489,7 @@ button:disabled {
 }
 .billing-summary p {
   margin: 8px 0 0;
-  color: #93a099;
+  color: #6c7671;
   font-size: 10px;
 }
 .billing-card,
@@ -518,9 +518,9 @@ button:disabled {
   font-weight: 750;
 }
 .billing-primary {
-  border: 1px solid #187c6c;
+  border: 1px solid #177868;
   color: #fff;
-  background: #187c6c;
+  background: #177868;
 }
 .billing-primary:hover {
   background: #116657;
@@ -611,8 +611,8 @@ button:disabled {
 }
 .billing-form-actions .billing-primary {
   color: #fff;
-  border-color: #187c6c;
-  background: #187c6c;
+  border-color: #177868;
+  background: #177868;
 }
 .billing-table {
   min-width: 1180px;
@@ -669,7 +669,7 @@ button:disabled {
   width: 39px;
   height: 39px;
   border-radius: 11px;
-  color: #187c6c;
+  color: #177868;
   background: #e9f6f1;
 }
 .skill-admin-metrics small,
@@ -678,7 +678,7 @@ button:disabled {
 }
 .skill-admin-metrics small {
   margin-bottom: 3px;
-  color: #84958d;
+  color: #68756f;
   font-size: 10px;
 }
 .skill-admin-metrics strong {
@@ -731,7 +731,7 @@ button:disabled {
 }
 .skill-section-group p {
   margin: 0;
-  color: #81928b;
+  color: #65736d;
   font-size: 10px;
   line-height: 1.5;
 }
@@ -782,7 +782,7 @@ button:disabled {
 }
 .skill-section-grid button small {
   margin-top: 4px;
-  color: #91a19a;
+  color: #65706b;
   font-size: 8px;
   font-weight: 750;
   text-transform: uppercase;
@@ -792,7 +792,7 @@ button:disabled {
   flex: 0 0 auto;
   padding: 5px 8px;
   border-radius: 999px;
-  color: #187c6c;
+  color: #177868;
   background: #e5f4ef;
   font-size: 10px;
 }
@@ -818,7 +818,7 @@ button:disabled {
 }
 .skill-catalog-heading p {
   margin: 0;
-  color: #82938c;
+  color: #687570;
   font-size: 10px;
 }
 .skill-catalog-heading button {
@@ -855,7 +855,7 @@ button:disabled {
   overflow: hidden;
   max-width: 360px;
   margin-top: 5px;
-  color: #82928c;
+  color: #65716d;
   font-size: 9px;
   font-weight: 500;
   line-height: 1.45;
@@ -872,7 +872,7 @@ button:disabled {
 .skill-alias-preview small {
   padding: 3px 6px;
   border-radius: 6px;
-  color: #6f8179;
+  color: #607069;
   background: #f1f5f3;
   font-size: 9px;
 }
@@ -884,7 +884,7 @@ button:disabled {
   font-weight: 800;
 }
 .skill-source.system {
-  color: #62746c;
+  color: #5e6f67;
   background: #eef2f0;
 }
 .skill-source.admin {
@@ -1119,7 +1119,7 @@ button:disabled {
 }
 .skill-suggestions small,
 .skill-picker-help {
-  color: #84968e;
+  color: #687670;
 }
 .skill-suggestions-empty {
   margin: 0;
@@ -1244,7 +1244,7 @@ a svg {
 }
 .ai-fill-note {
   font-size: 12px;
-  color: #8e9d95;
+  color: #6a756f;
   background: #f2f7f5;
   border-radius: 8px;
   padding: 10px 12px;
@@ -1470,7 +1470,7 @@ a svg {
   margin-top: 15px;
 }
 .muted {
-  color: #7b8b88;
+  color: #63716e;
   font-size: 14px;
   line-height: 1.7;
 }
@@ -1515,7 +1515,7 @@ a svg {
 .search-input:focus-within,
 .chat-input:focus-within {
   border-color: #399a86;
-  box-shadow: 0 0 0 3px #1685790d;
+  box-shadow: 0 0 0 3px #147b700d;
 }
 .field input:disabled {
   background: #f3f6f4;
@@ -1627,7 +1627,7 @@ a svg {
 }
 .form-actions > span {
   font-size: 12px;
-  color: #8e9d95;
+  color: #6a756f;
 }
 .form-actions .primary {
   margin-left: auto;
@@ -1665,12 +1665,12 @@ a svg {
   gap: 8px;
   font-size: 13px;
   line-height: 1.6;
-  color: #658073;
+  color: #597166;
   margin: 12px 0;
 }
 .checkline input,
 .switch-row input {
-  accent-color: #168579;
+  accent-color: #147b70;
   width: 17px;
   height: 17px;
   flex-shrink: 0;
@@ -1692,7 +1692,7 @@ a svg {
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.7;
-  color: #7b8d82;
+  color: #68776e;
 }
 .tabs {
   display: flex;
@@ -1705,7 +1705,7 @@ a svg {
   padding: 15px 0;
   font-size: 13px;
   white-space: nowrap;
-  color: #86968b;
+  color: #69766d;
   border-bottom: 2px solid transparent;
 }
 .tabs button.selected {
@@ -1716,7 +1716,7 @@ a svg {
 .info-bar {
   border: 1px solid #dfe8e0;
   background: #f1f6f0;
-  color: #718568;
+  color: #617259;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1813,7 +1813,7 @@ a svg {
 .profile-identity p {
   font-size: 14px;
   margin-top: 6px;
-  color: #829084;
+  color: #6a766c;
 }
 .profile-identity .job-meta {
   margin-top: 11px;
@@ -1845,7 +1845,7 @@ a svg {
   gap: 10px;
   align-items: center;
   font-size: 13px;
-  color: #93a094;
+  color: #6c766d;
 }
 .checklist svg {
   border-radius: 50%;
@@ -1896,7 +1896,7 @@ a svg {
   border-radius: 7px;
   padding: 12px 15px;
   flex: 1;
-  color: #94a499;
+  color: #6a766e;
 }
 .search-input input {
   border: 0;
@@ -1925,7 +1925,7 @@ a svg {
   justify-content: space-between;
   margin: 22px 0 16px;
   font-size: 13px;
-  color: #6d8576;
+  color: #5e7366;
 }
 .job-list-grid .jobs {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2115,7 +2115,7 @@ a svg {
   font-weight: 600;
 }
 .skill-tags .matched {
-  color: #50835d;
+  color: #487754;
   background: #edf5eb;
   border-color: #e2edde;
   display: inline-flex;
@@ -2191,12 +2191,12 @@ a svg {
 }
 .application-row p {
   font-size: 12px;
-  color: #8a9b8b;
+  color: #6a776b;
 }
 .status-badge {
   border: 1px solid #dce8d5;
   background: #f3f8ed;
-  color: #729359;
+  color: #5b7547;
   border-radius: 5px;
   font-size: 12px;
   padding: 6px 9px;
@@ -2521,7 +2521,7 @@ a svg {
 }
 .candidate-card p {
   font-size: 13px;
-  color: #849783;
+  color: #697868;
   line-height: 1.6;
 }
 .candidate-card .avatar {
@@ -2582,7 +2582,7 @@ a svg {
 }
 .assistant-intro p {
   font-size: 14px;
-  color: #8b9b84;
+  color: #6b7765;
 }
 .chat-messages {
   flex: 1;
@@ -2674,7 +2674,7 @@ a svg {
 .job-description {
   font-size: 14px;
   line-height: 1.9;
-  color: #7d9278;
+  color: #667762;
   margin: 20px 0;
 }
 .ai-consent {
@@ -3603,7 +3603,7 @@ a svg {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #438b68;
+  background: #3a7a5b;
 }
 .match-breakdown b {
   text-align: right;
@@ -3679,7 +3679,7 @@ a svg {
   font-size: 14px;
 }
 .cert-card-head small {
-  color: #7b8d86;
+  color: #64736d;
   font-size: 12px;
 }
 .cert-card-head > button {
@@ -3764,7 +3764,7 @@ a svg {
   border-color: #d7e2ee;
 }
 .cert-badge.expired {
-  color: #7a6f6f;
+  color: #736969;
   background: #f3f1f1;
   border-color: #e3dddd;
 }
@@ -3784,7 +3784,7 @@ a svg {
 }
 .job-cert-list li small {
   display: block;
-  color: #7b8d86;
+  color: #64736d;
   font-size: 11px;
 }
 .job-cert-list li b {
@@ -3807,7 +3807,7 @@ a svg {
 .job-cert-list li.evidence-below_level b,
 .job-cert-list li.evidence-expired b {
   background: #fff3df;
-  color: #9d6925;
+  color: #936222;
 }
 /* Wide catalog tables scroll inside their card instead of widening the page. */
 .admin-panel {
@@ -3839,7 +3839,7 @@ a svg {
 }
 .cert-modules > span small {
   font-weight: 500;
-  color: #7b8d86;
+  color: #64736d;
 }
 .cert-module-group {
   display: grid;
@@ -3969,7 +3969,7 @@ a svg {
 }
 .summary-ai small {
   flex: 1 1 260px;
-  color: #7b8d86;
+  color: #64736d;
   font-size: 12px;
 }
 
@@ -3986,7 +3986,7 @@ a svg {
   background: #fff;
 }
 .issue-item.high {
-  border-left-color: #c2554a;
+  border-left-color: #b44a3f;
 }
 .issue-item.medium {
   border-left-color: #d9a441;
@@ -4236,7 +4236,7 @@ a svg {
 }
 .hr-ai-rank small {
   flex: 1 1 280px;
-  color: #7b8d86;
+  color: #64736d;
   font-size: 12px;
 }
 .hr-ai-note {
@@ -4257,7 +4257,7 @@ a svg {
   color: #a33b2f;
 }
 .hr-ai-note.consider b {
-  color: #9d6925;
+  color: #936222;
 }
 
 /* Saved AI conversations */
@@ -4310,7 +4310,7 @@ a svg {
   font-weight: 600;
 }
 .conversation-open small {
-  color: #7b8d86;
+  color: #64736d;
   font-size: 11px;
 }
 .conversation-actions {
@@ -4334,7 +4334,7 @@ a svg {
   background: #dfece6;
 }
 .conversation-empty {
-  color: #8a9a94;
+  color: #6a7671;
   font-size: 12px;
   text-align: center;
 }
@@ -4419,7 +4419,7 @@ a svg {
   margin-left: 6px;
   padding: 0 5px;
   border-radius: 999px;
-  background: #c2554a;
+  background: #b44a3f;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -4433,7 +4433,7 @@ a svg {
   place-items: center;
   padding: 0 5px;
   border-radius: 999px;
-  background: #c2554a;
+  background: #b44a3f;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -4456,7 +4456,7 @@ a svg {
 }
 .support-status.read {
   background: #fff3df;
-  color: #9d6925;
+  color: #936222;
 }
 .support-status.in_progress {
   background: #fff6e4;
@@ -4697,7 +4697,7 @@ a svg {
 }
 .event-timeline time,
 .event-timeline small {
-  color: #7b8d86;
+  color: #64736d;
   font-size: 11px;
 }
 .application-progress {
@@ -4815,7 +4815,7 @@ a svg {
   border-top: 1px solid #c9d6d0;
 }
 .offer-document footer small {
-  color: #7b8d86;
+  color: #64736d;
 }
 .offer-sign {
   display: grid;
@@ -4856,7 +4856,7 @@ a svg {
 .offer-chip.declined,
 .offer-chip.withdrawn {
   background: #f3f1f1;
-  color: #7a6f6f;
+  color: #736969;
 }
 .offer-button {
   display: inline-flex;
@@ -4959,7 +4959,7 @@ a svg {
   height: 17px;
   padding: 0 4px;
   border-radius: 999px;
-  background: #c2554a;
+  background: #b44a3f;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -5000,7 +5000,7 @@ a svg {
   font-size: 12px;
 }
 .notification-item small {
-  color: #8a9a94;
+  color: #6a7671;
   font-size: 11px;
 }
 .notification-item.unread {
@@ -5226,3 +5226,4 @@ a svg {
   body.print-report .digest-card { display: none !important; }
   body.print-report .panel, body.print-report .kpi { break-inside: avoid; }
 }
+.tab-strip .tab-label { border: 0; background: transparent; color: inherit; font: inherit; padding: 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

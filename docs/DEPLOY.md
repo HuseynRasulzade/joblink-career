@@ -48,6 +48,11 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0050_plan_reminder` | Paket dövrü bitməzdən 3 gün əvvəl bir dəfə xatırlatma (`subscriptions.renewal_reminded`) |
 | `0051_thread_archive` | Yazışmanı hər tərəf üçün ayrıca arxivləmə (`candidate_archived`, `company_archived`) |
 | `0052_company_reviews` | Şirkət rəyləri (`company_reviews`): müraciət etmiş namizəd yazır, admin təsdiq edir, ad göstərilmir |
+| `0053_notification_prefs` | Hər istifadəçinin söndürdüyü e-poçt bildiriş kateqoriyaları (`notification_prefs`) |
+| `0054_ai_usage` | AI sorğu sayı, simvol ölçüsü və xətalar gün/funksiya/provayder/istifadəçi üzrə (`ai_usage`; mətnlər saxlanmır) |
+| `0055_error_log_privacy` | Xəta jurnalı (`error_log`, şəxsi məlumatsız, 30 gün) və şəxsi məlumat sorğularının qeydi (`privacy_requests`) |
+| `0056_admin_tools` | Gecikmiş faktura xatırlatması (`billing_invoices.reminded_at`), AI qiymətləndirmə “səhvdir” işarəsi (`ai_job_ratings.flagged`), ayarların tarixçəsi (`setting_history`) |
+| `0057_profile_versions` | Profilin əvvəlki vəziyyətləri (`profile_versions`, ən çoxu 10, 10 dəqiqədə bir); geri qaytarmaq mümkündür |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 
@@ -84,3 +89,11 @@ Cloudflare → D1 → `joblink-career-db` → Console-da `scripts/seed-demo-acco
 ## Hesab təhlükəsizliyi: e-poçt tələbi
 
 Şifrə sıfırlama və e-poçt təsdiq linkləri yalnız Cloudflare `EMAIL` binding və `EMAIL_FROM` qurulubsa göndərilir (şifrə sıfırlama linki başqa yolla çatdırılmır). Qurulmayıbsa istifadəçi linki ala bilməz: “Şifrəni unutmusunuz?” formu yenə “göndərildi” cavabı verir (hesabın olub-olmadığı açılmasın deyə). Lokal yoxlama üçün `DEV_MAIL_LOG=1` linkləri jurnala yazır; canlı mühitdə bunu qoymayın. İki mərhələli giriş e-poçt tələb etmir.
+
+## Gündəlik cron işləri (`0 5 * * *`)
+
+Hesabat xülasələri, müsahibə xatırlatmaları, başlanmamış test xatırlatması, işçi sınaq müddəti xatırlatması, vakansiya xəbərdarlıqları, paket müddəti xatırlatması, gecikmiş faktura xatırlatması, vakansiya baxışlarının təmizlənməsi. E-poçt hissəsi `EMAIL` binding və `EMAIL_FROM` tələb edir; bildirişlər onsuz da sayt daxilində işləyir. Hər istifadəçi e-poçt kateqoriyalarını “Hesab” bölməsindən söndürə bilər.
+
+## PWA
+
+`public/manifest.webmanifest`, `public/sw.js`, `public/offline.html` və ikonlar ana ekrana əlavə etməyi və oflayn səhifəni təmin edir. Service worker yalnız istehsal rejimində qeydə alınır və `/api/` sorğularını heç vaxt keşləmir.

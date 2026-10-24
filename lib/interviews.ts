@@ -79,7 +79,7 @@ export function sanitizeFeedback(input: unknown): { rating: number; feedback: st
   return { rating, feedback, decision };
 }
 
-const icsEscape = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+const icsEscape = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 const icsTime = (iso: string) => iso.replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 export function icsFor(input: { id: string; scheduledAt: string; durationMin: number; title: string; location: string; description: string }) {
   const end = new Date(Date.parse(input.scheduledAt) + input.durationMin * 60000).toISOString();

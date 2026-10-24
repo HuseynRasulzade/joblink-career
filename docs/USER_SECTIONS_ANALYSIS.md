@@ -10,12 +10,12 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 | Ümumi baxış | İşləyir | Profilin dolğunluq göstəricisi ("CV 70% hazırdır, nə əlavə edin"), növbəti addım kartı |
 | Vakansiyalar | Filtr, saxlama, müqayisə, qayda % və AI balı (admin seçimi ilə) | Vakansiya xəbərdarlığı (saxlanmış axtarış + gündəlik cron bildirişi/e-poçt) və “oxşar vakansiyalar” hazırdır |
 | Şirkətlər | İzləmə və bloklama | Şirkət səhifəsi (loqo, təsvir, açıq vakansiyalar) və moderasiyalı rəy/reytinq hazırdır |
-| CV analizi | AI analiz, sübut yoxlaması, struktur CV | CV-ni PDF kimi yükləmək/şablonla yaratmaq (CV builder), versiya tarixçəsi, vakansiyaya uyğunlaşdırılmış CV variantı |
-| AI tövsiyələri / AI köməkçi | İşləyir (AI açarı tələb edir) | Müsahibəyə hazırlıq rejimi (sual-cavab məşqi), öyrənmə planı (çatışan bacarıqlar üçün), söhbət tarixçəsi var |
-| Mənim profilim | Təcrübə, təhsil (universitet/ixtisas siyahıları), sertifikat, sənəd təsdiqi, avtomatik müraciət | Portfolio linki və “iş təkliflərinə açığam” seçimi var; istinad şəxsləri (3-ə qədər, yalnız müraciət edilən işəgötürənə görünür) və məlumat ixracı (JSON) əlavə olundu. Qalır: maaş gözləntisində gross/net və əsas/əlavə iş yeri (vakansiyada maaş növü göstərilmədiyi üçün) |
+| CV analizi | AI analiz, sübut yoxlaması, struktur CV | Brendli PDF CV, profil versiya tarixçəsi (10 versiyaya qədər, geri qaytarma) və vakansiyaya uyğunlaşdırılmış CV (vakansiyanın istədiyi bacarıqlar önə çıxarılır, heç nə əlavə olunmur) hazırdır |
+| AI tövsiyələri / AI köməkçi | İşləyir (AI açarı tələb edir) | Müsahibə məşqi və öyrənmə planı AI köməkçidə hazır istiqamətlərlə (sual düymələri) işləyir (AI açarı tələb edir) |
+| Mənim profilim | Təcrübə, təhsil (universitet/ixtisas siyahıları), sertifikat, sənəd təsdiqi, avtomatik müraciət | Portfolio linki və “iş təkliflərinə açığam” seçimi var; istinad şəxsləri (3-ə qədər, yalnız müraciət edilən işəgötürənə görünür) və məlumat ixracı (JSON) əlavə olundu. Maaş gözləntisində net/gross seçimi də var. Qalır: əsas/əlavə iş yeri |
 | Müraciətlərim | Status, hadisə tarixçəsi, təkliflər, testlər | Müsahibə təyinatı və xatırlatma, status bildirişi, rədd səbəbinin göstərilməsi (işəgötürən seçsə) hazırdır. Qalır: müraciəti geri götürmə izahı |
 | Mesajlar | Cavab, oxundu işarəsi, axtarış | Qoşma (PDF/şəkil) əlavə olundu. Qalır: mesaj şikayəti, arxiv |
-| Maaş kalkulyatoru | 2026 qaydaları | Vakansiya maaşını gross/net kimi göstərmək və gözləntiylə müqayisə (`lib/tax.ts` hazırdır) |
+| Maaş kalkulyatoru | 2026 qaydaları | Vakansiyada maaş növü (net/gross), təxmini net/gross qarşılığı və gözləntiylə müqayisə hazırdır. Uyğunluq balı maaşı hələ əvvəlki qaydayla (rəqəm olaraq) müqayisə edir |
 | Paketlər | Planlar, kart, müqavilə (mock provayder) | Real ödəniş provayderi, faktura PDF, planın yenilənməsi xatırlatması |
 | Dəstək | Sorğular və cavablar | Tez-tez verilən suallar və sorğuya fayl əlavəsi hazırdır |
 | Hesab | Giriş, qeydiyyat, hesabın silinməsi, şifrə sıfırlama (e-poçt linki), e-poçt təsdiqi, iki mərhələli giriş (TOTP + ehtiyat kodlar), aktiv cihazlar və uzaqdan çıxış | Hesab silinəndə bütün şəxsi məlumat cədvəlləri təmizlənir. E-poçt göndərilməsi üçün `EMAIL` binding lazımdır |
@@ -46,28 +46,28 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 
 | Bölmə | Vəziyyət | Çatışmayan / əlavə olunacaq |
 |---|---|---|
-| Platforma icmalı | Əsas göstəricilər | **AI xərc və istifadə paneli** (neçə AI sorğusu, kim, təxmini xərc; "Uyğunluq balı" ayarı ilə birlikdə vacibdir) |
-| İstifadəçilər | Siyahı, dayandırma | Rol dəyişimi jurnalı, istifadəçi məlumatını ixrac və silmə sorğularının idarəsi (GDPR/şəxsi məlumat), şübhəli hesab aşkarlama |
-| Vakansiya moderasiyası | Moderasiya | Avtomatik spam/saxta vakansiya siqnalları, toplu rədd |
-| Müraciət axını / Ödənişlər | İcmal, borclar | Hesabat ixracı, xatırlatma e-poçtları |
-| Kataloqlar (bacarıq, sertifikat, vəzifə, təhsil) | Admin əlavə edir, istifadəçi sorğuları | Toplu idxal (CSV), dublikatların birləşdirilməsi, tərcümə yoxlaması (az/en/ru) |
-| Uyğunluq balı | Qayda/AI seçimi, limitlər | Seçimin dəyişmə tarixçəsi, AI keyfiyyət nümunələri (admin nəticəyə baxıb "səhvdir" işarələyə bilsin) |
-| Sorğular və mesajlar | Dəstək | Cavab şablonları, SLA göstəricisi (cavab müddəti) |
-| İzləmə və bloklar | Var | Şikayət növbəsi (mesaj/vakansiya) |
-| Şirkət / Sənəd yoxlaması | Var | Yoxlama növbəsinin müddət göstəricisi, rədd səbəbi şablonları |
-| Sistem və audit | Audit | Audit ixracı, xəta jurnalı, bazanın ehtiyat nüsxə vəziyyəti |
+| Platforma icmalı | Əsas göstəricilər | AI istifadə və xərc paneli hazırdır (funksiya, provayder, istifadəçi, gün üzrə sorğu/token/təxmini xərc; qiymətlər `lib/ai-cost.ts`-də təxminidir) |
+| İstifadəçilər | Siyahı, dayandırma | Hesab siqnalları (birdəfəlik e-poçt, şübhəli ad, təsdiqsiz şirkətin çox vakansiyası, qısa müddətdə çox müraciət) və şəxsi məlumat sorğularının qeydi (ixrac/silmə) hazırdır |
+| Vakansiya moderasiyası | Moderasiya | Spam/saxta vakansiya siqnalları və toplu dayandırma/arxivləmə hazırdır |
+| Müraciət axını / Ödənişlər | İcmal, borclar | Gecikmiş fakturalar üçün həftəlik avtomatik xatırlatma (bildiriş + e-poçt) hazırdır; maliyyə reyestri CSV-yə yüklənir |
+| Kataloqlar (bacarıq, sertifikat, vəzifə, təhsil) | Admin əlavə edir, istifadəçi sorğuları | Bacarıqlar üçün CSV idxal (dublikatlar atlanır və hesabatda göstərilir) hazırdır. Qalır: digər kataloqlarda idxal, dublikatların birləşdirilməsi, tərcümə yoxlaması |
+| Uyğunluq balı | Qayda/AI seçimi, limitlər | Ayarların dəyişmə tarixçəsi və AI qiymətləndirmə nümunələri (“səhvdir” işarəsi) hazırdır |
+| Sorğular və mesajlar | Dəstək | Hazır cavab şablonları və SLA göstəricisi (ilk cavab müddəti, cavabsızlar) hazırdır |
+| İzləmə və bloklar | Var | Mesaj və vakansiya şikayəti “Şikayət” mövzusu ilə sorğular bölməsinə düşür (filtr var) |
+| Şirkət / Sənəd yoxlaması | Var | Növbədə gözləmə müddəti və hazır rədd səbəbi şablonları hazırdır |
+| Sistem və audit | Audit | Audit ixracı (Excel), xəta jurnalı (server + brauzer, şəxsi məlumatsız), ehtiyat nüsxə təlimatı (D1 Time Travel) hazırdır. Avtomatik nüsxə çıxarma yoxdur |
 
 Ən vacib 3: AI xərc paneli, şikayət növbəsi, şəxsi məlumat sorğularının idarəsi.
 
 ## 4. Hamıya aid (platforma)
 
-1. **Hesab təhlükəsizliyi:** parol sıfırlama, e-poçt təsdiqi, 2FA. İstifadəçilərə açmazdan əvvəl ən vacib boşluqdur.
-2. **Bildirişlər:** sayt içi bildiriş var; e-poçt göndərmə mexanizmi var, amma status dəyişimi, mesaj, vakansiya xəbərdarlığı üçün sistemli e-poçt şablonları yoxdur. SMS yoxdur.
-3. **Mobil:** PWA (ana ekrana əlavə, oflayn kabuk) yoxdur. Real APK hosting olmadan mümkün deyil.
-4. **Dillər:** az/en var, rus UI yoxdur.
-5. **Əlçatanlıq və performans:** sistemli yoxlanılmayıb.
-6. **Əməliyyat:** xəta jurnalı, ehtiyat nüsxə, monitorinq yoxdur. Canlı sayt hələ yoxdur (Cloudflare secret-ləri).
-7. **Kod sağlamlığı:** bütün API tək faylda (`route.ts`), bölmək lazımdır.
+1. **Hesab təhlükəsizliyi:** hazırdır (şifrə sıfırlama, e-poçt təsdiqi, 2FA, cihaz siyahısı). E-poçt göndərmək üçün `EMAIL` binding lazımdır.
+2. **Bildirişlər:** hazırdır: status, təklif, test, mesaj, faktura və xəbərdarlıq bildirişləri e-poçtla da gedir (e-poçt qurulubsa); hər istifadəçi kateqoriyaları söndürə bilər. SMS yoxdur (xarici provayder).
+3. **Mobil:** PWA hazırdır (ana ekrana əlavə, oflayn səhifə). Real APK hosting olmadan mümkün deyil.
+4. **Dillər:** az/en var. Rus UI tərcümə materialı olmadan əlavə olunmayıb (minlərlə mətn).
+5. **Əlçatanlıq:** axe-core (WCAG 2 A/AA) ilə bütün əsas səhifələr yoxlandı; rəng kontrastı və iç-içə interaktiv elementlər düzəldildi. Yük/performans testi aparılmayıb.
+6. **Əməliyyat:** xəta jurnalı və audit ixracı hazırdır. Canlı sayt üçün Cloudflare secret-ləri lazımdır; monitorinq (xarici) yoxdur.
+7. **Kod sağlamlığı:** paylaşılan köməkçilər `lib/api-core.ts` və `lib/api-matching.ts`-ə köçürüldü; `route()` funksiyası hələ tək fayldadır.
 
 ## 5. Təklif olunan sıra
 1. Canlı sayt (hosting) və hesab təhlükəsizliyi (parol sıfırlama, e-poçt təsdiqi).

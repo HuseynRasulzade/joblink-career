@@ -3,7 +3,7 @@
 import type { Job } from "./model.ts";
 
 export const TEMPLATE_FIELDS = [
-  "title", "company", "city", "mode", "type", "category", "minSalary", "maxSalary", "minYears", "maxYears",
+  "title", "company", "city", "mode", "type", "category", "minSalary", "maxSalary", "salaryKind", "minYears", "maxYears",
   "skills", "description", "requirements", "workSchedule", "address", "benefits", "certifications", "stages",
 ] as const;
 

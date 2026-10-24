@@ -3453,6 +3453,7 @@ async function route(request: Request) {
       throw new HttpError(400, "Ad, e-poçt və ixtisas sahələrini doldurun.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email))
       throw new HttpError(400, "Etibarlı e-poçt ünvanı yazın.");
+    await keepProfileVersion(db, id, JSON.stringify(p));
     await db
       .prepare(
         "INSERT INTO profiles (user_id,data,active,updated) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,active=excluded.active,updated=excluded.updated",
@@ -3465,6 +3466,21 @@ async function route(request: Request) {
       )
       .run();
     return ok({ profile: p });
+  }
+  // Earlier profile states: listed newest first, restoring one keeps the current state as a version too.
+  if (request.method === "GET" && path === "profile/versions") {
+    const rows = await db.prepare("SELECT id,data,created FROM profile_versions WHERE user_id=? ORDER BY created DESC LIMIT 10").bind(id).all<{ id: string; data: string; created: string }>().catch(() => ({ results: [] as { id: string; data: string; created: string }[] }));
+    return ok({ versions: rows.results.map((r) => { let d: Partial<Profile> = {}; try { d = JSON.parse(r.data); } catch { d = {}; } return { id: r.id, created: r.created, title: d.title || "", skills: (d.skills || []).length, experiences: (d.experiences || []).length, cvName: d.cvName || "" }; }) });
+  }
+  if (request.method === "POST" && path === "profile/restore") {
+    const b = await jsonBody(request);
+    const row = await db.prepare("SELECT data FROM profile_versions WHERE id=? AND user_id=?").bind(str(b.id, 100), id).first<{ data: string }>();
+    if (!row) throw new HttpError(404, "Versiya tapılmadı.");
+    const restored = profileInput(JSON.parse(row.data), customSkillLabels, { preserveStoredSkills: true });
+    await keepProfileVersion(db, id, JSON.stringify(restored), true);
+    await db.prepare("INSERT INTO profiles (user_id,data,active,updated) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,active=excluded.active,updated=excluded.updated")
+      .bind(id, JSON.stringify(restored), restored.active ? "1" : "0", new Date().toISOString()).run();
+    return ok({ profile: restored });
   }
   if (request.method === "POST" && path === "save") {
     const b = await jsonBody(request);
@@ -6608,6 +6624,19 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     });
   }
   throw new HttpError(404, "Səhifə tapılmadı.");
+}
+// The state being replaced is kept as a version (at most one per 10 minutes, newest 10 kept).
+async function keepProfileVersion(db: D1Database, userId: string, next: string, force = false) {
+  try {
+    const current = await db.prepare("SELECT data FROM profiles WHERE user_id=?").bind(userId).first<{ data: string }>();
+    if (!current || current.data === next) return;
+    const last = await db.prepare("SELECT created FROM profile_versions WHERE user_id=? ORDER BY created DESC LIMIT 1").bind(userId).first<{ created: string }>();
+    if (!force && last && Date.now() - Date.parse(last.created) < 10 * 60000) return;
+    await db.prepare("INSERT INTO profile_versions(id,user_id,data,created) VALUES(?,?,?,?)").bind(crypto.randomUUID(), userId, current.data, new Date().toISOString()).run();
+    await db.prepare("DELETE FROM profile_versions WHERE user_id=? AND id NOT IN (SELECT id FROM profile_versions WHERE user_id=? ORDER BY created DESC LIMIT 10)").bind(userId, userId).run();
+  } catch {
+    // Versions are a convenience; saving the profile must not depend on them.
+  }
 }
 // Unexpected failures and browser errors go to one table the admin can read (no personal data is kept).
 async function logError(source: "server" | "client", message: unknown, where: unknown) {

@@ -1,7 +1,7 @@
 :root {
   --ink: #172d31;
-  --muted: #768487;
-  --teal: #168579;
+  --muted: #667275;
+  --teal: #147b70;
   --line: #e4eaea;
   --bg: #f5f7f8;
 }
@@ -112,7 +112,7 @@ button:hover {
 }
 .nav-label {
   font-size: 12px;
-  color: #96a1a2;
+  color: #6d7576;
   letter-spacing: 1.4px;
   margin: 30px 14px 13px;
 }
@@ -138,14 +138,14 @@ button:hover {
   width: 20px;
 }
 .nav-item.active {
-  color: #147e73;
+  color: #137b70;
   background: #eaf5f2;
   font-weight: 600;
 }
 .nav-item b {
   font-size: 10px;
   background: #e5f3ee;
-  color: #268678;
+  color: #22786c;
   padding: 2px 5px;
   border-radius: 4px;
   margin-left: auto;
@@ -171,7 +171,7 @@ button:hover {
 .career-note p {
   font-size: 12px;
   line-height: 1.7;
-  color: #7a8a85;
+  color: #626f6b;
 }
 .career-note button {
   display: flex;
@@ -250,7 +250,7 @@ button:hover {
   font-size: 13px;
 }
 .breadcrumb {
-  color: #8a9698;
+  color: #6b7576;
 }
 .breadcrumb span {
   margin: 0 12px;
@@ -266,7 +266,7 @@ button:hover {
   align-items: center;
 }
 .today {
-  color: #94a0a2;
+  color: #6c7476;
 }
 main {
   max-width: 1530px;
@@ -277,7 +277,7 @@ main {
   letter-spacing: 1.5px;
   font-size: 12px;
   font-weight: 600;
-  color: #819290;
+  color: #647170;
   margin-bottom: 11px;
 }
 .heading-row {
@@ -328,7 +328,7 @@ main {
   align-items: center;
   gap: 13px;
   font-size: 13px;
-  color: #879391;
+  color: #6c7574;
 }
 .stat-icon {
   width: 38px;
@@ -351,7 +351,7 @@ main {
 .stat strong small {
   font-size: 11px;
   background: #eff7f2;
-  color: #479777;
+  color: #38785f;
   padding: 4px 7px;
   border-radius: 4px;
   vertical-align: middle;
@@ -385,7 +385,7 @@ main {
   font-size: 10px;
   letter-spacing: 0.8px;
   background: #edf5f0;
-  color: #5c9581;
+  color: #487565;
   border-radius: 4px;
   padding: 5px 7px;
   font-weight: 600;
@@ -499,7 +499,7 @@ main {
 }
 .section-heading p {
   font-size: 12px;
-  color: #8e9c9c;
+  color: #667070;
   margin-top: 7px;
 }
 .section-heading h3 {
@@ -538,16 +538,16 @@ main {
   background: #fff;
   font-size: 12px;
   padding: 9px 11px;
-  color: #6a7d77;
+  color: #647671;
 }
 .filter.active {
   border-color: #bdd5c6;
-  color: #53816c;
+  color: #4c7663;
   background: #f1f7f3;
 }
 .sort-label {
   font-size: 11px;
-  color: #9aa6a2;
+  color: #68706e;
   margin-left: auto;
 }
 .jobs {
@@ -594,7 +594,7 @@ main {
 }
 .job-title p {
   font-size: 12px;
-  color: #8a9795;
+  color: #6b7574;
   margin-top: 6px;
 }
 .verified {
@@ -612,7 +612,7 @@ main {
   display: flex;
   gap: 16px;
   font-size: 12px;
-  color: #899690;
+  color: #6c7671;
   margin-top: 17px;
   flex-wrap: wrap;
 }
@@ -624,7 +624,7 @@ main {
 }
 .skill-tags span {
   font-size: 12px;
-  color: #6d7c76;
+  color: #63706b;
   background: #f5f7f6;
   border: 1px solid #edf0ed;
   padding: 4px 7px;
@@ -642,12 +642,12 @@ main {
   font-weight: 600;
 }
 .job-footer small {
-  color: #98a49e;
+  color: #6b7470;
   font-size: 12px;
   font-weight: 400;
 }
 .match-score {
-  color: #438b68;
+  color: #3a7a5b;
   background: #edf6ee;
   font-size: 12px;
   border-radius: 4px;
@@ -691,18 +691,18 @@ main {
 }
 .score-ring strong span {
   font-size: 14px;
-  color: #9bac9f;
+  color: #6a766d;
   letter-spacing: 0;
   margin-left: 2px;
 }
 .score-ring p {
   font-size: 12px;
-  color: #6e9882;
+  color: #597b69;
   margin-top: 5px;
 }
 .score-caption {
   font-size: 12px;
-  color: #91a096;
+  color: #6b766f;
   text-align: center;
   margin-bottom: 26px;
 }
@@ -711,7 +711,7 @@ main {
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  color: #84948b;
+  color: #69766f;
   margin-bottom: 8px;
 }
 .analysis-item b {
@@ -771,12 +771,12 @@ main {
 .next-step > p {
   font-size: 13px;
   line-height: 1.8;
-  color: #85948b;
+  color: #6a766f;
   margin-bottom: 19px;
 }
 footer {
   font-size: 12px;
-  color: #9aaba4;
+  color: #67726d;
   display: flex;
   justify-content: space-between;
   border-top: 1px solid var(--line);

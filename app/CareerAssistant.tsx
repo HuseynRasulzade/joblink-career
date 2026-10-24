@@ -88,8 +88,20 @@ export default function CareerAssistant({
   }
 
   const suggestions = contextJob
-    ? ["Bu vakansiyaya nə qədər uyğunam?", "Müraciət üçün CV-mdə nəyi gücləndirim?", "Müsahibədə hansı suallar gözlənilir?"]
-    : ["Təcrübəmə görə hansı vəzifələrə müraciət edim?", "CV-mi necə gücləndirə bilərəm?", "Növbəti 3 ayda nəyi öyrənməliyəm?"];
+    ? [
+        "Bu vakansiyaya nə qədər uyğunam?",
+        "Müraciət üçün CV-mdə nəyi gücləndirim?",
+        "Müsahibədə hansı suallar gözlənilir?",
+        "Müsahibə məşqi: mənə bir-bir 5 sual ver, cavabımı yazım, sonra qiymətləndir.",
+        "Bu vakansiya üçün çatışmayan bacarıqlara görə 6 həftəlik öyrənmə planı hazırla.",
+      ]
+    : [
+        "Təcrübəmə görə hansı vəzifələrə müraciət edim?",
+        "CV-mi necə gücləndirə bilərəm?",
+        "Növbəti 3 ayda nəyi öyrənməliyəm?",
+        "Müsahibə məşqi: peşəmə uyğun 5 sual ver, cavabımı yazım, sonra qiymətləndir.",
+        "Profilimdəki bacarıqlara əsasən növbəti 8 həftə üçün öyrənmə planı hazırla.",
+      ];
 
   return (
     <div className="career-assistant">
