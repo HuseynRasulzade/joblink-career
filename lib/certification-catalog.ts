@@ -4241,7 +4241,7 @@ const WORD_LIKE_ACRONYMS = new Set([
   "IPAF",
   "TEFL",
 ]);
-type CompiledAlias = { pattern?: RegExp; key?: string };
+type CompiledAlias = { pattern?: RegExp; key?: string; literal?: string };
 const compiled = new Map<string, CompiledAlias[]>();
 function compiledAliases(definition: CertificationDefinition) {
   const existing = compiled.get(definition.id);
@@ -4260,6 +4260,8 @@ function compiledAliases(definition: CertificationDefinition) {
           `(^|[^\\p{L}\\p{N}])${alias.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}([^\\p{L}\\p{N}]|$)`,
           caseless ? "iu" : "u",
         ),
+        // Lower-case text of the acronym, for a cheap check before the pattern.
+        literal: alias.toLowerCase(),
       };
     }
     const key = normalizeCertificationKey(alias);
@@ -4269,14 +4271,80 @@ function compiledAliases(definition: CertificationDefinition) {
   compiled.set(definition.id, list);
   return list;
 }
+// Certifications whose name or alias appears anywhere in the text. Reading every
+// sentence against every alias of 387 certifications cost more CPU than a free
+// Cloudflare Worker is given, so the sentences are only read for these. The index
+// is built from the alias strings alone; patterns are compiled only for hits.
+type AliasIndex = {
+  words: Map<string, string[]>;
+  acronyms: { id: string; literal: string }[];
+  withPatterns: string[];
+};
+let aliasIndex: AliasIndex | null = null;
+function indexAliases() {
+  if (aliasIndex) return aliasIndex;
+  const words = new Map<string, string[]>();
+  const acronyms: AliasIndex["acronyms"] = [];
+  const withPatterns: string[] = [];
+  for (const definition of CERTIFICATION_CATALOG) {
+    if (definition.patterns?.length) withPatterns.push(definition.id);
+    for (const alias of definition.aliases) {
+      const compact = alias.replace(/[^\p{L}\p{N}+]/gu, "");
+      if (compact.length <= 4 && /^[\p{Lu}\p{N}+\-/]+$/u.test(alias)) {
+        acronyms.push({ id: definition.id, literal: alias.toLowerCase() });
+        continue;
+      }
+      const key = normalizeCertificationKey(alias);
+      if (key.length < 4) continue;
+      const word = key.split(" ")[0];
+      const list = words.get(word) || [];
+      if (!list.includes(definition.id)) list.push(definition.id);
+      words.set(word, list);
+    }
+  }
+  aliasIndex = { words, acronyms, withPatterns };
+  return aliasIndex;
+}
+const catalogById = () => new Map(CERTIFICATION_CATALOG.map((definition) => [definition.id, definition]));
+let definitionsById: Map<string, CertificationDefinition> | null = null;
+function candidateDefinitions(text: string, extra: CertificationDefinition[]) {
+  const hits = new Set<string>();
+  const index = indexAliases();
+  const textKey = ` ${normalizeCertificationKey(text)} `;
+  for (const word of new Set(textKey.split(" ")))
+    for (const id of index.words.get(word) || []) hits.add(id);
+  const lower = text.toLowerCase();
+  definitionsById ||= catalogById();
+  // An acronym such as "ACCA" must also stand as a word of its own.
+  for (const { id, literal } of index.acronyms) {
+    if (hits.has(id) || !lower.includes(literal)) continue;
+    const definition = definitionsById.get(id)!;
+    if (compiledAliases(definition).some((alias) => alias.pattern && alias.literal === literal && alias.pattern.test(text))) hits.add(id);
+  }
+  for (const id of index.withPatterns) {
+    if (hits.has(id)) continue;
+    if (compiledAliases(definitionsById.get(id)!).some((alias) => alias.pattern?.test(text))) hits.add(id);
+  }
+  // Custom certifications added by an admin are few; they are read the long way.
+  for (const definition of extra)
+    if (
+      compiledAliases(definition).some((alias) =>
+        alias.pattern ? alias.pattern.test(text) : alias.key ? textKey.includes(alias.key) : false,
+      )
+    )
+      hits.add(definition.id);
+  return hits;
+}
 function detectUncached(text: string, extra: CertificationDefinition[]) {
   const found = new Map<string, CandidateCertification>();
+  const candidates = candidateDefinitions(text, extra);
   // Split on sentence ends but keep decimals such as "IELTS 7.5" intact.
   const sentences = text
     .split(/[\n;•]+|\.(?=\s|$)/)
     .filter((s) => s.trim())
     .map((raw) => ({ raw, key: ` ${normalizeCertificationKey(raw)} ` }));
   for (const definition of [...CERTIFICATION_CATALOG, ...extra]) {
+    if (!candidates.has(definition.id)) continue;
     const aliases = compiledAliases(definition);
     for (const { raw: sentence, key: sentenceKey } of sentences) {
       const hit = aliases.some((alias) =>
@@ -4337,7 +4405,7 @@ function detectUncached(text: string, extra: CertificationDefinition[]) {
     }
   }
   for (const definition of [...CERTIFICATION_CATALOG, ...extra]) {
-    if (!definition.modules) continue;
+    if (!definition.modules || !candidates.has(definition.id)) continue;
     const progress = moduleProgress(definition, text);
     if (!progress) continue;
     const previous = found.get(definition.id);

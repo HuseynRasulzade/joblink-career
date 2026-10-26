@@ -1090,7 +1090,10 @@ export const SKILL_CATALOG: SkillDefinition[] = [
   ]),
 ];
 
-export const normalizeSkillKey = (value: string) =>
+// The same sentences and names are normalized again and again (each CV is read
+// against every certification and skill), so short results are remembered.
+const keyCache = new Map<string, string>();
+const normalizeUncached = (value: string) =>
   value
     .toLocaleLowerCase("az")
     .normalize("NFKD")
@@ -1100,6 +1103,15 @@ export const normalizeSkillKey = (value: string) =>
     .replace(/[^\p{L}\p{N}+#/]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+export const normalizeSkillKey = (value: string) => {
+  if (value.length > 600) return normalizeUncached(value);
+  const cached = keyCache.get(value);
+  if (cached !== undefined) return cached;
+  const result = normalizeUncached(value);
+  if (keyCache.size >= 6000) keyCache.clear();
+  keyCache.set(value, result);
+  return result;
+};
 
 const catalogByAlias = new Map<string, SkillDefinition>();
 for (const definition of SKILL_CATALOG)

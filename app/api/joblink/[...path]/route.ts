@@ -20,6 +20,7 @@ import {
   jobDraftMissingFields,
   JOB_CATEGORIES,
   match,
+  sampleProfile,
   candidateCertifications,
   autoApplyEligible,
   salaryFits,
@@ -81,6 +82,7 @@ import {
   CERTIFICATION_CATEGORIES,
   canonicalCertification,
   normalizeJobCertifications,
+  detectCertifications,
   certificationDisplayName,
   certificationById,
   setCustomCertifications,
@@ -1132,6 +1134,16 @@ async function saveConversationTurn(
       .prepare("UPDATE ai_conversations SET updated=? WHERE id=?")
       .bind(later, conversationId),
   ]);
+}
+// Runs when the Worker starts, not during a request. The first match of a CV builds
+// regular expressions and indexes (about 30 ms), which would otherwise be counted
+// against the first request of every new Worker instance.
+try {
+  match(sampleProfile, sampleJobs[0]);
+  detectCertifications("ACCA, IELTS 7.0, PMP warm-up");
+  canonicalJobTitle("Baş mühasib");
+} catch {
+  // Warming up is only an optimisation.
 }
 async function route(request: Request) {
   const requestUrl = new URL(request.url);
