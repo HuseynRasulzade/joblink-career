@@ -106,3 +106,5 @@ Hesabat xülasələri, müsahibə xatırlatmaları, başlanmamış test xatırla
 Cloudflare Workers pulsuz planda hər sorğuya təxminən 10 ms CPU verir. Bütün tətbiqin serverdə render edilməsi (SSR) bu limiti aşırdı: ana səhifənin təxminən üçdə biri “error code: 1102” ilə açılmırdı. İndi tətbiq yalnız brauzerdə çəkilir (`app/HomeClient.tsx`, `next/dynamic` + `ssr: false`), server isə kiçik qabıq göndərir. Yoxlama: ana səhifəyə 60 sorğuda 0 xəta.
 
 Yenə də API sorğuları (məsələn bir çox kataloq yükləyən) limitə yaxın ola bilər. Trafik artarsa, Workers Paid planına keçmək (30 s CPU) ən təhlükəsiz yoldur.
+
+Sonrakı ölçmə (CPU və gecikmə azaldıldıqdan sonra): hər sorğuda D1-ə ardıcıl 8-10 sorğu əvəzinə paralel oxuma, sertifikat tanıma üçün söz indeksi (bir CV üçün 12 ms → 1-2 ms), açar normallaşdırmasının yadda saxlanması və Worker açılanda isinmə. 400 sorğuda (16 endpoint) və ana səhifəyə 60 sorğuda 1102 xətası olmadı. Hələ də çox namizəd olan siyahılar (`hr`) pulsuz planın 10 ms-lik limitinə yaxın ola bilər; belə hallarda Workers Paid plan lazımdır.
