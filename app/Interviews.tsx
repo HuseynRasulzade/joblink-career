@@ -120,6 +120,102 @@ export function ScheduleInterviewModal({ application, existing, onClose, onDone,
 }
 
 // Employer: all interviews, status, changes and feedback.
+// ---------- Interview feedback of all candidates of a vacancy, side by side ----------
+type ComparisonRow = {
+  applicationId: string;
+  candidate: string;
+  applicationStatus: string;
+  interviews: number;
+  rated: number;
+  average: number;
+  ratings: number[];
+  advance: number;
+  hold: number;
+  reject: number;
+  lastDecision: string;
+  lastFeedback: string;
+};
+type ComparisonJob = { jobId: string; jobTitle: string; candidates: ComparisonRow[] };
+function FeedbackComparison({ notify }: { notify: Notify }) {
+  const [jobs, setJobs] = useState<ComparisonJob[] | null>(null);
+  const [jobId, setJobId] = useState("");
+  async function show() {
+    try {
+      const data = await request<{ jobs: ComparisonJob[] }>("hr/interviews/compare");
+      setJobs(data.jobs);
+      setJobId(data.jobs[0]?.jobId || "");
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  const job = jobs?.find((item) => item.jobId === jobId);
+  const decisionText = (value: string) =>
+    value === "advance" ? "növbəti mərhələyə" : value === "reject" ? "uyğun deyil" : value === "hold" ? "qərar sonra" : "—";
+  return (
+    <section className="panel">
+      <div className="section-heading">
+        <div>
+          <h3>Rəylərin müqayisəsi</h3>
+          <p>Eyni vakansiyaya müsahibə verən namizədlərin rəyləri bir cədvəldə. Yekun qərarı özünüz verirsiniz.</p>
+        </div>
+        <button onClick={show}>{jobs ? "Yenilə" : "Göstər"}</button>
+      </div>
+      {jobs && (
+        <>
+          {jobs.length > 1 && (
+            <Field label="Vakansiya">
+              <select value={jobId} onChange={(e) => setJobId(e.target.value)}>
+                {jobs.map((item) => (
+                  <option key={item.jobId} value={item.jobId}>
+                    {item.jobTitle} ({item.candidates.length})
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+          {job ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Namizəd</th>
+                    <th>Müsahibə</th>
+                    <th>Orta bal</th>
+                    <th>Balllar</th>
+                    <th>Tövsiyələr</th>
+                    <th>Son rəy</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {job.candidates.map((c) => (
+                    <tr key={c.applicationId}>
+                      <td><strong>{c.candidate || "Namizəd"}</strong></td>
+                      <td>{c.interviews}</td>
+                      <td>{c.rated ? `${c.average} / 5` : "—"}</td>
+                      <td>{c.ratings.join(", ") || "—"}</td>
+                      <td>
+                        {c.rated ? `↑ ${c.advance} · ⏸ ${c.hold} · ✕ ${c.reject}` : "—"}
+                      </td>
+                      <td>
+                        {decisionText(c.lastDecision)}
+                        {c.lastFeedback && <small className="skill-description">{c.lastFeedback}</small>}
+                      </td>
+                      <td>{c.applicationStatus || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="admin-empty">Hələ müsahibə rəyi yoxdur.</p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 export function InterviewsPage({ notify }: { notify: Notify }) {
   const [items, setItems] = useState<InterviewItem[] | null>(null);
   const [labels, setLabels] = useState<Labels>({});
@@ -211,6 +307,7 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
     <div className="company-page">
       <p className="muted">Müsahibəni “Namizədlər” bölməsində pipeline kartındakı təqvim düyməsi ilə təyin edirsiniz. Namizəd təsdiq edir və ya imtina edir, müsahibədən əvvəl xatırlatma gəlir.</p>
       <InterviewGuides notify={notify} />
+      <FeedbackComparison notify={notify} />
       <h3>Gələcək müsahibələr</h3>
       {upcoming.map(row)}
       {!upcoming.length && <p className="admin-empty">Planlaşdırılmış müsahibə yoxdur.</p>}

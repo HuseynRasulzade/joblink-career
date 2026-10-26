@@ -324,6 +324,8 @@ import {
   rateJobs,
   addHiredEmployee,
 } from "@/lib/api-matching";
+import { seedOnboardingTasks, taskSummary } from "@/lib/onboarding";
+import { compareInterviews, type FeedbackRow } from "@/lib/interview-compare";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
 function ok(data: unknown, status = 200) {
@@ -6333,6 +6335,14 @@ async function route(request: Request) {
         exit_note?: string;
         probation_end?: string;
       }>();
+    const taskRows = await db
+      .prepare("SELECT employee_id,done,due FROM employee_tasks WHERE company_id=?")
+      .bind(id)
+      .all<{ employee_id: string; done: number; due: string }>()
+      .catch(() => ({ results: [] as { employee_id: string; done: number; due: string }[] }));
+    const tasksBy = new Map<string, { done: number; due: string }[]>();
+    for (const t of taskRows.results) tasksBy.set(t.employee_id, [...(tasksBy.get(t.employee_id) || []), t]);
+    const todayIso = new Date().toISOString().slice(0, 10);
     return ok({
       showSalary,
       canEdit: showSalary,
@@ -6350,6 +6360,7 @@ async function route(request: Request) {
         source: r.source,
         endDate: r.end_date || "",
         probationEnd: r.probation_end || "",
+        onboarding: taskSummary(tasksBy.get(r.id) || [], todayIso),
         // Salaries and the way and reason people left stay with HR, the director and the owner.
         exitType: showSalary ? r.exit_type || "" : "",
         exitReason: showSalary ? r.exit_reason || "" : "",
@@ -6357,6 +6368,61 @@ async function route(request: Request) {
         salary: showSalary ? r.salary_cents / 100 : null,
       })),
     });
+  }
+  // ---- Onboarding checklist for a new employee: HR, director and owner ----
+  if (request.method === "GET" && path === "company/employee-tasks") {
+    requirePermission("salaries", "Adaptasiya siyahısını yalnız HR, direktor və hesab sahibi görə bilər.");
+    const rows = await db
+      .prepare("SELECT id,title,due,done,done_at,done_by FROM employee_tasks WHERE company_id=? AND employee_id=? ORDER BY position,created")
+      .bind(id, str(requestUrl.searchParams.get("employeeId"), 100))
+      .all();
+    return ok({ tasks: rows.results });
+  }
+  if (request.method === "POST" && path === "company/employee-tasks/seed") {
+    requirePermission("salaries", "Adaptasiya siyahısını yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const employee = await db
+      .prepare("SELECT start_date FROM company_employees WHERE id=? AND company_id=?")
+      .bind(str(b.employeeId, 100), id)
+      .first<{ start_date: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const added = await seedOnboardingTasks(db, id, str(b.employeeId, 100), employee.start_date);
+    if (!added) throw new HttpError(409, "Bu işçinin artıq adaptasiya siyahısı var.");
+    return ok({ added }, 201);
+  }
+  if (request.method === "POST" && path === "company/employee-tasks/add") {
+    requirePermission("salaries", "Adaptasiya siyahısını yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const title = str(b.title, 200);
+    if (title.length < 3) throw new HttpError(400, "Tapşırığın adını yazın.");
+    const employeeId = str(b.employeeId, 100);
+    const employee = await db.prepare("SELECT 1 AS yes FROM company_employees WHERE id=? AND company_id=?").bind(employeeId, id).first();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM employee_tasks WHERE company_id=? AND employee_id=?").bind(id, employeeId).first<{ n: number }>();
+    if (Number(count?.n) >= 40) throw new HttpError(409, "Bir işçi üçün ən çox 40 tapşırıq ola bilər.");
+    const due = /^\d{4}-\d{2}-\d{2}$/.test(str(b.due, 10)) ? str(b.due, 10) : "";
+    await db
+      .prepare("INSERT INTO employee_tasks(id,company_id,employee_id,title,due,position,created) VALUES(?,?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(), id, employeeId, title, due, Number(count?.n) || 0, new Date().toISOString())
+      .run();
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "company/employee-tasks/toggle") {
+    requirePermission("salaries", "Adaptasiya siyahısını yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const done = b.done === true;
+    const result = await db
+      .prepare("UPDATE employee_tasks SET done=?,done_at=?,done_by=? WHERE id=? AND company_id=?")
+      .bind(done ? 1 : 0, done ? new Date().toISOString() : "", done ? await requesterName() : "", str(b.id, 100), id)
+      .run();
+    if (!result.meta.changes) throw new HttpError(404, "Tapşırıq tapılmadı.");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/employee-tasks/delete") {
+    requirePermission("salaries", "Adaptasiya siyahısını yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM employee_tasks WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    return ok({ ok: true });
   }
   // ---- Headcount plan: planned places per department against people working now ----
   if (request.method === "GET" && path === "company/headcount") {
@@ -7115,6 +7181,15 @@ async function route(request: Request) {
         .first<{ n: number }>()
         .catch(() => null);
       add("approval-requests", Number(waiting?.n) || 0, "təklif və ya maaş dəyişikliyi sizin təsdiqinizi gözləyir", "hr-approvals");
+    }
+    // Onboarding tasks of new employees that are past their date.
+    if (can(memberRole, "salaries")) {
+      const late = await db
+        .prepare("SELECT COUNT(*) AS n FROM employee_tasks WHERE company_id=? AND done=0 AND due<>'' AND due<?")
+        .bind(id, new Date().toISOString().slice(0, 10))
+        .first<{ n: number }>()
+        .catch(() => null);
+      add("onboarding", Number(late?.n) || 0, "adaptasiya tapşırığının vaxtı keçib", "hr-employees");
     }
     // New applications nobody has looked at for two days.
     const stale = await db
@@ -12985,6 +13060,20 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       })),
       statusLabels: INTERVIEW_STATUS_LABEL,
     });
+  }
+  // Feedback of all interviewed candidates, grouped by vacancy, best rated first.
+  if (request.method === "GET" && path === "hr/interviews/compare") {
+    const jobIds = await interviewScope();
+    const rows = await db
+      .prepare(
+        `SELECT i.application_id,i.job_id,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS candidate,
+          COALESCE(a.status,'') AS application_status,i.scheduled_at,i.status,i.rating,i.feedback,i.decision
+        FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.candidate_id LEFT JOIN applications a ON a.id=i.application_id
+        WHERE i.company_id=? AND i.job_id IN (SELECT value FROM json_each(?)) ORDER BY i.scheduled_at LIMIT 2000`,
+      )
+      .bind(id, JSON.stringify(jobIds))
+      .all<FeedbackRow>();
+    return ok({ jobs: compareInterviews(rows.results) });
   }
   if (request.method === "POST" && path === "hr/interviews/create") {
     const b = await jsonBody(request);

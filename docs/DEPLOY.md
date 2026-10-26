@@ -55,6 +55,7 @@ Tokeni heç kimə göndərməyin, yalnız GitHub-a yapışdırın.
 | `0057_profile_versions` | Profilin əvvəlki vəziyyətləri (`profile_versions`, ən çoxu 10, 10 dəqiqədə bir); geri qaytarmaq mümkündür |
 | `0058_company_gallery` | Şirkət səhifəsinin şəkil qalereyası (`company_images`, ən çoxu 6 şəkil, hər biri 300 KB-a qədər) |
 | `0059_approvals_delegation` | Təklif və maaş təsdiq sorğuları (`approval_requests`), əvəzedicilər (`approval_delegates`), şirkətin təsdiq qaydaları (`company_profiles.approval_rules`) |
+| `0060_approval_info_onboarding` | Təsdiq sorğusunda cavab və eskalasiya sütunları, işçi adaptasiya siyahısı (`employee_tasks`) |
 
 Hamısı əlavə xarakterlidir (yeni cədvəl və sütun), mövcud məlumatı silmir və hər biri yalnız bir dəfə tətbiq olunur. Miqrasiya tətbiq olunmasa, işçi axını, paketlər və təhsil kataloqu işləməz.
 

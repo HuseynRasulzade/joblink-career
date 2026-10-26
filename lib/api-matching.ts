@@ -4,6 +4,7 @@ import { MATCH_VERSION, analyze, match, candidateCertifications } from "./model"
 import { MATCHING_KEY, normalizeMatching, ratingHash, type MatchingSettings } from "./matching-settings";
 import { certificationDisplayName } from "./certification-catalog";
 import { addMonthsIso } from "./company";
+import { seedOnboardingTasks } from "./onboarding";
 // AI vacancy ratings (one per candidate and vacancy, reused until the CV or vacancy changes) and the
 // move of a hired candidate into the employees list.
 // ---- AI vacancy ratings: one per candidate and vacancy, reused until the CV or vacancy changes ----
@@ -133,6 +134,7 @@ export async function addHiredEmployee(db: D1Database, applicationId: string) {
       ]);
       // The probation period promised in the offer becomes the employee's probation end (reminded before it ends).
       if (probationEnd) await db.prepare("UPDATE company_employees SET probation_end=? WHERE id=?").bind(probationEnd, employeeId).run().catch(() => {});
+      await seedOnboardingTasks(db, row.owner, employeeId, startDate).catch(() => {});
     } catch {
       // Before migration 0022 the employee is saved without the vacancy link and history.
       await db

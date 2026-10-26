@@ -2343,6 +2343,7 @@ type Employee = {
   exitReason?: string;
   exitNote?: string;
   probationEnd?: string;
+  onboarding?: { total: number; done: number; overdue: number };
 };
 type Option = { id: string; label: string };
 const EVENT_LABEL: Record<string, string> = {
@@ -2487,6 +2488,21 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                       Sınaq: {day(e.probationEnd)}
                     </small>
                   )}
+                  {e.status === "active" &&
+                    !!e.onboarding?.total &&
+                    e.onboarding.done < e.onboarding.total && (
+                      <small
+                        className="skill-description"
+                        style={{
+                          color: e.onboarding.overdue ? "#b45309" : undefined,
+                        }}
+                      >
+                        Adaptasiya: {e.onboarding.done}/{e.onboarding.total}
+                        {e.onboarding.overdue
+                          ? ` · ${e.onboarding.overdue} gecikib`
+                          : ""}
+                      </small>
+                    )}
                 </td>
                 <td>
                   {EMPLOYEE_STATUS[e.status] || e.status}
@@ -2678,6 +2694,13 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
             </div>
             {editing.id && (
               <EmployeeDocuments employeeId={editing.id} notify={notify} />
+            )}
+            {editing.id && (
+              <OnboardingChecklist
+                employeeId={editing.id}
+                notify={notify}
+                onChange={load}
+              />
             )}
             {!!history.length && (
               <div className="employee-history">
@@ -3531,6 +3554,127 @@ type EmployeeDoc = {
   size: number;
   created: string;
 };
+// ---------- Onboarding checklist ----------
+type OnboardingItem = { id: string; title: string; due: string; done: number; done_at: string; done_by: string };
+function OnboardingChecklist({
+  employeeId,
+  notify,
+  onChange,
+}: {
+  employeeId: string;
+  notify: Notify;
+  onChange: () => void;
+}) {
+  const [data, load] = useLoad<{ tasks: OnboardingItem[] }>(
+    `company/employee-tasks?employeeId=${encodeURIComponent(employeeId)}`,
+    notify,
+  );
+  const [title, setTitle] = useState("");
+  const [due, setDue] = useState("");
+  const today = new Date().toISOString().slice(0, 10);
+  async function call(path: string, body: unknown, message?: string) {
+    try {
+      await request(path, body);
+      if (message) notify(message);
+      load();
+      onChange();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (!data) return null;
+  const done = data.tasks.filter((task) => task.done).length;
+  return (
+    <section className="employee-docs">
+      <h4>
+        Adaptasiya siyahısı
+        {!!data.tasks.length && ` (${done}/${data.tasks.length})`}
+      </h4>
+      <ul className="exam-list">
+        {data.tasks.map((task) => (
+          <li key={task.id} className="exam-row">
+            <label>
+              <input
+                type="checkbox"
+                checked={!!task.done}
+                onChange={(e) =>
+                  call("company/employee-tasks/toggle", {
+                    id: task.id,
+                    done: e.target.checked,
+                  })
+                }
+              />{" "}
+              <span style={task.done ? { textDecoration: "line-through" } : undefined}>
+                {task.title}
+              </span>
+              <small
+                className="skill-description"
+                style={{ color: !task.done && task.due && task.due < today ? "#b45309" : undefined }}
+              >
+                {task.done
+                  ? `Tamamlandı ${task.done_by ? `· ${task.done_by}` : ""}`
+                  : task.due
+                    ? `Son tarix: ${day(task.due)}${task.due < today ? " (gecikib)" : ""}`
+                    : "Tarixsiz"}
+              </small>
+            </label>
+            <button
+              type="button"
+              aria-label="Tapşırığı sil"
+              onClick={() => call("company/employee-tasks/delete", { id: task.id })}
+            >
+              <Trash2 size={14} />
+            </button>
+          </li>
+        ))}
+        {!data.tasks.length && (
+          <li className="admin-empty">Hələ tapşırıq yoxdur.</li>
+        )}
+      </ul>
+      <div className="form-actions">
+        <input
+          aria-label="Yeni tapşırıq"
+          placeholder="Yeni tapşırıq"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <input
+          type="date"
+          aria-label="Son tarix"
+          value={due}
+          onChange={(e) => setDue(e.target.value)}
+        />
+        <button
+          type="button"
+          className="secondary"
+          onClick={async () => {
+            await call("company/employee-tasks/add", { employeeId, title, due });
+            setTitle("");
+            setDue("");
+          }}
+        >
+          Əlavə et
+        </button>
+        {!data.tasks.length && (
+          <button
+            type="button"
+            className="primary"
+            onClick={() =>
+              call(
+                "company/employee-tasks/seed",
+                { employeeId },
+                "Standart adaptasiya siyahısı əlavə edildi.",
+              )
+            }
+          >
+            Standart siyahını əlavə et
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function EmployeeDocuments({
   employeeId,
   notify,

@@ -113,6 +113,15 @@ export async function buildDigest(
       ),
     },
     {
+      label: "adaptasiya tapşırığının vaxtı keçib",
+      count: await count(
+        db,
+        "SELECT COUNT(*) AS n FROM employee_tasks WHERE company_id=? AND done=0 AND due<>'' AND due<?",
+        companyId,
+        isoDay(now.getTime()),
+      ),
+    },
+    {
       label: "təklif və ya maaş dəyişikliyi təsdiq gözləyir",
       count: await count(
         db,
