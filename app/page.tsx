@@ -1,4 +1,4 @@
-import Joblink from "./Joblink";
+import HomeClient from "./HomeClient";
 export default function Home() {
-  return <Joblink />;
+  return <HomeClient />;
 }

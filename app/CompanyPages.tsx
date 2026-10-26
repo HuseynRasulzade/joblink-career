@@ -1096,7 +1096,7 @@ function RequestApprovals({
         </details>
       )}
       {rules && (
-        <fieldset className="field" disabled={!rules.canEdit}>
+        <fieldset className="field approval-rules" disabled={!rules.canEdit}>
           <legend>Direktor təsdiqi tələb olunan əməliyyatlar</legend>
           <label>
             <input

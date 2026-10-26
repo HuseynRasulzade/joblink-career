@@ -5309,3 +5309,49 @@ a svg {
   margin: 6px 0 0;
   font-size: 0.9rem;
 }
+
+.approval-rules {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.approval-rules label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.approval-rules input[type="number"] {
+  width: 120px;
+}
+.approval-rules select {
+  width: auto;
+  max-width: 100%;
+}
+.approval-card:not(.panel) {
+  border: 1px solid #e1e8e6;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 12px 0;
+  display: grid;
+  gap: 8px;
+}
+.approval-card h4,
+.approval-card p {
+  margin: 0;
+}
+.approval-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+.approval-card .form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.approval-card .form-actions input {
+  flex: 1 1 240px;
+}

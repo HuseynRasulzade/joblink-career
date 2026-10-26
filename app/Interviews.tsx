@@ -158,7 +158,9 @@ function FeedbackComparison({ notify }: { notify: Notify }) {
           <h3>Rəylərin müqayisəsi</h3>
           <p>Eyni vakansiyaya müsahibə verən namizədlərin rəyləri bir cədvəldə. Yekun qərarı özünüz verirsiniz.</p>
         </div>
-        <button onClick={show}>{jobs ? "Yenilə" : "Göstər"}</button>
+        <button className="secondary" onClick={show}>
+          {jobs ? "Yenilə" : "Göstər"}
+        </button>
       </div>
       {jobs && (
         <>
