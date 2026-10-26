@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BadgeCheck,
   Building2,
@@ -67,11 +67,17 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 }
 function useLoad<T>(path: string, notify: Notify) {
   const [data, setData] = useState<T | null>(null);
+  // `notify` is a new function on every render of the page above; keeping it out of
+  // the dependencies stops the same request being sent again after each re-render.
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  });
   const load = useCallback(() => {
     request<T>(path)
       .then(setData)
-      .catch((error) => notify((error as Error).message));
-  }, [path, notify]);
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, [path]);
   useEffect(load, [load]);
   return [data, load] as const;
 }

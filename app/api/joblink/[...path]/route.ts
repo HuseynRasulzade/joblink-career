@@ -1,6 +1,5 @@
 import {
   store,
-  identity,
   optionalIdentity,
   HttpError,
   profileInput,
@@ -1142,11 +1141,15 @@ async function route(request: Request) {
     return authRoute(request, path);
   }
   const db = await store();
-  const customSkills = await readCustomSkills(db);
+  // The three shared lists and the session are read together: each D1 round trip is slow.
+  const [customSkills, customCerts, customTitles, user] = await Promise.all([
+    readCustomSkills(db),
+    readCustomCertifications(db),
+    readCustomJobTitles(db),
+    optionalIdentity(request),
+  ]);
   const customSkillLabels = customSkills.map((skill) => skill.label);
-  const customCerts = await readCustomCertifications(db);
   setCustomCertifications(customCerts);
-  const customTitles = await readCustomJobTitles(db);
   setCustomJobTitles(customTitles);
   if (request.method === "GET" && path === "certifications")
     return ok({ custom: customCerts });
@@ -1190,7 +1193,6 @@ async function route(request: Request) {
       }),
     });
   }
-  const user = await optionalIdentity(request);
   if (request.method === "GET" && path === "companies") {
     const rows = await db
       .prepare(
@@ -1512,7 +1514,8 @@ async function route(request: Request) {
     });
   }
   // The signed-in person; for a company team member, `id` below is the company.
-  const userId = await identity(request);
+  if (!user) throw new HttpError(401, "Davam etmək üçün hesabınıza daxil olun.");
+  const userId = user;
   let id = userId;
   const accountRole =
     runtime().EXTERNAL_AUTH === "password"
@@ -1527,39 +1530,44 @@ async function route(request: Request) {
       : "candidate";
   let memberRole = "";
   let memberGrants: string[] = [];
+  // Approval rights lent by a colleague who is away (valid until the date they set).
+  const delegated: CompanyPermission[] = [];
   if (accountRole === "company") {
-    const membership = await db
-      .prepare(
-        "SELECT m.company_id,m.role FROM company_members m JOIN accounts c ON c.id=m.company_id WHERE m.user_id=? AND m.status='active'",
-      )
-      .bind(userId)
-      .first<{ company_id: string; role: string }>()
-      .catch(() => null);
-    if (membership) {
-      id = membership.company_id;
-      memberRole = membership.role;
-      // Extra permissions the owner gave to this person (column added by migration 0025).
-      const granted = await db
+    // Membership, a suspension and lent rights are independent, so they are read together.
+    const [membership, suspended, lentAll] = await Promise.all([
+      db
         .prepare(
-          "SELECT grants FROM company_members WHERE user_id=? AND company_id=? AND status='active'",
+          "SELECT m.company_id,m.role,m.grants FROM company_members m JOIN accounts c ON c.id=m.company_id WHERE m.user_id=? AND m.status='active'",
         )
-        .bind(userId, membership.company_id)
-        .first<{ grants: string }>()
-        .catch(() => null);
-      try {
-        memberGrants = normalizeGrants(JSON.parse(granted?.grants || "[]"));
-      } catch {
-        memberGrants = [];
-      }
-    } else {
-      // A suspended member must not fall back to an empty company of their own.
-      const suspended = await db
+        .bind(userId)
+        .first<{ company_id: string; role: string; grants: string }>()
+        .catch(() => null),
+      db
         .prepare(
           "SELECT 1 AS yes FROM company_members WHERE user_id=? AND status='suspended'",
         )
         .bind(userId)
         .first()
-        .catch(() => null);
+        .catch(() => null),
+      db
+        .prepare(
+          "SELECT company_id,from_user FROM approval_delegates WHERE to_user=? AND until>=?",
+        )
+        .bind(userId, new Date().toISOString().slice(0, 10))
+        .all<{ company_id: string; from_user: string }>()
+        .catch(() => ({ results: [] as { company_id: string; from_user: string }[] })),
+    ]);
+    if (membership) {
+      id = membership.company_id;
+      memberRole = membership.role;
+      // Extra permissions the owner gave to this person (column added by migration 0025).
+      try {
+        memberGrants = normalizeGrants(JSON.parse(membership.grants || "[]"));
+      } catch {
+        memberGrants = [];
+      }
+    } else {
+      // A suspended member must not fall back to an empty company of their own.
       if (
         suspended &&
         path !== "state" &&
@@ -1572,18 +1580,7 @@ async function route(request: Request) {
         );
       memberRole = "owner";
     }
-  }
-  // Approval rights lent by a colleague who is away (valid until the date they set).
-  const delegated: CompanyPermission[] = [];
-  if (accountRole === "company") {
-    const lent = await db
-      .prepare(
-        "SELECT from_user FROM approval_delegates WHERE company_id=? AND to_user=? AND until>=?",
-      )
-      .bind(id, userId, new Date().toISOString().slice(0, 10))
-      .all<{ from_user: string }>()
-      .catch(() => ({ results: [] as { from_user: string }[] }));
-    for (const row of lent.results) {
+    for (const row of lentAll.results.filter((r) => r.company_id === id)) {
       const from =
         row.from_user === id
           ? "owner"

@@ -336,6 +336,10 @@ export default function Joblink() {
   const [cvStorage, setCvStorage] = useState("r2");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  // Stable between renders: pages pass it to effects that must not rerun on every render.
+  const notify = useCallback((text: string) => {
+    setNotice(text);
+  }, []);
   const [loadError, setLoadError] = useState("");
   const [login, setLogin] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
@@ -748,9 +752,6 @@ export default function Joblink() {
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, [signedIn, accountRole]);
-  function notify(text: string) {
-    setNotice(text);
-  }
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 6500);
