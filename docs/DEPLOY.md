@@ -100,3 +100,9 @@ Hesabat xülasələri, müsahibə xatırlatmaları, başlanmamış test xatırla
 ## PWA
 
 `public/manifest.webmanifest`, `public/sw.js`, `public/offline.html` və ikonlar ana ekrana əlavə etməyi və oflayn səhifəni təmin edir. Service worker yalnız istehsal rejimində qeydə alınır və `/api/` sorğularını heç vaxt keşləmir.
+
+## Performans: Cloudflare CPU limiti (xəta 1102)
+
+Cloudflare Workers pulsuz planda hər sorğuya təxminən 10 ms CPU verir. Bütün tətbiqin serverdə render edilməsi (SSR) bu limiti aşırdı: ana səhifənin təxminən üçdə biri “error code: 1102” ilə açılmırdı. İndi tətbiq yalnız brauzerdə çəkilir (`app/HomeClient.tsx`, `next/dynamic` + `ssr: false`), server isə kiçik qabıq göndərir. Yoxlama: ana səhifəyə 60 sorğuda 0 xəta.
+
+Yenə də API sorğuları (məsələn bir çox kataloq yükləyən) limitə yaxın ola bilər. Trafik artarsa, Workers Paid planına keçmək (30 s CPU) ən təhlükəsiz yoldur.

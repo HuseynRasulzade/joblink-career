@@ -1201,6 +1201,7 @@ async function route(request: Request) {
           p.verification_status AS verification, p.data AS details, CASE WHEN COALESCE(p.logo_data,'')<>'' THEN 1 ELSE 0 END AS has_logo
         FROM accounts a LEFT JOIN company_profiles p ON p.company_id=a.id
         WHERE a.role='company' AND COALESCE(a.status,'active')='active'
+          AND NOT EXISTS(SELECT 1 FROM company_members tm WHERE tm.user_id=a.id AND tm.status IN ('active','suspended'))
           AND ${user ? "NOT EXISTS(SELECT 1 FROM relations r WHERE r.kind='block' AND ((r.actor_id=? AND r.target_id=a.id) OR (r.actor_id=a.id AND r.target_id=?)))" : "1=1"}
         ORDER BY open_jobs DESC, a.name LIMIT 300`,
       )

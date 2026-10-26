@@ -197,7 +197,7 @@ function FeedbackComparison({ notify }: { notify: Notify }) {
                       <td>{c.rated ? `${c.average} / 5` : "—"}</td>
                       <td>{c.ratings.join(", ") || "—"}</td>
                       <td>
-                        {c.rated ? `↑ ${c.advance} · ⏸ ${c.hold} · ✕ ${c.reject}` : "—"}
+                        {c.rated ? `Davam ${c.advance} · Gözlə ${c.hold} · Rədd ${c.reject}` : "—"}
                       </td>
                       <td>
                         {decisionText(c.lastDecision)}
