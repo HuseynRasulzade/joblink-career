@@ -41,6 +41,16 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <noscript>
+          <main style={{ maxWidth: 640, margin: "48px auto", padding: "0 16px" }}>
+            <h1>Joblink</h1>
+            <p>
+              Joblink iş axtaranları və işəgötürənləri bir yerə gətirir: CV analizi,
+              uyğun vakansiyalar və işə qəbul prosesinin idarəsi. Saytı işlətmək üçün
+              brauzerdə JavaScript aktiv olmalıdır.
+            </p>
+          </main>
+        </noscript>
         <RegisterServiceWorker />
         <ClientErrorReporter />
       </body>
