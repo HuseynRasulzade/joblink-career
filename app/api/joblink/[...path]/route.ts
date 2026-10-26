@@ -1385,8 +1385,17 @@ async function route(request: Request) {
     );
   }
   if (request.method === "GET" && path === "state") {
-    const jobRows = user
-      ? await db
+    // Everything this page needs is read together; one D1 round trip each would add up.
+    type EventRow = {
+      application_id: string;
+      type: string;
+      from_value: string;
+      to_value: string;
+      note: string;
+      created: string;
+    };
+    const jobsQuery = user
+      ? db
           .prepare(
             `${OPEN_JOBS_SQL} AND NOT EXISTS(SELECT 1 FROM relations r WHERE r.kind='block'
               AND ((r.actor_id=? AND r.target_id=j.owner) OR (r.actor_id=j.owner AND r.target_id=?)))
@@ -1394,55 +1403,60 @@ async function route(request: Request) {
           )
           .bind(user, user)
           .all<Row>()
-      : await db
+      : db
           .prepare(`${OPEN_JOBS_SQL} ORDER BY j.created DESC LIMIT 200`)
           .all<Row>();
-    const verifiedOwners = await verifiedCompanyIds(db);
+    const none = Promise.resolve(null);
+    const [jobRows, verifiedOwners, profileRow, appRows, eventRows, savedRows, account] =
+      await Promise.all([
+        jobsQuery,
+        verifiedCompanyIds(db),
+        user
+          ? db.prepare("SELECT data FROM profiles WHERE user_id = ?").bind(user).first<Row>()
+          : none,
+        user
+          ? db
+              .prepare(
+                `SELECT ap.*,j.data AS job_data FROM applications ap LEFT JOIN jobs j ON j.id=ap.job_id
+            WHERE ap.candidate_id = ? ORDER BY ap.created DESC`,
+              )
+              .bind(user)
+              .all<Row & { job_data: string | null }>()
+          : none,
+        user
+          ? db
+              .prepare(
+                `SELECT e.application_id,e.type,e.from_value,e.to_value,CASE WHEN e.type='rejection' THEN substr(e.note,9) ELSE '' END AS note,e.created FROM application_events e
+          JOIN applications a ON a.id=e.application_id WHERE a.candidate_id=? AND (e.type IN ('applied','status','stage','withdrawn','offer') OR (e.type='rejection' AND e.note LIKE 'shared%'))
+          ORDER BY e.created`,
+              )
+              .bind(user)
+              .all<EventRow>()
+              .catch(() => ({ results: [] as EventRow[] }))
+          : none,
+        user ? db.prepare("SELECT job_id FROM saved WHERE user_id = ?").bind(user).all<Row>() : none,
+        user && runtime().EXTERNAL_AUTH === "password"
+          ? db
+              .prepare(
+                "SELECT name,COALESCE(role,'candidate') AS role,COALESCE(status,'active') AS status FROM accounts WHERE id=?",
+              )
+              .bind(user)
+              .first<{
+                name: string;
+                role: "candidate" | "company" | "admin";
+                status: string;
+              }>()
+          : none,
+      ]);
     let profile = null,
       applications: unknown[] = [],
       saved: string[] = [];
-    if (user) {
-      const row = await db
-        .prepare("SELECT data FROM profiles WHERE user_id = ?")
-        .bind(user)
-        .first<Row>();
-      profile = row
-        ? profileInput(JSON.parse(row.data), customSkillLabels, {
+    if (user && appRows && eventRows && savedRows) {
+      profile = profileRow
+        ? profileInput(JSON.parse(profileRow.data), customSkillLabels, {
             preserveStoredSkills: true,
           })
         : null;
-      const appRows = await db
-        .prepare(
-          `SELECT ap.*,j.data AS job_data FROM applications ap LEFT JOIN jobs j ON j.id=ap.job_id
-            WHERE ap.candidate_id = ? ORDER BY ap.created DESC`,
-        )
-        .bind(user)
-        .all<Row & { job_data: string | null }>();
-      const eventRows = await db
-        .prepare(
-          `SELECT e.application_id,e.type,e.from_value,e.to_value,CASE WHEN e.type='rejection' THEN substr(e.note,9) ELSE '' END AS note,e.created FROM application_events e
-          JOIN applications a ON a.id=e.application_id WHERE a.candidate_id=? AND (e.type IN ('applied','status','stage','withdrawn','offer') OR (e.type='rejection' AND e.note LIKE 'shared%'))
-          ORDER BY e.created`,
-        )
-        .bind(user)
-        .all<{
-          application_id: string;
-          type: string;
-          from_value: string;
-          to_value: string;
-          note: string;
-          created: string;
-        }>()
-        .catch(() => ({
-          results: [] as {
-            application_id: string;
-            type: string;
-            from_value: string;
-            to_value: string;
-            note: string;
-            created: string;
-          }[],
-        }));
       applications = appRows.results.map((r) => {
         const visible = STAGE_VISIBLE_STATUSES.has(r.status);
         return {
@@ -1466,25 +1480,8 @@ async function route(request: Request) {
             : sampleJobs.find((job) => job.id === r.job_id),
         };
       });
-      const s = await db
-        .prepare("SELECT job_id FROM saved WHERE user_id = ?")
-        .bind(user)
-        .all<Row>();
-      saved = s.results.map((r) => r.job_id);
+      saved = savedRows.results.map((r) => r.job_id);
     }
-    const account =
-      user && runtime().EXTERNAL_AUTH === "password"
-        ? await db
-            .prepare(
-              "SELECT name,COALESCE(role,'candidate') AS role,COALESCE(status,'active') AS status FROM accounts WHERE id=?",
-            )
-            .bind(user)
-            .first<{
-              name: string;
-              role: "candidate" | "company" | "admin";
-              status: string;
-            }>()
-        : null;
     return ok({
       profile,
       account,
@@ -7167,13 +7164,78 @@ async function route(request: Request) {
       [];
     const add = (key: string, count: number, label: string, link: string) =>
       count > 0 && items.push({ key, count, label, link });
+    type Count = { n: number } | null;
+    const counted = (sql: string, ...bind: unknown[]): Promise<Count> =>
+      db
+        .prepare(sql)
+        .bind(...bind)
+        .first<{ n: number }>()
+        .catch(() => null);
+    const skip: Promise<Count> = Promise.resolve(null);
+    // The checks do not depend on each other, so they run together.
+    const [pending, waiting, late, stale, review, offers, probation, expiring, profile] =
+      await Promise.all([
+        db
+          .prepare("SELECT data FROM jobs WHERE owner=? AND status='pending_approval'")
+          .bind(id)
+          .all<{ data: string }>(),
+        canAct("approve-director")
+          ? counted(
+              "SELECT COUNT(*) AS n FROM approval_requests WHERE company_id=? AND status='pending' AND (requested_by<>? OR ?='owner')",
+              id,
+              userId,
+              memberRole,
+            )
+          : skip,
+        can(memberRole, "salaries")
+          ? counted(
+              "SELECT COUNT(*) AS n FROM employee_tasks WHERE company_id=? AND done=0 AND due<>'' AND due<?",
+              id,
+              today,
+            )
+          : skip,
+        counted(
+          "SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?)) AND a.status='Göndərildi' AND a.created<?",
+          id,
+          scope.jobIdsJson,
+          new Date(Date.now() - 2 * 86400000).toISOString(),
+        ),
+        can(memberRole, "tests", memberGrants)
+          ? counted(
+              "SELECT COUNT(*) AS n FROM assessment_assignments WHERE company_id=? AND review_status='pending' AND status IN ('submitted','expired')",
+              id,
+            )
+          : skip,
+        can(memberRole, "offers", memberGrants)
+          ? counted(
+              "SELECT COUNT(*) AS n FROM offers WHERE company_id=? AND status='sent' AND created<?",
+              id,
+              new Date(Date.now() - 5 * 86400000).toISOString(),
+            )
+          : skip,
+        can(memberRole, "salaries", memberGrants)
+          ? counted(
+              "SELECT COUNT(*) AS n FROM company_employees WHERE company_id=? AND status='active' AND probation_end<>'' AND probation_end<=?",
+              id,
+              weekAhead,
+            )
+          : skip,
+        counted(
+          "SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND id IN (SELECT value FROM json_each(?)) AND status='published' AND json_extract(data,'$.deadline')<>'' AND json_extract(data,'$.deadline')>=? AND json_extract(data,'$.deadline')<=?",
+          id,
+          scope.jobIdsJson,
+          today,
+          weekAhead,
+        ),
+        can(memberRole, "company-profile", memberGrants)
+          ? db
+              .prepare("SELECT verification_status FROM company_profiles WHERE company_id=?")
+              .bind(id)
+              .first<{ verification_status: string }>()
+              .catch(() => null)
+          : skip,
+      ]);
     // Vacancies waiting for this member's approval.
-    const pending = await db
-      .prepare(
-        "SELECT data FROM jobs WHERE owner=? AND status='pending_approval'",
-      )
-      .bind(id)
-      .all<{ data: string }>();
     const toDecide = pending.results.filter((r) => {
       const job = JSON.parse(r.data) as { approval?: JobApproval };
       return (
@@ -7181,178 +7243,86 @@ async function route(request: Request) {
         (job.approval?.requestedBy !== userId || memberRole === "owner")
       );
     }).length;
-    add(
-      "approvals",
-      toDecide,
-      "vakansiya sizin təsdiqinizi gözləyir",
-      "hr-approvals",
-    );
+    add("approvals", toDecide, "vakansiya sizin təsdiqinizi gözləyir", "hr-approvals");
     // Offers and salary changes waiting for a director's decision.
-    if (canAct("approve-director")) {
-      const waiting = await db
-        .prepare("SELECT COUNT(*) AS n FROM approval_requests WHERE company_id=? AND status='pending' AND (requested_by<>? OR ?='owner')")
-        .bind(id, userId, memberRole)
-        .first<{ n: number }>()
-        .catch(() => null);
-      add("approval-requests", Number(waiting?.n) || 0, "təklif və ya maaş dəyişikliyi sizin təsdiqinizi gözləyir", "hr-approvals");
-    }
+    add("approval-requests", Number(waiting?.n) || 0, "təklif və ya maaş dəyişikliyi sizin təsdiqinizi gözləyir", "hr-approvals");
     // Onboarding tasks of new employees that are past their date.
-    if (can(memberRole, "salaries")) {
-      const late = await db
-        .prepare("SELECT COUNT(*) AS n FROM employee_tasks WHERE company_id=? AND done=0 AND due<>'' AND due<?")
-        .bind(id, new Date().toISOString().slice(0, 10))
-        .first<{ n: number }>()
-        .catch(() => null);
-      add("onboarding", Number(late?.n) || 0, "adaptasiya tapşırığının vaxtı keçib", "hr-employees");
-    }
+    add("onboarding", Number(late?.n) || 0, "adaptasiya tapşırığının vaxtı keçib", "hr-employees");
     // New applications nobody has looked at for two days.
-    const stale = await db
-      .prepare(
-        "SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?)) AND a.status='Göndərildi' AND a.created<?",
-      )
-      .bind(
-        id,
-        scope.jobIdsJson,
-        new Date(Date.now() - 2 * 86400000).toISOString(),
-      )
-      .first<{ n: number }>();
-    add(
-      "new-applications",
-      Number(stale?.n) || 0,
-      "müraciətə 2 gündən çoxdur baxılmayıb",
-      "hr-candidates",
-    );
-    if (can(memberRole, "tests", memberGrants)) {
-      const review = await db
-        .prepare(
-          "SELECT COUNT(*) AS n FROM assessment_assignments WHERE company_id=? AND review_status='pending' AND status IN ('submitted','expired')",
-        )
-        .bind(id)
-        .first<{ n: number }>()
-        .catch(() => null);
+    add("new-applications", Number(stale?.n) || 0, "müraciətə 2 gündən çoxdur baxılmayıb", "hr-candidates");
+    add("tests", Number(review?.n) || 0, "test nəticəsinin açıq cavabları yoxlanmalıdır", "hr-tests");
+    add("offers", Number(offers?.n) || 0, "təklifə 5 gündən çoxdur cavab verilməyib", "hr-candidates");
+    add("probation", Number(probation?.n) || 0, "işçinin sınaq müddəti 7 gündən az qalıb və ya bitib", "hr-employees");
+    add("expiring", Number(expiring?.n) || 0, "vakansiyanın son tarixinə 7 gündən az qalıb", "hr-jobs");
+    if (can(memberRole, "company-profile", memberGrants) && (profile as { verification_status: string } | null)?.verification_status !== "verified")
       add(
-        "tests",
-        Number(review?.n) || 0,
-        "test nəticəsinin açıq cavabları yoxlanmalıdır",
-        "hr-tests",
+        "verification",
+        1,
+        (profile as { verification_status: string } | null)?.verification_status === "pending"
+          ? "şirkət yoxlaması gözlənilir"
+          : "şirkəti təsdiqləyin (VÖEN sənədi)",
+        "hr-company",
       );
-    }
-    if (can(memberRole, "offers", memberGrants)) {
-      const offers = await db
-        .prepare(
-          "SELECT COUNT(*) AS n FROM offers WHERE company_id=? AND status='sent' AND created<?",
-        )
-        .bind(id, new Date(Date.now() - 5 * 86400000).toISOString())
-        .first<{ n: number }>()
-        .catch(() => null);
-      add(
-        "offers",
-        Number(offers?.n) || 0,
-        "təklifə 5 gündən çoxdur cavab verilməyib",
-        "hr-candidates",
-      );
-    }
-    if (can(memberRole, "salaries", memberGrants)) {
-      const probation = await db
-        .prepare(
-          "SELECT COUNT(*) AS n FROM company_employees WHERE company_id=? AND status='active' AND probation_end<>'' AND probation_end<=?",
-        )
-        .bind(id, weekAhead)
-        .first<{ n: number }>()
-        .catch(() => null);
-      add(
-        "probation",
-        Number(probation?.n) || 0,
-        "işçinin sınaq müddəti 7 gündən az qalıb və ya bitib",
-        "hr-employees",
-      );
-    }
-    const expiring = await db
-      .prepare(
-        "SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND id IN (SELECT value FROM json_each(?)) AND status='published' AND json_extract(data,'$.deadline')<>'' AND json_extract(data,'$.deadline')>=? AND json_extract(data,'$.deadline')<=?",
-      )
-      .bind(id, scope.jobIdsJson, today, weekAhead)
-      .first<{ n: number }>();
-    add(
-      "expiring",
-      Number(expiring?.n) || 0,
-      "vakansiyanın son tarixinə 7 gündən az qalıb",
-      "hr-jobs",
-    );
-    if (can(memberRole, "company-profile", memberGrants)) {
-      const profile = await db
-        .prepare(
-          "SELECT verification_status FROM company_profiles WHERE company_id=?",
-        )
-        .bind(id)
-        .first<{ verification_status: string }>()
-        .catch(() => null);
-      if (profile?.verification_status !== "verified")
-        add(
-          "verification",
-          1,
-          profile?.verification_status === "pending"
-            ? "şirkət yoxlaması gözlənilir"
-            : "şirkəti təsdiqləyin (VÖEN sənədi)",
-          "hr-company",
-        );
-    }
     return ok({ items });
   }
   if (request.method === "GET" && path === "company/dashboard") {
     const scope = await reportScope();
-    const jobs = await db
-      .prepare(
-        "SELECT id,status,created,json_extract(data,'$.title') AS title FROM jobs WHERE owner=? AND id IN (SELECT value FROM json_each(?))",
-      )
-      .bind(id, scope.jobIdsJson)
-      .all<{ id: string; status: string; created: string; title: string }>();
-    const allApps = await db
-      .prepare(
-        "SELECT a.id,a.job_id,a.status,a.created,a.updated,a.auto,a.source FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))",
-      )
-      .bind(id, scope.jobIdsJson)
-      .all<{
-        id: string;
-        job_id: string;
-        status: string;
-        created: string;
-        updated: string | null;
-        auto: number;
-        source: string;
-      }>();
-    const apps = {
-      results: allApps.results.filter((a) => scope.inRange(a.created)),
+    type AppRow = {
+      id: string;
+      job_id: string;
+      status: string;
+      created: string;
+      updated: string | null;
+      auto: number;
+      source: string;
     };
     // Offers, tests and employees are company-wide, so a role limited to its own vacancies does not see them.
     const empty = { results: [] as { status: string }[] };
-    const offers = scope.ownOnly
-      ? empty
-      : await db
-          .prepare(
-            "SELECT status FROM offers WHERE company_id=? AND (?='' OR substr(created,1,10)>=?) AND (?='' OR substr(created,1,10)<=?)",
-          )
-          .bind(id, scope.from, scope.from, scope.to, scope.to)
-          .all<{ status: string }>()
-          .catch(() => empty);
-    const tests = scope.ownOnly
-      ? empty
-      : await db
-          .prepare(
-            "SELECT status FROM assessment_assignments WHERE company_id=? AND (?='' OR substr(assigned_at,1,10)>=?) AND (?='' OR substr(assigned_at,1,10)<=?)",
-          )
-          .bind(id, scope.from, scope.from, scope.to, scope.to)
-          .all<{ status: string }>()
-          .catch(() => empty);
-    const employees = scope.ownOnly
-      ? null
-      : await db
-          .prepare(
-            "SELECT COUNT(*) AS n FROM company_employees WHERE company_id=? AND status='active'",
-          )
-          .bind(id)
-          .first<{ n: number }>()
-          .catch(() => null);
+    // The five reads do not depend on each other, so they run together.
+    const [jobs, allApps, offers, tests, employees] = await Promise.all([
+      db
+        .prepare(
+          "SELECT id,status,created,json_extract(data,'$.title') AS title FROM jobs WHERE owner=? AND id IN (SELECT value FROM json_each(?))",
+        )
+        .bind(id, scope.jobIdsJson)
+        .all<{ id: string; status: string; created: string; title: string }>(),
+      db
+        .prepare(
+          "SELECT a.id,a.job_id,a.status,a.created,a.updated,a.auto,a.source FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.owner=? AND j.id IN (SELECT value FROM json_each(?))",
+        )
+        .bind(id, scope.jobIdsJson)
+        .all<AppRow>(),
+      scope.ownOnly
+        ? empty
+        : db
+            .prepare(
+              "SELECT status FROM offers WHERE company_id=? AND (?='' OR substr(created,1,10)>=?) AND (?='' OR substr(created,1,10)<=?)",
+            )
+            .bind(id, scope.from, scope.from, scope.to, scope.to)
+            .all<{ status: string }>()
+            .catch(() => empty),
+      scope.ownOnly
+        ? empty
+        : db
+            .prepare(
+              "SELECT status FROM assessment_assignments WHERE company_id=? AND (?='' OR substr(assigned_at,1,10)>=?) AND (?='' OR substr(assigned_at,1,10)<=?)",
+            )
+            .bind(id, scope.from, scope.from, scope.to, scope.to)
+            .all<{ status: string }>()
+            .catch(() => empty),
+      scope.ownOnly
+        ? null
+        : db
+            .prepare(
+              "SELECT COUNT(*) AS n FROM company_employees WHERE company_id=? AND status='active'",
+            )
+            .bind(id)
+            .first<{ n: number }>()
+            .catch(() => null),
+    ]);
+    const apps = {
+      results: allApps.results.filter((a) => scope.inRange(a.created)),
+    };
     const byStatus: Record<string, number> = {};
     for (const a of apps.results)
       byStatus[a.status] = (byStatus[a.status] || 0) + 1;
@@ -10928,53 +10898,56 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     return ok({ job: j });
   }
   if (request.method === "GET" && path === "hr") {
-    const latestDraft = await db
-      .prepare(
-        "SELECT data FROM drafts WHERE owner=? AND status='draft' ORDER BY rowid DESC LIMIT 1",
-      )
-      .bind(id)
-      .first<Row>();
-    const jobRows = await db
-      .prepare("SELECT * FROM jobs WHERE owner=? ORDER BY created DESC")
-      .bind(id)
-      .all<Row>()
-      .then((r) => {
-        // Roles that cannot publish see only the vacancies they created themselves.
-        if (can(memberRole, "publish")) return r;
-        return {
-          ...r,
-          results: r.results.filter(
-            (j) =>
-              (JSON.parse(j.data) as { createdBy?: string }).createdBy ===
-              userId,
-          ),
-        };
-      });
-    const appRows = await db
-      .prepare(
-        "SELECT a.* FROM applications a JOIN jobs j ON a.job_id=j.id WHERE j.owner=? ORDER BY a.created DESC",
-      )
-      .bind(id)
-      .all<Row>()
-      .then((r) => {
-        if (can(memberRole, "publish")) return r;
-        const own = new Set(jobRows.results.map((j) => String(j.id)));
-        return {
-          ...r,
-          results: r.results.filter((a) => own.has(String(a.job_id))),
-        };
-      });
-    const active = await db
-      .prepare(
-        `SELECT p.user_id,p.data FROM profiles p LEFT JOIN accounts a ON a.id=p.user_id
+    // The four reads do not depend on each other, so they run together.
+    const [latestDraft, allJobs, allApps, active] = await Promise.all([
+      db
+        .prepare(
+          "SELECT data FROM drafts WHERE owner=? AND status='draft' ORDER BY rowid DESC LIMIT 1",
+        )
+        .bind(id)
+        .first<Row>(),
+      db
+        .prepare("SELECT * FROM jobs WHERE owner=? ORDER BY created DESC")
+        .bind(id)
+        .all<Row>(),
+      db
+        .prepare(
+          "SELECT a.* FROM applications a JOIN jobs j ON a.job_id=j.id WHERE j.owner=? ORDER BY a.created DESC",
+        )
+        .bind(id)
+        .all<Row>(),
+      db
+        .prepare(
+          `SELECT p.user_id,p.data FROM profiles p LEFT JOIN accounts a ON a.id=p.user_id
           WHERE p.active='1' AND p.user_id<>? AND COALESCE(a.status,'active')='active'
           AND COALESCE(a.role,'candidate')='candidate'
           AND NOT EXISTS(SELECT 1 FROM relations r WHERE r.kind='block'
             AND ((r.actor_id=? AND r.target_id=p.user_id) OR (r.actor_id=p.user_id AND r.target_id=?)))
           ORDER BY p.updated DESC LIMIT 200`,
-      )
-      .bind(id, id, id)
-      .all<Row>();
+        )
+        .bind(id, id, id)
+        .all<Row>(),
+    ]);
+    // Roles that cannot publish see only the vacancies they created themselves.
+    const jobRows = can(memberRole, "publish")
+      ? allJobs
+      : {
+          ...allJobs,
+          results: allJobs.results.filter(
+            (j) =>
+              (JSON.parse(j.data) as { createdBy?: string }).createdBy ===
+              userId,
+          ),
+        };
+    const appRows = can(memberRole, "publish")
+      ? allApps
+      : (() => {
+          const own = new Set(jobRows.results.map((j) => String(j.id)));
+          return {
+            ...allApps,
+            results: allApps.results.filter((a) => own.has(String(a.job_id))),
+          };
+        })();
     // Confirmed workplace and certificate documents, shown as badges.
     const candidateIds = [
       ...new Set([
