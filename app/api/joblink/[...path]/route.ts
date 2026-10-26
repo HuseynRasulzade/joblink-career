@@ -7001,6 +7001,10 @@ async function route(request: Request) {
       )
       .bind(str(b.id, 100), id)
       .run();
+    await db
+      .prepare("DELETE FROM employee_tasks WHERE employee_id=? AND company_id=?")
+      .bind(str(b.id, 100), id)
+      .run();
     await companyAudit(db, id, userId, "employee-removed", str(b.id, 100));
     return ok({ ok: true });
   }
