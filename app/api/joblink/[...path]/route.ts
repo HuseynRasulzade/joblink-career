@@ -116,6 +116,7 @@ import {
   GALLERY_LIMIT,
   delegateUntil,
   needsDirector,
+  salaryChangePercent,
   normalizeApprovalRules,
   type ApprovalKind,
   GRANTABLE,
@@ -1667,6 +1668,59 @@ async function route(request: Request) {
     });
     return requestId;
   };
+  // Every approval of the company in one list: vacancies and requests, with the time each took.
+  const approvalHistory = async () => {
+    type Row = {
+      kind: string;
+      subject: string;
+      requestedBy: string;
+      requested: string;
+      decidedBy: string;
+      decision: string;
+      decided: string;
+      note: string;
+    };
+    const rows: Row[] = [];
+    const requests = await db
+      .prepare("SELECT kind,subject,requested_by_name,created,decided_by_name,status,decided,note FROM approval_requests WHERE company_id=? ORDER BY created DESC LIMIT 500")
+      .bind(id)
+      .all<{ kind: string; subject: string; requested_by_name: string; created: string; decided_by_name: string; status: string; decided: string; note: string }>()
+      .catch(() => ({ results: [] }));
+    for (const r of requests.results)
+      rows.push({
+        kind: APPROVAL_KIND_LABEL[r.kind as ApprovalKind] || r.kind,
+        subject: r.subject,
+        requestedBy: r.requested_by_name,
+        requested: r.created,
+        decidedBy: r.decided_by_name,
+        decision: r.status,
+        decided: r.decided,
+        note: r.note,
+      });
+    const jobs = await db
+      .prepare("SELECT status,data FROM jobs WHERE owner=? AND json_extract(data,'$.approval') IS NOT NULL ORDER BY created DESC LIMIT 500")
+      .bind(id)
+      .all<{ status: string; data: string }>()
+      .catch(() => ({ results: [] }));
+    for (const r of jobs.results) {
+      const job = JSON.parse(r.data) as Job & { approval?: JobApproval };
+      const steps = job.approval?.steps || [];
+      const last = [...steps].reverse().find((step) => step.decision);
+      rows.push({
+        kind: "Vakansiya",
+        subject: job.title,
+        requestedBy: job.approval?.requestedByName || "",
+        requested: job.approval?.requestedAt || "",
+        decidedBy: last ? `${last.byName} (${last.role === "hr" ? "HR" : "direktor"})` : "",
+        decision: r.status === "pending_approval" ? "pending" : last?.decision === "rejected" ? "rejected" : last ? "approved" : "pending",
+        decided: last?.at || "",
+        note: last?.note || "",
+      });
+    }
+    return rows;
+  };
+  const hoursBetween = (from: string, to: string) =>
+    from && to ? Math.max(0, Math.round(((Date.parse(to) - Date.parse(from)) / 3_600_000) * 10) / 10) : null;
   const requirePermission = (
     permission: CompanyPermission,
     message = "Bu əməliyyat üçün rolunuzun icazəsi yoxdur.",
@@ -6359,6 +6413,12 @@ async function route(request: Request) {
     const department = str(b.department, 120);
     if (!department) throw new HttpError(400, "Şöbənin adını yazın.");
     const now = new Date().toISOString();
+    if (needsDirector(await approvalRules(), "headcount", canAct("approve-director"))) {
+      const planned = b.planned === null || b.planned === "" ? null : Math.max(0, Math.min(10000, Math.round(Number(b.planned))));
+      if (planned !== null && !Number.isFinite(planned)) throw new HttpError(400, "Say düzgün deyil.");
+      await queueApproval("headcount", `${department}: ${planned === null ? "plan silinir" : `${planned} ştat`}`, { department, planned });
+      return ok({ ok: true, pending: true });
+    }
     if (b.planned === null || b.planned === "") {
       await db
         .prepare(
@@ -6607,7 +6667,7 @@ async function route(request: Request) {
     const name = str(b.name, 120);
     if (name.length < 2) throw new HttpError(400, "İşçinin adını yazın.");
     let salary = Math.max(0, Math.min(1_000_000, Number(b.salary) || 0));
-    const status = ["active", "leave", "left"].includes(str(b.status, 10))
+    let status = ["active", "leave", "left"].includes(str(b.status, 10))
       ? str(b.status, 10)
       : "active";
     const position = str(b.position, 120),
@@ -6625,7 +6685,7 @@ async function route(request: Request) {
       );
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
-    const exit = normalizeExit(
+    let exit = normalizeExit(
       {
         status,
         endDate: b.endDate,
@@ -6671,6 +6731,10 @@ async function route(request: Request) {
           position: string;
           department: string;
           status: string;
+          end_date: string;
+          exit_type: string;
+          exit_reason: string;
+          exit_note: string;
         }>();
       if (!old) throw new HttpError(404, "İşçi tapılmadı.");
       // With the salary rule on, a raise or cut by anyone but a director waits for approval;
@@ -6682,6 +6746,7 @@ async function route(request: Request) {
           await approvalRules(),
           "salary",
           canAct("approve-director"),
+          salaryChangePercent(old.salary_cents / 100, salary),
         )
       ) {
         await queueApproval(
@@ -6691,6 +6756,24 @@ async function route(request: Request) {
         );
         salary = old.salary_cents / 100;
         salaryRequested = true;
+      }
+      // Leaving needs approval too when that rule is on; the rest of the form is saved.
+      let exitRequested = false;
+      if (
+        status === "left" &&
+        old.status !== "left" &&
+        needsDirector(await approvalRules(), "exit", canAct("approve-director"))
+      ) {
+        await queueApproval("exit", `${name}: işdən çıxarılma (${exitTypeLabel(exit.exitType)})`, {
+          employeeId: existingId,
+          endDate: exit.endDate,
+          exitType: exit.exitType,
+          exitReason: exit.exitReason,
+          exitNote: exit.exitNote,
+        });
+        status = old.status;
+        exit = { ...exit, endDate: old.end_date, exitType: old.exit_type, exitReason: old.exit_reason, exitNote: old.exit_note };
+        exitRequested = true;
       }
       const events = [];
       if (old.status !== status) {
@@ -6781,7 +6864,12 @@ async function route(request: Request) {
           existingId,
           `${name}: ${exitTypeLabel(exit.exitType)}`,
         );
-      return ok({ ok: true, id: existingId, salaryPending: salaryRequested });
+      return ok({
+        ok: true,
+        id: existingId,
+        salaryPending: salaryRequested,
+        exitPending: exitRequested,
+      });
     }
     const newId = crypto.randomUUID();
     const events = [
@@ -7357,6 +7445,7 @@ async function route(request: Request) {
         "invoices",
         "tests",
         "offers",
+        "approvals",
       ].includes(kind)
     )
       throw new HttpError(
@@ -7824,6 +7913,20 @@ async function route(request: Request) {
           (r.signed_at || "").slice(0, 10),
         ];
       });
+    } else if (kind === "approvals") {
+      const STATUS: Record<string, string> = { pending: "Gözləyir", info: "Məlumat istənilib", approved: "Təsdiqləndi", rejected: "Rədd edildi" };
+      headers = ["Növ", "Mövzu", "Göndərən", "Göndərilmə vaxtı", "Qərar verən", "Qərar", "Qərar vaxtı", "Saat", "Qeyd"];
+      rows = (await approvalHistory()).map((r) => [
+        r.kind,
+        r.subject,
+        r.requestedBy,
+        r.requested,
+        r.decidedBy,
+        STATUS[r.decision] || r.decision,
+        r.decided,
+        hoursBetween(r.requested, r.decided) ?? "",
+        r.note,
+      ]);
     } else throw new HttpError(400, "Hesabat növü yanlışdır.");
     await companyAudit(db, id, userId, "report-exported", kind);
     const workbook = createXlsx(headers, rows, kind);
@@ -11451,7 +11554,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     };
     // With the offer rule on, only a director (or a substitute) sends offers directly.
     if (
-      needsDirector(await approvalRules(), "offer", canAct("approve-director"))
+      needsDirector(await approvalRules(), "offer", canAct("approve-director"), salary)
     ) {
       const who =
         (
@@ -11503,7 +11606,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
   if (request.method === "GET" && path === "company/requests") {
     const rows = await db
       .prepare(
-        "SELECT id,kind,subject,requested_by,requested_by_name,status,decided_by_name,note,created,decided FROM approval_requests WHERE company_id=? ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END,created DESC LIMIT 60",
+        "SELECT id,kind,subject,requested_by,requested_by_name,status,decided_by_name,note,reply,escalated_at,created,decided FROM approval_requests WHERE company_id=? ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'info' THEN 1 ELSE 2 END,created DESC LIMIT 60",
       )
       .bind(id)
       .all<{
@@ -11520,6 +11623,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           r.status === "pending" &&
           canAct("approve-director") &&
           (r.requested_by !== userId || memberRole === "owner"),
+        canRespond: r.status === "info" && r.requested_by === userId,
       })),
     });
   }
@@ -11535,11 +11639,15 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         ? "approved"
         : b.decision === "reject"
           ? "rejected"
-          : "";
+          : b.decision === "info"
+            ? "info"
+            : "";
     if (!decision) throw new HttpError(400, "Qərar yanlışdır.");
     const note = str(b.note, 500);
     if (decision === "rejected" && note.length < 5)
       throw new HttpError(400, "Rədd səbəbini yazın.");
+    if (decision === "info" && note.length < 5)
+      throw new HttpError(400, "Hansı məlumatın lazım olduğunu yazın.");
     const req = await db
       .prepare(
         "SELECT id,kind,subject,payload,requested_by FROM approval_requests WHERE id=? AND company_id=? AND status='pending'",
@@ -11559,8 +11667,78 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         "Öz göndərdiyiniz sorğunu təsdiqləyə bilməzsiniz.",
       );
     const payload = JSON.parse(req.payload);
+    // A question goes back to the sender; the request stays open until they reply.
+    if (decision === "info") {
+      await db
+        .prepare(
+          "UPDATE approval_requests SET status='info',note=?,decided_by=?,decided_by_name=?,decided=?,reply='' WHERE id=?",
+        )
+        .bind(note, userId, await requesterName(), new Date().toISOString(), req.id)
+        .run();
+      await companyAudit(db, id, userId, "request-info", req.id, `${req.subject} — ${note}`);
+      await notify(db, {
+        userId: req.requested_by,
+        type: "approval",
+        title: `Əlavə məlumat istənilir: ${APPROVAL_KIND_LABEL[req.kind as ApprovalKind] || "sorğu"}`,
+        body: `${req.subject} — ${note}`,
+        link: "hr-approvals",
+      });
+      return ok({ ok: true, status: "info" });
+    }
     if (decision === "approved") {
-      if (req.kind === "offer") {
+      if (req.kind === "exit") {
+        const emp = await db
+          .prepare("SELECT name,status FROM company_employees WHERE id=? AND company_id=?")
+          .bind(String(payload.employeeId), id)
+          .first<{ name: string; status: string }>();
+        if (!emp) throw new HttpError(409, "İşçi artıq siyahıda yoxdur.");
+        const now = new Date().toISOString();
+        await db.batch([
+          db
+            .prepare(
+              "UPDATE company_employees SET status='left',end_date=?,exit_type=?,exit_reason=?,exit_note=?,updated=? WHERE id=? AND company_id=?",
+            )
+            .bind(
+              String(payload.endDate || now.slice(0, 10)),
+              String(payload.exitType || ""),
+              String(payload.exitReason || ""),
+              String(payload.exitNote || ""),
+              now,
+              String(payload.employeeId),
+              id,
+            ),
+          db
+            .prepare(
+              "INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)",
+            )
+            .bind(
+              crypto.randomUUID(),
+              id,
+              String(payload.employeeId),
+              "left",
+              emp.status,
+              String(payload.exitType || ""),
+              String(payload.exitReason || ""),
+              userId,
+              String(payload.endDate || now.slice(0, 10)),
+              now,
+            ),
+        ]);
+        await companyAudit(db, id, userId, "employee-left", String(payload.employeeId), `${emp.name} (təsdiqləndi)`);
+      } else if (req.kind === "headcount") {
+        const now = new Date().toISOString();
+        const department = String(payload.department);
+        if (payload.planned === null)
+          await db.prepare("DELETE FROM headcount_plan WHERE company_id=? AND department=?").bind(id, department).run();
+        else
+          await db
+            .prepare(
+              "INSERT INTO headcount_plan(company_id,department,planned,updated) VALUES(?,?,?,?) ON CONFLICT(company_id,department) DO UPDATE SET planned=excluded.planned,updated=excluded.updated",
+            )
+            .bind(id, department, Number(payload.planned), now)
+            .run();
+        await companyAudit(db, id, userId, "headcount-plan", department, `${payload.planned ?? "silindi"} (təsdiqləndi)`);
+      } else if (req.kind === "offer") {
         const { row } = await loadOfferTarget(String(payload.applicationId));
         await deliverOffer(row, payload.data);
       } else if (req.kind === "salary") {
@@ -11637,6 +11815,54 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         link: "hr-approvals",
       });
     return ok({ ok: true, status: decision });
+  }
+  // The sender answers a question from the approver; the request is open again.
+  if (request.method === "POST" && path === "company/requests/respond") {
+    const b = await jsonBody(request);
+    const reply = str(b.reply, 1000);
+    if (reply.length < 3) throw new HttpError(400, "Cavabı yazın.");
+    const req = await db
+      .prepare("SELECT id,subject,requested_by,decided_by,kind FROM approval_requests WHERE id=? AND company_id=? AND status='info'")
+      .bind(str(b.id, 100), id)
+      .first<{ id: string; subject: string; requested_by: string; decided_by: string; kind: string }>();
+    if (!req) throw new HttpError(404, "Cavab gözləyən sorğu tapılmadı.");
+    if (req.requested_by !== userId) throw new HttpError(403, "Cavabı yalnız sorğunu göndərən yaza bilər.");
+    await db
+      .prepare("UPDATE approval_requests SET status='pending',reply=?,reminded_at='',reminders=0,escalated_at='' WHERE id=?")
+      .bind(reply, req.id)
+      .run();
+    await companyAudit(db, id, userId, "request-reply", req.id, `${req.subject} — ${reply}`);
+    await notify(db, {
+      userId: req.decided_by || id,
+      type: "approval",
+      title: `Əlavə məlumat verildi: ${APPROVAL_KIND_LABEL[req.kind as ApprovalKind] || "sorğu"}`,
+      body: `${req.subject} — ${reply}`,
+      link: "hr-approvals",
+    });
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "company/approvals/stats") {
+    const rows = await approvalHistory();
+    const decided = rows.filter((r) => r.decided && (r.decision === "approved" || r.decision === "rejected"));
+    const hours = decided.map((r) => hoursBetween(r.requested, r.decided)).filter((h): h is number => h !== null);
+    const byDecider = new Map<string, { count: number; hours: number[] }>();
+    for (const r of decided) {
+      const who = r.decidedBy || "—";
+      const entry = byDecider.get(who) || { count: 0, hours: [] };
+      entry.count++;
+      const h = hoursBetween(r.requested, r.decided);
+      if (h !== null) entry.hours.push(h);
+      byDecider.set(who, entry);
+    }
+    const avg = (list: number[]) => (list.length ? Math.round((list.reduce((a, b) => a + b, 0) / list.length) * 10) / 10 : 0);
+    return ok({
+      pending: rows.filter((r) => r.decision === "pending").length,
+      info: rows.filter((r) => r.decision === "info").length,
+      approved: decided.filter((r) => r.decision === "approved").length,
+      rejected: decided.filter((r) => r.decision === "rejected").length,
+      avgHours: avg(hours),
+      byDecider: [...byDecider.entries()].map(([name, v]) => ({ name, count: v.count, avgHours: avg(v.hours) })).sort((a, b) => b.count - a.count),
+    });
   }
   if (request.method === "GET" && path === "company/delegates") {
     const rows = await db

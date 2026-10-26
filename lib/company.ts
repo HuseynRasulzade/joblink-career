@@ -470,23 +470,36 @@ export function profileCompleteness(
 export type ApprovalRules = {
   offers: boolean;
   salaries: boolean;
+  exits: boolean;
+  headcount: boolean;
   chain: ApprovalChain;
+  // Offers below this net/gross amount (AZN) are sent without approval; 0 = every offer waits.
+  offerMin: number;
+  // Salary changes smaller than this share (%) go through; 0 = every change waits.
+  raisePercent: number;
+};
+const wholeNumber = (value: unknown, max: number) => {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) ? Math.max(0, Math.min(max, n)) : 0;
 };
 export function normalizeApprovalRules(value: unknown): ApprovalRules {
-  const v =
-    value && typeof value === "object"
-      ? (value as Record<string, unknown>)
-      : {};
+  const v = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   return {
     offers: v.offers === true,
     salaries: v.salaries === true,
+    exits: v.exits === true,
+    headcount: v.headcount === true,
     chain: v.chain === "hr" || v.chain === "director" ? v.chain : "both",
+    offerMin: wholeNumber(v.offerMin, 1_000_000),
+    raisePercent: wholeNumber(v.raisePercent, 500),
   };
 }
-export type ApprovalKind = "offer" | "salary";
+export type ApprovalKind = "offer" | "salary" | "exit" | "headcount";
 export const APPROVAL_KIND_LABEL: Record<ApprovalKind, string> = {
   offer: "İş təklifi",
   salary: "Maaş dəyişikliyi",
+  exit: "İşçinin işdən çıxarılması",
+  headcount: "Ştat planı dəyişikliyi",
 };
 // A substitute is named for at most this many days.
 export const DELEGATE_MAX_DAYS = 30;
@@ -501,16 +514,19 @@ export function delegateUntil(value: unknown, now = new Date()) {
     .slice(0, 10);
   return text >= today && text <= last ? text : "";
 }
-// Whether a request that skipped the director must wait for one.
-export function needsDirector(
-  rules: ApprovalRules,
-  kind: ApprovalKind,
-  canDecideAsDirector: boolean,
-) {
-  return (
-    !canDecideAsDirector && (kind === "offer" ? rules.offers : rules.salaries)
-  );
+// Whether a request that skipped the director must wait for one. `value` is the
+// offered salary for an offer and the size of the change in percent for a salary.
+export function needsDirector(rules: ApprovalRules, kind: ApprovalKind, canDecideAsDirector: boolean, value = 0) {
+  if (canDecideAsDirector) return false;
+  if (kind === "offer") return rules.offers && (rules.offerMin <= 0 || value >= rules.offerMin);
+  if (kind === "salary") return rules.salaries && (rules.raisePercent <= 0 || value >= rules.raisePercent);
+  return kind === "exit" ? rules.exits : rules.headcount;
 }
+// Size of a salary change in percent of the old salary (a new salary counts as 100%).
+export const salaryChangePercent = (oldAmount: number, newAmount: number) =>
+  oldAmount > 0 ? (Math.abs(newAmount - oldAmount) / oldAmount) * 100 : 100;
+// A request or vacancy waiting this long is also reported to the account owner.
+export const ESCALATE_AFTER_DAYS = 5;
 // The role that decides first in a chain.
 export const firstApprover = (chain: ApprovalChain) =>
   chain === "director" ? "approve-director" : "approve-hr";

@@ -962,5 +962,95 @@ export async function runApprovalReminders(
       // One failing reminder must not stop the others.
     }
   }
+  // Past five days the account owner is told once that the decision is overdue.
+  const late = new Date(now.getTime() - 5 * DAY).toISOString();
+  const tell = async (companyId: string, title: string, body: string) => {
+    await db
+      .prepare(
+        "INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)",
+      )
+      .bind(
+        crypto.randomUUID(),
+        companyId,
+        "approval",
+        title,
+        body,
+        "hr-approvals",
+        now.toISOString(),
+      )
+      .run();
+    await sendTo(
+      db,
+      mail,
+      fromEmail,
+      companyId,
+      `Joblink: ${title}`,
+      `${body}\n\nJoblink-də "Təsdiqlər" bölməsinə baxın.`,
+      "approval",
+    );
+  };
+  for (const row of jobs.results) {
+    try {
+      const job = JSON.parse(row.data) as {
+        title?: string;
+        approval?: {
+          requestedAt?: string;
+          escalatedAt?: string;
+          steps?: { decision: string; at: string }[];
+        };
+      };
+      const steps = job.approval?.steps || [];
+      const since =
+        [
+          job.approval?.requestedAt || "",
+          ...steps.filter((s) => s.decision && s.at).map((s) => s.at),
+        ]
+          .sort()
+          .at(-1) || "";
+      if (job.approval?.escalatedAt || !since || since > late) continue;
+      await db
+        .prepare(
+          "UPDATE jobs SET data=json_set(data,'$.approval.escalatedAt',?) WHERE id=? AND status='pending_approval'",
+        )
+        .bind(now.toISOString(), row.id)
+        .run();
+      await tell(
+        row.owner,
+        "Gecikən təsdiq",
+        `“${job.title || "Vakansiya"}” vakansiyası 5 gündən çoxdur təsdiq gözləyir.`,
+      );
+      sent++;
+    } catch {
+      // One failing escalation must not stop the others.
+    }
+  }
+  const overdue = await db
+    .prepare(
+      "SELECT id,company_id,subject FROM approval_requests WHERE status='pending' AND escalated_at='' AND created<? LIMIT 300",
+    )
+    .bind(late)
+    .all<{ id: string; company_id: string; subject: string }>()
+    .catch(() => ({
+      results: [] as { id: string; company_id: string; subject: string }[],
+    }));
+  for (const row of overdue.results) {
+    try {
+      const claimed = await db
+        .prepare(
+          "UPDATE approval_requests SET escalated_at=? WHERE id=? AND escalated_at=''",
+        )
+        .bind(now.toISOString(), row.id)
+        .run();
+      if (!claimed.meta.changes) continue;
+      await tell(
+        row.company_id,
+        "Gecikən təsdiq",
+        `${row.subject} — 5 gündən çoxdur gözləyir.`,
+      );
+      sent++;
+    } catch {
+      // One failing escalation must not stop the others.
+    }
+  }
   return sent;
 }

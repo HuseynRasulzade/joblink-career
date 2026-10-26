@@ -928,11 +928,38 @@ type ApprovalRequest = {
   created: string;
   decided: string;
   canDecide: boolean;
+  canRespond?: boolean;
+  reply?: string;
+  escalated_at?: string;
 };
 const REQUEST_STATUS: Record<string, string> = {
   pending: "Təsdiq gözləyir",
+  info: "Əlavə məlumat gözlənilir",
   approved: "Təsdiqləndi",
   rejected: "Rədd edildi",
+};
+const REQUEST_KIND: Record<string, string> = {
+  offer: "İş təklifi",
+  salary: "Maaş dəyişikliyi",
+  exit: "İşçinin işdən çıxarılması",
+  headcount: "Ştat planı dəyişikliyi",
+};
+type ApprovalRulesData = {
+  offers: boolean;
+  salaries: boolean;
+  exits: boolean;
+  headcount: boolean;
+  chain: string;
+  offerMin: number;
+  raisePercent: number;
+};
+type ApprovalStats = {
+  pending: number;
+  info: number;
+  approved: number;
+  rejected: number;
+  avgHours: number;
+  byDecider: { name: string; count: number; avgHours: number }[];
 };
 function RequestApprovals({
   notify,
@@ -946,28 +973,56 @@ function RequestApprovals({
     notify,
   );
   const [rules, loadRules] = useLoad<{
-    rules: { offers: boolean; salaries: boolean; chain: string };
+    rules: ApprovalRulesData;
     canEdit: boolean;
   }>("company/approval-rules", notify);
+  const [stats, loadStats] = useLoad<ApprovalStats>(
+    "company/approvals/stats",
+    notify,
+  );
+  const [replies, setReplies] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<string[]>([]);
   const [notes, setNotes] = useState<Record<string, string>>({});
-  async function decide(item: ApprovalRequest, decision: "approve" | "reject") {
+  async function decide(
+    item: ApprovalRequest,
+    decision: "approve" | "reject" | "info",
+  ) {
     try {
       await request("company/requests/decide", {
         id: item.id,
         decision,
         note: notes[item.id] || "",
       });
-      notify(decision === "approve" ? "Təsdiqləndi." : "Rədd edildi.");
+      notify(
+        decision === "approve"
+          ? "Təsdiqləndi."
+          : decision === "reject"
+            ? "Rədd edildi."
+            : "Sual göndərənə göndərildi.",
+      );
       load();
+      loadStats();
       onChange();
     } catch (error) {
       notify((error as Error).message);
     }
   }
+  async function respond(item: ApprovalRequest) {
+    try {
+      await request("company/requests/respond", {
+        id: item.id,
+        reply: replies[item.id] || "",
+      });
+      notify("Cavab göndərildi, sorğu yenidən təsdiqə düşdü.");
+      load();
+      loadStats();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   async function setRule(
-    key: "offers" | "salaries" | "chain",
-    value: boolean | string,
+    key: keyof ApprovalRulesData,
+    value: boolean | string | number,
   ) {
     if (!rules) return;
     try {
@@ -1005,7 +1060,41 @@ function RequestApprovals({
   const decidable = data?.requests.filter((item) => item.canDecide) || [];
   return (
     <section className="panel">
-      <h3>İş təklifləri və maaş dəyişiklikləri</h3>
+      <h3>Təklif, maaş, işdən çıxarılma və ştat təsdiqləri</h3>
+      {stats && (
+        <p className="muted">
+          Gözləyən: <b>{stats.pending}</b> · Məlumat gözləyən:{" "}
+          <b>{stats.info}</b> · Təsdiqlənən: <b>{stats.approved}</b> · Rədd
+          edilən: <b>{stats.rejected}</b>
+          {stats.avgHours > 0 && (
+            <>
+              {" "}
+              · Orta qərar müddəti: <b>{stats.avgHours} saat</b>
+            </>
+          )}{" "}
+          ·{" "}
+          <a href="/api/joblink/company/report?kind=approvals" download>
+            Tarixçəni Excel-ə yüklə
+          </a>
+        </p>
+      )}
+      {!!stats?.byDecider.length && (
+        <details>
+          <summary>Qərar verənlər üzrə</summary>
+          <ul className="exam-list">
+            {stats.byDecider.map((who) => (
+              <li key={who.name} className="exam-row">
+                <div>
+                  <strong>{who.name}</strong>
+                  <small>
+                    {who.count} qərar · orta {who.avgHours} saat
+                  </small>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {rules && (
         <fieldset className="field" disabled={!rules.canEdit}>
           <legend>Direktor təsdiqi tələb olunan əməliyyatlar</legend>
@@ -1025,6 +1114,56 @@ function RequestApprovals({
             />{" "}
             İşçinin maaş dəyişikliyini direktor (və ya hesab sahibi)
             təsdiqləməlidir
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={rules.rules.exits}
+              onChange={(e) => setRule("exits", e.target.checked)}
+            />{" "}
+            İşçinin işdən çıxarılmasını direktor təsdiqləməlidir
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={rules.rules.headcount}
+              onChange={(e) => setRule("headcount", e.target.checked)}
+            />{" "}
+            Ştat planı dəyişikliyini direktor təsdiqləməlidir
+          </label>
+          <label>
+            Təklif həddi (AZN):{" "}
+            <input
+              type="number"
+              min={0}
+              max={1000000}
+              defaultValue={rules.rules.offerMin}
+              key={`min-${rules.rules.offerMin}`}
+              aria-label="Təklif həddi"
+              onBlur={(e) => setRule("offerMin", Number(e.target.value) || 0)}
+            />{" "}
+            <small>
+              bu məbləğdən aşağı təkliflər təsdiqsiz gedir (0 = hamısı təsdiqə
+              düşür)
+            </small>
+          </label>
+          <label>
+            Maaş dəyişikliyi həddi (%):{" "}
+            <input
+              type="number"
+              min={0}
+              max={500}
+              defaultValue={rules.rules.raisePercent}
+              key={`pct-${rules.rules.raisePercent}`}
+              aria-label="Maaş dəyişikliyi həddi"
+              onBlur={(e) =>
+                setRule("raisePercent", Number(e.target.value) || 0)
+              }
+            />{" "}
+            <small>
+              bundan kiçik dəyişikliklər təsdiqsiz keçir (0 = hamısı təsdiqə
+              düşür)
+            </small>
           </label>
           <label>
             Vakansiya təsdiq zənciri:{" "}
@@ -1089,9 +1228,7 @@ function RequestApprovals({
           )}
           <div className="section-heading">
             <div>
-              <h4>
-                {item.kind === "offer" ? "İş təklifi" : "Maaş dəyişikliyi"}
-              </h4>
+              <h4>{REQUEST_KIND[item.kind] || item.kind}</h4>
               <p>{item.subject}</p>
               <p className="muted">
                 göndərən: {item.requested_by_name || "—"} · {when(item.created)}
@@ -1102,6 +1239,16 @@ function RequestApprovals({
                   {item.note ? ` — ${item.note}` : ""}
                 </p>
               )}
+              {item.reply && (
+                <p className="muted">Göndərənin cavabı: {item.reply}</p>
+              )}
+              {item.status === "pending" &&
+                Date.now() - Date.parse(item.created) > 5 * 86_400_000 && (
+                  <p className="muted">
+                    ⏱ Gecikir
+                    {item.escalated_at ? " (hesab sahibinə bildirilib)" : ""}
+                  </p>
+                )}
             </div>
             <span
               className={`admin-status ${item.status === "approved" ? "active" : item.status === "rejected" ? "archived" : "paused"}`}
@@ -1112,13 +1259,19 @@ function RequestApprovals({
           {item.canDecide && (
             <div className="form-actions">
               <input
-                placeholder="Qeyd (rədd üçün məcburi)"
+                placeholder="Qeyd (rədd və sual üçün məcburi)"
                 aria-label="Qeyd"
                 value={notes[item.id] || ""}
                 onChange={(e) =>
                   setNotes({ ...notes, [item.id]: e.target.value })
                 }
               />
+              <button
+                className="secondary"
+                onClick={() => decide(item, "info")}
+              >
+                Məlumat istə
+              </button>
               <button
                 className="secondary"
                 onClick={() => decide(item, "reject")}
@@ -1130,6 +1283,21 @@ function RequestApprovals({
                 onClick={() => decide(item, "approve")}
               >
                 Təsdiqlə
+              </button>
+            </div>
+          )}
+          {item.canRespond && (
+            <div className="form-actions">
+              <input
+                placeholder="Cavabınız (kifayət qədər izahat yazın)"
+                aria-label="Cavab"
+                value={replies[item.id] || ""}
+                onChange={(e) =>
+                  setReplies({ ...replies, [item.id]: e.target.value })
+                }
+              />
+              <button className="primary" onClick={() => respond(item)}>
+                Cavab göndər
               </button>
             </div>
           )}
@@ -2222,13 +2390,17 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const [query, setQuery] = useState("");
   async function save() {
     try {
-      const saved = await request<{ salaryPending?: boolean }>(
-        "company/employees/save",
-        editing,
-      );
+      const saved = await request<{
+        salaryPending?: boolean;
+        exitPending?: boolean;
+      }>("company/employees/save", editing);
+      const waiting = [
+        saved.salaryPending && "maaş dəyişikliyi",
+        saved.exitPending && "işdən çıxarılma",
+      ].filter(Boolean);
       notify(
-        saved.salaryPending
-          ? "Digər dəyişikliklər saxlanıldı. Maaş dəyişikliyi direktorun təsdiqinə göndərildi."
+        waiting.length
+          ? `Digər dəyişikliklər saxlanıldı. ${waiting.join(" və ")} direktorun təsdiqinə göndərildi.`
           : "İşçi məlumatı yadda saxlanıldı.",
       );
       setEditing(null);
@@ -3497,10 +3669,15 @@ function HeadcountPlan({ notify }: { notify: Notify }) {
   }, [load]);
   async function save(dept: string, value: string) {
     try {
-      await request("company/headcount/save", {
-        department: dept,
-        planned: value === "" ? null : Number(value),
-      });
+      const saved = await request<{ pending?: boolean }>(
+        "company/headcount/save",
+        {
+          department: dept,
+          planned: value === "" ? null : Number(value),
+        },
+      );
+      if (saved.pending)
+        notify("Ştat planı dəyişikliyi direktorun təsdiqinə göndərildi.");
       await load();
     } catch (error) {
       notify((error as Error).message);

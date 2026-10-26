@@ -195,6 +195,8 @@ export const approvalRequests = sqliteTable(
     decided: text("decided").notNull().default(""),
     remindedAt: text("reminded_at").notNull().default(""),
     reminders: integer("reminders").notNull().default(0),
+    reply: text("reply").notNull().default(""),
+    escalatedAt: text("escalated_at").notNull().default(""),
   },
   (t) => [index("approval_requests_company").on(t.companyId, t.status, t.created)],
 );
@@ -210,6 +212,23 @@ export const approvalDelegates = sqliteTable(
     created: text("created").notNull(),
   },
   (t) => [index("approval_delegates_company").on(t.companyId, t.until)],
+);
+// Checklist for a new employee: first day, documents, equipment, introductions.
+export const employeeTasks = sqliteTable(
+  "employee_tasks",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    title: text("title").notNull(),
+    due: text("due").notNull().default(""),
+    done: integer("done").notNull().default(0),
+    doneAt: text("done_at").notNull().default(""),
+    doneBy: text("done_by").notNull().default(""),
+    position: integer("position").notNull().default(0),
+    created: text("created").notNull(),
+  },
+  (t) => [index("employee_tasks_employee").on(t.companyId, t.employeeId, t.position)],
 );
 export const settingHistory = sqliteTable(
   "setting_history",

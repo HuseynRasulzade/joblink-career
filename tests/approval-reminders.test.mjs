@@ -12,7 +12,7 @@ const schema = `
 CREATE TABLE jobs(id text primary key,owner text,data text,status text,created text);
 CREATE TABLE company_members(id text,company_id text,user_id text,role text,status text);
 CREATE TABLE approval_delegates(id text,company_id text,from_user text,to_user text,until text);
-CREATE TABLE approval_requests(id text primary key,company_id text,kind text,subject text,status text,created text,reminded_at text default '',reminders integer default 0);
+CREATE TABLE approval_requests(id text primary key,company_id text,kind text,subject text,status text,created text,reminded_at text default '',reminders integer default 0,escalated_at text default '');
 CREATE TABLE notifications(id text primary key,user_id text,type text,title text,body text,link text,read integer,created text);
 CREATE TABLE password_accounts(email text,user_id text);
 CREATE TABLE notification_prefs(user_id text,email_off text);
@@ -86,12 +86,12 @@ test("reminders stop after four and a substitute is reminded too", async () => {
     .run();
   db.raw
     .prepare(
-      "INSERT INTO approval_requests VALUES('r1','c1','offer','Əli — Mühasib','pending','2026-10-20T10:00:00Z','',0)",
+      "INSERT INTO approval_requests VALUES('r1','c1','offer','Əli — Mühasib','pending','2026-10-20T10:00:00Z','',0,'')",
     )
     .run();
   db.raw
     .prepare(
-      "INSERT INTO approval_requests VALUES('r2','c1','salary','Aysel','pending','2026-10-01T10:00:00Z','2026-10-02T10:00:00Z',4)",
+      "INSERT INTO approval_requests VALUES('r2','c1','salary','Aysel','pending','2026-10-01T10:00:00Z','2026-10-02T10:00:00Z',4,'2026-10-10T10:00:00Z')",
     )
     .run();
   assert.equal(await runApprovalReminders(db, null, undefined, now), 1);
@@ -101,8 +101,9 @@ test("reminders stop after four and a substitute is reminded too", async () => {
     .map((r) => r.user_id);
   assert.deepEqual(users, ["c1", "dir1", "rec1"]);
   // Two days later it reminds again; the maxed-out request never does.
+  // By then r1 is also more than five days old, so the owner hears about it too.
   const later = new Date("2026-10-26T06:00:00Z");
-  assert.equal(await runApprovalReminders(db, null, undefined, later), 1);
+  assert.equal(await runApprovalReminders(db, null, undefined, later), 2);
   assert.equal(
     db.raw
       .prepare("SELECT reminders FROM approval_requests WHERE id='r1'")
@@ -121,27 +122,31 @@ test("approval rules and substitute dates", () => {
   assert.deepEqual(normalizeApprovalRules({ offers: true, salaries: "yes" }), {
     offers: true,
     salaries: false,
+    exits: false,
+    headcount: false,
     chain: "both",
+    offerMin: 0,
+    raisePercent: 0,
   });
   assert.deepEqual(normalizeApprovalRules(null), {
     offers: false,
     salaries: false,
+    exits: false,
+    headcount: false,
     chain: "both",
+    offerMin: 0,
+    raisePercent: 0,
   });
   assert.equal(
-    needsDirector(
-      { offers: true, salaries: false, chain: "both" },
-      "offer",
-      false,
-    ),
+    needsDirector(normalizeApprovalRules({ offers: true }), "offer", false),
     true,
   );
   assert.equal(
-    needsDirector({ offers: true, salaries: false }, "offer", true),
+    needsDirector(normalizeApprovalRules({ offers: true }), "offer", true),
     false,
   );
   assert.equal(
-    needsDirector({ offers: true, salaries: false }, "salary", false),
+    needsDirector(normalizeApprovalRules({ offers: true }), "salary", false),
     false,
   );
   const today = new Date("2026-10-24T08:00:00Z");
@@ -168,4 +173,77 @@ test("the approval chain can be HR then director, HR only or director only", () 
   assert.equal(firstApprover("hr"), "approve-hr");
   assert.equal(normalizeApprovalRules({ chain: "director" }).chain, "director");
   assert.equal(normalizeApprovalRules({ chain: "x" }).chain, "both");
+});
+
+import { ESCALATE_AFTER_DAYS, salaryChangePercent } from "../lib/company.ts";
+
+test("approval thresholds: small offers and small raises go through", () => {
+  const rules = normalizeApprovalRules({
+    offers: true,
+    salaries: true,
+    exits: true,
+    headcount: false,
+    offerMin: 3000,
+    raisePercent: 20,
+  });
+  assert.equal(needsDirector(rules, "offer", false, 2500), false);
+  assert.equal(needsDirector(rules, "offer", false, 3000), true);
+  assert.equal(needsDirector(rules, "offer", true, 9000), false);
+  assert.equal(
+    needsDirector(rules, "salary", false, salaryChangePercent(1000, 1100)),
+    false,
+  );
+  assert.equal(
+    needsDirector(rules, "salary", false, salaryChangePercent(1000, 1300)),
+    true,
+  );
+  assert.equal(
+    needsDirector(rules, "salary", false, salaryChangePercent(1000, 700)),
+    true,
+  );
+  assert.equal(needsDirector(rules, "exit", false), true);
+  assert.equal(needsDirector(rules, "headcount", false), false);
+  assert.equal(salaryChangePercent(0, 800), 100);
+  // Without thresholds every offer waits.
+  assert.equal(
+    needsDirector(normalizeApprovalRules({ offers: true }), "offer", false, 1),
+    true,
+  );
+  assert.equal(ESCALATE_AFTER_DAYS, 5);
+  assert.equal(
+    normalizeApprovalRules({ offerMin: -5, raisePercent: 9999 }).raisePercent,
+    500,
+  );
+  assert.equal(normalizeApprovalRules({ offerMin: -5 }).offerMin, 0);
+});
+
+test("a request waiting five days is also reported to the owner, once", async () => {
+  const db = memoryD1(schema);
+  seed(db);
+  db.raw
+    .prepare(
+      "INSERT INTO approval_requests VALUES('r9','c1','exit','Aysel: işdən çıxarılma','pending','2026-10-18T10:00:00Z','2026-10-22T10:00:00Z',3,'')",
+    )
+    .run();
+  db.raw
+    .prepare(
+      "INSERT INTO jobs VALUES('j9','c1',?,'pending_approval','2026-10-10')",
+    )
+    .run(
+      pendingJob("2026-10-10T10:00:00Z", {
+        remindedAt: "2026-10-23T10:00:00Z",
+        reminders: 2,
+      }),
+    );
+  assert.equal(await runApprovalReminders(db, null, undefined, now), 2);
+  const titles = db.raw
+    .prepare(
+      "SELECT user_id,title FROM notifications WHERE title='Gecikən təsdiq' ORDER BY user_id",
+    )
+    .all();
+  assert.deepEqual(
+    titles.map((t) => t.user_id),
+    ["c1", "c1"],
+  );
+  assert.equal(await runApprovalReminders(db, null, undefined, now), 0);
 });
