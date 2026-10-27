@@ -1021,8 +1021,18 @@ export default function HrPanel({
                     <span className="match-score">
                       {aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]
                         ? `${aiRatings.items[c.id].score}% AI`
-                        : `${c.ranking?.score}% uyğun`}
+                        : c.ranking?.fit
+                          ? `${c.ranking.fit.bandLabel} · ${c.ranking.score}%`
+                          : `${c.ranking?.score}% uyğun`}
                     </span>
+                    {!!c.ranking?.fit && (
+                      <small className="fit-reasons">
+                        {c.ranking.fit.fieldChange && "Sahə dəyişir. "}
+                        {c.ranking.fit.strengths.slice(0, 2).join("; ")}
+                        {!!c.ranking.fit.gaps.length &&
+                          ` · Risk: ${c.ranking.fit.gaps.slice(0, 2).join("; ")}`}
+                      </small>
+                    )}
                     <button
                       className="text-button"
                       onClick={() => setCandidate(c.profile)}

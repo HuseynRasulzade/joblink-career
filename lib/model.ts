@@ -1,4 +1,13 @@
 import { skillMatches } from "./skill-synonyms.ts";
+import {
+  BAND_LABELS,
+  FIELD_LABELS,
+  bandFor,
+  fieldProfile,
+  partLevel,
+  weightedYears,
+  type FitPart,
+} from "./career.ts";
 import { candidateLevel, dutyFit, levelFit, titleLevel } from "./role-level.ts";
 import {
   normalizeSkillKey,
@@ -997,12 +1006,101 @@ function certificationEvidence(
     return "equivalent";
   return "none";
 }
+type FitInput = {
+  role: number;
+  roleScore: number;
+  transferable: boolean;
+  dutyMatch: number | null;
+  levelGap: number;
+  skills: number;
+  skillEvidence: { skill: string; level: SkillEvidence }[];
+  requiredCerts: { level: CertificationEvidence }[];
+  certEvidence: { required: boolean; level: CertificationEvidence }[];
+  relevantYears: number;
+  minYears: number;
+  exp: number;
+  field: string | undefined;
+  hasEvidence: boolean;
+};
+// Five readable parts of the fit: what the person did, the field, skills,
+// credentials and experience. Each carries a one-line reason.
+function fitParts(f: FitInput): FitPart[] {
+  const fieldName = (f.field && FIELD_LABELS[f.field]) || "bu sahə";
+  const done = f.skillEvidence.filter(
+    (x) => x.level === "experience" || x.level === "certified",
+  ).length;
+  const total = f.skillEvidence.length;
+  const parts: FitPart[] = [];
+  const work = f.dutyMatch === null ? f.roleScore : f.dutyMatch;
+  parts.push({
+    key: "work",
+    label: "Gördüyü iş",
+    level: f.dutyMatch === null ? "none" : partLevel(work),
+    note:
+      f.dutyMatch === null
+        ? "Vakansiyanın vəzifələri müqayisə üçün kifayət qədər aydın deyil"
+        : work >= 0.55
+          ? "Gördüyü işlər vakansiyanın vəzifələri ilə üst-üstə düşür"
+          : f.levelGap >= 2 || f.levelGap <= -2
+            ? "Vəzifə səviyyəsi vakansiyadan fərqlidir, gündəlik işlər uyğun gəlmir"
+            : "Gördüyü işlər vakansiyanın vəzifələri ilə az üst-üstə düşür",
+  });
+  parts.push({
+    key: "field",
+    label: "Sahəyə uyğunluq",
+    level: f.transferable ? "good" : partLevel(f.role / 0.7),
+    note: f.transferable
+      ? `Sahə dəyişir: ${fieldName} üzrə tələb olunan bacarıqları praktikada istifadə edib`
+      : f.role >= 0.7
+        ? `${fieldName[0].toUpperCase()}${fieldName.slice(1)} sahəsində işləyib`
+        : f.role <= 0.1
+          ? `Əvvəlki işi ${fieldName} sahəsinə aid deyil`
+          : "Sahə uyğunluğu aydın deyil",
+  });
+  parts.push({
+    key: "skills",
+    label: "Bacarıqlar",
+    level: total ? partLevel(f.skills) : "none",
+    note: total
+      ? `${total} tələb olunan bacarığın ${done}-i real iş və ya sertifikatla təsdiqlənib`
+      : "Vakansiyada bacarıq tələbi göstərilməyib",
+  });
+  const certs = f.certEvidence;
+  parts.push({
+    key: "certs",
+    label: "Sertifikatlar",
+    level: certs.length
+      ? partLevel(
+          certs.reduce((sum, c) => sum + CERT_WEIGHT[c.level], 0) /
+            certs.length,
+        )
+      : "none",
+    note: !certs.length
+      ? "Vakansiya sertifikat tələb etmir"
+      : f.requiredCerts.some((c) => c.level === "none")
+        ? "Tələb olunan sertifikat yoxdur"
+        : "Tələb olunan və üstünlük verilən sertifikatlar nəzərə alınıb",
+  });
+  parts.push({
+    key: "experience",
+    label: "Təcrübə",
+    level: f.minYears || f.relevantYears ? partLevel(f.exp) : "none",
+    note: f.minYears
+      ? `Uyğun sahədə ${f.relevantYears} il (tələb: ${f.minYears} il)`
+      : f.relevantYears
+        ? `Uyğun sahədə ${f.relevantYears} il təcrübə`
+        : "Uyğun sahədə təcrübə görünmür",
+  });
+  return parts;
+}
 export function match(p: Profile, j: Job) {
   const profileSkillIds = new Set(
     normalizeSkills(p.skills, { max: 50 }).map(skillId),
   );
   const roles = roleRecords(p);
   const relevance = roles.map((r) => roleRelevance(r.title, j));
+  const field = [...roleFamilies(`${j.title} ${j.category}`)][0];
+  const weights = fieldProfile(field);
   // Titles whose profession could not be recognized (0.4) neither help nor hurt.
   const known = [roleRelevance(p.title, j), ...relevance].filter(
     (r) => r !== 0.4,
@@ -1080,8 +1178,9 @@ export function match(p: Profile, j: Job) {
   });
   const requiredCerts = certEvidence.filter((c) => c.required);
   const preferredBonus = Math.min(
-    5,
+    weights.certBonus,
     Math.round(
+      (weights.certBonus / 5) *
       certEvidence.reduce(
         (sum, c) =>
           sum +
@@ -1110,31 +1209,26 @@ export function match(p: Profile, j: Job) {
       evidenceItems
     : role;
   const totalYears = years(p);
-  // Only years spent in related roles count toward the vacancy requirement.
-  const relevantYears =
-    !roles.length || relevance.every((r) => r === 0.4)
-      ? totalYears
-      : years({
-          ...p,
-          experiences: p.experiences.filter(
-            (e) => roleRelevance(e.title, j) >= 0.7,
-          ),
-          structuredCv:
-            p.structuredCv && Array.isArray(p.structuredCv.work_experience)
-              ? {
-                  ...p.structuredCv,
-                  work_experience: (
-                    p.structuredCv.work_experience as Record<string, unknown>[]
-                  ).filter(
-                    (item) =>
-                      roleRelevance(
-                        typeof item.position === "string" ? item.position : "",
-                        j,
-                      ) >= 0.7,
-                  ),
-                }
-              : p.structuredCv,
-        });
+  // Only years spent in related roles count toward the vacancy requirement,
+  // and older work counts a little less than recent work.
+  const allRelevant = !roles.length || relevance.every((r) => r === 0.4);
+  const spans = (list: RoleRecord[]) =>
+    list.map((r) => ({ start: r.start, end: r.end, current: r.current }));
+  const recentTotal = weightedYears(spans(roles));
+  let relevantYears = allRelevant
+    ? Math.min(totalYears, recentTotal || totalYears)
+    : weightedYears(spans(roles.filter((_, i) => relevance[i] >= 0.7)));
+  // A person from another field who has done the vacancy's work (skills
+  // evidenced by real experience) is a career changer, not a newcomer.
+  const doneSkills = skillEvidence.filter(
+    (x) => x.level === "experience" || x.level === "certified",
+  ).length;
+  const transferable =
+    role < 0.7 &&
+    requiredSkills.length > 0 &&
+    doneSkills / requiredSkills.length >= 0.5;
+  if (transferable) relevantYears = Math.max(relevantYears, recentTotal * 0.6);
+  relevantYears = Math.round(relevantYears * 10) / 10;
   const ratio = j.minYears ? relevantYears / j.minYears : 1;
   const overqualified =
     j.maxYears > j.minYears && relevantYears > j.maxYears + 5;
@@ -1160,7 +1254,12 @@ export function match(p: Profile, j: Job) {
   const mode = !j.mode || p.mode === j.mode;
   let score = Math.min(
     100,
-    Math.round(skills * 50 + roleScore * 25 + exp * 25 + preferredBonus),
+    Math.round(
+      skills * weights.skills +
+        (transferable ? Math.max(roleScore, 0.5) : roleScore) * weights.role +
+        exp * weights.experience +
+        preferredBonus,
+    ),
   );
   const caps: string[] = [];
   // A profile with nothing to evaluate must not score at all.
@@ -1186,7 +1285,7 @@ export function match(p: Profile, j: Job) {
     caps.push("no-skills");
   }
   if (role <= 0.1) {
-    score = Math.min(score, 45);
+    score = Math.min(score, transferable ? 60 : 45);
     caps.push("unrelated-role");
   }
   // Same field, but the position level is far above or below the vacancy.
@@ -1203,8 +1302,37 @@ export function match(p: Profile, j: Job) {
     score = Math.min(score, relevantYears === 0 ? 40 : 60);
     caps.push("experience-gap");
   }
+  const parts = fitParts({
+    role,
+    roleScore,
+    transferable,
+    dutyMatch,
+    levelGap,
+    skills,
+    skillEvidence,
+    requiredCerts,
+    certEvidence,
+    relevantYears,
+    minYears: j.minYears,
+    exp,
+    field,
+    hasEvidence,
+  });
+  const band = bandFor(score);
   return {
     score,
+    fit: {
+      band,
+      bandLabel: BAND_LABELS[band],
+      fieldChange: transferable,
+      parts,
+      strengths: parts
+        .filter((x) => x.level === "strong" || x.level === "good")
+        .map((x) => x.note),
+      gaps: parts
+        .filter((x) => x.level === "partial" || x.level === "weak")
+        .map((x) => x.note),
+    },
     matched,
     missing,
     skillEvidence,
@@ -1276,15 +1404,33 @@ export function analyze(p: Profile) {
       (/\d+\s*(%|faiz|hesabat|əməkdaş|layihə|müştəri)/i.test(text) ? 40 : 0) +
       (text.length > 250 ? 25 : 0),
   );
+  // Skills count for more when the experience text shows them in use.
+  const workText = factualText(
+    roleRecords(p)
+      .map((r) => `${r.title}. ${r.text}`)
+      .join(". "),
+  );
+  const listed = p.skills.filter(Boolean);
+  const proven = listed.filter((skill) => skillMatches(skill, workText)).length;
   const skills = Math.min(
     100,
-    p.skills.filter(Boolean).length * 15 +
+    proven * 20 +
+      (listed.length - proven) * 8 +
       // Only recognized, completed certifications add to the score.
       Math.min(
         20,
         candidateCertifications(p).filter((c) => c.status === "active").length *
           10,
       ),
+  );
+  // What the person has actually done: dated roles with described duties,
+  // and how many years of it there are.
+  const described = roleRecords(p).filter(
+    (r) => r.title && r.text.trim().length > 30 && r.start,
+  ).length;
+  const career = Math.min(
+    100,
+    Math.min(50, described * 20) + Math.min(50, years(p) * 10),
   );
   const readability = Math.min(
     100,
@@ -1295,8 +1441,14 @@ export function analyze(p: Profile) {
         : 0) +
       (text.trim().length > 0 && text.length < 18000 ? 20 : 0),
   );
+  // Form completeness is a checklist, not a measure of the person: the score
+  // follows the work done, proven skills and results.
   const score = Math.round(
-    completeness * 0.35 + achievement * 0.3 + skills * 0.2 + readability * 0.15,
+    career * 0.3 +
+      skills * 0.25 +
+      achievement * 0.25 +
+      readability * 0.1 +
+      completeness * 0.1,
   );
   const issues: string[] = [];
   if (!p.phone)
@@ -1306,6 +1458,10 @@ export function analyze(p: Profile) {
   if (!/\d+\s*(%|faiz|hesabat|əməkdaş|layihə|müştəri)/i.test(text))
     issues.push(
       "Nailiyyətlərinizi rəqəmlərlə göstərin: iş həcmini, vaxta qənaəti və ya nəticəni qeyd edin. Yalnız faktiki nəticələrdən istifadə edin.",
+    );
+  if (listed.length && proven < listed.length / 2)
+    issues.push(
+      "Bacarıqların çoxu iş təcrübəsində göstərilməyib: hər bacarığı işlədiyiniz konkret vəzifə və nəticə ilə əlaqələndirin.",
     );
   if (p.skills.length < 5)
     issues.push(
@@ -1324,6 +1480,7 @@ export function analyze(p: Profile) {
     achievement,
     skills,
     readability,
+    career,
     issues,
     years: years(p),
     source: "rules" as const,

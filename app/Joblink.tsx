@@ -1597,9 +1597,9 @@ export default function Joblink() {
               : "İlkin profil yoxlaması"}
         </p>
         {[
-          ["Struktur və tamlıq", result.completeness],
-          ["Təcrübə və nailiyyətlər", result.achievement],
-          ["Bacarıqların dolğunluğu", result.skills],
+          ["Gördüyü iş və nəticələr", result.achievement],
+          ["İşdə təsdiqlənən bacarıqlar", result.skills],
+          ["Profilin doldurulması", result.completeness],
         ].map(([label, value]) => (
           <div key={label}>
             <div className="analysis-item">
@@ -2149,9 +2149,38 @@ export default function Joblink() {
                     </div>
                     <div className="match-explanation">
                       <h3>
-                        <Sparkles size={18} /> {activeJobMatch?.score}% profil
-                        uyğunluğu
+                        <Sparkles size={18} />{" "}
+                        {activeJobMatch?.fit?.bandLabel ||
+                          `${activeJobMatch?.score}% profil uyğunluğu`}
+                        {!!activeJobMatch?.fit && (
+                          <small className="fit-percent">
+                            {activeJobMatch.score}%
+                          </small>
+                        )}
                       </h3>
+                      {activeJobMatch?.fit?.fieldChange && (
+                        <p className="fit-change">
+                          <b>Sahə dəyişir:</b> əvvəlki sahənizdə qazandığınız
+                          bacarıqlar bu vakansiyada da işə yarayır.
+                        </p>
+                      )}
+                      {activeJobMatch?.fit && (
+                        <ul className="fit-parts">
+                          {activeJobMatch.fit.parts.map((part) => (
+                            <li key={part.key} data-level={part.level}>
+                              <span>{part.label}</span>
+                              <small>{part.note}</small>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {!!activeJobMatch?.fit?.gaps.length && (
+                        <p>
+                          <b>Güclənmək üçün:</b> profilinizdə uyğun işlər,
+                          sertifikat və bacarıqları konkret yazın — bu hissələr
+                          vakansiyaya zəif uyğun görünür.
+                        </p>
+                      )}
                       {activeJobMatch && (
                         <ul className="match-breakdown">
                           {(
@@ -3077,9 +3106,11 @@ export default function Joblink() {
                       <div className="panel next-step">
                         <h3>Qiymət necə hesablanır?</h3>
                         <p>
-                          Tamlıq 35%, nailiyyətlər 30%, bacarıqlar 20%, mətnin
-                          strukturu 15%. AI nəticəsində hər sahə CV-dəki dəlilə
-                          əsaslanır. Bu işə qəbul ehtimalı deyil.
+                          Əsas çəki gördüyünüz işə və nəticələrə (40%) və iş
+                          təcrübəsində göstərilən bacarıq və sertifikatlara
+                          (35%) verilir. Profilin doldurulması (15%) və mətnin
+                          oxunaqlılığı (10%) yalnız yoxlama siyahısıdır. Bu işə
+                          qəbul ehtimalı deyil.
                         </p>
                       </div>
                     </div>
@@ -3321,9 +3352,9 @@ export default function Joblink() {
                         </button>
                         <div className="score-reasons">
                           {[
-                            ["completeness", "Tamlıq"],
-                            ["achievement", "Nailiyyətlər"],
-                            ["skills", "Bacarıqlar"],
+                            ["achievement", "Gördüyü iş və nəticələr"],
+                            ["skills", "Təsdiqlənən bacarıqlar"],
+                            ["completeness", "Profilin doldurulması"],
                             ["readability", "Oxunaqlılıq"],
                           ].map(([key, label]) => (
                             <div key={key}>

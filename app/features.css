@@ -5355,3 +5355,49 @@ a svg {
 .approval-card .form-actions input {
   flex: 1 1 240px;
 }
+
+/* Fit band, parts and reasons */
+.fit-percent {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.6;
+}
+.fit-change {
+  background: #eef6ff;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.fit-parts {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.fit-parts li {
+  display: grid;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 3px solid #cbd5d0;
+  font-size: 13px;
+}
+.fit-parts li small {
+  color: #5b6b63;
+}
+.fit-parts li[data-level="strong"],
+.fit-parts li[data-level="good"] {
+  border-left-color: #3a7a5b;
+}
+.fit-parts li[data-level="partial"] {
+  border-left-color: #d9a441;
+}
+.fit-parts li[data-level="weak"] {
+  border-left-color: #c2554a;
+}
+.fit-reasons {
+  display: block;
+  max-width: 260px;
+  color: #5b6b63;
+  font-size: 12px;
+}
