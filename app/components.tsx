@@ -931,8 +931,21 @@ export function ProfileEditor({
       });
       return true;
     } catch (e) {
+      // Without the AI the fields are still filled by the rules, so the
+      // upload stays useful; the person checks them before applying.
+      try {
+        setParserReview(null);
+        setAiFilled(new Set());
+        setImportDraft({
+          ...mergeCvFields(p, cvFields(text), isSample),
+          cvText: text,
+          cvName: name,
+        });
+      } catch {
+        // The text itself is already in the CV text field.
+      }
       onNotice(
-        `${(e as Error).message} CV mətni oxundu və “CV mətni” sahəsindədir; sahələri əl ilə doldura və ya yenidən yükləyə bilərsiniz.`,
+        `${(e as Error).message} CV mətni oxundu; sahələr AI olmadan, qaydalarla çıxarıldı. Onları diqqətlə yoxlayın.`,
       );
       return false;
     } finally {
