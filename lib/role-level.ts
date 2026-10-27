@@ -80,15 +80,21 @@ export type LevelRole = {
 };
 
 // The level a person works at now: current roles, or those that ended in the
-// last three years; failing that, the latest role.
+// last three years when there is none; failing that, the latest role.
 export function candidateLevel(
   roles: LevelRole[],
   profileTitle: string,
   now = new Date(),
 ): number | null {
   const cutoff = `${now.getFullYear() - 3}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const levels = roles
-    .filter((role) => role.current || !role.end || role.end >= cutoff)
+  // A person works at the level of the position held now; earlier posts only
+  // count when no current position is given.
+  const present = roles.filter((role) => role.current || !role.end);
+  const levels = (
+    present.length
+      ? present
+      : roles.filter((role) => role.end >= cutoff)
+  )
     .map((role) => titleLevel(role.title))
     .filter((level): level is number => level !== null);
   const own = titleLevel(profileTitle);
