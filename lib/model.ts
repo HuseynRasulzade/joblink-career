@@ -1,4 +1,5 @@
 import { certificationPrestige } from "./cert-prestige.ts";
+import { calculateFromGross, calculateFromNet } from "./salary.ts";
 import { skillMatches } from "./skill-synonyms.ts";
 import {
   BAND_LABELS,
@@ -1412,11 +1413,13 @@ export function match(p: Profile, j: Job) {
   else if (levelGap <= -2)
     risks.push("Vakansiyadan aşağı səviyyədə işləyib: rolun tələbləri üçün hazır olmaya bilər");
   const offerTop = j.maxSalary || j.minSalary;
-  if (offerTop && p.salary > offerTop) {
+  const wishedPay = salaryInJobTerms(p, j).min;
+  if (offerTop && wishedPay > offerTop) {
+    const kind = j.salaryKind === "net" ? " net" : j.salaryKind === "gross" ? " gross" : "";
     risks.push(
-      `Maaş gözləntisi (${p.salary} AZN) vakansiyanın maaşından (${offerTop} AZN-ə qədər) yüksəkdir`,
+      `Maaş gözləntisi (${wishedPay} AZN${kind}) vakansiyanın maaşından (${offerTop} AZN${kind}-ə qədər) yüksəkdir`,
     );
-    if (p.salary > offerTop * 1.3) ceiling.push(84);
+    if (wishedPay > offerTop * 1.3) ceiling.push(84);
   }
   if (j.minYears && relevantYears < j.minYears)
     risks.push(`Uyğun təcrübə tələbdən azdır (${relevantYears} il, tələb ${j.minYears} il)`);
@@ -1967,16 +1970,39 @@ export function jobDraftMissingFields(job: Job) {
 
 // A vacancy with a published range fits when it overlaps the candidate's
 // acceptable range. Vacancies without a range ("by agreement") always fit.
+// The candidate's wished pay in the vacancy's own terms: when one side states
+// net (in hand) and the other gross (before tax), the amount is converted, so
+// 1,200 net is not compared with 1,200 gross.
+export function salaryInJobTerms(
+  profile: Pick<Profile, "salary" | "salaryMax" | "salaryKind">,
+  job: Pick<Job, "salaryKind">,
+) {
+  const from = profile.salaryKind;
+  const to = job.salaryKind;
+  const convert = (amount: number) => {
+    if (!(amount > 0) || !from || !to || from === to) return amount;
+    return Math.round(
+      to === "gross"
+        ? calculateFromNet(amount).gross
+        : calculateFromGross(amount).net,
+    );
+  };
+  return { min: convert(profile.salary), max: convert(profile.salaryMax || 0) };
+}
+
+// A vacancy with a published range fits when it overlaps the candidate's
+// acceptable range. Vacancies without a range ("by agreement") always fit.
 export function salaryFits(
-  profile: Pick<Profile, "salary" | "salaryMax">,
-  job: Pick<Job, "minSalary" | "maxSalary">,
+  profile: Pick<Profile, "salary" | "salaryMax"> &
+    Partial<Pick<Profile, "salaryKind">>,
+  job: Pick<Job, "minSalary" | "maxSalary"> & Partial<Pick<Job, "salaryKind">>,
 ) {
   if (!job.minSalary && !job.maxSalary) return true;
   const top = job.maxSalary || job.minSalary;
   const bottom = job.minSalary || job.maxSalary;
-  if (profile.salary > 0 && top < profile.salary) return false;
-  if ((profile.salaryMax || 0) > 0 && bottom > (profile.salaryMax as number))
-    return false;
+  const wished = salaryInJobTerms(profile, job);
+  if (wished.min > 0 && top < wished.min) return false;
+  if (wished.max > 0 && bottom > wished.max) return false;
   return true;
 }
 

@@ -178,3 +178,16 @@ test("a vacancy without required skills is judged by the duties, not by the fiel
   const accountant = match(worker("Mühasib operator", "Hesabatların hazırlanması, qaimələr, kassa əməliyyatları", "2019-01"), open);
   assert.ok(accountant.score <= 40, `score ${accountant.score}`);
 });
+
+test("net and gross pay are compared in the same terms", async () => {
+  const { salaryFits, salaryInJobTerms } = await import("../lib/model.ts");
+  const person = { salary: 1200, salaryMax: 0, salaryKind: "net" };
+  const gross = { minSalary: 1000, maxSalary: 1300, salaryKind: "gross" };
+  // 1,200 net is more than 1,300 gross, so the post does not fit.
+  assert.ok(salaryInJobTerms(person, gross).min > 1300);
+  assert.equal(salaryFits(person, gross), false);
+  // The same wish compared with a net range fits.
+  assert.equal(salaryFits(person, { ...gross, salaryKind: "net" }), true);
+  // Without a stated kind the numbers are compared as before.
+  assert.equal(salaryFits({ salary: 1200, salaryMax: 0 }, gross), true);
+});

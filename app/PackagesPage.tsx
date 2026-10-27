@@ -35,6 +35,32 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
   return data;
 }
 
+type Payment = PlanMe["payments"][number];
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
+// A printable receipt; the browser's print dialog saves it as PDF.
+function printReceipt(payment: Payment, planName: string) {
+  const win = window.open("", "_blank", "width=720,height=900");
+  if (!win) return;
+  const rows: [string, string][] = [
+    ["Tarix", day(payment.created)],
+    ["Paket", planName],
+    ["Müddət", `${day(payment.period_start)} – ${day(payment.period_end)}`],
+    ["Ödəniş vasitəsi", payment.method_label || "—"],
+    ["Məbləğ", azn(payment.amount_cents / 100)],
+    ["Status", "Ödənilib"],
+  ];
+  win.document.write(`<!doctype html><html lang="az"><head><meta charset="utf-8"><title>Ödəniş qəbzi</title>
+<style>body{font-family:Arial,sans-serif;max-width:560px;margin:40px auto;color:#17332b}h1{font-size:22px;margin:0 0 4px}
+table{width:100%;border-collapse:collapse;margin-top:24px}td{padding:10px 0;border-bottom:1px solid #dfe8e3}td:first-child{color:#5b6b63;width:40%}
+p{color:#5b6b63;font-size:12px;margin-top:28px}</style></head><body>
+<h1>Joblink · Ödəniş qəbzi</h1><div>Paket haqqının ödənildiyini təsdiqləyir.</div>
+<table>${rows.map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`).join("")}</table>
+<p>Bu sənəd ödənişin təsdiqidir və rəsmi vergi fakturası deyil. Müqavilə və şərtlər “Paketlər” bölməsindədir.</p>
+<script>window.onload=function(){window.print()}</script></body></html>`);
+  win.document.close();
+}
+
 export default function PackagesPage({ notify }: { notify: (message: string) => void }) {
   const [data, setData] = useState<PlanMe | null>(null);
   const [choosing, setChoosing] = useState<Plan | null>(null);
@@ -164,7 +190,7 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
         <h3>Ödənişlər</h3>
         <div className="admin-table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Tarix</th><th>Paket</th><th>Məbləğ</th><th>Kart</th><th>Müddət</th><th>Status</th></tr></thead>
+            <thead><tr><th>Tarix</th><th>Paket</th><th>Məbləğ</th><th>Kart</th><th>Müddət</th><th>Status</th><th>Qəbz</th></tr></thead>
             <tbody>
               {data.payments.map((p, i) => (
                 <tr key={i}>
@@ -174,9 +200,10 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
                   <td>{p.method_label || "—"}</td>
                   <td>{day(p.period_start)} – {day(p.period_end)}</td>
                   <td>{p.status === "paid" ? "Ödənilib" : `Uğursuz${p.error ? `: ${p.error}` : ""}`}</td>
+                  <td>{p.status === "paid" && <button className="text-button" onClick={() => printReceipt(p, data.plans.find((x) => x.id === p.plan_id)?.name || p.plan_id)}>Qəbz</button>}</td>
                 </tr>
               ))}
-              {!data.payments.length && <tr><td colSpan={6}><p className="admin-empty">Hələ ödəniş yoxdur.</p></td></tr>}
+              {!data.payments.length && <tr><td colSpan={7}><p className="admin-empty">Hələ ödəniş yoxdur.</p></td></tr>}
             </tbody>
           </table>
         </div>
