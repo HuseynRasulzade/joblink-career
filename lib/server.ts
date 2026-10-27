@@ -480,13 +480,10 @@ async function aiTextRaw(
   if (!response.ok) {
     // Only the provider's short error code is shown (e.g. insufficient_quota),
     // so a quota or key problem can be told apart from an outage.
-    const code = await response
-      .json()
-      .then(
-        (b: { error?: { code?: string; type?: string } }) =>
-          b?.error?.code || b?.error?.type || "",
-      )
-      .catch(() => "");
+    const failure = (await response.json().catch(() => null)) as {
+      error?: { code?: string; type?: string };
+    } | null;
+    const code = failure?.error?.code || failure?.error?.type || "";
     throw new HttpError(
       502,
       `AI xidməti hazırda cavab vermir (${response.status}${code ? `, ${String(code).slice(0, 40)}` : ""}). Bir az sonra yenidən sınayın.`,
