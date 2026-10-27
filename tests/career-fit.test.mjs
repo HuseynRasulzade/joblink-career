@@ -98,3 +98,17 @@ test("certifications of one field are weighed by world recognition", async () =>
   const local = match(withCert("az-pms-ifrs"), job);
   assert.ok(global.score > local.score, `${global.score} vs ${local.score}`);
 });
+
+test("recognition tiers cover every field, not only finance", async () => {
+  const { certificationPrestige } = await import("../lib/cert-prestige.ts");
+  const w = (id) => certificationPrestige(id).weight;
+  assert.ok(w("pmp") > w("capm"));
+  assert.ok(w("cissp") > w("isc2-cc"));
+  assert.ok(w("aws-devops") > w("aws-ccp"));
+  assert.ok(w("ccie") > w("ccna"));
+  assert.ok(w("cipd") > w("aihr"));
+  assert.ok(w("nebosh-diploma") > w("first-aid"));
+  assert.ok(w("az-305") > w("az-900"));
+  assert.ok(w("az-305") > w("az-pms-ifrs"), "Azure exams are not national credentials");
+  assert.equal(certificationPrestige("az-auditor").label, "milli");
+});
