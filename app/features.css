@@ -5508,3 +5508,39 @@ a svg {
   overflow-x: auto;
   max-width: 100%;
 }
+
+/* Plain pages for search engines (vacancy list and vacancy page) */
+.seo-page {
+  max-width: 760px;
+  margin: 32px auto;
+  padding: 0 16px;
+  color: #17332b;
+  line-height: 1.6;
+}
+.seo-page a {
+  color: #0f766e;
+}
+.seo-list {
+  list-style: none;
+  padding: 0;
+}
+.seo-list li {
+  border-bottom: 1px solid #dfe8e3;
+  padding: 14px 0;
+}
+.seo-list h2 {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+.seo-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.seo-apply {
+  display: inline-block;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: #0f766e;
+  color: #fff !important;
+  text-decoration: none;
+}

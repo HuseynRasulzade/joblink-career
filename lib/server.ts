@@ -26,6 +26,7 @@ export function runtime() {
     DEEPSEEK_API_KEY?: string;
     DEEPSEEK_MODEL?: string;
     ADMIN_EMAIL?: string;
+    SITE_URL?: string;
     EMAIL_FROM?: string;
     RESEND_API_KEY?: string;
     EMAIL?: {

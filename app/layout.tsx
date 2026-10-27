@@ -49,6 +49,9 @@ export default function RootLayout({
               uyğun vakansiyalar və işə qəbul prosesinin idarəsi. Saytı işlətmək üçün
               brauzerdə JavaScript aktiv olmalıdır.
             </p>
+            <p>
+              <a href="/jobs">Açıq vakansiyalara bax</a>
+            </p>
           </main>
         </noscript>
         <RegisterServiceWorker />
