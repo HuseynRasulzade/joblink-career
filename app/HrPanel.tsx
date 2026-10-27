@@ -315,11 +315,12 @@ export default function HrPanel({
   // results are kept per candidate, so reopening costs nothing.
   const autoRanked = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!aiEnabled || demo || !selectedJob || autoRanked.current.has(selectedJob.id)) return;
+    // Only on the candidates page: opening the overview must not cost an AI call.
+    if (page !== "hr-candidates" || !aiEnabled || demo || !selectedJob || autoRanked.current.has(selectedJob.id)) return;
     autoRanked.current.add(selectedJob.id);
     void rankWithAi(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiEnabled, demo, selectedJob?.id]);
+  }, [page, aiEnabled, demo, selectedJob?.id]);
   async function rankWithAi(silent = false) {
     if (!selectedJob || demo) return;
     setAiRanking(true);
