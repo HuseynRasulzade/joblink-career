@@ -50,12 +50,12 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 | İstifadəçilər | Siyahı, dayandırma | Hesab siqnalları (birdəfəlik e-poçt, şübhəli ad, təsdiqsiz şirkətin çox vakansiyası, qısa müddətdə çox müraciət) və şəxsi məlumat sorğularının qeydi (ixrac/silmə) hazırdır |
 | Vakansiya moderasiyası | Moderasiya | Spam/saxta vakansiya siqnalları və toplu dayandırma/arxivləmə hazırdır |
 | Müraciət axını / Ödənişlər | İcmal, borclar | Gecikmiş fakturalar üçün həftəlik avtomatik xatırlatma (bildiriş + e-poçt) hazırdır; maliyyə reyestri CSV-yə yüklənir |
-| Kataloqlar (bacarıq, sertifikat, vəzifə, təhsil) | Admin əlavə edir, istifadəçi sorğuları | Bacarıqlar üçün CSV idxal (dublikatlar atlanır və hesabatda göstərilir) hazırdır. Qalır: digər kataloqlarda idxal, dublikatların birləşdirilməsi, tərcümə yoxlaması |
+| Kataloqlar (bacarıq, sertifikat, vəzifə, təhsil) | Admin əlavə edir, istifadəçi sorğuları | Bacarıqlar üçün CSV idxal (dublikatlar atlanır və hesabatda göstərilir) hazırdır. “Kataloq yoxlaması” bölməsi: vəzifələr və təhsil (universitet/ixtisas) üçün CSV idxal, əlavə olunmuş qeydlərdə tərcümə yoxlaması (İngilis/Rus adı yoxdur, eynidir, Azərbaycan hərfləri var), təkrar qeydlərin aşkarlanması və birləşdirilməsi (bacarıq, vəzifə, universitet, ixtisas: silinən qeydin adları sinonim kimi saxlanır) hazırdır. Sertifikatlar profillərdə nömrə ilə saxlandığı üçün avtomatik birləşdirilmir, yalnız aşkarlanır |
 | Uyğunluq balı | Qayda/AI seçimi, limitlər | Ayarların dəyişmə tarixçəsi və AI qiymətləndirmə nümunələri (“səhvdir” işarəsi) hazırdır |
 | Sorğular və mesajlar | Dəstək | Hazır cavab şablonları və SLA göstəricisi (ilk cavab müddəti, cavabsızlar) hazırdır |
 | İzləmə və bloklar | Var | Mesaj və vakansiya şikayəti “Şikayət” mövzusu ilə sorğular bölməsinə düşür (filtr var) |
 | Şirkət / Sənəd yoxlaması | Var | Növbədə gözləmə müddəti və hazır rədd səbəbi şablonları hazırdır |
-| Sistem və audit | Audit | Audit ixracı (Excel), xəta jurnalı (server + brauzer, şəxsi məlumatsız), ehtiyat nüsxə təlimatı (D1 Time Travel) hazırdır. Avtomatik nüsxə çıxarma yoxdur |
+| Sistem və audit | Audit | Audit ixracı (Excel), xəta jurnalı (server + brauzer, şəxsi məlumatsız), ehtiyat nüsxə təlimatı (D1 Time Travel) və əl ilə tam JSON nüsxəsi (“Kataloq yoxlaması” bölməsində, hər yükləmə auditə yazılır; parol, sessiya və kart məlumatı daxil deyil) hazırdır. Avtomatik (cron) nüsxə çıxarma yoxdur: nüsxə üçün saxlama yeri (R2) qurulmayıb |
 
 Ən vacib 3: AI xərc paneli, şikayət növbəsi, şəxsi məlumat sorğularının idarəsi.
 
@@ -64,10 +64,12 @@ Qeyd: "yoxdur" yazılan imkanlar kodda axtarışla təsdiqlənib (parol sıfırl
 1. **Hesab təhlükəsizliyi:** hazırdır (şifrə sıfırlama, e-poçt təsdiqi, 2FA, cihaz siyahısı). E-poçt göndərmək üçün `EMAIL` binding lazımdır.
 2. **Bildirişlər:** hazırdır: status, təklif, test, mesaj, faktura və xəbərdarlıq bildirişləri e-poçtla da gedir (e-poçt qurulubsa); hər istifadəçi kateqoriyaları söndürə bilər. SMS yoxdur (xarici provayder).
 3. **Mobil:** PWA hazırdır (ana ekrana əlavə, oflayn səhifə). Real APK hosting olmadan mümkün deyil.
-4. **Dillər:** az/en/ru var. Rus dili interfeys mətnlərini əhatə edir (`lib/i18n-ru.ts`, `lib/i18n-extra.ts`); tərcüməsi olmayan mətn ingiliscəyə düşür. AI cavabları (CV analizi, söhbət) rus seçilsə də Azərbaycan dilində qalır; dinamik mətnlər (vakansiya təsviri, şirkət məlumatı) istifadəçinin yazdığı dildə göstərilir. Tərcümələr maşın-köməkli yazılıb, native yoxlama tövsiyə olunur.
-5. **Əlçatanlıq:** axe-core (WCAG 2 A/AA) ilə bütün əsas səhifələr yoxlandı; rəng kontrastı və iç-içə interaktiv elementlər düzəldildi. Yük/performans testi aparılmayıb.
+4. **Dillər:** az/en/ru var. Rus dili interfeys mətnlərini əhatə edir (`lib/i18n-ru.ts`, `lib/i18n-extra.ts`); tərcüməsi olmayan mətn ingiliscəyə düşür. AI cavabları (köməkçi, CV analizi və yenidən yazma, xülasə, tövsiyə, vakansiya layihəsi, namizəd qiymətləndirməsi) saytın dilində gəlir, rus daxil (`lib/ai-language.ts`); qaydalarla yaranan mətnlər (CV yoxlaması, uyğunluq izahları) hələ Azərbaycan dilindədir; dinamik mətnlər (vakansiya təsviri, şirkət məlumatı) istifadəçinin yazdığı dildə göstərilir. Tərcümələr maşın-köməkli yazılıb, native yoxlama tövsiyə olunur.
+5. **Əlçatanlıq və yük:** axe-core (WCAG 2 A/AA) ilə bütün əsas səhifələr yoxlandı; rəng kontrastı və iç-içə interaktiv elementlər düzəldildi. Telefon ölçüsündə (390 px) bütün bölmələr iki tərəf üçün yoxlandı. Yük testi: 25 paralel istifadəçiyə qədər xətasız (p95 ~1,1 s), 50-də pulsuz Cloudflare planının limiti aşılır (bax `docs/DEPLOY.md`); çoxlu istifadəçi üçün Workers Paid planı lazımdır.
 6. **Əməliyyat:** xəta jurnalı və audit ixracı hazırdır. Canlı sayt üçün Cloudflare secret-ləri lazımdır; monitorinq (xarici) yoxdur.
-7. **Kod sağlamlığı:** paylaşılan köməkçilər `lib/api-core.ts` və `lib/api-matching.ts`-ə köçürüldü; `route()` funksiyası hələ tək fayldadır.
+7. **Kod sağlamlığı:** paylaşılan köməkçilər `lib/api-core.ts`, `lib/api-matching.ts`, `lib/mail.ts`, `lib/seo.ts`, `lib/catalog-check.ts`-ə köçürüldü; `route()` funksiyası hələ tək fayldadır (təxminən 14 min sətir), onu bölmək ayrıca iş tələb edir.
+8. **Axtarış motorları:** `/jobs`, `/jobs/<id>` (JobPosting məlumatı), `/sitemap.xml`, `/robots.txt` hazırdır; `SITE_URL` qoyulmalıdır.
+9. **Xarici asılılıqlar (bizdən asılı deyil):** AI provayderinin krediti, e-poçt provayderi (Resend açarı və domen), real ödəniş provayderi, SMS, SSO, ASAN e-imza, video yükləmə üçün fayl saxlama, APK.
 
 ## 5. Təklif olunan sıra
 1. Canlı sayt (hosting) və hesab təhlükəsizliyi (parol sıfırlama, e-poçt təsdiqi).
