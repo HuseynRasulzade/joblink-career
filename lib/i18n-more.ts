@@ -32,6 +32,9 @@ export const EN_MORE: Record<string, string> = {
   "Təsdiqlənən bacarıqlar": "Proven skills",
   "CV oxunur, AI sahələri çıxarır (1 dəqiqəyə qədər)...": "Reading the CV, AI is extracting fields (up to 1 minute)...",
   "AI xidməti vaxtında cavab vermədi.": "The AI service did not answer in time.",
+  "Xarici elan": "External listing",
+  "Orijinal elana keç": "Go to the original listing",
+  "Müraciət orijinal səhifədə edilir.": "You apply on the original page.",
 };
 export const RU_MORE: Record<string, string> = {
   "Vəzifə səviyyəsi:": "Уровень должности:",
@@ -66,4 +69,7 @@ export const RU_MORE: Record<string, string> = {
   "Təsdiqlənən bacarıqlar": "Подтверждённые навыки",
   "CV oxunur, AI sahələri çıxarır (1 dəqiqəyə qədər)...": "CV читается, ИИ извлекает поля (до 1 минуты)...",
   "AI xidməti vaxtında cavab vermədi.": "Сервис ИИ не ответил вовремя.",
+  "Xarici elan": "Внешнее объявление",
+  "Orijinal elana keç": "Перейти к исходному объявлению",
+  "Müraciət orijinal səhifədə edilir.": "Отклик подаётся на исходной странице.",
 };

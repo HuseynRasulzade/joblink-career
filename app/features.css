@@ -5401,3 +5401,16 @@ a svg {
   color: #5b6b63;
   font-size: 12px;
 }
+
+/* Vacancies listed from another site */
+.external-note {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #5b6b63;
+}
+.external-apply {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}

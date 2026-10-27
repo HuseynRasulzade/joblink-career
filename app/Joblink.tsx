@@ -1293,6 +1293,7 @@ export default function Joblink() {
                   </button>
                   <p>
                     {j.company}{" "}
+                    {j.external && <span className="demo-tag">Xarici elan</span>}
                     {j.demo ? (
                       <span className="demo-tag">Nümunə</span>
                     ) : j.companyVerified ? (
@@ -2473,6 +2474,22 @@ export default function Joblink() {
                         <MessagesSquare size={16} /> AI ilə soruş
                       </button>
                     )}
+                    {job.external ? (
+                      <>
+                        <p className="external-note">
+                          Bu vakansiya {job.external.source} saytından
+                          göstərilir. Müraciət orijinal səhifədə edilir.
+                        </p>
+                        <a
+                          className="primary external-apply"
+                          href={job.external.url}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                        >
+                          Orijinal elana keç <ArrowUpRight size={15} />
+                        </a>
+                      </>
+                    ) : (
                     <button
                       className="primary"
                       disabled={applications.some(
@@ -2499,6 +2516,7 @@ export default function Joblink() {
                         ? "Müraciət edilib"
                         : "Müraciət et"}
                     </button>
+                    )}
                   </div>
                 )}
                 {(() => {

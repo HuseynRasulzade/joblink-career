@@ -1215,6 +1215,7 @@ async function route(request: Request) {
           p.verification_status AS verification, p.data AS details, CASE WHEN COALESCE(p.logo_data,'')<>'' THEN 1 ELSE 0 END AS has_logo
         FROM accounts a LEFT JOIN company_profiles p ON p.company_id=a.id
         WHERE a.role='company' AND COALESCE(a.status,'active')='active'
+          AND a.id NOT LIKE 'external-%'
           AND NOT EXISTS(SELECT 1 FROM company_members tm WHERE tm.user_id=a.id AND tm.status IN ('active','suspended'))
           AND ${user ? "NOT EXISTS(SELECT 1 FROM relations r WHERE r.kind='block' AND ((r.actor_id=? AND r.target_id=a.id) OR (r.actor_id=a.id AND r.target_id=?)))" : "1=1"}
         ORDER BY open_jobs DESC, a.name LIMIT 300`,
@@ -4036,6 +4037,121 @@ async function route(request: Request) {
         )
         .run();
       return ok({ ok: true });
+    }
+    // Vacancies listed from another site. They belong to one system account that
+    // cannot sign in, carry the source link, and send candidates to the original.
+    if (request.method === "POST" && path === "admin/external-jobs/import") {
+      const body = await jsonBody(request);
+      const source = str(body.source, 40);
+      if (source !== "jobsearch.az")
+        throw new HttpError(400, "Mənbə dəstəklənmir.");
+      const list = (Array.isArray(body.jobs) ? body.jobs : []).slice(0, 100);
+      const owner = "external-jobsearch-az";
+      const now = new Date().toISOString();
+      await db
+        .prepare(
+          "INSERT OR IGNORE INTO accounts(id,name,role,status,created) VALUES(?,?,?,?,?)",
+        )
+        .bind(owner, "jobsearch.az (xarici mənbə)", "company", "active", now)
+        .run();
+      let added = 0;
+      let skipped = 0;
+      for (const raw of list as Record<string, unknown>[]) {
+        const url = str(raw.url, 300);
+        const externalId = str(raw.externalId, 40).replace(/[^0-9a-z-]/gi, "");
+        const title = str(raw.title, 150).replace(/\s+/g, " ");
+        const company = str(raw.company, 120).replace(/\s+/g, " ");
+        if (
+          !externalId ||
+          title.length < 3 ||
+          !company ||
+          !/^https:\/\/jobsearch\.az\//.test(url)
+        ) {
+          skipped++;
+          continue;
+        }
+        const jobId = `ext-jobsearch-${externalId}`;
+        const exists = await db
+          .prepare("SELECT 1 AS found FROM jobs WHERE id=?")
+          .bind(jobId)
+          .first();
+        if (exists) {
+          skipped++;
+          continue;
+        }
+        const category = (JOB_CATEGORIES as readonly string[]).includes(
+          str(raw.category, 80),
+        )
+          ? str(raw.category, 80)
+          : "Biznes, idarəetmə və HR";
+        const deadline = /^\d{4}-\d{2}-\d{2}$/.test(str(raw.deadline, 10))
+          ? str(raw.deadline, 10)
+          : "";
+        const job: Job = {
+          id: jobId,
+          owner,
+          title,
+          company,
+          city: str(raw.city, 60) || "Bakı",
+          mode: "Ofisdə",
+          type: str(raw.type, 40) || "Tam ştat",
+          category,
+          minSalary: Math.max(0, Math.round(Number(raw.minSalary)) || 0),
+          maxSalary: Math.max(0, Math.round(Number(raw.maxSalary)) || 0),
+          minYears: 0,
+          maxYears: 0,
+          skills: [],
+          description: str(raw.description, 6000),
+          requirements: str(raw.requirements, 3000),
+          deadline,
+          created: now,
+          demo: false,
+          status: "published",
+          external: { source, url },
+        };
+        await db
+          .prepare(
+            "INSERT INTO jobs(id,owner,data,status,created) VALUES(?,?,?,'published',?)",
+          )
+          .bind(jobId, owner, JSON.stringify(job), now)
+          .run();
+        added++;
+      }
+      await db
+        .prepare(
+          "INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          id,
+          "external-jobs-import",
+          "jobs",
+          source,
+          JSON.stringify({ added, skipped }),
+          now,
+        )
+        .run();
+      return ok({ added, skipped });
+    }
+    if (request.method === "POST" && path === "admin/external-jobs/delete") {
+      const removed = await db
+        .prepare("DELETE FROM jobs WHERE owner='external-jobsearch-az'")
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          id,
+          "external-jobs-delete",
+          "jobs",
+          "jobsearch.az",
+          JSON.stringify({ removed: removed.meta?.changes || 0 }),
+          new Date().toISOString(),
+        )
+        .run();
+      return ok({ removed: removed.meta?.changes || 0 });
     }
     if (request.method === "POST" && path === "admin/job-titles") {
       const body = await jsonBody(request);
@@ -8161,6 +8277,14 @@ async function route(request: Request) {
         "Vakansiya artıq aktiv deyil və ya müraciət müddəti bitib.",
       );
     if (
+      typeof (found as Row).data === "string" &&
+      (JSON.parse((found as Row).data) as Job).external
+    )
+      throw new HttpError(
+        400,
+        "Bu vakansiya başqa saytdan göstərilir. Müraciət üçün “Orijinal elana keç” düyməsindən istifadə edin.",
+      );
+    if (
       "owner" in found &&
       typeof found.owner === "string" &&
       !sampleJobs.some((sample) => sample.id === jobId) &&
@@ -9263,7 +9387,7 @@ async function route(request: Request) {
     // Demonstration vacancies never consume the candidate's daily auto-apply quota.
     const jobRows = await db
       .prepare(
-        `${OPEN_JOBS_SQL} AND j.owner<>? ORDER BY j.created DESC LIMIT 200`,
+        `${OPEN_JOBS_SQL} AND j.owner<>? AND COALESCE(json_extract(j.data,'$.external.url'),'')='' ORDER BY j.created DESC LIMIT 200`,
       )
       .bind(id)
       .all<Row>();

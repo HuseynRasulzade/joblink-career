@@ -202,6 +202,8 @@ export type Job = {
   reasonNote?: string;
   // Set by the server when the owning company passed document verification.
   companyVerified?: boolean;
+  // A vacancy listed from another site: candidates apply there, not here.
+  external?: { source: string; url: string };
 };
 export const JOB_CATEGORIES = [
   "Satış və müştəri xidməti",
