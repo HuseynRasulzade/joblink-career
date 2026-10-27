@@ -5495,3 +5495,16 @@ a svg {
   flex-wrap: wrap;
   gap: 8px 12px;
 }
+
+/* Long links and words (for example a source URL in a vacancy) wrap instead of stretching the page */
+.job-card p,
+.job-description,
+.candidate-card p,
+.vacancy-detail p,
+.vacancy-detail li {
+  overflow-wrap: anywhere;
+}
+.month-chart {
+  overflow-x: auto;
+  max-width: 100%;
+}
