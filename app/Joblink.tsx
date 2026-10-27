@@ -68,6 +68,7 @@ import AdminPanel from "./AdminPanel";
 import AccountSettings from "./AccountSettings";
 import { JobAlerts } from "./JobAlerts";
 import { AdminAiUsage, AdminOps, AdminReviews } from "./CompanyReviews";
+import AdminCatalogCheck from "./AdminCatalogCheck";
 import { similarJobs } from "@/lib/similar-jobs";
 import { salaryInsight } from "@/lib/salary-view";
 import TailoredCv from "./TailoredCv";
@@ -159,6 +160,7 @@ const adminNav = [
   { id: "admin-certifications", label: "Sertifikatlar kataloqu", icon: Award },
   { id: "admin-job-titles", label: "Vəzifələr kataloqu", icon: ListChecks },
   { id: "admin-education", label: "Təhsil kataloqu", icon: Award },
+  { id: "admin-catalog-check", label: "Kataloq yoxlaması", icon: ListChecks },
   { id: "admin-matching", label: "Uyğunluq balı", icon: Sparkles },
   { id: "admin-support", label: "Sorğular və mesajlar", icon: Inbox },
   { id: "admin-reviews", label: "Şirkət rəyləri", icon: UserCheck },
@@ -2609,6 +2611,18 @@ export default function Joblink() {
                 </div>
               </section>
               <AdminOps notify={notify} />
+            </>
+          ) : admin && page === "admin-catalog-check" ? (
+            <>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>Kataloq yoxlaması</h1>
+                    <p>Tərcümə yoxlaması, təkrarların birləşdirilməsi, CSV idxal və ehtiyat nüsxə</p>
+                  </div>
+                </div>
+              </section>
+              <AdminCatalogCheck notify={notify} />
             </>
           ) : admin && page === "admin-ai-usage" ? (
             <>
