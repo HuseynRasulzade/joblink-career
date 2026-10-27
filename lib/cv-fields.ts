@@ -7,27 +7,28 @@ import { blankProfile, type Profile } from "./model.ts";
 const HEADINGS = {
   name: "ad və soyad|adı və soyadı|ad soyad|full name|name|фио|имя",
   title:
-    "vəzifə|ixtisas|peşə|title|position|profession|должность|специальность",
+    "vəzifə|ixtisas|peşə|ünvan|unvan|pozisyon|title|position|profession|должность|специальность",
   phone:
     "telefon(?: nömrəsi)?|əlaqə nömrəsi|mobil(?: nömrə)?|phone|telephone|mobile|телефон",
   city: "şəhər|ünvan|yaşayış yeri|city|location|address|город|адрес",
   summary:
-    "haqqımda|özüm haqqında|peşəkar xülasə|xülasə|məqsəd|summary|profile|about me|objective|карьерная цель|о себе|цель",
+    "haqqımda|özüm haqqında|peşəkar xülasə|xülasə|məqsəd|hakkımda|özet|kariyer hedefi|summary|profile|about me|objective|карьерная цель|о себе|цель",
   experience:
-    "iş təcrübəsi|əmək fəaliyyəti|peşə təcrübəsi|təcrübə|experience|work experience|employment history|опыт работы|опыт",
+    "iş təcrübəsi|əmək fəaliyyəti|peşə təcrübəsi|təcrübə|iş geçmişi|iş deneyimi|iş tecrübesi|deneyim|tecrübe|experience|work experience|employment history|опыт работы|опыт",
   education:
-    "təhsil|təhsilim|education|образование|учеба",
+    "təhsil|təhsilim|eğitim|eğitim bilgileri|education|образование|учеба",
   skills:
-    "bacarıqlar|texniki bacarıqlar|peşə bacarıqları|professional skills|skills|technical skills|навыки|умения",
-  languages: "dillər|dil bilikləri|languages|языки|языковые навыки",
+    "bacarıqlar|texniki bacarıqlar|peşə bacarıqları|beceriler|beceri ve yetkinlikler|yetkinlikler|yetenekler|professional skills|skills|technical skills|навыки|умения",
+  languages:
+    "dillər|dil bilikləri|yabancı dil|yabancı diller|konuştuğu diller|dil bilgisi|languages|языки|языковые навыки",
   certificates:
-    "sertifikatlar|sertifikat|kurslar|certificates|certifications|courses|сертификаты|курсы",
+    "sertifikatlar|sertifikat|kurslar|sertifikalar|sertifika|certificates|certifications|courses|сертификаты|курсы",
   contact:
-    "əlaqə|əlaqə məlumatları|contact|contact information|контакты|контактная информация",
+    "əlaqə|əlaqə məlumatları|iletişim|bana ulaşın|contact|contact information|контакты|контактная информация",
   projects: "layihələr|projects|проекты",
-  references: "referanslar|tövsiyələr|references|рекомендации",
+  references: "referanslar|referans|tövsiyələr|references|рекомендации",
   other:
-    "cv|resume|curriculum vitae|personal information|şəxsi məlumatlar|hobbi|maraqlar|hobbies|interests",
+    "cv|resume|curriculum vitae|personal information|şəxsi məlumatlar|hobbi|maraqlar|hobiler|ilgi alanları|hobbies|interests",
 };
 const ALL_HEADINGS = Object.values(HEADINGS).join("|");
 // JS regex /i uses default Unicode case-folding, which maps İ -> "i̇" (two
@@ -41,7 +42,8 @@ export function cvFields(text: string): Partial<Profile> {
   const lines = text
     .split(/\r?\n/)
     .map((x) => x.trim())
-    .filter(Boolean);
+    // Page markers added when a PDF is read are not part of the CV.
+    .filter((x) => x && !/^\[SƏHİFƏ \d+\]$/u.test(x));
   const lower = lines.map(az);
   const field = (labels: string) => {
     const re = new RegExp(`^(?:${labels})\\s*(?:[:：]|[-–]\\s)\\s*`, "u");
@@ -57,9 +59,11 @@ export function cvFields(text: string): Partial<Profile> {
   const name =
     field(HEADINGS.name) ||
     (first &&
-    /^[\p{Lu}][\p{L}'’-]+(?:\s+(?:oğlu|qızı|[\p{Lu}][\p{L}'’-]+)){1,4}$/u.test(
+    (/^[\p{Lu}][\p{L}'’-]+(?:\s+(?:oğlu|qızı|[\p{Lu}][\p{L}'’-]+)){1,4}$/u.test(
       first,
-    )
+    ) ||
+      // Designed CVs often print the name in capitals ("BURAK KUZEY").
+      /^[\p{Lu}'’-]{2,}(?:\s+[\p{Lu}'’-]{2,}){1,3}$/u.test(first))
       ? first
       : "");
   const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
@@ -111,7 +115,22 @@ export function cvFields(text: string): Partial<Profile> {
     name,
     email,
     phone,
-    title: field(HEADINGS.title),
+    title:
+      field(HEADINGS.title) ||
+      // A short line right under the name is usually the profession.
+      (() => {
+        if (!name || firstIndex < 0 || lines[firstIndex] !== name) return "";
+        const next = lines[firstIndex + 1];
+        if (
+          !next ||
+          next.length < 3 ||
+          next.length > 70 ||
+          /[\d@:]|https?/u.test(next) ||
+          new RegExp(`^(?:${ALL_HEADINGS})\\s*[:：]?$`, "u").test(az(next))
+        )
+          return "";
+        return next;
+      })(),
     city: field(HEADINGS.city),
     summary,
     skills: rawSkills
