@@ -5478,3 +5478,20 @@ a svg {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Phones: action rows wrap instead of running off the screen; result tables scroll inside their panel */
+.admin-actions {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.section-heading {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.calc-result {
+  overflow-x: auto;
+}
+.job-footer {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
