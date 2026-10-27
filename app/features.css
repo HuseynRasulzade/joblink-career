@@ -5445,3 +5445,36 @@ a svg {
     max-width: 100%;
   }
 }
+
+/* A grid column sized "1fr" can never shrink below its content; "minmax(0, 1fr)" can.
+   Without this a wide table or select stretches the whole page on a phone. */
+.company-page {
+  grid-template-columns: minmax(0, 1fr);
+}
+.company-page > *,
+.profile-layout > *,
+.calc-page > *,
+.analysis-layout > *,
+.jobs > * {
+  min-width: 0;
+}
+.admin-table-wrap {
+  max-width: 100%;
+}
+@media (max-width: 900px) {
+  .profile-layout,
+  .calc-page,
+  .analysis-layout,
+  .jobs,
+  .job-list-grid .jobs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .profile-layout > aside {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .profile-layout > aside {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
