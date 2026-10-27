@@ -41,3 +41,16 @@ test("the binding is used without a Resend key, and the adapter keeps the jobs w
   const mailer = mailerOf({ EMAIL_FROM: "no-reply@x.az", RESEND_API_KEY: "k" });
   assert.equal(typeof mailer.send, "function");
 });
+
+test("AI answers follow the site language, Russian included", async () => {
+  const { aiLanguage, aiLanguageName } = await import("../lib/ai-language.ts");
+  assert.equal(aiLanguage("ru"), "ru");
+  assert.equal(aiLanguage("en"), "en");
+  assert.equal(aiLanguage("az"), "az");
+  assert.equal(aiLanguage(undefined), "az");
+  assert.equal(aiLanguage("de"), "az");
+  assert.ok(aiLanguageName("ru").includes("Russian"));
+  assert.ok(aiLanguageName("az").includes("Azerbaijani"));
+  const { FIT_REVIEW_PROMPT } = await import("../lib/fit-review.ts");
+  assert.ok(FIT_REVIEW_PROMPT("ru").includes("Russian"));
+});
