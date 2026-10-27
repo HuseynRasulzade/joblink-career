@@ -1,3 +1,4 @@
+import { mailConfigured, sendMail } from "./mail.ts";
 // Shared helpers of the API route: notifications and e-mail, audit trail, application events,
 // message bookkeeping and the closing of expired employer tests.
 import { runtime, HttpError } from "./server";
@@ -31,7 +32,7 @@ export async function blockedBetween(db: D1Database, a: string, b: string) {
 }
 export async function sendUserEmail(db: D1Database, userId: string, subject: string, text: string, type = "") {
   const settings = runtime();
-  if (!settings.EMAIL || !settings.EMAIL_FROM) return;
+  if (!mailConfigured(settings)) return;
   // The person may have switched this category of e-mail off.
   if (type) {
     const prefs = await db.prepare("SELECT email_off FROM notification_prefs WHERE user_id=?").bind(userId).first<{ email_off: string }>().catch(() => null);
@@ -42,7 +43,7 @@ export async function sendUserEmail(db: D1Database, userId: string, subject: str
   const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(userId).first<{ email: string }>();
   if (!account?.email) return;
   try {
-    await settings.EMAIL.send({ to: [account.email], from: { email: settings.EMAIL_FROM, name: "Joblink" }, subject, text });
+    await sendMail(settings, { to: account.email, subject, text });
   } catch {
     // E-mail is best-effort; the in-app notification is the record.
   }

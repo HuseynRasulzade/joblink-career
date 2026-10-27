@@ -91,6 +91,8 @@ Cloudflare → D1 → `joblink-career-db` → Console-da `scripts/seed-demo-acco
 
 ## Hesab təhlükəsizliyi: e-poçt tələbi
 
+**E-poçt provayderi.** İki yoldan biri kifayətdir: (1) **Resend** (tövsiyə olunur, istənilən domendə işləyir): resend.com-da domeni təsdiqləyin, API açarı yaradın, `RESEND_API_KEY` secret-ini (`wrangler secret put RESEND_API_KEY`) və `EMAIL_FROM` dəyişənini (təsdiqlənmiş ünvan, məsələn `no-reply@domeniniz.az`) qoyun; (2) Cloudflare `EMAIL` binding. Resend açarı varsa, o istifadə olunur. Aşağıda “`EMAIL` binding” yazılan hər yerdə bu iki yoldan biri nəzərdə tutulur.
+
 Şifrə sıfırlama və e-poçt təsdiq linkləri yalnız Cloudflare `EMAIL` binding və `EMAIL_FROM` qurulubsa göndərilir (şifrə sıfırlama linki başqa yolla çatdırılmır). Qurulmayıbsa istifadəçi linki ala bilməz: “Şifrəni unutmusunuz?” formu yenə “göndərildi” cavabı verir (hesabın olub-olmadığı açılmasın deyə). Lokal yoxlama üçün `DEV_MAIL_LOG=1` linkləri jurnala yazır; canlı mühitdə bunu qoymayın. İki mərhələli giriş e-poçt tələb etmir.
 
 ## Gündəlik cron işləri (`0 5 * * *`)

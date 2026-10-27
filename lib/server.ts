@@ -27,6 +27,7 @@ export function runtime() {
     DEEPSEEK_MODEL?: string;
     ADMIN_EMAIL?: string;
     EMAIL_FROM?: string;
+    RESEND_API_KEY?: string;
     EMAIL?: {
       send: (message: {
         to: string[];

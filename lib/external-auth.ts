@@ -1,3 +1,4 @@
+import { mailConfigured, sendMail } from "./mail.ts";
 import { runtime, store, HttpError, jsonBody, str } from "./server";
 import { generateSecret, otpauthUri, verifyTotp } from "./totp";
 
@@ -141,9 +142,9 @@ async function issueSession(userId: string, request?: Request) {
 // DEV_MAIL_LOG=1 prints the message for local checks.
 async function sendAuthMail(to: string, subject: string, text: string) {
   const settings = runtime();
-  if (settings.EMAIL && settings.EMAIL_FROM) {
+  if (mailConfigured(settings)) {
     try {
-      await settings.EMAIL.send({ to: [to], from: { email: settings.EMAIL_FROM, name: "Joblink" }, subject, text });
+      await sendMail(settings, { to, subject, text });
     } catch {
       /* the link can be requested again */
     }

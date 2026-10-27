@@ -198,6 +198,7 @@ const normalizedProfileRecord = (
 // A vacancy is open only while it is published, its owner is not suspended
 // and its application deadline (when set) has not passed.
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
+import { mailConfigured, mailerOf, sendMail } from "@/lib/mail";
 import {
   comparePeriods,
   inPeriod,
@@ -808,7 +809,7 @@ async function notifyAdminOfSkillRequest(
 ) {
   const settings = runtime();
   const recipient = settings.ADMIN_EMAIL || "ec.alizade99@gmail.com";
-  if (!settings.EMAIL || !settings.EMAIL_FROM) return "queued";
+  if (!mailConfigured(settings)) return "queued";
   try {
     const text = [
       "Joblink kataloquna yeni bacarıq əlavə edildi.",
@@ -818,9 +819,8 @@ async function notifyAdminOfSkillRequest(
       `İstifadəçi rolu: ${details.role}`,
       `İstifadəçi: ${details.userEmail || "göstərilməyib"}`,
     ].join("\n");
-    await settings.EMAIL.send({
-      to: [recipient],
-      from: { email: settings.EMAIL_FROM, name: "Joblink" },
+    await sendMail(settings, {
+      to: recipient,
       subject: `Yeni bacarıq: ${details.label}`,
       text,
     });
@@ -987,11 +987,10 @@ async function aiDocumentCheck(
 }
 async function sendAdminEmail(subject: string, text: string) {
   const settings = runtime();
-  if (!settings.EMAIL || !settings.EMAIL_FROM) return "queued";
+  if (!mailConfigured(settings)) return "queued";
   try {
-    await settings.EMAIL.send({
-      to: [settings.ADMIN_EMAIL || "ec.alizade99@gmail.com"],
-      from: { email: settings.EMAIL_FROM, name: "Joblink" },
+    await sendMail(settings, {
+      to: settings.ADMIN_EMAIL || "ec.alizade99@gmail.com",
       subject,
       text,
     });
@@ -4581,7 +4580,7 @@ async function route(request: Request) {
           authentication: runtime().EXTERNAL_AUTH || "chatgpt",
           cvStorage: runtime().CV_STORAGE || "r2",
           environment: "production",
-          skillEmailConfigured: !!(runtime().EMAIL && runtime().EMAIL_FROM),
+          skillEmailConfigured: mailConfigured(runtime()),
         },
       });
     }
@@ -5365,14 +5364,14 @@ async function route(request: Request) {
       const settings = runtime();
       const sent = await runDigests(
         db,
-        settings.EMAIL as never,
+        mailerOf(settings) as never,
         settings.EMAIL_FROM,
         new Date(),
         body.force === true,
       );
       const reminders = await runInterviewReminders(
         db,
-        settings.EMAIL as never,
+        mailerOf(settings) as never,
         settings.EMAIL_FROM,
         new Date(),
       );
@@ -5741,10 +5740,9 @@ async function route(request: Request) {
         link: "hr-team",
       });
     const settings = runtime();
-    if (settings.EMAIL && settings.EMAIL_FROM)
-      await settings.EMAIL.send({
-        to: [email],
-        from: { email: settings.EMAIL_FROM, name: "Joblink" },
+    if (mailConfigured(settings))
+      await sendMail(settings, {
+        to: email,
         subject: `${company?.name || "Şirkət"} sizi Joblink-də komandaya dəvət edir`,
         text: `${company?.name || "Şirkət"} sizi "${roleLabel(role)}" rolu ilə Joblink-dəki şirkət hesabına dəvət edir. Bu e-poçtla şirkət hesabı kimi qeydiyyatdan keçin və ya daxil olun, sonra "Komanda" bölməsində dəvəti qəbul edin.`,
       }).catch(() => {});
@@ -5836,10 +5834,9 @@ async function route(request: Request) {
         link: "hr-team",
       });
     const settings = runtime();
-    if (settings.EMAIL && settings.EMAIL_FROM)
-      await settings.EMAIL.send({
-        to: [member.email],
-        from: { email: settings.EMAIL_FROM, name: "Joblink" },
+    if (mailConfigured(settings))
+      await sendMail(settings, {
+        to: member.email,
         subject: `${company?.name || "Şirkət"} sizi Joblink-də komandaya dəvət edir`,
         text: `${company?.name || "Şirkət"} sizi "${roleLabel(member.role)}" rolu ilə Joblink-dəki şirkət hesabına yenidən dəvət edir. Bu e-poçtla şirkət hesabı kimi daxil olun və dəvəti qəbul edin. Dəvət ${INVITE_DAYS} gün qüvvədədir.`,
       }).catch(() => {});
