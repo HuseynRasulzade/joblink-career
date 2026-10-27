@@ -840,7 +840,7 @@ export function ProfileEditor({
     useAI = false,
     ocrUsed = false,
     sourceFile?: File,
-  ) {
+  ): Promise<boolean> {
     setUploading(true);
     try {
       let fields: Partial<Profile> = cvFields(text);
@@ -873,7 +873,8 @@ export function ProfileEditor({
             body: JSON.stringify({ text, consent: importConsent, ocrUsed }),
           });
         }
-        const b = (await r.json()) as {
+        // A gateway timeout answers with plain text, not JSON.
+        const b = (await r.json().catch(() => ({}))) as {
           error?: string;
           fields?: Partial<Profile>;
           parserMetadata?: {
@@ -884,7 +885,13 @@ export function ProfileEditor({
             fieldConfidence: Profile["cvFieldConfidence"];
           };
         };
-        if (!r.ok) throw new Error(b.error || "CV oxunmadı");
+        if (!r.ok)
+          throw new Error(
+            b.error ||
+              (r.status >= 500
+                ? "AI xidməti vaxtında cavab vermədi."
+                : "CV oxunmadı"),
+          );
         fields = b.fields || {};
         setParserReview(b.parserMetadata || null);
       } else {
@@ -922,8 +929,12 @@ export function ProfileEditor({
         cvText: text,
         cvName: name,
       });
+      return true;
     } catch (e) {
-      onNotice((e as Error).message);
+      onNotice(
+        `${(e as Error).message} CV mətni oxundu və “CV mətni” sahəsindədir; sahələri əl ilə doldura və ya yenidən yükləyə bilərsiniz.`,
+      );
+      return false;
     } finally {
       setUploading(false);
     }
@@ -1043,13 +1054,15 @@ export function ProfileEditor({
         });
         setP((v) => ({ ...v, cvText: b.text, cvName: b.name }));
         setDirty(true);
-        await extractFields(
+        const parsed = await extractFields(
           b.text,
           b.name,
           aiEnabled && importConsent,
           b.ocrUsed,
           file,
         );
+        // A failure was already reported; do not overwrite it with a success message.
+        if (!parsed) return;
         onNotice(
           ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(
             file.type,
@@ -1075,8 +1088,8 @@ export function ProfileEditor({
       if (!r.ok) throw new Error(b.error);
       setP((v) => ({ ...v, cvText: b.text, cvName: b.name }));
       setDirty(true);
-      await extractFields(b.text, b.name, aiEnabled && importConsent);
-      onNotice("CV oxundu. Məlumatları yoxlayın və profili yadda saxlayın.");
+      if (await extractFields(b.text, b.name, aiEnabled && importConsent))
+        onNotice("CV oxundu. Məlumatları yoxlayın və profili yadda saxlayın.");
     } catch (e) {
       onNotice((e as Error).message);
     } finally {
@@ -1902,7 +1915,11 @@ export function ProfileEditor({
                     disabled={uploading}
                     onClick={() => input.current?.click()}
                   >
-                    {uploading ? "CV oxunur..." : "Fayl seç"}
+                    {uploading
+                      ? aiEnabled && importConsent
+                        ? "CV oxunur, AI sahələri çıxarır (1 dəqiqəyə qədər)..."
+                        : "CV oxunur..."
+                      : "Fayl seç"}
                   </button>
                 </div>
                 <Field label="CV mətni — oxunan mətni yoxlayın və ya bura yapışdırın">
