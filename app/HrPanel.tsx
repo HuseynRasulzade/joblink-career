@@ -1,6 +1,7 @@
 "use client";
 import { BAND_LABELS, bandFor } from "@/lib/career";
 import { FitReviewPanel } from "./FitReview";
+import { AiFeedback } from "./AiFeedback";
 import { EXTERNAL_SOURCES, trackingLink } from "@/lib/sources";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -152,7 +153,7 @@ export default function HrPanel({
   const [certFilter, setCertFilter] = useState("");
   const [aiRatings, setAiRatings] = useState<{
     jobId: string;
-    items: Record<string, { score: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }>;
+    items: Record<string, { score: number; aiScore?: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }>;
   } | null>(null);
   const [aiRanking, setAiRanking] = useState(false);
   const [applicantsView, setApplicantsView] = useState<"board" | "list">("board");
@@ -329,7 +330,7 @@ export default function HrPanel({
       setAiRatings({
         jobId: selectedJob.id,
         items: Object.fromEntries(
-          (data.ratings as { candidateId: string; score: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }[])
+          (data.ratings as { candidateId: string; score: number; aiScore?: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }[])
             .map((r) => [r.candidateId, r]),
         ),
       });
@@ -1034,6 +1035,17 @@ export default function HrPanel({
                         </b>
                         {aiRatings.items[c.id].strengths && <p>✓ {aiRatings.items[c.id].strengths}</p>}
                         {aiRatings.items[c.id].gaps && <p>△ {aiRatings.items[c.id].gaps}</p>}
+                        {!demo && selectedJob && (
+                          <AiFeedback
+                            api={api}
+                            kind="rank"
+                            jobId={selectedJob.id}
+                            candidateId={c.id}
+                            aiScore={aiRatings.items[c.id].aiScore ?? aiRatings.items[c.id].score}
+                            ruleScore={aiRatings.items[c.id].ruleScore}
+                            aiRecommendation={aiRatings.items[c.id].recommendation}
+                          />
+                        )}
                       </div>
                     )}
                     {!demo && selectedJob && (

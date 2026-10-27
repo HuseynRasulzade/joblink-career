@@ -69,6 +69,7 @@ import AccountSettings from "./AccountSettings";
 import { JobAlerts } from "./JobAlerts";
 import { AdminAiUsage, AdminOps, AdminReviews } from "./CompanyReviews";
 import AdminCatalogCheck from "./AdminCatalogCheck";
+import AdminAiFeedback from "./AdminAiFeedback";
 import { similarJobs } from "@/lib/similar-jobs";
 import { salaryInsight } from "@/lib/salary-view";
 import TailoredCv from "./TailoredCv";
@@ -2635,6 +2636,7 @@ export default function Joblink() {
                 </div>
               </section>
               <AdminAiUsage notify={notify} />
+              <AdminAiFeedback notify={notify} />
             </>
           ) : admin && page === "admin-reviews" ? (
             <>

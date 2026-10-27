@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import type { FitReview } from "@/lib/fit-review";
+import { recommendationForScore } from "@/lib/ai-eval";
+import { AiFeedback } from "./AiFeedback";
 
 const VERDICT: Record<FitReview["verdict"], string> = {
   strong: "Güclü uyğunluq",
@@ -98,6 +100,17 @@ export function FitReviewPanel({
                 ))}
               </ul>
             </>
+          )}
+          {audience === "employer" && candidateId && (
+            <AiFeedback
+              api={api}
+              kind="fit-review"
+              jobId={jobId}
+              candidateId={candidateId}
+              aiScore={review.score}
+              ruleScore={review.ruleScore}
+              aiRecommendation={recommendationForScore(review.score)}
+            />
           )}
           <small className="muted">
             AI şərhi kömək məqsədi daşıyır, yekun qərar deyil. Hər güclü tərəf profildən sitatla təsdiqlənir.

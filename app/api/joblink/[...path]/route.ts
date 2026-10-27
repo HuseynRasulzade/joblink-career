@@ -201,6 +201,13 @@ import { calculateFromGross, calculateFromNet } from "@/lib/salary";
 import { mailConfigured, mailerOf, sendMail } from "@/lib/mail";
 import { aiLanguage, aiLanguageName } from "@/lib/ai-language";
 import {
+  feedbackCsv,
+  normalizeDecision,
+  recommendationForScore,
+  summarizeFeedback,
+  type FeedbackRow as AiFeedbackRow,
+} from "@/lib/ai-eval";
+import {
   duplicateGroups,
   mergedAliases,
   parseEducationCsv,
@@ -4210,6 +4217,27 @@ async function route(request: Request) {
         .run();
       return ok({ removed: removed.meta?.changes || 0 });
     }
+    // How often the AI is right, from the employers' feedback.
+    if (request.method === "GET" && path === "admin/ai-feedback") {
+      const rows = await db
+        .prepare("SELECT kind,ai_score,rule_score,ai_recommendation,verdict,hr_decision,hr_score,note,created FROM ai_feedback ORDER BY created DESC LIMIT 5000")
+        .all<AiFeedbackRow>()
+        .catch(() => ({ results: [] as AiFeedbackRow[] }));
+      return ok({ summary: summarizeFeedback(rows.results) });
+    }
+    if (request.method === "GET" && path === "admin/ai-feedback/export") {
+      const rows = await db
+        .prepare("SELECT kind,job_id,candidate_id,ai_score,rule_score,ai_recommendation,verdict,hr_decision,hr_score,note,created FROM ai_feedback ORDER BY created DESC LIMIT 20000")
+        .all<AiFeedbackRow & { job_id: string; candidate_id: string }>()
+        .catch(() => ({ results: [] as (AiFeedbackRow & { job_id: string; candidate_id: string })[] }));
+      return new Response(`\uFEFF${feedbackCsv(rows.results)}`, {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="ai-feedback-${new Date().toISOString().slice(0, 10)}.csv"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
     // ---- Catalog upkeep: translation check, duplicates, merging, imports, backup ----
     const readJsonList = (value: unknown) => {
       try {
@@ -5687,6 +5715,7 @@ async function route(request: Request) {
     "application-status",
     "job-status",
     "hr/rank-candidates",
+    "hr/ai-feedback",
     "hr/application-events",
     "offers/create",
     "offers/withdraw",
@@ -11742,6 +11771,57 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     if (!ratings.length)
       throw new HttpError(502, "AI namizədləri qiymətləndirə bilmədi.");
     return ok({ ratings });
+  }
+  // An employer's verdict on an AI evaluation: right or wrong, and what it should have been.
+  if (request.method === "GET" && path === "hr/ai-feedback") {
+    const jobId = str(requestUrl.searchParams.get("jobId"), 100);
+    const rows = await db
+      .prepare("SELECT kind,candidate_id,verdict,hr_decision,hr_score,note FROM ai_feedback WHERE user_id=? AND company_id=? AND job_id=?")
+      .bind(userId, id, jobId)
+      .all<{ kind: string; candidate_id: string; verdict: string; hr_decision: string; hr_score: number | null; note: string }>()
+      .catch(() => ({ results: [] }));
+    return ok({ feedback: rows.results });
+  }
+  if (request.method === "POST" && path === "hr/ai-feedback") {
+    const b = await jsonBody(request);
+    const kind = b.kind === "fit-review" ? "fit-review" : "rank";
+    const jobId = str(b.jobId, 100);
+    const candidateId = str(b.candidateId, 100);
+    const verdict = b.verdict === "wrong" ? "wrong" : b.verdict === "right" ? "right" : "";
+    if (!verdict || !candidateId) throw new HttpError(400, "Qiymətləndirmə seçilməyib.");
+    const job = await db.prepare("SELECT id FROM jobs WHERE id=? AND owner=?").bind(jobId, id).first();
+    if (!job) throw new HttpError(404, "Vakansiya tapılmadı.");
+    const clamp = (value: unknown) => Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+    const aiScore = clamp(b.aiScore);
+    const hrScore =
+      b.hrScore === null || b.hrScore === undefined || b.hrScore === "" ? null : clamp(b.hrScore);
+    const aiRecommendation = normalizeDecision(b.aiRecommendation) || recommendationForScore(aiScore);
+    const now = new Date().toISOString();
+    await db
+      .prepare(
+        `INSERT INTO ai_feedback(id,company_id,user_id,kind,job_id,candidate_id,ai_score,rule_score,ai_recommendation,verdict,hr_decision,hr_score,note,created,updated)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON CONFLICT(user_id,kind,job_id,candidate_id) DO UPDATE SET ai_score=excluded.ai_score,rule_score=excluded.rule_score,ai_recommendation=excluded.ai_recommendation,verdict=excluded.verdict,hr_decision=excluded.hr_decision,hr_score=excluded.hr_score,note=excluded.note,updated=excluded.updated`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        id,
+        userId,
+        kind,
+        jobId,
+        candidateId,
+        aiScore,
+        clamp(b.ruleScore),
+        aiRecommendation,
+        verdict,
+        verdict === "wrong" ? normalizeDecision(b.hrDecision) : "",
+        verdict === "wrong" ? hrScore : null,
+        verdict === "wrong" ? str(b.note, 400) : "",
+        now,
+        now,
+      )
+      .run();
+    return ok({ ok: true });
   }
   if (request.method === "POST" && path === "application-status") {
     const b = await jsonBody(request);

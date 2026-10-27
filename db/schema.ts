@@ -230,6 +230,32 @@ export const employeeTasks = sqliteTable(
   },
   (t) => [index("employee_tasks_employee").on(t.companyId, t.employeeId, t.position)],
 );
+// An employer's verdict on an AI evaluation of a candidate: the raw material for
+// measuring how often the AI is right (see lib/ai-eval.ts).
+export const aiFeedback = sqliteTable(
+  "ai_feedback",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    userId: text("user_id").notNull(),
+    kind: text("kind").notNull(),
+    jobId: text("job_id").notNull(),
+    candidateId: text("candidate_id").notNull(),
+    aiScore: integer("ai_score").notNull().default(0),
+    ruleScore: integer("rule_score").notNull().default(0),
+    aiRecommendation: text("ai_recommendation").notNull().default(""),
+    verdict: text("verdict").notNull(),
+    hrDecision: text("hr_decision").notNull().default(""),
+    hrScore: integer("hr_score"),
+    note: text("note").notNull().default(""),
+    created: text("created").notNull(),
+    updated: text("updated").notNull(),
+  },
+  (t) => [
+    uniqueIndex("ai_feedback_unique").on(t.userId, t.kind, t.jobId, t.candidateId),
+    index("ai_feedback_company").on(t.companyId, t.jobId),
+  ],
+);
 export const settingHistory = sqliteTable(
   "setting_history",
   {
