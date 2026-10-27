@@ -11246,9 +11246,17 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     const itemKeys = await Promise.all(
       anonymousAll.map(
         async (item) =>
-          `hr-rank6:${english ? "en" : "az"}:${MATCH_VERSION}:${vacancyHash}:${await sha(JSON.stringify(item))}`,
+          `hr-rank7:${english ? "en" : "az"}:${MATCH_VERSION}:${vacancyHash}:${await sha(JSON.stringify(item))}`,
       ),
     );
+    // The reader sees one candidate per card, so a sentence that compares with
+    // another candidate ("C1") is dropped.
+    const withoutCandidateRefs = (text: string) =>
+      text
+        .split(/(?<=[.;])\s+/)
+        .filter((sentence) => !/\bC\d+\b/.test(sentence))
+        .join(" ")
+        .trim();
     type StoredRating = {
       aiScore: number;
       strengths: string;
@@ -11317,8 +11325,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       };
       const rating: StoredRating = {
         aiScore: Math.max(0, Math.min(100, Math.round(Number(entry.score) || 0))),
-        strengths: str(entry.strengths, 500),
-        gaps: str(entry.gaps, 500),
+        strengths: withoutCandidateRefs(str(entry.strengths, 500)),
+        gaps: withoutCandidateRefs(str(entry.gaps, 500)),
         recommendation: ["interview", "consider", "reject"].includes(
           String(entry.recommendation),
         )
