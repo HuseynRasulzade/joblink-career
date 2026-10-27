@@ -5,6 +5,7 @@ import {
   FIELD_LABELS,
   FIELD_CERT_CATEGORIES,
   bandFor,
+  educationFit,
   fieldProfile,
   partLevel,
   weightedYears,
@@ -1137,7 +1138,20 @@ export function match(p: Profile, j: Job) {
   // manager is not an accountant-operator, and a clerk is not a department head.
   const ownLevel = candidateLevel(roles, p.title);
   const jobLevel = titleLevel(j.title);
-  const { fit: levelFactor, gap: levelGap } = levelFit(ownLevel, jobLevel);
+  const { fit: baseLevelFactor, gap: levelGap } = levelFit(ownLevel, jobLevel);
+  // Someone who has already worked at the vacancy's level and now holds a much
+  // higher post may be stepping down on purpose; the level penalty softens.
+  const stepDown =
+    levelGap >= 3 &&
+    jobLevel !== null &&
+    roles.some(
+      (r) =>
+        !r.current &&
+        r.end &&
+        roleRelevance(r.title, j) >= 0.7 &&
+        (titleLevel(r.title) ?? 9) <= jobLevel + 1,
+    );
+  const levelFactor = stepDown ? Math.max(baseLevelFactor, 0.7) : baseLevelFactor;
   // What the person actually does day to day, against the vacancy's duties.
   const dutyMatch = dutyFit(
     `${j.description || ""} ${j.requirements || ""}`,
@@ -1294,13 +1308,15 @@ export function match(p: Profile, j: Job) {
     normalizeSkillKey(p.city) === normalizeSkillKey(j.city) ||
     j.mode === "Uzaqdan";
   const mode = !j.mode || p.mode === j.mode;
+  const education = educationFit(p.education, field);
   let score = Math.min(
-    100,
+    110,
     Math.round(
       skills * weights.skills +
         (transferable ? Math.max(roleScore, 0.5) : roleScore) * weights.role +
         exp * weights.experience +
-        preferredBonus,
+        preferredBonus +
+        education.bonus,
     ),
   );
   const caps: string[] = [];
@@ -1332,7 +1348,7 @@ export function match(p: Profile, j: Job) {
   }
   // Same field, but the position level is far above or below the vacancy.
   if (levelGap >= 3) {
-    score = Math.min(score, 55);
+    score = Math.min(score, stepDown ? 65 : 55);
     caps.push("overqualified-level");
   } else if (levelGap <= -3) {
     score = Math.min(score, 50);
@@ -1375,12 +1391,37 @@ export function match(p: Profile, j: Job) {
   if (provenShare < 0.6) {
     ceiling.push(84);
     caps.push("unproven-skills");
-  } else if (provenShare < 1) ceiling.push(92);
+  } else score -= Math.round((1 - provenShare) * 6);
+  // Above 90 the scale is compressed instead of cut off, so that strong
+  // candidates stay in order rather than tying at the ceiling.
+  if (score > 90) score = 90 + Math.round((score - 90) / 4);
+  score = Math.min(score, ...ceiling);
+  // Things an HR manager should know even when the score is high.
+  const risks: string[] = [];
+  if (levelGap >= 2)
+    risks.push(
+      stepDown
+        ? "Hazırda vakansiyadan yüksək vəzifədədir, əvvəl bu səviyyədə işləyib: geri keçidin səbəbini soruşun"
+        : "Vakansiyadan yüksək səviyyədə işləyir: həddindən artıq təcrübəli ola bilər, vəzifə və maaş gözləntisini dəqiqləşdirin",
+    );
+  else if (levelGap <= -2)
+    risks.push("Vakansiyadan aşağı səviyyədə işləyib: rolun tələbləri üçün hazır olmaya bilər");
+  const offerTop = j.maxSalary || j.minSalary;
+  if (offerTop && p.salary > offerTop) {
+    risks.push(
+      `Maaş gözləntisi (${p.salary} AZN) vakansiyanın maaşından (${offerTop} AZN-ə qədər) yüksəkdir`,
+    );
+    if (p.salary > offerTop * 1.3) ceiling.push(84);
+  }
+  if (j.minYears && relevantYears < j.minYears)
+    risks.push(`Uyğun təcrübə tələbdən azdır (${relevantYears} il, tələb ${j.minYears} il)`);
   score = Math.min(score, ...ceiling);
   const band = bandFor(score);
   return {
     score,
     fit: {
+      risks,
+      education,
       band,
       bandLabel: BAND_LABELS[band],
       fieldChange: transferable,

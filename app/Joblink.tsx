@@ -2174,6 +2174,12 @@ export default function Joblink() {
                           ))}
                         </ul>
                       )}
+                      {!!activeJobMatch?.fit?.risks?.length && (
+                        <p>
+                          <b>Diqqət:</b>{" "}
+                          {activeJobMatch.fit.risks.join("; ")}
+                        </p>
+                      )}
                       {!!activeJobMatch?.fit?.gaps.length && (
                         <p>
                           <b>Güclənmək üçün:</b> profilinizdə uyğun işlər,

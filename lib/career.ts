@@ -104,3 +104,53 @@ export const FIELD_CERT_CATEGORIES: Record<string, string[]> = {
   oilgas: ["Əməyin mühafizəsi və neft-qaz təhlükəsizliyi"],
   transport: ["Aviasiya, dənizçilik və nəqliyyat"],
 };
+
+// Education: the highest degree, and whether the studied subject belongs to the
+// vacancy's field. A related master's degree counts more than a bachelor's.
+const foldText = (value: string) =>
+  value
+    .toLocaleLowerCase("az")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[əƏ]/g, "e")
+    .replace(/ı/g, "i");
+const EDUCATION_WORDS: Record<string, RegExp> = {
+  finance: /iqtisad|maliyye|muhasib|bank|finance|accounting|econom|biznes|business|audit|vergi/,
+  it: /komputer|computer|informatik|proqram|software|texnolog|riyaziyyat|mathemat|data|engineering/,
+  engineering: /muhendis|engineer|texnik|energetika|neft|mexanika|elektr|insaat|civil/,
+  legal: /huquq|law|legal|hukuk/,
+  hr: /insan resurs|human resource|psixolog|psycholog|idareetme|management|biznes/,
+  sales: /marketinq|marketing|satis|sales|biznes|business|iqtisad/,
+  marketing: /marketinq|marketing|reklam|media|kommunikasiya|communication|biznes/,
+  supply: /logistik|logistic|tedarik|supply|nəqliyyat|nequliyyat|iqtisad|biznes/,
+  health: /tibb|medic|saglamliq|health|stomatolog|əczaci|eczaci|pharm/,
+  education: /pedaqoq|pedagog|tedris|teaching|education|muellim/,
+};
+export type EducationFit = {
+  degree: "none" | "bachelor" | "master" | "phd";
+  related: boolean;
+  bonus: number;
+};
+export function educationFit(
+  education: { degree: string; school?: string }[],
+  field: string | undefined,
+): EducationFit {
+  const words = field ? EDUCATION_WORDS[field] : undefined;
+  let best: EducationFit = { degree: "none", related: false, bonus: 0 };
+  for (const entry of education) {
+    const text = foldText(`${entry.degree} ${entry.school || ""}`);
+    const degree = /doktor|phd|elmler namized/.test(text)
+      ? "phd"
+      : /magistr|\bmba\b|master|\bmsc\b/.test(text)
+        ? "master"
+        : /bakalavr|bachelor|\bbsc\b|\bba\b|ali tehsil/.test(text)
+          ? "bachelor"
+          : "none";
+    if (degree === "none") continue;
+    const related = !!words && words.test(text);
+    const bonus = related ? (degree === "bachelor" ? 2 : 4) : 0;
+    if (bonus > best.bonus || best.degree === "none")
+      best = { degree, related, bonus };
+  }
+  return best;
+}

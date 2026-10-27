@@ -246,6 +246,14 @@ export default function HrPanel({
         },
       ]
     : data.applications;
+  // Same name and school on several profiles: probably one person with duplicate accounts.
+  const duplicateKey = (profile: Profile) =>
+    `${profile.name.trim().toLocaleLowerCase("az")}|${(profile.education[0]?.school || "").trim().toLocaleLowerCase("az")}`;
+  const duplicateCount = candidates.reduce<Record<string, number>>((all, c) => {
+    const key = duplicateKey(c.profile);
+    all[key] = (all[key] || 0) + 1;
+    return all;
+  }, {});
   const results = candidates
     .map((c) => ({
       ...c,
@@ -1032,8 +1040,13 @@ export default function HrPanel({
                       <small className="fit-reasons">
                         {c.ranking.fit.fieldChange && "Sahə dəyişir. "}
                         {c.ranking.fit.strengths.slice(0, 2).join("; ")}
-                        {!!c.ranking.fit.gaps.length &&
-                          ` · Risk: ${c.ranking.fit.gaps.slice(0, 2).join("; ")}`}
+                        {!!(c.ranking.fit.risks?.length || c.ranking.fit.gaps.length) &&
+                          ` · Risk: ${[...(c.ranking.fit.risks || []), ...c.ranking.fit.gaps].slice(0, 3).join("; ")}`}
+                      </small>
+                    )}
+                    {(duplicateCount[duplicateKey(c.profile)] || 0) > 1 && (
+                      <small className="fit-reasons">
+                        Eyni ad və təhsilə malik {duplicateCount[duplicateKey(c.profile)]} profil var, təkrar ola bilər.
                       </small>
                     )}
                     <button

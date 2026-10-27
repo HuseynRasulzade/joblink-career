@@ -112,3 +112,56 @@ test("recognition tiers cover every field, not only finance", async () => {
   assert.ok(w("az-305") > w("az-pms-ifrs"), "Azure exams are not national credentials");
   assert.equal(certificationPrestige("az-auditor").label, "milli");
 });
+
+const director = (extra = {}) => ({
+  ...worker("Maliyyə direktoru", "Maliyyə strategiyasının hazırlanması, komandanın idarə edilməsi, investorlara təqdimatlar", "2012-01"),
+  ...extra,
+});
+
+test("a director applying for an analyst post is named as an overqualification risk", () => {
+  const r = match(director(), job);
+  assert.ok(r.fit.risks.some((x) => x.includes("həddindən artıq təcrübəli")));
+  assert.ok(r.score <= 55, `score ${r.score}`);
+});
+
+test("a director who once worked at the vacancy's level is not punished as hard", () => {
+  const stepper = director();
+  stepper.experiences = [
+    { ...stepper.experiences[0], current: false, end: "2019-12" },
+    { id: "2", title: "Mühasib", company: "Y", employmentType: "", start: "2008-01", end: "2011-12", current: false, description: "Hesabatların hazırlanması və uçot" },
+  ];
+  const r = match(stepper, job);
+  assert.ok(r.score > match(director(), job).score);
+  assert.ok(r.fit.risks.some((x) => x.includes("əvvəl bu səviyyədə")));
+});
+
+test("expected pay far above the vacancy's range is a risk and limits the score", () => {
+  const paid = { ...job, minSalary: 800, maxSalary: 1200 };
+  const r = match({ ...worker("Mühasib", "Hesabatların hazırlanması, debitor və kreditor uçotu, Microsoft Excel", "2019-01"), salary: 3000 }, paid);
+  assert.ok(r.fit.risks.some((x) => x.includes("Maaş gözləntisi")));
+  assert.ok(r.score <= 84);
+});
+
+test("a related master's degree adds more than a bachelor's, an unrelated one adds nothing", async () => {
+  const { educationFit } = await import("../lib/career.ts");
+  assert.equal(educationFit([{ degree: "Magistratura (MBA) · Biznes" }], "finance").bonus, 4);
+  assert.equal(educationFit([{ degree: "Bakalavr · Maliyyə" }], "finance").bonus, 2);
+  assert.equal(educationFit([{ degree: "Bakalavr · Tarix" }], "finance").bonus, 0);
+  assert.equal(educationFit([], "finance").degree, "none");
+});
+
+test("deputy, controller, lead and department-head titles get the right level", async () => {
+  const { titleLevel } = await import("../lib/role-level.ts");
+  assert.equal(titleLevel("Maliyyə direktorunun müavini"), 5);
+  assert.equal(titleLevel("Controller"), 4);
+  assert.equal(titleLevel("Lead Financial Analyst"), 3);
+  assert.equal(titleLevel("Maliyyə şöbəsinin rəhbəri"), 5);
+  assert.equal(titleLevel("Vice President"), 6);
+});
+
+test("strong candidates stay in order instead of tying at the ceiling", () => {
+  const good = match(worker("Mühasib", "Hesabatların hazırlanması, debitor və kreditor uçotu, Microsoft Excel", "2015-01"), job);
+  const withDegree = match({ ...worker("Mühasib", "Hesabatların hazırlanması, debitor və kreditor uçotu, Microsoft Excel", "2015-01"), education: [{ id: "1", school: "ADIU", degree: "Magistratura · Maliyyə", year: "2014" }] }, job);
+  assert.ok(withDegree.score >= good.score);
+  assert.ok(withDegree.score <= 95);
+});

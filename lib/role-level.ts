@@ -36,18 +36,28 @@ const LEVEL_PATTERNS: Array<[number, RegExp]> = [
   ],
   [
     5,
-    word("sobe mudir|sobe rehber|head of|department head|mudir|reis", "head"),
+    word(
+      "sobe mudir|sobe rehber|head of|department head|mudir|reis",
+      "head",
+    ),
+  ],
+  [
+    // "Maliyyə şöbəsinin rəhbəri", "Mühasibatlıq şöbəsi müdiri"
+    5,
+    /\bsobe\w*\s+(?:mudir|rehber)/,
   ],
   [
     4,
     word(
-      "menecer|manager|team lead|tim lider|qrup rehber|rehber|supervisor|nezaretci|bas muhasib|chief accountant",
-      "lead",
+      "menecer|manager|team lead|tim lider|tech lead|qrup rehber|rehber|supervisor|nezaretci|bas muhasib|chief accountant|controller|kontroller",
     ),
   ],
   [
     3,
-    word("senior|aparici|boyuk|bas mutexessis|ekspert|expert|principal|lider"),
+    word(
+      "senior|aparici|boyuk|bas mutexessis|ekspert|expert|principal|lider",
+      "lead",
+    ),
   ],
   [
     0,
@@ -67,6 +77,12 @@ const LEVEL_PATTERNS: Array<[number, RegExp]> = [
 export function titleLevel(title: string): number | null {
   const text = fold(title);
   if (!text) return null;
+  // A deputy is one step below the post he deputizes for.
+  const deputy = /\b(?:muavin\w*|deputy|vice)\b/.exec(text);
+  if (deputy && !/vice president/.test(text)) {
+    const base = titleLevel(text.replace(deputy[0], " "));
+    return base === null ? null : Math.max(0, base - 1);
+  }
   for (const [level, pattern] of LEVEL_PATTERNS)
     if (pattern.test(text)) return level;
   return 2;
