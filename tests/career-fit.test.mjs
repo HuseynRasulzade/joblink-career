@@ -73,3 +73,16 @@ test("a score never claims certainty and weak duties cannot give a strong band",
   assert.ok(vague.score <= 75, `score ${vague.score}`);
   assert.notEqual(vague.fit.band, "strong");
 });
+
+test("a certification in the vacancy's field helps even when the vacancy does not ask for it", () => {
+  const plain = worker("Mühasib", "Hesabatların hazırlanması, qaimələr", "2025-01");
+  plain.skills = ["Microsoft Excel"];
+  const certified = {
+    ...plain,
+    certifications: [{ id: "acca", status: "in_progress", level: "", passed: [] }],
+  };
+  const a = match(plain, job);
+  const b = match(certified, job);
+  assert.ok(b.score > a.score, `${b.score} vs ${a.score}`);
+  assert.ok(b.fit.strengths.some((x) => x.includes("sertifikat")));
+});

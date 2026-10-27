@@ -2,6 +2,7 @@ import { skillMatches } from "./skill-synonyms.ts";
 import {
   BAND_LABELS,
   FIELD_LABELS,
+  FIELD_CERT_CATEGORIES,
   bandFor,
   fieldProfile,
   partLevel,
@@ -1022,6 +1023,7 @@ type FitInput = {
   field: string | undefined;
   hasEvidence: boolean;
   heldCerts: number;
+  fieldCerts: number;
 };
 // Five readable parts of the fit: what the person did, the field, skills,
 // credentials and experience. Each carries a one-line reason.
@@ -1076,15 +1078,19 @@ function fitParts(f: FitInput): FitPart[] {
   parts.push({
     key: "certs",
     label: "Sertifikatlar",
-    level: certs.length
+    level: !certs.length && f.fieldCerts
+      ? "good"
+      : certs.length
       ? partLevel(
           certs.reduce((sum, c) => sum + CERT_WEIGHT[c.level], 0) /
             certs.length,
         )
       : "none",
     note: !certs.length
-      ? f.heldCerts
-        ? `${f.heldCerts} sertifikatı var (vakansiya tələb etmir, hesaba qatılmır)`
+      ? f.fieldCerts
+        ? `Vakansiya sertifikat tələb etmir, amma sahəyə aid ${f.fieldCerts} sertifikatı var (üstünlük kimi sayılır)`
+        : f.heldCerts
+          ? `${f.heldCerts} sertifikatı var, lakin bu sahəyə aid deyil`
         : "Vakansiya sertifikat tələb etmir"
       : f.requiredCerts.some((c) => c.level === "none")
         ? "Tələb olunan sertifikat yoxdur"
@@ -1186,7 +1192,7 @@ export function match(p: Profile, j: Job) {
     };
   });
   const requiredCerts = certEvidence.filter((c) => c.required);
-  const preferredBonus = Math.min(
+  const listedBonus = Math.min(
     weights.certBonus,
     Math.round(
       (weights.certBonus / 5) *
@@ -1201,6 +1207,25 @@ export function match(p: Profile, j: Job) {
         0,
       ),
     ),
+  );
+  // Credentials in the vacancy's own field help even when the vacancy does not
+  // ask for them: a finished one counts fully, one in progress half.
+  const wantedIds = new Set(jobCertifications.map((c) => c.id));
+  const fieldCategories = new Set(FIELD_CERT_CATEGORIES[field || ""] || []);
+  const fieldCerts = certifications.filter(
+    (c) =>
+      !wantedIds.has(c.id) &&
+      fieldCategories.has(certificationById(c.id)?.category || ""),
+  );
+  const fieldCertValue = fieldCerts.reduce(
+    (sum, c) =>
+      sum +
+      (c.status === "active" ? 1 : c.status === "in_progress" ? 0.5 : 0.3),
+    0,
+  );
+  const preferredBonus = Math.min(
+    weights.certBonus,
+    listedBonus + Math.round((fieldCertValue * weights.certBonus) / 2),
   );
   const weight = (level: SkillEvidence) =>
     level === "declared" && relatedHistory ? 0.9 : EVIDENCE_WEIGHT[level];
@@ -1327,6 +1352,7 @@ export function match(p: Profile, j: Job) {
     field,
     hasEvidence,
     heldCerts: certifications.length,
+    fieldCerts: fieldCerts.length,
   });
   // The score measures how much of the vacancy is covered, not how good the
   // person is, so it never reaches certainty, and a strong band needs the
@@ -1355,8 +1381,8 @@ export function match(p: Profile, j: Job) {
         ...parts
           .filter((x) => x.level === "strong" || x.level === "good")
           .map((x) => x.note),
-        ...(certifications.length && !certEvidence.length
-          ? [`${certifications.length} sertifikatı var`]
+        ...(fieldCerts.length && !certEvidence.length
+          ? [`Sahəyə aid ${fieldCerts.length} sertifikatı var`]
           : []),
       ],
       gaps: parts

@@ -81,3 +81,26 @@ export const bandFor = (score: number): FitBand => (score >= 80 ? "strong" : sco
 export type PartLevel = "strong" | "good" | "partial" | "weak" | "none";
 export type FitPart = { key: "work" | "field" | "skills" | "certs" | "experience"; label: string; level: PartLevel; note: string };
 export const partLevel = (ratio: number): PartLevel => (ratio >= 0.8 ? "strong" : ratio >= 0.55 ? "good" : ratio >= 0.3 ? "partial" : "weak");
+
+// Certification categories that belong to each profession family. A credential
+// in the vacancy's own field counts even when the vacancy does not ask for it.
+export const FIELD_CERT_CATEGORIES: Record<string, string[]> = {
+  finance: ["Maliyyə və mühasibatlıq", "Bank, risk və AML"],
+  legal: ["Hüquq və uyğunluq"],
+  hr: ["İnsan resursları və kouçinq"],
+  sales: ["Marketinq və satış"],
+  marketing: ["Marketinq və satış"],
+  supply: ["Satınalma və logistika"],
+  it: [
+    "İT, şəbəkə və proqramlaşdırma",
+    "Bulud texnologiyaları",
+    "Məlumat və süni intellekt",
+    "Kibertəhlükəsizlik, İT audit və məxfilik",
+  ],
+  engineering: ["Mühəndislik, inspeksiya və enerji", "Keyfiyyət və ISO"],
+  health: ["Səhiyyə"],
+  education: ["Təhsil və tədris"],
+  hospitality: ["Qida, otel və turizm"],
+  oilgas: ["Əməyin mühafizəsi və neft-qaz təhlükəsizliyi"],
+  transport: ["Aviasiya, dənizçilik və nəqliyyat"],
+};
