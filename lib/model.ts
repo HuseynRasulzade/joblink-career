@@ -1,3 +1,4 @@
+import { certificationPrestige } from "./cert-prestige.ts";
 import { skillMatches } from "./skill-synonyms.ts";
 import {
   BAND_LABELS,
@@ -1220,7 +1221,8 @@ export function match(p: Profile, j: Job) {
   const fieldCertValue = fieldCerts.reduce(
     (sum, c) =>
       sum +
-      (c.status === "active" ? 1 : c.status === "in_progress" ? 0.5 : 0.3),
+      (c.status === "active" ? 1 : c.status === "in_progress" ? 0.5 : 0.3) *
+        certificationPrestige(c.id).weight,
     0,
   );
   const preferredBonus = Math.min(
@@ -2009,6 +2011,7 @@ export function careerContext(p: Profile, now = new Date()): CareerContext {
       name: certificationById(c.id)?.name || c.id,
       status: c.status,
       detail: [c.level, c.detail].filter(Boolean).join(" · "),
+      recognition: certificationPrestige(c.id).label,
     })),
     coursesAndAchievements: [...new Set(lines)].slice(0, 30),
   };

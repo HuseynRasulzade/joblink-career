@@ -86,3 +86,15 @@ test("a certification in the vacancy's field helps even when the vacancy does no
   assert.ok(b.score > a.score, `${b.score} vs ${a.score}`);
   assert.ok(b.fit.strengths.some((x) => x.includes("sertifikat")));
 });
+
+test("certifications of one field are weighed by world recognition", async () => {
+  const { certificationPrestige } = await import("../lib/cert-prestige.ts");
+  assert.ok(certificationPrestige("acca").weight > certificationPrestige("az-pms-ifrs").weight);
+  assert.ok(certificationPrestige("acca").weight > certificationPrestige("acca-fia").weight);
+  const base = worker("Mühasib", "Hesabatların hazırlanması, qaimələr", "2025-01");
+  base.skills = ["Microsoft Excel"];
+  const withCert = (id) => ({ ...base, certifications: [{ id, status: "active", level: "", passed: [] }] });
+  const global = match(withCert("acca"), job);
+  const local = match(withCert("az-pms-ifrs"), job);
+  assert.ok(global.score > local.score, `${global.score} vs ${local.score}`);
+});
