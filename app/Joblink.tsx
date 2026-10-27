@@ -70,6 +70,7 @@ import { JobAlerts } from "./JobAlerts";
 import { AdminAiUsage, AdminOps, AdminReviews } from "./CompanyReviews";
 import AdminCatalogCheck from "./AdminCatalogCheck";
 import AdminAiFeedback from "./AdminAiFeedback";
+import { AiBudgetPanel } from "./AdminAiBudget";
 import { similarJobs } from "@/lib/similar-jobs";
 import { salaryInsight } from "@/lib/salary-view";
 import TailoredCv from "./TailoredCv";
@@ -2635,6 +2636,7 @@ export default function Joblink() {
                   </div>
                 </div>
               </section>
+              <AiBudgetPanel notify={notify} />
               <AdminAiUsage notify={notify} />
               <AdminAiFeedback notify={notify} />
             </>

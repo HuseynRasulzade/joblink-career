@@ -10,6 +10,7 @@ import {
   aiText,
   recordAiUsage,
   cachedAiText,
+  providerRefusal,
 } from "@/lib/server";
 import {
   sampleJobs,
@@ -200,6 +201,14 @@ const normalizedProfileRecord = (
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
 import { mailConfigured, mailerOf, sendMail } from "@/lib/mail";
 import { aiLanguage, aiLanguageName } from "@/lib/ai-language";
+import {
+  ADMIN_HEALTH_TEXT,
+  budgetState,
+  monthSpendUsd,
+  readAiBudget,
+  readAiHealth,
+  writeAiBudget,
+} from "@/lib/ai-guard";
 import {
   feedbackCsv,
   normalizeDecision,
@@ -4216,6 +4225,25 @@ async function route(request: Request) {
         )
         .run();
       return ok({ removed: removed.meta?.changes || 0 });
+    }
+    // AI spending limit and whether the provider is answering.
+    if (path === "admin/ai-budget") {
+      if (request.method === "POST") {
+        const body = await jsonBody(request);
+        const usd = Number(String(body.monthlyUsd ?? "").replace(",", "."));
+        if (!Number.isFinite(usd) || usd < 0 || usd > 100000)
+          throw new HttpError(400, "Məbləği 0 ilə 100000 dollar arasında yazın (0 = limit yoxdur).");
+        await writeAiBudget(db, usd);
+        await db
+          .prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), id, "ai-budget-set", "settings", "ai-budget", JSON.stringify({ monthlyUsd: usd }), new Date().toISOString())
+          .run();
+      }
+      const [limit, spent, health] = await Promise.all([readAiBudget(db), monthSpendUsd(db), readAiHealth(db)]);
+      return ok({
+        budget: budgetState(limit, spent),
+        health: { ...health, text: health.state === "ok" ? "" : ADMIN_HEALTH_TEXT[health.state] },
+      });
     }
     // How often the AI is right, from the employers' feedback.
     if (request.method === "GET" && path === "admin/ai-feedback") {
@@ -9940,10 +9968,9 @@ async function route(request: Request) {
       const failure = (await response.json().catch(() => null)) as {
         error?: { code?: string; type?: string };
       } | null;
-      const code = failure?.error?.code || failure?.error?.type || "";
-      throw new HttpError(
-        502,
-        `OpenAI vizual CV analizini tamamlaya bilmədi (${response.status}${code ? `, ${String(code).slice(0, 40)}` : ""}). Mətn analizi ilə yenidən sınanacaq.`,
+      throw await providerRefusal(
+        response.status,
+        failure?.error?.code || failure?.error?.type || "",
       );
     }
     await recordAiUsage({

@@ -120,4 +120,7 @@ export const RU_MORE: Record<string, string> = {
   "Təşəkkür edirik.": "Спасибо.",
   "“AI düz dedi” kimi qeyd olundu.": "Отмечено: «ИИ был прав».",
   "“AI yanlış dedi” kimi qeyd olundu.": "Отмечено: «ИИ ошибся».",
+  "AI-nin aylıq xərc limiti": "Месячный лимит расходов на ИИ",
+  "AI diqqət tələb edir": "ИИ требует внимания",
+  "Saxla": "Сохранить",
 };

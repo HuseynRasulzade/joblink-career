@@ -8,6 +8,16 @@ import {
 } from "./model";
 import { MAX_CV_TEXT_CHARS } from "./cv-limits";
 import {
+  BUDGET_EXCEEDED_MESSAGE,
+  classifyAiFailure,
+  friendlyAiMessage,
+  monthSpendUsd,
+  readAiBudget,
+  readAiHealth,
+  writeAiHealth,
+  type AiFailure,
+} from "./ai-guard";
+import {
   normalizeSkills,
   normalizeSkillsWithAllowedCustom,
 } from "./skill-catalog";
@@ -382,6 +392,49 @@ export async function recordAiUsage(entry: {
     // Usage statistics are best-effort (before the migration they are simply not kept).
   }
 }
+// The monthly AI limit is checked at most once a minute.
+let budgetCheck: { at: number; over: boolean } | null = null;
+async function assertAiBudget() {
+  if (!budgetCheck || Date.now() - budgetCheck.at > 60_000) {
+    const db = await store();
+    const limit = await readAiBudget(db).catch(() => 0);
+    const over = limit > 0 && (await monthSpendUsd(db).catch(() => 0)) >= limit;
+    budgetCheck = { at: Date.now(), over };
+  }
+  if (budgetCheck.over) throw new HttpError(402, BUDGET_EXCEEDED_MESSAGE);
+}
+// Whether the provider answers, kept for the admin; written only when it changes
+// (and at most once an hour while it stays broken).
+let healthState: "unknown" | "ok" | AiFailure = "unknown";
+let healthWrittenAt = 0;
+export async function noteAiHealth(state: "ok" | AiFailure, code = "") {
+  try {
+    const db = await store();
+    if (state === "ok") {
+      if (healthState === "ok") return;
+      // The first success in this instance clears an old failure flag.
+      if (healthState === "unknown" && (await readAiHealth(db)).state === "ok") {
+        healthState = "ok";
+        return;
+      }
+      healthState = "ok";
+      await writeAiHealth(db, { state: "ok", code: "", at: new Date().toISOString() });
+      return;
+    }
+    if (healthState === state && Date.now() - healthWrittenAt < 3_600_000) return;
+    healthState = state;
+    healthWrittenAt = Date.now();
+    await writeAiHealth(db, { state, code: code.slice(0, 60), at: new Date().toISOString() });
+  } catch {
+    // Health is informational only.
+  }
+}
+// What a refused provider request becomes: a plain message for people, the details for the admin.
+export async function providerRefusal(status: number, code: string) {
+  const kind = classifyAiFailure(status, code);
+  await noteAiHealth(kind, `${status}${code ? `, ${code}` : ""}`);
+  return new HttpError(502, friendlyAiMessage(kind));
+}
 export async function aiText(
   instructions: string,
   input: string,
@@ -395,6 +448,7 @@ export async function aiText(
       : "openai";
   if (provider === "openai" && !settings.OPENAI_API_KEY)
     return aiTextRaw(instructions, input, json, limits);
+  await assertAiBudget();
   const base = {
     feature: limits.feature || "other",
     provider,
@@ -406,6 +460,7 @@ export async function aiText(
   try {
     const text = await aiTextRaw(instructions, input, json, limits);
     await recordAiUsage({ ...base, charsOut: text?.length || 0, error: false });
+    await noteAiHealth("ok");
     return text;
   } catch (error) {
     await recordAiUsage({ ...base, charsOut: 0, error: true });
@@ -444,11 +499,12 @@ async function aiTextRaw(
       }),
       signal: AbortSignal.timeout(timeoutMs || 60000),
     });
-    if (!response.ok)
-      throw new HttpError(
-        502,
-        "DeepSeek sorğusu tamamlanmadı. API balansını və açarı yoxlayın.",
-      );
+    if (!response.ok) {
+      const failure = (await response.json().catch(() => null)) as {
+        error?: { code?: string; type?: string };
+      } | null;
+      throw await providerRefusal(response.status, failure?.error?.code || failure?.error?.type || "");
+    }
     const data = (await response.json()) as {
       choices?: { message?: { content?: string }; finish_reason?: string }[];
     };
@@ -480,16 +536,10 @@ async function aiTextRaw(
     signal: AbortSignal.timeout(timeoutMs || 45000),
   });
   if (!response.ok) {
-    // Only the provider's short error code is shown (e.g. insufficient_quota),
-    // so a quota or key problem can be told apart from an outage.
     const failure = (await response.json().catch(() => null)) as {
       error?: { code?: string; type?: string };
     } | null;
-    const code = failure?.error?.code || failure?.error?.type || "";
-    throw new HttpError(
-      502,
-      `AI xidməti hazırda cavab vermir (${response.status}${code ? `, ${String(code).slice(0, 40)}` : ""}). Bir az sonra yenidən sınayın.`,
-    );
+    throw await providerRefusal(response.status, failure?.error?.code || failure?.error?.type || "");
   }
   const body = (await response.json()) as {
     status?: string;
