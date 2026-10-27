@@ -1049,6 +1049,11 @@ export default function HrPanel({
                           ? `${c.ranking.fit.bandLabel} · ${c.ranking.score}%`
                           : `${c.ranking?.score}% uyğun`}
                     </span>
+                    {aiEnabled && !demo && !aiRanking && !(aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]) && (
+                      <small className="fit-reasons">
+                        <b>AI yoxlamayıb:</b> bal yalnız qaydalarla hesablanıb, nəticəni özünüz yoxlayın.
+                      </small>
+                    )}
                     {!!c.ranking?.fit && !(aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]) && (
                       <small className="fit-reasons">
                         {c.ranking.fit.fieldChange && "Sahə dəyişir. "}

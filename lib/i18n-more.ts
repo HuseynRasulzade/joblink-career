@@ -35,6 +35,8 @@ export const EN_MORE: Record<string, string> = {
   "Xarici elan": "External listing",
   "Orijinal elana keç": "Go to the original listing",
   "Müraciət orijinal səhifədə edilir.": "You apply on the original page.",
+  "AI yoxlamayıb:": "Not checked by AI:",
+  "bal yalnız qaydalarla hesablanıb, nəticəni özünüz yoxlayın.": "the score comes from the rules only; please check the result yourself.",
 };
 export const RU_MORE: Record<string, string> = {
   "Vəzifə səviyyəsi:": "Уровень должности:",
@@ -72,4 +74,6 @@ export const RU_MORE: Record<string, string> = {
   "Xarici elan": "Внешнее объявление",
   "Orijinal elana keç": "Перейти к исходному объявлению",
   "Müraciət orijinal səhifədə edilir.": "Отклик подаётся на исходной странице.",
+  "AI yoxlamayıb:": "ИИ не проверял:",
+  "bal yalnız qaydalarla hesablanıb, nəticəni özünüz yoxlayın.": "оценка рассчитана только по правилам, проверьте результат сами.",
 };
