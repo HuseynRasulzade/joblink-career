@@ -520,7 +520,6 @@ export const ROLE_FAMILIES: { family: string; words: string[] }[] = [
       "merchandis",
       "call center",
       "zeng merkez",
-      "operator",
       "account manager",
       "customer",
     ],
@@ -1265,7 +1264,11 @@ export function match(p: Profile, j: Job) {
     ? (skillEvidence.reduce((sum, x) => sum + weight(x.level), 0) +
         requiredCerts.reduce((sum, c) => sum + CERT_WEIGHT[c.level], 0)) /
       evidenceItems
-    : role;
+    : // A vacancy that names no skills: judge by the duties actually done,
+      // not by the field alone.
+      dutyMatch !== null
+      ? Math.min(role, 0.4 + 0.6 * dutyMatch)
+      : role * 0.8;
   const totalYears = years(p);
   // Only years spent in related roles count toward the vacancy requirement,
   // and older work counts a little less than recent work.

@@ -165,3 +165,16 @@ test("strong candidates stay in order instead of tying at the ceiling", () => {
   assert.ok(withDegree.score >= good.score);
   assert.ok(withDegree.score <= 95);
 });
+
+test("an accountant is not a sales person just because the title says 'operator'", async () => {
+  const { roleFamilies } = await import("../lib/model.ts");
+  assert.ok(!roleFamilies("Mühasib operator").has("sales"));
+  assert.ok(roleFamilies("Mühasib operator").has("finance"));
+  assert.ok(roleFamilies("Zəng mərkəzi operatoru").has("sales"));
+});
+
+test("a vacancy without required skills is judged by the duties, not by the field alone", () => {
+  const open = { ...job, title: "Satış meneceri", category: "Satış və müştəri xidməti", skills: [], description: "Müştərilərlə görüşlər, satış planının icrası, yeni müştərilərin cəlb edilməsi" };
+  const accountant = match(worker("Mühasib operator", "Hesabatların hazırlanması, qaimələr, kassa əməliyyatları", "2019-01"), open);
+  assert.ok(accountant.score <= 40, `score ${accountant.score}`);
+});
