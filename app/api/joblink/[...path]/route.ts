@@ -4133,6 +4133,54 @@ async function route(request: Request) {
         .run();
       return ok({ added, skipped });
     }
+    // Moves the listed vacancies to a real company account (for example a test
+    // company): they become its own vacancies, keeping the source and the
+    // original employer's name in the text.
+    if (request.method === "POST" && path === "admin/external-jobs/assign") {
+      const body = await jsonBody(request);
+      const companyId = str(body.companyId, 100);
+      const company = await db
+        .prepare("SELECT id FROM accounts WHERE id=? AND role='company'")
+        .bind(companyId)
+        .first<{ id: string }>();
+      if (!company) throw new HttpError(404, "Şirkət tapılmadı.");
+      const name = await companyDisplayName(db, companyId);
+      const rows = await db
+        .prepare("SELECT id,data FROM jobs WHERE owner='external-jobsearch-az'")
+        .all<{ id: string; data: string }>();
+      let moved = 0;
+      for (const row of rows.results) {
+        const job = JSON.parse(row.data) as Job;
+        const footer = `\n\nMənbə: ${job.external?.source || "jobsearch.az"} · elanı yerləşdirən: ${job.company}${job.external?.url ? `\n${job.external.url}` : ""}`;
+        const moved_job: Job = {
+          ...job,
+          owner: companyId,
+          company: name,
+          description: `${job.description}${footer}`.slice(0, 6000),
+        };
+        delete moved_job.external;
+        await db
+          .prepare("UPDATE jobs SET owner=?,data=? WHERE id=?")
+          .bind(companyId, JSON.stringify(moved_job), row.id)
+          .run();
+        moved++;
+      }
+      await db
+        .prepare(
+          "INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          id,
+          "external-jobs-assign",
+          "jobs",
+          companyId,
+          JSON.stringify({ moved }),
+          new Date().toISOString(),
+        )
+        .run();
+      return ok({ moved, company: name });
+    }
     if (request.method === "POST" && path === "admin/external-jobs/delete") {
       const removed = await db
         .prepare("DELETE FROM jobs WHERE owner='external-jobsearch-az'")
