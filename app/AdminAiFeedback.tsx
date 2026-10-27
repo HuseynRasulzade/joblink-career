@@ -57,6 +57,22 @@ export default function AdminAiFeedback({ notify }: { notify: (message: string) 
       <div className="admin-actions">
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a className="secondary" href="/api/joblink/admin/ai-feedback/export" download><Download size={15} /> Rəyləri CSV kimi yüklə</a>
+        <button
+          className="secondary"
+          onClick={async () => {
+            if (!window.confirm("Bütün toplanmış rəylər silinsin? Bu, sınaq rəylərini təmizləmək üçündür.")) return;
+            try {
+              const r = await fetch("/api/joblink/admin/ai-feedback/clear", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{}" });
+              if (!r.ok) throw new Error("Silinmədi.");
+              notify("Rəylər silindi.");
+              location.reload();
+            } catch (e) {
+              notify((e as Error).message);
+            }
+          }}
+        >
+          Rəyləri sıfırla
+        </button>
       </div>
     </div>
   );

@@ -4225,6 +4225,15 @@ async function route(request: Request) {
         .catch(() => ({ results: [] as AiFeedbackRow[] }));
       return ok({ summary: summarizeFeedback(rows.results) });
     }
+    // Clears the collected feedback, for example after trying the buttons out.
+    if (request.method === "POST" && path === "admin/ai-feedback/clear") {
+      const removed = await db.prepare("DELETE FROM ai_feedback").run();
+      await db
+        .prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), id, "ai-feedback-cleared", "ai-feedback", "all", JSON.stringify({ removed: removed.meta?.changes || 0 }), new Date().toISOString())
+        .run();
+      return ok({ ok: true, removed: removed.meta?.changes || 0 });
+    }
     if (request.method === "GET" && path === "admin/ai-feedback/export") {
       const rows = await db
         .prepare("SELECT kind,job_id,candidate_id,ai_score,rule_score,ai_recommendation,verdict,hr_decision,hr_score,note,created FROM ai_feedback ORDER BY created DESC LIMIT 20000")
