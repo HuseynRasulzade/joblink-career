@@ -110,3 +110,9 @@ Cloudflare Workers pulsuz planda hər sorğuya təxminən 10 ms CPU verir. Büt�
 Yenə də API sorğuları (məsələn bir çox kataloq yükləyən) limitə yaxın ola bilər. Trafik artarsa, Workers Paid planına keçmək (30 s CPU) ən təhlükəsiz yoldur.
 
 Sonrakı ölçmə (CPU və gecikmə azaldıldıqdan sonra): hər sorğuda D1-ə ardıcıl 8-10 sorğu əvəzinə paralel oxuma, sertifikat tanıma üçün söz indeksi (bir CV üçün 12 ms → 1-2 ms), açar normallaşdırmasının yadda saxlanması və Worker açılanda isinmə. 400 sorğuda (16 endpoint) və ana səhifəyə 60 sorğuda 1102 xətası olmadı. Hələ də çox namizəd olan siyahılar (`hr`) pulsuz planın 10 ms-lik limitinə yaxın ola bilər; belə hallarda Workers Paid plan lazımdır.
+
+## Axtarış motorları və yük
+
+- **Axtarış motorları:** tətbiq brauzerdə render olunur, ona görə vakansiyalar üçün sadə server səhifələri var: `/jobs` (açıq vakansiyalar), `/jobs/<id>` (mətn, `JobPosting` strukturlaşdırılmış məlumatı, canonical), `/sitemap.xml` və `/robots.txt`. Canonical və sitemap ünvanları üçün `SITE_URL` dəyişənini (məsələn `https://joblink.az`) qoyun; qoyulmayıbsa `workers.dev` ünvanı istifadə olunur. Google Search Console-da sitemap ünvanını təqdim edin.
+- **Yük testi (2026-10-27, `workers.dev`, pulsuz plan):** 10 paralel istifadəçi (19 sorğu/s) və 25 paralel istifadəçi (45 sorğu/s) üçün 1285 sorğunun hamısı uğurlu, p95 təxminən 1,1 s. 50 paralel istifadəçidə (60 sorğu/s) sorğuların 11%-i Cloudflare-in “Worker exceeded resource limits” (1102) cavabı ilə uğursuz oldu, ən çox `state`, `hr`, `company/dashboard` və `/jobs`. Bu pulsuz planın CPU/yaddaş limitidir. **Çoxlu istifadəçi gözlənilirsə Workers Paid planı (ayda 5 dollar) lazımdır**; o, CPU limitini xeyli artırır.
+- **Keş:** `/`, `/jobs`, `/jobs/<id>`, `/sitemap.xml` və `/robots.txt` Cloudflare keşindən verilə bilər (`lib/edge-cache.ts`). Cache API yalnız öz domeninizdə saxlayır, `workers.dev` ünvanında təsirsizdir. Öz domeniniz qoşulandan sonra bu səhifələr Worker CPU-su işlətmədən çıxır.

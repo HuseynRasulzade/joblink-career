@@ -78,3 +78,18 @@ test("robots.txt hides the API and points to the sitemap", () => {
   assert.ok(txt.includes("Sitemap: https://x.az/sitemap.xml"));
   assert.equal(siteUrl("https://x.az/"), "https://x.az");
 });
+
+test("only public pages are cached at the edge", async () => {
+  const { edgeCacheSeconds, cacheable } = await import("../lib/edge-cache.ts");
+  assert.equal(edgeCacheSeconds("GET", "/jobs", ""), 300);
+  assert.equal(edgeCacheSeconds("GET", "/jobs/ext-1", ""), 300);
+  assert.equal(edgeCacheSeconds("GET", "/sitemap.xml", ""), 600);
+  assert.equal(edgeCacheSeconds("GET", "/", ""), 300);
+  assert.equal(edgeCacheSeconds("GET", "/", "?job=1&src=email"), 0);
+  assert.equal(edgeCacheSeconds("POST", "/jobs", ""), 0);
+  assert.equal(edgeCacheSeconds("GET", "/api/joblink/state", ""), 0);
+  assert.equal(edgeCacheSeconds("GET", "/jobs/a/b", ""), 0);
+  assert.equal(cacheable(new Response("x", { status: 200 })), true);
+  assert.equal(cacheable(new Response("x", { status: 404 })), false);
+  assert.equal(cacheable(new Response("x", { status: 200, headers: { "set-cookie": "a=b" } })), false);
+});

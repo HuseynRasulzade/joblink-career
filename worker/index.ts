@@ -3,6 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import { purgeOldJobViews, runApprovalReminders, runDigests, runInterviewReminders, runInvoiceReminders, runJobAlerts, runPlanReminders, runProbationReminders, runTestReminders, type Mailer } from "../lib/digest-job.ts";
 import { mailerOf } from "../lib/mail.ts";
+import { cacheable, edgeCacheSeconds } from "../lib/edge-cache.ts";
 
 interface Env {
   ASSETS: Fetcher;
@@ -43,6 +44,25 @@ const worker = {
           return result.response();
         },
       }, allowedWidths);
+    }
+
+    // Public pages come from the edge cache when it can store them (custom domain).
+    const ttl = edgeCacheSeconds(request.method, url.pathname, url.search);
+    const edge = ttl && typeof caches !== "undefined" ? (caches as unknown as { default: Cache }).default : null;
+    if (edge) {
+      const key = new Request(url.origin + url.pathname, { method: "GET" });
+      try {
+        const hit = await edge.match(key);
+        if (hit) return hit;
+      } catch {
+        /* the cache is only an optimization */
+      }
+      const response = await handler.fetch(request, env, ctx);
+      if (!cacheable(response)) return response;
+      const shared = new Response(response.body, response);
+      shared.headers.set("Cache-Control", `public, max-age=60, s-maxage=${ttl}`);
+      ctx.waitUntil(edge.put(key, shared.clone()).catch(() => {}));
+      return shared;
     }
 
     return handler.fetch(request, env, ctx);
