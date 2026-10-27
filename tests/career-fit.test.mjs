@@ -59,3 +59,17 @@ test("an unrelated person with no matching work stays weak", () => {
   assert.ok(r.score <= 45);
   assert.ok(["weak", "partial"].includes(r.fit.band));
 });
+
+test("a score never claims certainty and weak duties cannot give a strong band", () => {
+  const perfect = match(
+    worker("Mühasib", "Hesabatların hazırlanması, debitor və kreditor uçotu, Microsoft Excel ilə uçot", "2010-01"),
+    job,
+  );
+  assert.ok(perfect.score <= 95, `score ${perfect.score}`);
+  const vague = match(worker("Mühasib", "Strategiyanın hazırlanması, komandanın idarə edilməsi, investisiya layihələrinin qiymətləndirilməsi, rəhbərliyə təqdimatlar", "2012-01"), {
+    ...job,
+    description: "Qaimə-fakturaların uçotu, bank çıxarışlarının işlənməsi, kassa əməliyyatları, əmək haqqı hesablanması",
+  });
+  assert.ok(vague.score <= 75, `score ${vague.score}`);
+  assert.notEqual(vague.fit.band, "strong");
+});

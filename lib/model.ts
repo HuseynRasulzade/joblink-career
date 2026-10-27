@@ -1021,6 +1021,7 @@ type FitInput = {
   exp: number;
   field: string | undefined;
   hasEvidence: boolean;
+  heldCerts: number;
 };
 // Five readable parts of the fit: what the person did, the field, skills,
 // credentials and experience. Each carries a one-line reason.
@@ -1030,6 +1031,9 @@ function fitParts(f: FitInput): FitPart[] {
     (x) => x.level === "experience" || x.level === "certified",
   ).length;
   const total = f.skillEvidence.length;
+  const unproven = f.skillEvidence
+    .filter((x) => x.level !== "experience" && x.level !== "certified")
+    .map((x) => x.skill);
   const parts: FitPart[] = [];
   const work = f.dutyMatch === null ? f.roleScore : f.dutyMatch;
   parts.push({
@@ -1062,7 +1066,10 @@ function fitParts(f: FitInput): FitPart[] {
     label: "Bacarıqlar",
     level: total ? partLevel(f.skills) : "none",
     note: total
-      ? `${total} tələb olunan bacarığın ${done}-i real iş və ya sertifikatla təsdiqlənib`
+      ? `${total} tələb olunan bacarığın ${done}-i real iş və ya sertifikatla təsdiqlənib` +
+        (unproven.length
+          ? `; təsdiqlənməyib: ${unproven.slice(0, 3).join(", ")}`
+          : "")
       : "Vakansiyada bacarıq tələbi göstərilməyib",
   });
   const certs = f.certEvidence;
@@ -1076,7 +1083,9 @@ function fitParts(f: FitInput): FitPart[] {
         )
       : "none",
     note: !certs.length
-      ? "Vakansiya sertifikat tələb etmir"
+      ? f.heldCerts
+        ? `${f.heldCerts} sertifikatı var (vakansiya tələb etmir, hesaba qatılmır)`
+        : "Vakansiya sertifikat tələb etmir"
       : f.requiredCerts.some((c) => c.level === "none")
         ? "Tələb olunan sertifikat yoxdur"
         : "Tələb olunan və üstünlük verilən sertifikatlar nəzərə alınıb",
@@ -1317,7 +1326,23 @@ export function match(p: Profile, j: Job) {
     exp,
     field,
     hasEvidence,
+    heldCerts: certifications.length,
   });
+  // The score measures how much of the vacancy is covered, not how good the
+  // person is, so it never reaches certainty, and a strong band needs the
+  // actual work and the skills to be backed by evidence.
+  const workPart = parts.find((x) => x.key === "work");
+  const provenShare = requiredSkills.length ? doneSkills / requiredSkills.length : 1;
+  const ceiling = [95];
+  if (workPart && (workPart.level === "partial" || workPart.level === "weak")) {
+    ceiling.push(75);
+    caps.push("weak-duties");
+  }
+  if (provenShare < 0.6) {
+    ceiling.push(84);
+    caps.push("unproven-skills");
+  } else if (provenShare < 1) ceiling.push(92);
+  score = Math.min(score, ...ceiling);
   const band = bandFor(score);
   return {
     score,
@@ -1326,9 +1351,14 @@ export function match(p: Profile, j: Job) {
       bandLabel: BAND_LABELS[band],
       fieldChange: transferable,
       parts,
-      strengths: parts
-        .filter((x) => x.level === "strong" || x.level === "good")
-        .map((x) => x.note),
+      strengths: [
+        ...parts
+          .filter((x) => x.level === "strong" || x.level === "good")
+          .map((x) => x.note),
+        ...(certifications.length && !certEvidence.length
+          ? [`${certifications.length} sertifikatı var`]
+          : []),
+      ],
       gaps: parts
         .filter((x) => x.level === "partial" || x.level === "weak")
         .map((x) => x.note),
