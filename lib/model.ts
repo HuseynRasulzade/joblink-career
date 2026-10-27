@@ -827,6 +827,12 @@ const GENERIC_TITLE_WORDS = new Set([
   "shobe",
   "sobe",
   "department",
+  "departamenti",
+  // A shared field word ("Maliyyə analitiki" / "Maliyyə meneceri") is the
+  // same field, not the same profession.
+  "maliyye",
+  "finance",
+  "financial",
   "and",
   "for",
 ]);
@@ -1227,7 +1233,7 @@ export function match(p: Profile, j: Job) {
   );
   const preferredBonus = Math.min(
     weights.certBonus,
-    listedBonus + Math.round((fieldCertValue * weights.certBonus) / 2),
+    listedBonus + Math.round(fieldCertValue * weights.certBonus * 0.8),
   );
   const weight = (level: SkillEvidence) =>
     level === "declared" && relatedHistory ? 0.9 : EVIDENCE_WEIGHT[level];
