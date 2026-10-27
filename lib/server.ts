@@ -477,11 +477,21 @@ async function aiTextRaw(
     }),
     signal: AbortSignal.timeout(timeoutMs || 45000),
   });
-  if (!response.ok)
+  if (!response.ok) {
+    // Only the provider's short error code is shown (e.g. insufficient_quota),
+    // so a quota or key problem can be told apart from an outage.
+    const code = await response
+      .json()
+      .then(
+        (b: { error?: { code?: string; type?: string } }) =>
+          b?.error?.code || b?.error?.type || "",
+      )
+      .catch(() => "");
     throw new HttpError(
       502,
-      "AI xidməti hazırda cavab vermir. Bir az sonra yenidən sınayın.",
+      `AI xidməti hazırda cavab vermir (${response.status}${code ? `, ${String(code).slice(0, 40)}` : ""}). Bir az sonra yenidən sınayın.`,
     );
+  }
   const body = (await response.json()) as {
     status?: string;
     incomplete_details?: { reason?: string };

@@ -9547,11 +9547,19 @@ async function route(request: Request) {
         "OpenAI vizual CV xidmətinə bağlantı qurulmadı. Mətn analizi ilə yenidən sınayın.",
       );
     }
-    if (!response.ok)
+    if (!response.ok) {
+      const code = await response
+        .json()
+        .then(
+          (b: { error?: { code?: string; type?: string } }) =>
+            b?.error?.code || b?.error?.type || "",
+        )
+        .catch(() => "");
       throw new HttpError(
         502,
-        "OpenAI vizual CV analizini tamamlaya bilmədi. Mətn analizi ilə yenidən sınanacaq.",
+        `OpenAI vizual CV analizini tamamlaya bilmədi (${response.status}${code ? `, ${String(code).slice(0, 40)}` : ""}). Mətn analizi ilə yenidən sınanacaq.`,
       );
+    }
     await recordAiUsage({
       feature: "cv-visual",
       provider: "openai",
