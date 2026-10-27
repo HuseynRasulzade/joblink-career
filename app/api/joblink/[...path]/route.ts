@@ -9548,13 +9548,10 @@ async function route(request: Request) {
       );
     }
     if (!response.ok) {
-      const code = await response
-        .json()
-        .then(
-          (b: { error?: { code?: string; type?: string } }) =>
-            b?.error?.code || b?.error?.type || "",
-        )
-        .catch(() => "");
+      const failure = (await response.json().catch(() => null)) as {
+        error?: { code?: string; type?: string };
+      } | null;
+      const code = failure?.error?.code || failure?.error?.type || "";
       throw new HttpError(
         502,
         `OpenAI vizual CV analizini tamamlaya bilmədi (${response.status}${code ? `, ${String(code).slice(0, 40)}` : ""}). Mətn analizi ilə yenidən sınanacaq.`,
