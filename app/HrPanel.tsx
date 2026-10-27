@@ -1,7 +1,8 @@
 "use client";
+import { BAND_LABELS, bandFor } from "@/lib/career";
 import { FitReviewPanel } from "./FitReview";
 import { EXTERNAL_SOURCES, trackingLink } from "@/lib/sources";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   BriefcaseBusiness,
@@ -310,7 +311,16 @@ export default function HrPanel({
       notify((e as Error).message);
     }
   }
-  async function rankWithAi() {
+  // The AI evaluates the candidates of a vacancy as soon as its list opens;
+  // results are kept per candidate, so reopening costs nothing.
+  const autoRanked = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!aiEnabled || demo || !selectedJob || autoRanked.current.has(selectedJob.id)) return;
+    autoRanked.current.add(selectedJob.id);
+    void rankWithAi(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiEnabled, demo, selectedJob?.id]);
+  async function rankWithAi(silent = false) {
     if (!selectedJob || demo) return;
     setAiRanking(true);
     try {
@@ -322,7 +332,8 @@ export default function HrPanel({
             .map((r) => [r.candidateId, r]),
         ),
       });
-      notify(data.source === "rules" ? "AI qiymətləndirmə administrator tərəfindən söndürülüb, qaydalarla hesablanmış bal göstərilir." : "AI namizədləri qiymətləndirdi.");
+      if (data.source === "rules") notify("AI qiymətləndirmə administrator tərəfindən söndürülüb, qaydalarla hesablanmış bal göstərilir.");
+      else if (!silent) notify("AI namizədləri qiymətləndirdi.");
     } catch (e) {
       notify((e as Error).message);
     } finally {
@@ -972,11 +983,11 @@ export default function HrPanel({
           </div>
           {aiEnabled && !demo && selectedJob && (
             <div className="hr-ai-rank">
-              <button className="secondary" disabled={aiRanking} onClick={rankWithAi}>
-                <Sparkles size={15} /> {aiRanking ? "AI qiymətləndirir…" : "AI ilə sırala"}
+              <button className="secondary" disabled={aiRanking} onClick={() => rankWithAi()}>
+                <Sparkles size={15} /> {aiRanking ? "AI qiymətləndirir…" : "AI-ni yenilə"}
               </button>
               <small>
-                Ən uyğun 20 namizədi AI anonim şəkildə (ad, əlaqə məlumatı olmadan) vəzifə, uyğun təcrübə, bacarıq və sertifikatlara görə yoxlayır. Yekun qərar sizindir.
+                Namizədlər vakansiya açılanda AI tərəfindən avtomatik, anonim şəkildə (ad və əlaqə məlumatı olmadan) iş, bacarıq, sertifikat və səviyyəyə görə qiymətləndirilir. Profil dəyişməyibsə, nəticə təkrar hesablanmır. Yekun qərar sizindir.
               </small>
             </div>
           )}
@@ -1031,12 +1042,14 @@ export default function HrPanel({
                   <div className="candidate-actions">
                     <span className="match-score">
                       {aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]
-                        ? `${aiRatings.items[c.id].score}% AI`
-                        : c.ranking?.fit
+                        ? `${BAND_LABELS[bandFor(aiRatings.items[c.id].score)]} · ${aiRatings.items[c.id].score}% AI`
+                        : aiRanking
+                          ? "AI qiymətləndirir…"
+                          : c.ranking?.fit
                           ? `${c.ranking.fit.bandLabel} · ${c.ranking.score}%`
                           : `${c.ranking?.score}% uyğun`}
                     </span>
-                    {!!c.ranking?.fit && (
+                    {!!c.ranking?.fit && !(aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]) && (
                       <small className="fit-reasons">
                         {c.ranking.fit.fieldChange && "Sahə dəyişir. "}
                         {c.ranking.fit.strengths.slice(0, 2).join("; ")}
