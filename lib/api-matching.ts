@@ -1,3 +1,4 @@
+import { certificationPrestige } from "./cert-prestige.ts";
 import { HttpError, cachedAiText, str } from "./server";
 import type { Job, Profile } from "./model";
 import { MATCH_VERSION, analyze, match, candidateCertifications } from "./model";
@@ -170,5 +171,6 @@ export function certificationContext(p: Profile, language: "az" | "en" | "ru" = 
     status: CERT_STATUS_WORDS[c.status]?.[language === "en" ? "en" : "az"] || c.status,
     level: c.level || "",
     exams: c.detail || "",
+    recognition: certificationPrestige(c.id).label,
   }));
 }

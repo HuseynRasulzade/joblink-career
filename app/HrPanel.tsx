@@ -151,7 +151,7 @@ export default function HrPanel({
   const [certFilter, setCertFilter] = useState("");
   const [aiRatings, setAiRatings] = useState<{
     jobId: string;
-    items: Record<string, { score: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }>;
+    items: Record<string, { score: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }>;
   } | null>(null);
   const [aiRanking, setAiRanking] = useState(false);
   const [applicantsView, setApplicantsView] = useState<"board" | "list">("board");
@@ -275,7 +275,10 @@ export default function HrPanel({
     .sort((a, b) => {
       // AI scores (when requested for this vacancy) refine the rule-based order.
       const ai = aiRatings?.jobId === selectedJob?.id ? aiRatings.items : null;
-      return (ai?.[b.id]?.score ?? b.ranking?.score ?? 0) - (ai?.[a.id]?.score ?? a.ranking?.score ?? 0);
+      return (
+        (ai?.[b.id]?.score ?? b.ranking?.score ?? 0) - (ai?.[a.id]?.score ?? a.ranking?.score ?? 0) ||
+        (ai?.[a.id]?.rank ?? 99) - (ai?.[b.id]?.rank ?? 99)
+      );
     });
   async function moveApplication(application: Application, status: string, stage: string, extra: Record<string, unknown> = {}) {
     // Closing an application asks for a reason first; the employer decides whether the candidate sees it.
@@ -307,7 +310,7 @@ export default function HrPanel({
       setAiRatings({
         jobId: selectedJob.id,
         items: Object.fromEntries(
-          (data.ratings as { candidateId: string; score: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }[])
+          (data.ratings as { candidateId: string; score: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }[])
             .map((r) => [r.candidateId, r]),
         ),
       });
