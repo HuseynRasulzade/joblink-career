@@ -2388,6 +2388,8 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   }>("company/employees", notify);
   const [editing, setEditing] = useState<Partial<Employee> | null>(null);
   const [importing, setImporting] = useState(false);
+  // The employee list and the staff table are two views of one page, shown one at a time.
+  const [view, setView] = useState<"people" | "staff">("people");
   // Extra sections of the employee card open in their own pop-up windows.
   const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | null>(null);
   const { names: orgNames, remember: rememberOrg } = useOrgNames();
@@ -2444,6 +2446,18 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const payrollCost = data.showSalary ? active.reduce((sum, e) => sum + (e.pay?.superGross || 0), 0) : 0;
   return (
     <div className="company-page">
+      {data.canEdit && (
+        <div className="calc-tabs" role="tablist" aria-label="İşçilər bölməsi">
+          <button type="button" role="tab" aria-selected={view === "people"} className={view === "people" ? "primary" : "ghost"} onClick={() => setView("people")}>
+            İşçi siyahısı ({active.length})
+          </button>
+          <button type="button" role="tab" aria-selected={view === "staff"} className={view === "staff" ? "primary" : "ghost"} onClick={() => setView("staff")}>
+            Ştat cədvəli
+          </button>
+        </div>
+      )}
+      {(view === "people" || !data.canEdit) && (
+        <>
       <div className="section-heading">
         <input
           className="search-input"
@@ -2597,7 +2611,9 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           </tbody>
         </table>
       </div>
-      {data.canEdit && <StaffTable notify={notify} />}
+        </>
+      )}
+      {data.canEdit && view === "staff" && <StaffTable notify={notify} />}
       {importing && <SheetImport kind="employees" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {editing && (
         <Modal
