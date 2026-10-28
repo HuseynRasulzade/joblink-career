@@ -442,6 +442,41 @@ async function saveStaffUnit(
     .run();
   return created;
 }
+// A department plan that older versions kept on its own becomes one row of the staff table.
+async function absorbLegacyHeadcount(db: D1Database, companyId: string) {
+  const legacy = await db
+    .prepare("SELECT department,planned FROM headcount_plan WHERE company_id=?")
+    .bind(companyId)
+    .all<{ department: string; planned: number }>()
+    .catch(() => ({ results: [] as { department: string; planned: number }[] }));
+  for (const row of legacy.results) {
+    const has = await db
+      .prepare("SELECT 1 AS yes FROM staff_units WHERE company_id=? AND lower(department)=lower(?)")
+      .bind(companyId, row.department)
+      .first();
+    if (!has) await saveStaffUnit(db, companyId, "", { department: row.department, section: "", position: "", planned: row.planned, salaryCents: 0, note: "" });
+    await db.prepare("DELETE FROM headcount_plan WHERE company_id=? AND department=?").bind(companyId, row.department).run();
+  }
+}
+// The number of places of a whole department: one row of the staff table. A department with
+// several rows is changed in the table.
+async function setDepartmentPlan(db: D1Database, companyId: string, department: string, planned: number | null) {
+  const units = await db
+    .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(department)=lower(?)")
+    .bind(companyId, department)
+    .all<{ id: string }>();
+  if (units.results.length > 1)
+    throw new HttpError(409, `“${department}” departamentinin ${units.results.length} ştat sətri var. Dəyişikliyi ştat cədvəlində edin.`);
+  if (planned === null) {
+    if (units.results[0]) await db.prepare("DELETE FROM staff_units WHERE id=? AND company_id=?").bind(units.results[0].id, companyId).run();
+    return;
+  }
+  if (units.results[0]) {
+    await db.prepare("UPDATE staff_units SET planned=?,updated=? WHERE id=? AND company_id=?").bind(planned, new Date().toISOString(), units.results[0].id, companyId).run();
+    return;
+  }
+  await saveStaffUnit(db, companyId, "", { department, section: "", position: "", planned, salaryCents: 0, note: "" });
+}
 // Free places of a department in the staff table, counting open vacancies of the company for it.
 async function staffPlaces(db: D1Database, companyId: string, department: string) {
   const [units, people, open] = await Promise.all([
@@ -6954,96 +6989,45 @@ async function route(request: Request) {
     await db.prepare("DELETE FROM employee_tasks WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
     return ok({ ok: true });
   }
-  // ---- Headcount plan: planned places per department against people working now ----
+  // ---- Staff plan: the places per department are the sum of the staff table rows ----
   if (request.method === "GET" && path === "company/headcount") {
-    requirePermission(
-      "salaries",
-      "Ştat planını yalnız HR, direktor və hesab sahibi görə bilər.",
-    );
-    const plan = await db
-      .prepare(
-        "SELECT department,planned FROM headcount_plan WHERE company_id=?",
-      )
-      .bind(id)
-      .all<{ department: string; planned: number }>();
-    const actual = await db
-      .prepare(
-        "SELECT department,COUNT(*) AS n FROM company_employees WHERE company_id=? AND status IN ('active','leave') GROUP BY department",
-      )
-      .bind(id)
-      .all<{ department: string; n: number }>();
-    const open = await db
-      .prepare(
-        "SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND status='published'",
-      )
-      .bind(id)
-      .first<{ n: number }>();
-    const names = new Set([
-      ...plan.results.map((p) => p.department),
-      ...actual.results.map((a) => a.department || ""),
+    requirePermission("salaries", "Ştat planını yalnız HR, direktor və hesab sahibi görə bilər.");
+    await absorbLegacyHeadcount(db, id);
+    const [units, actual, open] = await Promise.all([
+      db
+        .prepare("SELECT department,COUNT(*) AS rows,SUM(planned) AS planned FROM staff_units WHERE company_id=? GROUP BY department")
+        .bind(id)
+        .all<{ department: string; rows: number; planned: number }>(),
+      db
+        .prepare("SELECT department,COUNT(*) AS n FROM company_employees WHERE company_id=? AND status IN ('active','leave') GROUP BY department")
+        .bind(id)
+        .all<{ department: string; n: number }>(),
+      db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND status='published'").bind(id).first<{ n: number }>(),
     ]);
+    const names = new Set([...units.results.map((u) => u.department), ...actual.results.map((a) => a.department || "")]);
     const rows = [...names]
       .sort((a, b) => a.localeCompare(b, "az"))
       .map((department) => {
-        const planned =
-          plan.results.find((p) => p.department === department)?.planned ??
-          null;
-        const current =
-          actual.results.find((a) => (a.department || "") === department)?.n ??
-          0;
-        return {
-          department,
-          planned,
-          current,
-          gap: planned === null ? null : planned - current,
-        };
+        const unit = units.results.find((u) => u.department === department);
+        const planned = unit ? Number(unit.planned) : null;
+        const current = Number(actual.results.find((a) => (a.department || "") === department)?.n) || 0;
+        return { department, planned, current, gap: planned === null ? null : planned - current, units: Number(unit?.rows) || 0 };
       });
     return ok({ rows, openVacancies: Number(open?.n) || 0 });
   }
   if (request.method === "POST" && path === "company/headcount/save") {
-    requirePermission(
-      "salaries",
-      "Ştat planını yalnız HR, direktor və hesab sahibi dəyişə bilər.",
-    );
+    requirePermission("salaries", "Ştat planını yalnız HR, direktor və hesab sahibi dəyişə bilər.");
     const b = await jsonBody(request);
     const department = str(b.department, 120);
-    if (!department) throw new HttpError(400, "Şöbənin adını yazın.");
-    const now = new Date().toISOString();
+    if (!department) throw new HttpError(400, "Departamentin adını yazın.");
+    const planned = b.planned === null || b.planned === "" ? null : Math.max(0, Math.min(10000, Math.round(Number(b.planned))));
+    if (planned !== null && !Number.isFinite(planned)) throw new HttpError(400, "Say düzgün deyil.");
     if (needsDirector(await approvalRules(), "headcount", canAct("approve-director"))) {
-      const planned = b.planned === null || b.planned === "" ? null : Math.max(0, Math.min(10000, Math.round(Number(b.planned))));
-      if (planned !== null && !Number.isFinite(planned)) throw new HttpError(400, "Say düzgün deyil.");
       await queueApproval("headcount", `${department}: ${planned === null ? "plan silinir" : `${planned} ştat`}`, { department, planned });
       return ok({ ok: true, pending: true });
     }
-    if (b.planned === null || b.planned === "") {
-      await db
-        .prepare(
-          "DELETE FROM headcount_plan WHERE company_id=? AND department=?",
-        )
-        .bind(id, department)
-        .run();
-    } else {
-      const planned = Math.max(
-        0,
-        Math.min(10000, Math.round(Number(b.planned))),
-      );
-      if (!Number.isFinite(planned))
-        throw new HttpError(400, "Say düzgün deyil.");
-      await db
-        .prepare(
-          "INSERT INTO headcount_plan(company_id,department,planned,updated) VALUES(?,?,?,?) ON CONFLICT(company_id,department) DO UPDATE SET planned=excluded.planned,updated=excluded.updated",
-        )
-        .bind(id, department, planned, now)
-        .run();
-    }
-    await companyAudit(
-      db,
-      id,
-      userId,
-      "headcount-plan",
-      department,
-      String(b.planned ?? "silindi"),
-    );
+    await setDepartmentPlan(db, id, department, planned);
+    await companyAudit(db, id, userId, "headcount-plan", department, String(planned ?? "silindi"));
     return ok({ ok: true });
   }
   // ---- Bulk add of employees from a spreadsheet read in the browser ----
@@ -7122,6 +7106,7 @@ async function route(request: Request) {
   }
   // ---- Staff table: places per department, section and position ----
   const staffOverview = async () => {
+    await absorbLegacyHeadcount(db, id);
     const [units, people, open] = await Promise.all([
       db
         .prepare("SELECT id,department,section,position,planned,salary_cents,note FROM staff_units WHERE company_id=? ORDER BY department,section,position")
@@ -12750,17 +12735,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         }
         await companyAudit(db, id, userId, "staff-unit", "", "təsdiqləndi");
       } else if (req.kind === "headcount") {
-        const now = new Date().toISOString();
         const department = String(payload.department);
-        if (payload.planned === null)
-          await db.prepare("DELETE FROM headcount_plan WHERE company_id=? AND department=?").bind(id, department).run();
-        else
-          await db
-            .prepare(
-              "INSERT INTO headcount_plan(company_id,department,planned,updated) VALUES(?,?,?,?) ON CONFLICT(company_id,department) DO UPDATE SET planned=excluded.planned,updated=excluded.updated",
-            )
-            .bind(id, department, Number(payload.planned), now)
-            .run();
+        await setDepartmentPlan(db, id, department, payload.planned === null ? null : Number(payload.planned));
         await companyAudit(db, id, userId, "headcount-plan", department, `${payload.planned ?? "silindi"} (təsdiqləndi)`);
       } else if (req.kind === "offer") {
         const { row } = await loadOfferTarget(String(payload.applicationId));

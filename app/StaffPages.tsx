@@ -576,6 +576,17 @@ export function StaffTable({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
+  // The plan of a whole department is the sum of its rows; with one row it is edited right here.
+  async function savePlan(department: string, value: string) {
+    try {
+      const result = await request<{ pending?: boolean }>("company/headcount/save", { department, planned: value === "" ? null : Number(value) });
+      if (result.pending) notify("Ştat planı dəyişikliyi direktorun təsdiqinə göndərildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+      load();
+    }
+  }
   async function remove(row: StaffRow) {
     if (!window.confirm(`“${row.department} / ${row.position}” ştat sətri silinsin?`)) return;
     try {
@@ -604,9 +615,9 @@ export function StaffTable({ notify }: { notify: Notify }) {
     <section className="panel">
       <div className="section-heading">
         <div>
-          <h3>Ştat cədvəli</h3>
+          <h3>Ştat planı və ştat cədvəli</h3>
           <p className="muted">
-            Departament → şöbə → vəzifə üzrə ştat yerləri. Planlaşdırılan: <b>{planned}</b> · işləyir: <b>{filled}</b> · boş: <b>{Math.max(0, planned - filled)}</b>
+            Departament → şöbə → vəzifə üzrə ştat yerləri. Departamentin planı onun sətirlərinin cəmidir. Planlaşdırılan: <b>{planned}</b> · işləyir: <b>{filled}</b> · boş: <b>{Math.max(0, planned - filled)}</b>
             {data.unplaced > 0 && ` · ştatda yeri olmayan işçi: ${data.unplaced}`}
           </p>
         </div>
@@ -629,7 +640,7 @@ export function StaffTable({ notify }: { notify: Notify }) {
             <thead>
               <tr>
                 <th>Departament</th>
-                <th>Ştat</th>
+                <th>Plan (ştat)</th>
                 <th>İşləyir</th>
                 <th>Açıq vakansiya</th>
                 <th>Boş yer</th>
@@ -641,7 +652,20 @@ export function StaffTable({ notify }: { notify: Notify }) {
                   <td>
                     <b>{d.department || "—"}</b>
                   </td>
-                  <td>{d.planned}</td>
+                  <td>
+                    {d.units > 1 ? (
+                      <span title="Departamentin bir neçə ştat sətri var: cədvəldə dəyişin">{d.planned}</span>
+                    ) : (
+                      <input
+                        type="number"
+                        min={0}
+                        style={{ width: 80 }}
+                        defaultValue={d.planned}
+                        aria-label={`${d.department} ştat planı`}
+                        onBlur={(e) => e.target.value !== String(d.planned) && void savePlan(d.department, e.target.value)}
+                      />
+                    )}
+                  </td>
                   <td>{d.filled}</td>
                   <td>{d.openVacancies}</td>
                   <td>{d.free > 0 ? <b>{d.free} boş</b> : d.free === 0 ? "Dolu" : <span className="danger-text">{-d.free} artıq</span>}</td>
