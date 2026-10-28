@@ -1,3 +1,4 @@
+import { splitSpacedName } from "./first-names.ts";
 import { blankProfile, type Profile } from "./model.ts";
 
 // Azerbaijani CVs in the wild mix native, English and (often) Russian
@@ -66,9 +67,14 @@ function mergeSpacedHeadings(lines: string[]) {
 }
 // A name printed letter by letter, words apart by a wider gap ("G İ Z E M   K A Y A"),
 // is put back together. A single run of letters is left alone: it may be a heading.
-function collapseSpacedWords(line: string) {
+function collapseSpacedWords(line: string, index = 99) {
   const groups = line.trim().split(/\s{2,}|\t+/);
-  if (groups.length < 2 || !groups.every((g) => /^(?:\p{L}\s){2,}\p{L}$/u.test(g))) return line;
+  if (groups.length < 2 || !groups.every((g) => /^(?:\p{L}\s)+\p{L}$/u.test(g))) {
+    // One run of letters near the top is the name with no word gaps: split it after a known first name.
+    if (index < 6 && /^(?:\p{L} ){5,}\p{L}$/u.test(line.trim()) && !COLLAPSED_HEADINGS.has(az(line).replace(/\s+/g, "")))
+      return splitSpacedName(line) || line;
+    return line;
+  }
   return groups.map((g) => g.replace(/\s+/g, "")).join(" ");
 }
 // Conservative local extraction: uncertain facts stay empty for human review.
@@ -76,7 +82,7 @@ export function cvFields(text: string): Partial<Profile> {
   const lines = mergeSpacedHeadings(
     text
       .split(/\r?\n/)
-      .map((x) => collapseSpacedWords(x).trim())
+      .map((x, index) => collapseSpacedWords(x, index).trim())
       // Page markers added when a PDF is read are not part of the CV.
       .filter((x) => x && !/^\[SƏHİFƏ \d+\]$/u.test(x)),
   );
@@ -278,7 +284,7 @@ function readDates(line: string): Dates | null {
   return null;
 }
 const ROLE_WORD =
-  /(menecer|manager|müdir|müdiri|mütəxəssis|müəllim|mühasib|mühəndis|engineer|developer|specialist|analitik|analyst|direktor|director|yönetici|yönetim|uzman|asistan|assistant|tasarımcı|designer|operator|katib|koordinator|consultant|məsləhətçi|stajyer|təcrübəçi|intern|rəhbər|lead|head|satış|sales|executive|officer|agent|sürücü|aşpaz|həkim|hüquqşünas|lawyer|proqramçı|dizayner)/iu;
+  /(menecer|manager|müdir|müdiri|mütəxəssis|müəllim|mühasib|mühəndis|engineer|developer|specialist|analitik|analyst|direktor|director|yönetici|yönetim|uzman|asistan|assistant|tasarımcı|designer|operator|katib|koordinator|consultant|məsləhətçi|stajyer|təcrübəçi|intern|rəhbər|lead|head|satış|sales|executive|officer|agent|sürücü|aşpaz|həkim|hüquqşünas|lawyer|proqramçı|dizayner|mühendis|müdür|danışman|muhasebeci|teknisyen|temsilci|öğretmen|avukat|mimar|stajyer|geliştirici|sorumlusu)/iu;
 const COMPANY_WORD = /(mmc|asc|qsc|llc|ltd|inc|a\.ş\.|şirket|şirkət|company|group|qrup|grubu|holding|bank|universit|corp|ooo|ооо)/iu;
 const hasWord = (re: RegExp, line: string) => re.test(az(line));
 const sentenceLike = (line: string) => line.length > 90 || /[.!?]$/.test(line) || /^[•·\-–*]/.test(line);
@@ -294,8 +300,25 @@ function splitHeader(parts: string[]): { title: string; company: string } {
   if (!hasWord(ROLE_WORD, title) && hasWord(ROLE_WORD, company) && !hasWord(COMPANY_WORD, company)) return { title: company, company: title };
   return { title, company };
 }
+// A position block without any dates: the position, the company under it, then the duties.
+function undatedExperiences(sectionLines: string[]): Profile["experiences"] {
+  const rows: Profile["experiences"] = [];
+  const short = (line?: string) => !!line && line.length <= 80 && !sentenceLike(line) && !readDates(line);
+  for (let i = 0; i < sectionLines.length - 1 && rows.length < 15; i++) {
+    const title = sectionLines[i];
+    const company = sectionLines[i + 1];
+    if (!short(title) || !short(company) || !hasWord(ROLE_WORD, title) || hasWord(ROLE_WORD, company) && !hasWord(COMPANY_WORD, company)) continue;
+    let end = i + 2;
+    while (end < sectionLines.length && !(short(sectionLines[end]) && short(sectionLines[end + 1]) && hasWord(ROLE_WORD, sectionLines[end]))) end++;
+    const description = sectionLines.slice(i + 2, end).join("\n").replace(/^lorem ipsum.*$/gim, "").trim().slice(0, 1500);
+    rows.push({ id: `e${rows.length + 1}`, title, company, employmentType: "", start: "", end: "", current: false, description });
+    i = end - 1;
+  }
+  return rows;
+}
 export function cvExperiences(sectionLines: string[]): Profile["experiences"] {
   const found = sectionLines.map((line, index) => ({ index, dates: readDates(line) })).filter((x) => x.dates);
+  if (!found.length) return undatedExperiences(sectionLines);
   const entries: { header: string[]; dates: Dates; at: number; after: boolean }[] = [];
   let used = -1;
   for (const hit of found) {

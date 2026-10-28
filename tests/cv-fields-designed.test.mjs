@@ -56,3 +56,33 @@ EĞİTİM
   assert.equal(out.education?.[0].degree, "İşletme");
   assert.equal(out.education?.[0].year, "2018");
 });
+
+test("positions without dates keep their company (position, company under it, then duties)", () => {
+  const out = cvFields(`BURAK KUZEY
+ENERJİ SİSTEMLERİ MÜHENDİSİ
+
+İŞ GEÇMİŞİ
+ENERJİ SİSTEMLERİ MÜHENDİSİ
+Sesler Şirketi
+Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+Elektrik şebekesi projelerinin yönetimi ve raporlanması.
+
+EĞİTİM
+DERYALAR ÜNİVERSİTESİ
+Lisans Eğitimi
+2034 | 2036`);
+  assert.equal(out.experiences?.length, 1);
+  assert.equal(out.experiences?.[0].company, "Sesler Şirketi");
+  assert.equal(out.experiences?.[0].title, "ENERJİ SİSTEMLERİ MÜHENDİSİ");
+});
+
+test("a letter-by-letter name without word gaps is split after a known first name", () => {
+  const out = cvFields(`G İ Z E M K A Y A
+P A Z A R L A M A  Y Ö N E T İ C İ S İ
+
+DENEYİM
+Pazarlama Yöneticisi
+Acme A.Ş. | 2020 - Devam`);
+  assert.equal(out.name, "GİZEM KAYA");
+  assert.equal(out.title, "PAZARLAMA YÖNETİCİSİ");
+});

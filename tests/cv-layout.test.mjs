@@ -47,3 +47,9 @@ test("pipe-separated company | role lines keep right-aligned dates", async () =>
   const text = await read("narmin");
   assert.match(text, /Deloitte Azerbaijan \| Audit Assistant 1.*10\/2024 - 05\/2025/);
 });
+
+test("letter-spaced words keep a wider gap between the words through the cleaning", async () => {
+  const { cleanCvText } = await import("../lib/cv-text.ts");
+  assert.equal(cleanCvText("P A Z A R L A M A   Y Ö N E T İ C İ S İ"), "P A Z A R L A M A  Y Ö N E T İ C İ S İ");
+  assert.equal(cleanCvText("normal   text  here"), "normal text here");
+});

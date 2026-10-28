@@ -12,13 +12,17 @@ export function cleanCvText(raw: string): string {
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "")
     // tab / non-breaking space / figure space / narrow-no-break space -> plain space
     .replace(/[\t\u00a0\u2007\u202f]/g, " ")
-    .replace(/[ ]{2,}/g, " ")
     .split("\n")
+    // Letter-spaced words ("P A Z A R L A M A  Y Ö N E T İ C İ") keep a wider gap between
+    // the words, so cv-fields can put the words back; other runs of spaces become one.
+    .map((line) => (/^\s*(?:\p{L} {1,3})+\p{L}\s*$/u.test(line) ? line.replace(/ {3,}/g, "  ") : line.replace(/[ ]{2,}/g, " ")))
     .map((line) => line.replace(/[ ]+$/, ""))
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
+
+const LETTERS_ONLY = /^\s*(?:\p{L} ?)+\p{L}\s*$/u;
 
 type PositionedText = {
   str: string;
@@ -59,7 +63,9 @@ export function layoutPdfText(pages: PositionedText[][]): string {
       let rightEdge = -Infinity;
       for (const item of line.items) {
         const gap = item.x - rightEdge;
-        if (value && gap > Math.max(1.5, item.fontSize * 0.12)) value += " ";
+        // Between two runs of letter-spaced text a wide gap is a word break; keep it visible.
+        if (value && gap > Math.max(1.5, item.fontSize * 0.12))
+          value += gap > item.fontSize * 0.4 && LETTERS_ONLY.test(item.str) && LETTERS_ONLY.test(value) ? "   " : " ";
         value += item.str;
         rightEdge = Math.max(rightEdge, item.x + item.width);
       }
