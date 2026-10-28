@@ -187,8 +187,8 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
         </table>
       </div>
       <p className="muted">
-        Qeyd olunmayan iş günü “işlənib” sayılır. Sarı <b>7s</b> sütunu bayram ərəfəsidir: qısaldılmış gündə 1 saat az işlənir, haqq isə 8 saat üçün tam ödənilir. <b>B</b> — bayram və ya köçürülmüş istirahət günü, boz sütun — istirahət. Xanaya basıb həmin günü qeyd edin.{" "}
-        {ATTENDANCE_CODES.map((c) => `${c.short} — ${c.label}`).join(" · ")}.
+        Qeyd olunmayan iş günü “işlənib” sayılır; uzaqdan iş, ezamiyyət və təlim də işlənmiş gün sayılır. Sarı <b>7s</b> sütunu bayram ərəfəsidir: qısaldılmış gündə 1 saat az işlənir, haqq isə 8 saat üçün tam ödənilir. <b>B</b> — bayram və ya köçürülmüş istirahət günü, boz sütun — istirahət. Xanaya basıb həmin günü qeyd edin.{" "}
+        {ATTENDANCE_CODES.filter((c) => c.id !== "work").map((c) => `${c.short} — ${c.label}`).join(" · ")}.
       </p>
       <section className="panel">
         <h4>
@@ -306,12 +306,16 @@ function MarkModal({
           <Field label="Bitmə (bir gün üçün eyni)">
             <input type="date" min={form.from} value={form.to} onChange={(e) => setForm({ ...form, to: e.target.value })} />
           </Field>
-          <Field label="Qeyd">
+          <Field label="Səbəb (qeyd növü)">
             <select value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })}>
-              {ATTENDANCE_CODES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.short} — {c.label}
-                </option>
+              {[...new Set(ATTENDANCE_CODES.map((c) => c.group))].map((group) => (
+                <optgroup key={group} label={group}>
+                  {ATTENDANCE_CODES.filter((c) => c.group === group).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.short} — {c.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </Field>

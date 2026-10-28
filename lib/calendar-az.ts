@@ -14,7 +14,6 @@ const FIXED: [string, string][] = [
   ["05-28", "Müstəqillik günü"],
   ["06-15", "Milli Qurtuluş günü"],
   ["06-26", "Silahlı Qüvvələr günü"],
-  ["10-18", "Müstəqilliyin Bərpası günü"],
   ["11-08", "Zəfər günü"],
   ["11-09", "Dövlət Bayrağı günü"],
   ["12-31", "Dünya Azərbaycanlılarının Həmrəyliyi günü"],
@@ -94,10 +93,10 @@ export function monthDays(year: number, month: number, overrides: CalendarOverri
     const custom = own.get(date);
     let state: CalendarDay["off"] = holiday ? holiday.kind : weekday === 0 || weekday === 6 ? "weekend" : "";
     let label = holiday?.label || "";
-    // The working day right before a holiday that falls on a weekday is shortened by an hour.
+    // The working day right before a holiday (also one that falls on a weekend) is shortened by an hour.
     const next = new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
     const nextOff = (next.startsWith(`${year}-`) ? off : nextYearOff).get(next);
-    let short = state === "" && !!nextOff && !isWeekend(next);
+    let short = state === "" && !!nextOff;
     if (custom?.kind === "off") {
       state = "company";
       label = custom.label || "Şirkətin qeyri-iş günü";
@@ -117,17 +116,30 @@ export function monthDays(year: number, month: number, overrides: CalendarOverri
 }
 
 // The attendance codes: how a day of an employee is marked.
-export const ATTENDANCE_CODES: { id: string; short: string; label: string; counts: "work" | "leave" | "absence" }[] = [
-  { id: "work", short: "İ", label: "İşdə", counts: "work" },
-  { id: "trip", short: "EZ", label: "Ezamiyyətdə", counts: "work" },
-  { id: "annual", short: "ƏM", label: "Əmək məzuniyyəti", counts: "leave" },
-  { id: "sick", short: "XS", label: "Xəstəlik (xəstəlik vərəqəsi)", counts: "leave" },
-  { id: "maternity", short: "AN", label: "Analıq (hamiləlik və doğuş)", counts: "leave" },
-  { id: "childcare", short: "UQ", label: "Uşağa qulluq məzuniyyəti", counts: "leave" },
-  { id: "paternity", short: "AT", label: "Atalıq məzuniyyəti", counts: "leave" },
-  { id: "study", short: "TM", label: "Təhsil məzuniyyəti", counts: "leave" },
-  { id: "unpaid", short: "ÖH", label: "Öz hesabına (ödənişsiz) məzuniyyət", counts: "leave" },
-  { id: "absent", short: "GM", label: "İşə gəlməyib (üzrsüz)", counts: "absence" },
+export type AttendanceCode = { id: string; short: string; label: string; group: string; counts: "work" | "leave" | "absence" };
+export const ATTENDANCE_CODES: AttendanceCode[] = [
+  { id: "work", short: "İ", label: "İşdə", group: "İşdə", counts: "work" },
+  { id: "remote", short: "Uİ", label: "Uzaqdan işləyir", group: "İşdə", counts: "work" },
+  { id: "trip", short: "EZ", label: "Ezamiyyətdə", group: "İşdə", counts: "work" },
+  { id: "training", short: "TS", label: "Təlim və ya seminarda", group: "İşdə", counts: "work" },
+  { id: "annual", short: "ƏM", label: "Əmək məzuniyyəti", group: "Məzuniyyət", counts: "leave" },
+  { id: "addleave", short: "ƏL", label: "Əlavə əmək məzuniyyəti (staj, zərərli şərait)", group: "Məzuniyyət", counts: "leave" },
+  { id: "maternity", short: "AN", label: "Analıq (hamiləlik və doğuş)", group: "Məzuniyyət", counts: "leave" },
+  { id: "childcare", short: "UQ", label: "Uşağa qulluq məzuniyyəti", group: "Məzuniyyət", counts: "leave" },
+  { id: "paternity", short: "AT", label: "Atalıq məzuniyyəti", group: "Məzuniyyət", counts: "leave" },
+  { id: "study", short: "TM", label: "Təhsil məzuniyyəti", group: "Məzuniyyət", counts: "leave" },
+  { id: "unpaid", short: "ÖH", label: "Öz hesabına (ödənişsiz) məzuniyyət", group: "Məzuniyyət", counts: "leave" },
+  { id: "sick", short: "XS", label: "Xəstəlik (xəstəlik vərəqəsi)", group: "Xəstəlik və səhiyyə", counts: "leave" },
+  { id: "injury", short: "İQ", label: "İş qəzası və ya peşə xəstəliyi", group: "Xəstəlik və səhiyyə", counts: "leave" },
+  { id: "medical", short: "TX", label: "Tibbi müayinə (arayışla)", group: "Xəstəlik və səhiyyə", counts: "leave" },
+  { id: "donor", short: "QV", label: "Qan vermə (donor günü)", group: "Xəstəlik və səhiyyə", counts: "leave" },
+  { id: "family", short: "AH", label: "Ailə hadisəsi (toy, vəfat) ilə bağlı icazə", group: "Digər icazəli yoxluq", counts: "leave" },
+  { id: "permission", short: "İC", label: "İcazəli yoxluq (ərizə ilə)", group: "Digər icazəli yoxluq", counts: "leave" },
+  { id: "summons", short: "ÇG", label: "Məhkəməyə və ya dövlət orqanına çağırış", group: "Digər icazəli yoxluq", counts: "leave" },
+  { id: "military", short: "HT", label: "Hərbi toplanış və ya hərbi çağırış", group: "Digər icazəli yoxluq", counts: "leave" },
+  { id: "downtime", short: "DY", label: "İşin dayanması (işəgötürənin səbəbi ilə)", group: "Digər icazəli yoxluq", counts: "leave" },
+  { id: "suspension", short: "KN", label: "İşdən kənarlaşdırılıb", group: "Digər icazəli yoxluq", counts: "leave" },
+  { id: "absent", short: "GM", label: "İşə gəlməyib (üzrsüz)", group: "İşə gəlməyib", counts: "absence" },
 ];
 export const attendanceCode = (id: string) => ATTENDANCE_CODES.find((c) => c.id === id);
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { daysOff, monthDays, summarize, ATTENDANCE_CODES } from "../lib/calendar-az.ts";
+import { daysOff, monthDays, summarize, ATTENDANCE_CODES, yearCalendar } from "../lib/calendar-az.ts";
 
 const offIn = (year, prefix) => [...daysOff(year).keys()].filter((d) => d.startsWith(prefix)).map((d) => d.slice(5)).sort();
 
@@ -64,14 +64,14 @@ test("production calendar: days, hours and the year's total", async () => {
   assert.equal(withOwn[2].workDays, 15);
 });
 
-test("the eve of a weekday holiday is a shortened day (7 hours at work, 8 paid); the day before a weekend is not", () => {
+test("the eve of a holiday is a shortened day (7 hours at work, 8 paid), also before a holiday on a weekend", () => {
   const short = (year, month) => monthDays(year, month).filter((d) => d.short).map((d) => d.date.slice(5));
   assert.deepEqual(short(2026, 1), ["01-19"]);
   assert.deepEqual(short(2026, 3), ["03-19"]);
   assert.deepEqual(short(2026, 12), ["12-30"]);
-  // 8 May is the Friday before the Saturday holiday: not an eve of a weekday holiday; 26 May is the eve of 27 May
-  assert.ok(!short(2026, 5).includes("05-08"));
-  assert.ok(short(2026, 5).includes("05-26"));
+  // 8 May is the Friday before the Saturday holiday of 9 May; 26 May is the eve of 27 May
+  assert.deepEqual(short(2026, 5), ["05-08", "05-26"]);
+  assert.deepEqual(short(2026, 6), ["06-25"]);
   const days = monthDays(2026, 3, [{ day: "2026-03-18", kind: "short", label: "" }, { day: "2026-03-19", kind: "work", label: "" }]);
   assert.equal(days.find((d) => d.date === "2026-03-18").short, true);
   assert.equal(days.find((d) => d.date === "2026-03-19").short, false);
@@ -84,4 +84,37 @@ test("attendance hours: a shortened day is worked 7 hours and paid 8", () => {
   assert.equal(summary.hours, 14 * 8 - 1);
   assert.equal(summary.paidHours, 14 * 8);
   assert.equal(summary.shortDays, 1);
+});
+
+// The official 2026 production calendar (Ministry of Labour and Social Protection of Population):
+// working hours by month, 1922 hours in the year, 241 working days.
+test("2026 matches the official production calendar month by month", () => {
+  const official = [
+    [19, 151],
+    [20, 160],
+    [14, 111],
+    [22, 176],
+    [17, 134],
+    [20, 159],
+    [23, 184],
+    [21, 168],
+    [22, 176],
+    [22, 176],
+    [19, 152],
+    [22, 175],
+  ];
+  const year = yearCalendar(2026);
+  assert.deepEqual(year.map((m) => [m.workDays, m.hours]), official);
+  assert.equal(year.reduce((sum, m) => sum + m.hours, 0), 1922);
+  assert.equal(year.reduce((sum, m) => sum + m.workDays, 0), 241);
+  // there is no day off in October
+  assert.deepEqual(offIn(2026, "2026-10"), []);
+});
+
+test("every attendance code has a short mark, a group and is listed once", () => {
+  const marks = ATTENDANCE_CODES.map((c) => c.short);
+  assert.equal(new Set(marks).size, marks.length);
+  assert.equal(new Set(ATTENDANCE_CODES.map((c) => c.id)).size, ATTENDANCE_CODES.length);
+  assert.ok(ATTENDANCE_CODES.length >= 20);
+  assert.ok(ATTENDANCE_CODES.every((c) => c.group && c.label));
 });
