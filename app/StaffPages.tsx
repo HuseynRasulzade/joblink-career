@@ -1,12 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileSpreadsheet, Plus, Printer, Trash2, Upload } from "lucide-react";
-import { buildEmployeeOffer, buildOrder, leaveDays, orderNumber, ORDER_KINDS, type OrderField, type OrderInput, type OrderKind } from "@/lib/orders";
+import { buildEmployeeOffer, buildOrder, leaveDays, orderNumber, ORDER_KINDS, UNPAID_REASONS, unpaidReason, type OrderField, type OrderInput, type OrderKind } from "@/lib/orders";
 import { employeePay, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 import { readSheetRows } from "@/lib/question-file";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "@/lib/staff-import";
 import { parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
 import { SHEET_TEMPLATES, templateSheets } from "@/lib/sheet-templates";
+import { REQUEST_KINDS, orderPrefill, requestKindLabel, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { ATTENDANCE_CODES } from "@/lib/calendar-az";
 import { RATES, RATE_LABEL, type PlanUnit } from "@/lib/staff-plan";
 import { createXlsxBook } from "@/lib/xlsx";
@@ -418,23 +419,24 @@ export function OrderSignerBox({ order, onChange, notify }: { order: SavedOrder;
 
 const FIELD_TEXT: Record<OrderField, (kind: OrderKind, salaryType: SalaryType) => string> = {
   from: (kind) =>
-    ({ recall: "Çağırış (işə başlama) tarixi", termination: "Xitam tarixi", reduction: "Xitam tarixi", probation: "Qərarın qüvvəyə minmə tarixi", extend: "Yeni müddətin başlanğıcı", transfer: "Keçirilmə tarixi", salary: "Dəyişikliyin tarixi", schedule: "Qüvvəyə minmə tarixi", name: "Dəyişikliyin tarixi", suspension: "Kənarlaşdırma tarixi" } as Record<string, string>)[kind] ||
+    ({ postpone: "Məzuniyyətin yeni başlanğıcı", restday: "İşə cəlb tarixi", overtime: "İşə cəlb tarixi (başlanğıc)", donor: "Qan verilən gün", medical: "Müayinə günü (başlanğıc)", downtime: "Boşdayanmanın başlanğıcı", recall: "Çağırış (işə başlama) tarixi", termination: "Xitam tarixi", reduction: "Xitam tarixi", probation: "Qərarın qüvvəyə minmə tarixi", extend: "Yeni müddətin başlanğıcı", transfer: "Keçirilmə tarixi", salary: "Dəyişikliyin tarixi", schedule: "Qüvvəyə minmə tarixi", name: "Dəyişikliyin tarixi", suspension: "Kənarlaşdırma tarixi" } as Record<string, string>)[kind] ||
     "Başlanğıc tarixi",
-  to: (kind) => ({ extend: "Müqavilənin yeni bitmə tarixi", suspension: "Bitmə tarixi (boşdursa sonrakı əmrə qədər)" } as Record<string, string>)[kind] || "Bitmə tarixi",
-  vacationKind: () => "Məzuniyyətin növü",
+  to: (kind) => ({ postpone: "Məzuniyyətin yeni bitməsi", extendleave: "Yeni bitmə tarixi (uzadılmış)", extend: "Müqavilənin yeni bitmə tarixi", suspension: "Bitmə tarixi (boşdursa sonrakı əmrə qədər)" } as Record<string, string>)[kind] || "Bitmə tarixi",
+  vacationKind: (kind) => (kind === "unpaid" ? "Ödənişsiz məzuniyyətin əsası (Əmək Məcəlləsi, 130-cu maddə)" : kind === "addleave" ? "Əlavə məzuniyyətin növü (staj, zərərli şərait, uşaqlı işçi)" : "Məzuniyyətin növü"),
+  quantity: (kind) => (kind === "compensation" ? "Kompensasiya ödənilən gün sayı" : kind === "overtime" ? "Cəmi artıq iş saatı" : "İşlənən saat"),
   salary: (kind, type) => (kind === "bonus" ? "Mükafatın məbləği (AZN)" : kind === "substitute" ? "Əlavə haqq (AZN)" : `Yeni əmək haqqı (AZN, ${type})`),
   newPosition: (kind) => (kind === "substitute" ? "İcra ediləcək vəzifə" : "Yeni vəzifə"),
   newDepartment: () => "Yeni departament / şöbə",
   basis: (kind) =>
-    ({ termination: "Xitamın əsası (maddə və səbəb)", reduction: "İxtisarın əsası (təşkilati qərar, nömrə)", maternity: "Əsas (tibbi rəy və ya xəstəlik vərəqəsinin nömrəsi)", study: "Əsas (təhsil müəssisəsinin çağırış arayışı)", childcare: "Əsas (ərizə, uşağın doğum şəhadətnaməsi)", paternity: "Əsas (ərizə, doğum şəhadətnaməsi)", unpaid: "Əsas (işçinin ərizəsi)", recall: "Çağırışın səbəbi", trip: "Ezamiyyətin məqsədi", training: "Təlimin məqsədi", bonus: "Mükafatın səbəbi (nəticə, layihə)", discipline: "Pozuntunun mahiyyəti, izahat və ya imtina aktının nömrəsi", suspension: "Kənarlaşdırmanın əsası", probation: "Əsas (rəhbərin rəyi)", name: "Əsas (sənəd)" } as Record<string, string>)[kind] || "Əsas",
-  place: (kind) => (kind === "training" ? "Təlimin yeri və ya təşkilatı" : "Ezam olunan yer"),
+    ({ termination: "Xitamın əsası (maddə və səbəb)", reduction: "İxtisarın əsası (təşkilati qərar, nömrə)", maternity: "Əsas (tibbi rəy və ya xəstəlik vərəqəsinin nömrəsi)", study: "Əsas (təhsil müəssisəsinin çağırış arayışı)", childcare: "Əsas (ərizə, uşağın doğum şəhadətnaməsi)", paternity: "Əsas (ərizə, doğum şəhadətnaməsi)", unpaid: "Əsas (işçinin ərizəsi və s.)", addleave: "Əsas (məsələn: staj 6 gün — 116-cı maddə)", creative: "Əsas (elmi şuranın arayışı)", postpone: "Keçirilmənin səbəbi (134-cü maddə)", extendleave: "Uzadılmanın səbəbi (xəstəlik vərəqəsi, bayram günləri)", compensation: "Əsas (xitam haqqında əmr)", donor: "Əsas (tibb müəssisəsinin arayışı)", medical: "Əsas (tibb müəssisəsinin arayışı)", summons: "Əsas (çağırış vərəqəsi)", military: "Əsas (hərbi komissarlığın çağırışı)", downtime: "Boşdayanmanın səbəbi", remote: "Əsas (ərizə, razılıq)", restday: "İşə cəlbin səbəbi (107-ci maddənin halı)", overtime: "İşə cəlbin səbəbi (99.2-ci maddənin halı)", recall: "Çağırışın səbəbi", trip: "Ezamiyyətin məqsədi", training: "Təlimin məqsədi", bonus: "Mükafatın səbəbi (nəticə, layihə)", discipline: "Pozuntunun mahiyyəti, izahat və ya imtina aktının nömrəsi", suspension: "Kənarlaşdırmanın əsası", probation: "Əsas (rəhbərin rəyi)", name: "Əsas (sənəd)" } as Record<string, string>)[kind] || "Əsas",
+  place: (kind) => (kind === "training" ? "Təlimin yeri və ya təşkilatı" : kind === "summons" ? "Çağıran orqan (məhkəmə, prokurorluq və s.)" : "Ezam olunan yer"),
   penalty: () => "İntizam tənbehinin növü",
   newName: () => "Yeni ad və ya soyad",
   result: () => "Sınaq müddətinin nəticəsi",
   schedule: () => "Yeni iş rejimi (məsələn, həftədə 3 gün, 10:00–15:00)",
 };
 
-type FormValues = { date: string; from: string; to: string; newPosition: string; newDepartment: string; salary: string; basis: string; vacationKind: string; place: string; penalty: string; newName: string; result: string; schedule: string };
+type FormValues = { date: string; from: string; to: string; newPosition: string; newDepartment: string; salary: string; basis: string; vacationKind: string; place: string; penalty: string; newName: string; result: string; schedule: string; quantity: string };
 function OrderFormField({ field, kind, form, salaryType, set }: { field: OrderField; kind: OrderKind; form: FormValues; salaryType: SalaryType; set: (key: keyof FormValues, value: string) => void }) {
   const label = FIELD_TEXT[field](kind, salaryType);
   if (field === "from" || field === "to")
@@ -449,6 +451,30 @@ function OrderFormField({ field, kind, form, salaryType, set }: { field: OrderFi
         <input type="number" min={0} value={form.salary} onChange={(e) => set("salary", e.target.value)} />
       </Field>
     );
+  if (field === "quantity")
+    return (
+      <Field label={label}>
+        <input type="number" min={0} step={kind === "compensation" ? 1 : 0.5} value={form.quantity} onChange={(e) => set("quantity", e.target.value)} />
+      </Field>
+    );
+  if (field === "vacationKind" && kind === "unpaid") {
+    const reason = unpaidReason(form.vacationKind);
+    const days = leaveDays(form.from, form.to);
+    return (
+      <Field label={label}>
+        <select value={reason?.label || ""} onChange={(e) => set("vacationKind", e.target.value)}>
+          <option value="">— seçin —</option>
+          {UNPAID_REASONS.map((r) => (
+            <option key={r.id} value={r.label}>
+              {r.label}
+              {r.maxDays ? ` — ən çox ${r.maxDays} gün` : ""}
+            </option>
+          ))}
+        </select>
+        {reason?.maxDays && days > reason.maxDays && <small className="danger-text">Seçilən əsas üçün qanunda ən çox {reason.maxDays} təqvim günü nəzərdə tutulur; siz {days} gün yazmısınız.</small>}
+      </Field>
+    );
+  }
   if (field === "result")
     return (
       <Field label={label}>
@@ -480,25 +506,27 @@ function OrderFormField({ field, kind, form, salaryType, set }: { field: OrderFi
 type OrderEmployee = { id: string; name: string; position: string; department: string; section: string; startDate: string; salary: number | null; salaryType: SalaryType; probationEnd: string; endDate: string };
 
 // Draws an order up, or (with `editing`) changes one that was sent back.
-export function OrderMaker({ employee, notify, editing, onSaved }: { employee: OrderEmployee; notify: Notify; editing?: SavedOrder; onSaved?: () => void }) {
+export type OrderPrefill = { requestId: string; kind: OrderKind; from: string; to: string; quantity: string; vacationKind: string; basis: string };
+export function OrderMaker({ employee, notify, editing, onSaved, prefill }: { employee: OrderEmployee; notify: Notify; editing?: SavedOrder; onSaved?: () => void; prefill?: OrderPrefill }) {
   const [facts, setFacts] = useState<CompanyFacts>({ name: "", voen: "", director: "" });
   const today = new Date().toISOString().slice(0, 10);
   const prior = editing?.input;
-  const [kind, setKind] = useState<OrderKind>(editing?.kind || "vacation");
+  const [kind, setKind] = useState<OrderKind>(editing?.kind || prefill?.kind || "vacation");
   const [form, setForm] = useState({
     date: editing?.date || today,
-    from: prior?.from || today,
-    to: prior?.to || "",
+    from: prior?.from || prefill?.from || today,
+    to: prior?.to || prefill?.to || "",
     newPosition: prior?.newPosition || "",
     newDepartment: prior?.newDepartment || "",
     salary: prior?.salary && editing?.kind !== "hire" ? String(prior.salary) : "",
-    basis: prior?.basis || "",
-    vacationKind: prior?.vacationKind || "illik əmək məzuniyyəti",
+    basis: prior?.basis || prefill?.basis || "",
+    vacationKind: prior?.vacationKind || prefill?.vacationKind || (editing?.kind === "unpaid" || prefill?.kind === "unpaid" ? "" : "illik əmək məzuniyyəti"),
     place: prior?.place || "",
     penalty: prior?.penalty || "Töhmət",
     newName: prior?.newName || "",
     result: prior?.result || "Sınaqdan uğurla keçdi",
     schedule: prior?.schedule || "",
+    quantity: prior?.quantity ? String(prior.quantity) : prefill?.quantity || "",
   });
   const [number, setNumber] = useState(editing?.number || "");
   // The section head and the director are picked from the staff list; the names can be changed.
@@ -562,6 +590,7 @@ export function OrderMaker({ employee, notify, editing, onSaved }: { employee: O
     newName: form.newName,
     result: form.result,
     schedule: form.schedule,
+    quantity: Number(form.quantity) || undefined,
     signers: signerList,
   };
   const order = buildOrder(input);
@@ -577,7 +606,7 @@ export function OrderMaker({ employee, notify, editing, onSaved }: { employee: O
         onSaved?.();
         return;
       }
-      await request("company/orders/save", { employeeId: employee.id, kind, number: input.number, date: form.date, input: rest, signers: signerList });
+      await request("company/orders/save", { employeeId: employee.id, kind, number: input.number, date: form.date, input: rest, signers: signerList, requestId: prefill?.requestId });
       notify("Əmr yaradıldı və imzaya göndərildi. İmzalayanlar növbə ilə təsdiq edir.");
       setNumber("");
       loadSaved();
@@ -726,8 +755,21 @@ export function OrdersRegistry({ notify }: { notify: Notify }) {
   useEffect(load, [load]);
   const set = (key: keyof typeof filters, value: string) => setFilters({ ...filters, [key]: value });
   const waiting = rows?.filter((r) => r.status !== "signed").length || 0;
+  const [tab, setTab] = useState<"orders" | "requests">("orders");
+  const [newRequests, setNewRequests] = useState(0);
   return (
     <div className="company-page">
+      <div className="calc-tabs" role="tablist" aria-label="Əmrlər bölməsi">
+        <button type="button" role="tab" aria-selected={tab === "orders"} className={tab === "orders" ? "primary" : "ghost"} onClick={() => setTab("orders")}>
+          Əmrlər reyestri
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "requests"} className={tab === "requests" ? "primary" : "ghost"} onClick={() => setTab("requests")}>
+          İşçi ərizələri{newRequests ? ` (${newRequests})` : ""}
+        </button>
+      </div>
+      {tab === "requests" && <RequestsPanel notify={notify} onCount={setNewRequests} onOrdered={load} />}
+      {tab === "orders" && (
+        <>
       <div className="section-heading">
         <div>
           <p className="muted">
@@ -856,7 +898,287 @@ export function OrdersRegistry({ notify }: { notify: Notify }) {
           />
         </Modal>
       )}
+        </>
+      )}
     </div>
+  );
+}
+
+// ---------- Applications (ərizə) of employees: recorded here, the order is drawn up from them ----------
+type RequestRow = {
+  id: string;
+  kind: string;
+  data: RequestData & { basis?: string };
+  status: "new" | "ordered" | "rejected";
+  orderId: string;
+  orderNumber: string;
+  orderStatus: string;
+  decision: string;
+  by: string;
+  created: string;
+  employee: OrderEmployee;
+};
+const REQUEST_STATUS: Record<string, string> = { new: "Gözləyir", ordered: "Əmr yaradılıb", rejected: "Rədd edilib" };
+
+function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount: (n: number) => void; onOrdered: () => void }) {
+  const [rows, setRows] = useState<RequestRow[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [making, setMaking] = useState<RequestRow | null>(null);
+  const [filter, setFilter] = useState<"new" | "all">("new");
+  const notifyRef = useRef(notify);
+  const countRef = useRef(onCount);
+  useEffect(() => {
+    notifyRef.current = notify;
+    countRef.current = onCount;
+  });
+  const load = useCallback(() => {
+    request<{ requests: RequestRow[] }>("company/requests")
+      .then((r) => {
+        setRows(r.requests);
+        countRef.current(r.requests.filter((x) => x.status === "new").length);
+      })
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, []);
+  useEffect(load, [load]);
+  async function reject(row: RequestRow) {
+    const reason = window.prompt(`“${row.employee.name}” ərizəsinin rədd səbəbi:`);
+    if (!reason || reason.trim().length < 3) return;
+    try {
+      await request("company/requests/reject", { id: row.id, reason });
+      notify("Ərizə rədd edildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function remove(row: RequestRow) {
+    if (!window.confirm("Ərizə silinsin?")) return;
+    try {
+      await request("company/requests/delete", { id: row.id });
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (!rows) return null;
+  const list = rows.filter((r) => filter === "all" || r.status === "new");
+  return (
+    <div className="requests-panel">
+      <div className="section-heading">
+        <p className="muted">
+          İşçinin yazılı ərizəsini burada qeyd edin, sonra “Əmr yarat” düyməsi ilə əmr ərizə əsasında hazırlanır: işçi, növ, tarixlər və əsas (ərizənin tarixi və səbəbi) avtomatik dolur. Əmr silinərsə ərizə yenidən gözləyənlərə qayıdır.
+        </p>
+        <div className="admin-actions">
+          <select value={filter} aria-label="Süzgəc" onChange={(e) => setFilter(e.target.value as "new" | "all")}>
+            <option value="new">Yalnız gözləyənlər</option>
+            <option value="all">Hamısı</option>
+          </select>
+          <button type="button" className="primary" onClick={() => setAdding(true)}>
+            <Plus size={14} /> Ərizə qeyd et
+          </button>
+        </div>
+      </div>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Ərizə tarixi</th>
+              <th>İşçi</th>
+              <th>Ərizənin növü</th>
+              <th>Müddət</th>
+              <th>Səbəb</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((row) => (
+              <tr key={row.id}>
+                <td>{row.created.slice(0, 10)}</td>
+                <td>
+                  <b>{row.employee.name}</b>
+                  <small className="skill-description">{[row.employee.position, row.employee.department].filter(Boolean).join(" · ")}</small>
+                </td>
+                <td>{requestKindLabel(row.kind)}</td>
+                <td>
+                  {row.data.from ? `${row.data.from}${row.data.to ? ` – ${row.data.to}` : ""}` : "—"}
+                  {row.data.quantity ? <small className="skill-description">{row.data.quantity} {row.kind === "compensation" ? "gün" : "saat"}</small> : null}
+                </td>
+                <td>
+                  {[row.data.basis, row.data.reason].filter(Boolean).join(" — ") || "—"}
+                </td>
+                <td>
+                  {REQUEST_STATUS[row.status]}
+                  {row.status === "ordered" && <small className="skill-description">№ {row.orderNumber || "—"}</small>}
+                  {row.status === "rejected" && <small className="skill-description">{row.decision}</small>}
+                </td>
+                <td className="admin-actions">
+                  {row.status === "new" && (
+                    <button type="button" className="primary" onClick={() => setMaking(row)}>
+                      Əmr yarat
+                    </button>
+                  )}
+                  {row.status === "new" && (
+                    <button type="button" onClick={() => void reject(row)}>
+                      Rədd et
+                    </button>
+                  )}
+                  {row.status !== "ordered" && (
+                    <button type="button" aria-label="Sil" onClick={() => void remove(row)}>
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {!list.length && (
+              <tr>
+                <td colSpan={7}>
+                  <p className="admin-empty">{filter === "new" ? "Gözləyən ərizə yoxdur." : "Hələ ərizə qeyd edilməyib."}</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {adding && <RequestForm notify={notify} onClose={() => setAdding(false)} onSaved={load} />}
+      {making && (
+        <Modal title={`Əmr: ${making.employee.name} — ${requestKindLabel(making.kind)}`} onClose={() => setMaking(null)}>
+          <OrderMaker
+            employee={making.employee}
+            notify={notify}
+            prefill={{ requestId: making.id, ...orderPrefill(making.kind, making.data, making.created.slice(0, 10)) }}
+            onSaved={() => {
+              setMaking(null);
+              load();
+              onOrdered();
+            }}
+          />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+type PersonOption = { id: string; name: string; position: string; department: string };
+function RequestForm({ notify, onClose, onSaved }: { notify: Notify; onClose: () => void; onSaved: () => void }) {
+  const [people, setPeople] = useState<PersonOption[]>([]);
+  const [search, setSearch] = useState("");
+  const [picked, setPicked] = useState<PersonOption | null>(null);
+  const [kind, setKind] = useState<string>("vacation");
+  const [data, setData] = useState<RequestData>({ from: "", to: "", quantity: 0, reason: "", basis: "" });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    request<{ employees: (PersonOption & { status: string })[] }>("company/employees")
+      .then((r) => setPeople(r.employees.filter((e) => e.status !== "left")))
+      .catch(() => undefined);
+  }, []);
+  const today = new Date().toISOString().slice(0, 10);
+  const meta = REQUEST_KINDS.find((k) => k.id === kind)!;
+  const fields = ORDER_KINDS.find((k) => k.id === kind)?.fields || [];
+  const problems = requestProblems(kind, data);
+  const warnings = requestWarnings(kind, data, today);
+  const needle = search.toLocaleLowerCase("az").trim();
+  const matches = people.filter((p) => !needle || `${p.name} ${p.position} ${p.department}`.toLocaleLowerCase("az").includes(needle)).slice(0, 8);
+  async function save() {
+    if (!picked) return notify("İşçini seçin.");
+    setBusy(true);
+    try {
+      const result = await request<{ warnings: string[] }>("company/requests/save", { employeeId: picked.id, kind, data });
+      notify(`Ərizə qeyd edildi.${result.warnings?.length ? ` Diqqət: ${result.warnings[0]}` : ""}`);
+      onSaved();
+      onClose();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title="İşçi ərizəsi qeyd et" onClose={onClose}>
+      <div className="offer-composer">
+        <Field label="İşçi (ad, vəzifə və ya departament yazın)">
+          <input
+            value={picked ? `${picked.name} — ${picked.position || "vəzifəsiz"}${picked.department ? ` (${picked.department})` : ""}` : search}
+            placeholder="İşçini axtarın"
+            onChange={(e) => {
+              setPicked(null);
+              setSearch(e.target.value);
+            }}
+          />
+        </Field>
+        {!picked && (
+          <ul className="emp-results emp-inline" role="listbox">
+            {matches.map((p) => (
+              <li key={p.id}>
+                <button type="button" role="option" aria-selected="false" onClick={() => setPicked(p)}>
+                  <strong>{p.name}</strong>
+                  <small>{[p.position || "vəzifəsiz", p.department].filter(Boolean).join(" · ")}</small>
+                </button>
+              </li>
+            ))}
+            {!matches.length && <li className="muted emp-none">Uyğun işçi tapılmadı.</li>}
+          </ul>
+        )}
+        <div className="form-grid">
+          <Field label="Ərizənin növü">
+            <select value={kind} onChange={(e) => setKind(e.target.value)}>
+              {REQUEST_KINDS.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {fields.includes("from") && (
+            <Field label="Başlanğıc tarixi">
+              <input type="date" value={data.from} onChange={(e) => setData({ ...data, from: e.target.value })} />
+            </Field>
+          )}
+          {fields.includes("to") && kind !== "remote" && (
+            <Field label="Bitmə tarixi">
+              <input type="date" value={data.to} onChange={(e) => setData({ ...data, to: e.target.value })} />
+            </Field>
+          )}
+          {fields.includes("quantity") && (
+            <Field label={kind === "compensation" ? "Kompensasiya ödənilən gün sayı" : "Saat"}>
+              <input type="number" min={0} value={data.quantity || ""} onChange={(e) => setData({ ...data, quantity: Number(e.target.value) })} />
+            </Field>
+          )}
+          {kind === "unpaid" && (
+            <Field label="Ödənişsiz məzuniyyətin əsası (130-cu maddə)">
+              <select value={data.basis} onChange={(e) => setData({ ...data, basis: e.target.value })}>
+                <option value="">— seçin —</option>
+                {UNPAID_REASONS.map((r) => (
+                  <option key={r.id} value={r.label}>
+                    {r.label}
+                    {r.maxDays ? ` — ən çox ${r.maxDays} gün` : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+          {kind !== "unpaid" && (
+            <Field label={["extendleave", "postpone", "schedule", "name"].includes(kind) ? "Əsas / səbəb" : "Əsas (arayış, sənəd nömrəsi)"}>
+              <input value={data.basis} onChange={(e) => setData({ ...data, basis: e.target.value })} />
+            </Field>
+          )}
+          <Field label="İşçinin qeydi / səbəbi">
+            <input value={data.reason} onChange={(e) => setData({ ...data, reason: e.target.value })} />
+          </Field>
+        </div>
+        <p className="muted">{meta.hint}</p>
+        {problems.length > 0 && <small className="danger-text">{problems[0]}</small>}
+        {warnings.map((w) => (
+          <small key={w} className="plan-state plan-pending">
+            {w}
+          </small>
+        ))}
+        <button type="button" className="primary" disabled={busy || !picked || problems.length > 0} onClick={save}>
+          Ərizəni qeyd et
+        </button>
+      </div>
+    </Modal>
   );
 }
 

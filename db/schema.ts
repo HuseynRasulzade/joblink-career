@@ -803,6 +803,25 @@ export const orgNames = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.companyId, t.kind, t.key] })],
 );
+// An employee's application for leave or a change, recorded by HR; the order is drawn up from it.
+export const employeeRequests = sqliteTable(
+  "employee_requests",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    kind: text("kind").notNull(),
+    data: text("data").notNull().default("{}"),
+    status: text("status").notNull().default("new"),
+    orderId: text("order_id").notNull().default(""),
+    decision: text("decision").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    createdByName: text("created_by_name").notNull().default(""),
+    created: text("created").notNull(),
+    updated: text("updated").notNull(),
+  },
+  (t) => [index("employee_requests_company").on(t.companyId, t.status, t.created)],
+);
 // Draft until the director approves the staff plan; after that changes need the director.
 export const staffPlanState = sqliteTable("staff_plan_state", {
   companyId: text("company_id").primaryKey(),

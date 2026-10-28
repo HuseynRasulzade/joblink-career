@@ -19,7 +19,7 @@ test("every kind of order names the company, the employee and a signature line; 
   assert.ok(ORDER_KINDS.length >= 20);
   assert.equal(new Set(ORDER_KINDS.map((k) => k.id)).size, ORDER_KINDS.length);
   for (const { id, fields } of ORDER_KINDS) {
-    const order = buildOrder({ ...base, kind: id, from: "2026-06-01", to: "2026-06-14", salary: 2800, salaryBefore: 2500, salaryType: "gross", newPosition: "Maliyyə meneceri", basis: "tərəflərin razılığı", place: "Tbilisi", penalty: "Töhmət", newName: "Aysel Əliyeva", result: "Sınaqdan uğurla keçdi", schedule: "həftədə 3 gün" });
+    const order = buildOrder({ ...base, kind: id, from: "2026-06-01", to: "2026-06-14", salary: 2800, salaryBefore: 2500, salaryType: "gross", newPosition: "Maliyyə meneceri", basis: "tərəflərin razılığı", place: "Tbilisi", penalty: "Töhmət", newName: "Aysel Əliyeva", result: "Sınaqdan uğurla keçdi", schedule: "həftədə 3 gün", quantity: 6 });
     assert.match(order.text, /Sirket Test MMC/, id);
     assert.match(order.text, /Aysel Məmmədova/, id);
     assert.ok(order.signature.includes("Əli Əliyev"), id);

@@ -491,6 +491,13 @@
       "when": 1796929200000,
       "tag": "0069_staff_rate_band",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "6",
+      "when": 1797015600000,
+      "tag": "0070_employee_requests",
+      "breakpoints": true
     }
   ]
 }

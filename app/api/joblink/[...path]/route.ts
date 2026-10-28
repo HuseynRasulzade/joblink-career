@@ -369,6 +369,7 @@ import { assignPeople, checkSalary, normalizeRate, RATE_LABEL, summarize, type P
 import { parseStructureRows } from "@/lib/staff-import";
 import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
+import { isRequestKind, requestProblems, requestWarnings } from "@/lib/requests";
 import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
 import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
@@ -7544,7 +7545,7 @@ async function route(request: Request) {
           section: r.employee_section,
           startDate: r.employee_start,
           endDate: r.employee_end,
-          salary: r.employee_salary / 100,
+          salary: can(memberRole, "salaries", memberGrants) ? r.employee_salary / 100 : 0,
           salaryType: r.employee_salary_type === "net" ? "net" : "gross",
           probationEnd: r.employee_probation,
         },
@@ -7578,7 +7579,14 @@ async function route(request: Request) {
       .prepare("INSERT INTO employee_orders(id,company_id,employee_id,kind,number,order_date,input,signers,status,holder,history,created_by,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
       .bind(orderId, id, employee.id, kind, str(b.number, 40), date, input, JSON.stringify(flow.signers), flow.status, flow.holder, JSON.stringify(flow.history), userId, now, now)
       .run();
-    await companyAudit(db, id, userId, "order-created", employee.id, `${employee.name}: ${kind}`);
+    // An order drawn up from an application closes it.
+    const requestId = str(b.requestId, 100);
+    if (requestId)
+      await db
+        .prepare("UPDATE employee_requests SET status='ordered',order_id=?,updated=? WHERE id=? AND company_id=? AND employee_id=? AND status='new'")
+        .bind(orderId, now, requestId, id, employee.id)
+        .run();
+    await companyAudit(db, id, userId, "order-created", employee.id, `${employee.name}: ${kind}${requestId ? " (ərizə əsasında)" : ""}`);
     return ok({ ok: true, id: orderId }, 201);
   }
   // The person who drew the order up changes it (after it was sent back, or before it is signed); every approval is cleared.
@@ -7638,6 +7646,98 @@ async function route(request: Request) {
     const b = await jsonBody(request);
     const result = await db.prepare("DELETE FROM employee_orders WHERE id=? AND company_id=? AND status<>'signed'").bind(str(b.id, 100), id).run();
     if (!result.meta.changes) throw new HttpError(409, "İmzalanmış əmr silinə bilməz.");
+    // The application the order came from is open again.
+    await db.prepare("UPDATE employee_requests SET status='new',order_id='',updated=? WHERE order_id=? AND company_id=?").bind(new Date().toISOString(), str(b.id, 100), id).run();
+    return ok({ ok: true });
+  }
+  // ---- Employee applications (ərizə): recorded here, the order is drawn up from them ----
+  const requestRow = (r: { id: string; employee_id: string; kind: string; data: string; status: string; order_id: string; decision: string; created_by_name: string; created: string; employee_name: string; employee_position: string; employee_department: string; employee_section: string; employee_start: string; employee_end: string; employee_salary: number; employee_salary_type: string; employee_probation: string; order_number: string | null; order_status: string | null }) => ({
+    id: r.id,
+    kind: r.kind,
+    data: (() => {
+      try {
+        return JSON.parse(r.data);
+      } catch {
+        return {};
+      }
+    })(),
+    status: r.status,
+    orderId: r.order_id,
+    orderNumber: r.order_number || "",
+    orderStatus: r.order_status || "",
+    decision: r.decision,
+    by: r.created_by_name,
+    created: r.created,
+    employee: {
+      id: r.employee_id,
+      name: r.employee_name,
+      position: r.employee_position,
+      department: r.employee_department,
+      section: r.employee_section,
+      startDate: r.employee_start,
+      endDate: r.employee_end,
+      salary: can(memberRole, "salaries", memberGrants) ? r.employee_salary / 100 : 0,
+      salaryType: r.employee_salary_type === "net" ? "net" : "gross",
+      probationEnd: r.employee_probation,
+    },
+  });
+  if (request.method === "GET" && path === "company/requests") {
+    requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs görə bilər.");
+    const rows = await db
+      .prepare(
+        `SELECT q.id,q.employee_id,q.kind,q.data,q.status,q.order_id,q.decision,q.created_by_name,q.created,
+          e.name AS employee_name,e.position AS employee_position,e.department AS employee_department,e.section AS employee_section,e.start_date AS employee_start,e.end_date AS employee_end,e.salary_cents AS employee_salary,e.salary_type AS employee_salary_type,e.probation_end AS employee_probation,
+          o.number AS order_number,o.status AS order_status
+         FROM employee_requests q JOIN company_employees e ON e.id=q.employee_id LEFT JOIN employee_orders o ON o.id=q.order_id
+         WHERE q.company_id=? ORDER BY CASE q.status WHEN 'new' THEN 0 ELSE 1 END,q.created DESC LIMIT 500`,
+      )
+      .bind(id)
+      .all<Parameters<typeof requestRow>[0]>();
+    return ok({ requests: rows.results.map(requestRow) });
+  }
+  if (request.method === "POST" && path === "company/requests/save") {
+    requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs qeyd edə bilər.");
+    const b = await jsonBody(request);
+    const employee = await db
+      .prepare("SELECT id,name FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'")
+      .bind(str(b.employeeId, 100), id)
+      .first<{ id: string; name: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const kind = str(b.kind, 20);
+    if (!isRequestKind(kind)) throw new HttpError(400, "Ərizənin növü düzgün deyil.");
+    const raw = (b.data && typeof b.data === "object" ? b.data : {}) as Record<string, unknown>;
+    const data = { from: str(raw.from, 10), to: str(raw.to, 10), quantity: Math.max(0, Math.min(3650, Number(raw.quantity) || 0)), reason: str(raw.reason, 500), basis: str(raw.basis, 300) };
+    const problems = requestProblems(kind, data);
+    if (problems.length) throw new HttpError(400, problems[0]);
+    const open = await db.prepare("SELECT COUNT(*) AS n FROM employee_requests WHERE company_id=? AND status='new'").bind(id).first<{ n: number }>();
+    if (Number(open?.n) >= 300) throw new HttpError(409, "Cavablandırılmamış ərizə sayı 300-ü keçib: əvvəlcə mövcud ərizələrə əmr yaradın və ya rədd edin.");
+    const requestId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await db
+      .prepare("INSERT INTO employee_requests(id,company_id,employee_id,kind,data,status,created_by,created_by_name,created,updated) VALUES(?,?,?,?,?,'new',?,?,?,?)")
+      .bind(requestId, id, employee.id, kind, JSON.stringify(data), userId, await requesterName(), now, now)
+      .run();
+    await companyAudit(db, id, userId, "request-recorded", employee.id, `${employee.name}: ${kind}`);
+    return ok({ ok: true, id: requestId, warnings: requestWarnings(kind, data, now.slice(0, 10)) }, 201);
+  }
+  if (request.method === "POST" && path === "company/requests/reject") {
+    requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs rədd edə bilər.");
+    const b = await jsonBody(request);
+    const reason = str(b.reason, 300);
+    if (reason.length < 3) throw new HttpError(400, "Rədd səbəbini yazın.");
+    const result = await db
+      .prepare("UPDATE employee_requests SET status='rejected',decision=?,updated=? WHERE id=? AND company_id=? AND status='new'")
+      .bind(reason, new Date().toISOString(), str(b.id, 100), id)
+      .run();
+    if (!result.meta.changes) throw new HttpError(409, "Ərizə artıq cavablandırılıb və ya tapılmadı.");
+    await companyAudit(db, id, userId, "request-rejected", str(b.id, 100), reason);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/requests/delete") {
+    requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs silə bilər.");
+    const b = await jsonBody(request);
+    const result = await db.prepare("DELETE FROM employee_requests WHERE id=? AND company_id=? AND status<>'ordered'").bind(str(b.id, 100), id).run();
+    if (!result.meta.changes) throw new HttpError(409, "Əmr yaradılmış ərizə silinə bilməz: əvvəlcə əmri silin.");
     return ok({ ok: true });
   }
   // ---- A job offer letter to a current employee, sent by e-mail ----

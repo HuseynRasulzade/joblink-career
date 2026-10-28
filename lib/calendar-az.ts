@@ -124,6 +124,7 @@ export const ATTENDANCE_CODES: AttendanceCode[] = [
   { id: "training", short: "TS", label: "Təlim və ya seminarda", group: "İşdə", counts: "work" },
   { id: "annual", short: "ƏM", label: "Əmək məzuniyyəti", group: "Məzuniyyət", counts: "leave" },
   { id: "addleave", short: "ƏL", label: "Əlavə əmək məzuniyyəti (staj, zərərli şərait)", group: "Məzuniyyət", counts: "leave" },
+  { id: "creative", short: "YM", label: "Yaradıcılıq məzuniyyəti", group: "Məzuniyyət", counts: "leave" },
   { id: "maternity", short: "AN", label: "Analıq (hamiləlik və doğuş)", group: "Məzuniyyət", counts: "leave" },
   { id: "childcare", short: "UQ", label: "Uşağa qulluq məzuniyyəti", group: "Məzuniyyət", counts: "leave" },
   { id: "paternity", short: "AT", label: "Atalıq məzuniyyəti", group: "Məzuniyyət", counts: "leave" },

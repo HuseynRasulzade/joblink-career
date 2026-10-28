@@ -5968,3 +5968,12 @@ a svg {
   margin: 8px 0 4px;
   padding-left: 18px;
 }
+.emp-results.emp-inline {
+  position: static;
+  max-height: 220px;
+  box-shadow: none;
+  margin: -4px 0 8px;
+}
+.requests-panel .section-heading {
+  align-items: flex-start;
+}
