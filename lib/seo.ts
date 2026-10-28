@@ -99,6 +99,7 @@ export function sitemapXml(origin: string, jobs: { id: string; created: string }
   const urls = [
     { loc: `${origin}/`, lastmod: "" },
     { loc: `${origin}/jobs`, lastmod: "" },
+    { loc: `${origin}/kalkulyatorlar`, lastmod: "" },
     ...jobs.map((job) => ({ loc: `${origin}/jobs/${job.id}`, lastmod: job.created.slice(0, 10) })),
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls

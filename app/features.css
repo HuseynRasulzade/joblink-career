@@ -5603,3 +5603,22 @@ a svg {
   max-width: 100%;
   overflow-x: auto;
 }
+
+/* HR calculators */
+.seo-page.seo-wide {
+  max-width: 1040px;
+}
+.calc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.calc-tabs button {
+  padding: 8px 12px;
+}
+.hr-calcs .check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

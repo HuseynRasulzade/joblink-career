@@ -113,7 +113,7 @@ import {
   VerifiedBadge,
   type CompanyInfo,
 } from "./CompaniesPage";
-import { SalaryCalculator } from "./SalaryCalculator";
+import { HrCalculators } from "./HrCalculators";
 import { FitReviewPanel } from "./FitReview";
 import PackagesPage from "./PackagesPage";
 import { localizeTree, setSiteLanguage } from "./i18n";
@@ -128,7 +128,7 @@ const candidateNav = [
   { id: "profile", label: "Mənim profilim", icon: UserRound },
   { id: "applications", label: "Müraciətlərim", icon: Send },
   { id: "messages", label: "Mesajlar", icon: MessageCircle },
-  { id: "calculator", label: "Maaş kalkulyatoru", icon: Calculator },
+  { id: "calculator", label: "Kalkulyatorlar", icon: Calculator },
   { id: "packages", label: "Paketlər", icon: CreditCard },
   { id: "support", label: "Dəstək", icon: LifeBuoy },
 ];
@@ -149,7 +149,7 @@ const hrNav = [
   { id: "hr-team", label: "Komanda və rollar", icon: UserCog },
   { id: "hr-company", label: "Şirkət məlumatları", icon: Building2 },
   { id: "hr-billing", label: "Hesablar və ödənişlər", icon: Receipt },
-  { id: "hr-calculator", label: "Maaş kalkulyatoru", icon: Calculator },
+  { id: "hr-calculator", label: "Kalkulyatorlar", icon: Calculator },
   { id: "hr-messages", label: "Mesajlar", icon: MessageCircle },
   { id: "hr-support", label: "Dəstək", icon: LifeBuoy },
 ];
@@ -2762,7 +2762,7 @@ export default function Joblink() {
               )}
               {page === "hr-billing" && <BillingPage notify={notify} />}
               {page === "hr-calculator" && (
-                <SalaryCalculator employer api={api} notify={notify} />
+                <HrCalculators employer api={api} notify={notify} />
               )}
             </>
           ) : admin && page === "admin-verifications" ? (
@@ -3129,7 +3129,7 @@ export default function Joblink() {
               {page === "companies" && (
                 <CompaniesPage onOpen={openCompany} notify={notify} />
               )}
-              {page === "calculator" && <SalaryCalculator notify={notify} />}
+              {page === "calculator" && <HrCalculators notify={notify} />}
               {page === "packages" && <PackagesPage notify={notify} />}
               {page === "profile" && (
                 <ProfileEditor
