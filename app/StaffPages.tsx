@@ -387,26 +387,34 @@ export function OrderMaker({
 }
 
 
-// ---------- Job offer letter to an employee ----------
-export function EmployeeOfferMaker({
-  employee,
-  notify,
-}: {
-  employee: { id: string; name: string; position: string; department: string; email: string; salary: number | null; salaryType: SalaryType };
-  notify: Notify;
-}) {
+// ---------- Job offer to a current employee, from a vacancy whose selection is finished ----------
+type OfferJob = {
+  id: string;
+  title: string;
+  department?: string;
+  minSalary: number;
+  maxSalary: number;
+  salaryKind?: "net" | "gross" | "";
+  workSchedule?: string;
+  address?: string;
+  city: string;
+  benefits?: string;
+};
+type OfferEmployee = { id: string; name: string; position: string; department: string; email: string; status: string };
+
+export function InternalOfferModal({ job, notify, onClose }: { job: OfferJob; notify: Notify; onClose: () => void }) {
   const [facts, setFacts] = useState<CompanyFacts>({ name: "", voen: "", director: "" });
+  const [employees, setEmployees] = useState<OfferEmployee[]>([]);
+  const [employeeId, setEmployeeId] = useState("");
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
-    position: "",
-    department: employee.department,
-    salary: "",
+    salary: job.maxSalary > 0 ? String(job.maxSalary) : "",
     startDate: "",
     contractType: "Müddətsiz",
     probationMonths: "0",
-    workSchedule: "",
-    location: "",
-    benefits: "",
+    workSchedule: job.workSchedule || "",
+    location: job.address || job.city || "",
+    benefits: job.benefits || "",
     validUntil: "",
     message: "",
     signerName: "",
@@ -414,23 +422,29 @@ export function EmployeeOfferMaker({
   });
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    void Promise.all([request<{ company: { name: string } | null }>("company/me"), request<{ details: { legalName: string; voen: string; director: string } }>("company/profile")])
-      .then(([me, profile]) => {
+    void Promise.all([
+      request<{ company: { name: string } | null }>("company/me"),
+      request<{ details: { legalName: string; voen: string; director: string } }>("company/profile"),
+      request<{ employees: OfferEmployee[] }>("company/employees"),
+    ])
+      .then(([me, profile, list]) => {
         setFacts({ name: profile.details.legalName || me.company?.name || "", voen: profile.details.voen, director: profile.details.director });
         setForm((value) => ({ ...value, signerName: value.signerName || profile.details.director }));
+        setEmployees(list.employees.filter((e) => e.status !== "left"));
       })
-      .catch(() => undefined);
-  }, []);
+      .catch((error) => notify((error as Error).message));
+  }, [notify]);
+  const employee = employees.find((e) => e.id === employeeId);
   const set = (key: keyof typeof form, value: string) => setForm({ ...form, [key]: value });
   const offer = buildEmployeeOffer({
     date: today,
     city: "Bakı",
     company: facts,
-    employee: { name: employee.name, position: employee.position },
-    position: form.position,
-    department: form.department,
+    employee: { name: employee?.name || "", position: employee?.position || "" },
+    position: job.title,
+    department: job.department,
     salary: Number(form.salary) || undefined,
-    salaryType: employee.salaryType,
+    salaryType: job.salaryKind === "net" ? "net" : "gross",
     startDate: form.startDate,
     contractType: form.contractType,
     probationMonths: Number(form.probationMonths) || 0,
@@ -463,85 +477,94 @@ export function EmployeeOfferMaker({
     URL.revokeObjectURL(url);
   };
   async function send() {
+    if (!employee) return;
     setBusy(true);
     try {
-      await request("company/employees/send-offer", { employeeId: employee.id, subject: offer.subject, text: offer.text });
+      await request("company/employees/send-offer", { employeeId: employee.id, jobId: job.id, subject: offer.subject, text: offer.text });
       notify(`Təklif ${employee.email} ünvanına göndərildi.`);
+      onClose();
     } catch (error) {
       notify((error as Error).message);
     } finally {
       setBusy(false);
     }
   }
-  const ready = !!form.position && Number(form.salary) > 0 && !!form.startDate;
+  const ready = !!employee && Number(form.salary) > 0 && !!form.startDate;
   return (
-    <div className="panel" style={{ marginTop: 12 }}>
-      <h4>İşçiyə iş təklifi (job offer)</h4>
-      <p className="muted">Hazır şablon: işçiyə yeni vəzifə, yüksəliş və ya köçürmə təklifi. Məktub maaşı dəyişmir; razılıq alınandan sonra maaşı işçi kartında, vəzifəni isə “Əmr sənədləri”ndə rəsmiləşdirin.</p>
-      <div className="form-grid">
-        <Field label="Təklif olunan vəzifə *">
-          <input value={form.position} onChange={(e) => set("position", e.target.value)} />
-        </Field>
-        <Field label="Departament">
-          <input value={form.department} onChange={(e) => set("department", e.target.value)} />
-        </Field>
-        <Field label={`Aylıq əmək haqqı (AZN, ${employee.salaryType}) *`}>
-          <input type="number" min={0} value={form.salary} onChange={(e) => set("salary", e.target.value)} />
-        </Field>
-        <Field label="Başlama tarixi *">
-          <input type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />
-        </Field>
-        <Field label="Müqavilə növü">
-          <select value={form.contractType} onChange={(e) => set("contractType", e.target.value)}>
-            {["Müddətsiz", "Müddətli", "Mülki-hüquqi"].map((v) => (
-              <option key={v}>{v}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Sınaq müddəti (ay)">
-          <input type="number" min={0} max={6} value={form.probationMonths} onChange={(e) => set("probationMonths", e.target.value)} />
-        </Field>
-        <Field label="İş qrafiki">
-          <input value={form.workSchedule} onChange={(e) => set("workSchedule", e.target.value)} />
-        </Field>
-        <Field label="İş yeri">
-          <input value={form.location} onChange={(e) => set("location", e.target.value)} />
-        </Field>
-        <Field label="Əlavə imkanlar">
-          <input value={form.benefits} onChange={(e) => set("benefits", e.target.value)} />
-        </Field>
-        <Field label="Təklifin son tarixi">
-          <input type="date" value={form.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
-        </Field>
-        <Field label="İmza edən">
-          <input value={form.signerName} onChange={(e) => set("signerName", e.target.value)} />
-        </Field>
-        <Field label="Giriş mətni (boş buraxsanız hazır mətn qoyulur)">
-          <textarea value={form.message} onChange={(e) => set("message", e.target.value)} />
-        </Field>
+    <Modal title={`Daxili işçiyə iş təklifi: ${job.title}`} onClose={onClose}>
+      <div className="offer-composer">
+        <p className="muted">
+          Vakansiyanın seçim mərhələləri tamamlanıb. Bu vakansiyaya mövcud işçinizə (yüksəliş, köçürmə) hazır təklif məktubu göndərə bilərsiniz. Məktub maaşı və vəzifəni dəyişmir: razılıqdan sonra işçi kartında və “Əmr sənədləri”ndə rəsmiləşdirin.
+        </p>
+        <div className="form-grid">
+          <Field label="İşçi *">
+            <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
+              <option value="">İşçi seçin</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                  {e.position ? ` — ${e.position}` : ""}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={`Aylıq əmək haqqı (AZN, ${job.salaryKind === "net" ? "net" : "gross"}) *`}>
+            <input type="number" min={0} value={form.salary} onChange={(e) => set("salary", e.target.value)} />
+            {job.minSalary > 0 && <small className="skill-picker-help">Vakansiyada: {job.minSalary}–{job.maxSalary} AZN</small>}
+          </Field>
+          <Field label="Başlama tarixi *">
+            <input type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />
+          </Field>
+          <Field label="Müqavilə növü">
+            <select value={form.contractType} onChange={(e) => set("contractType", e.target.value)}>
+              {["Müddətsiz", "Müddətli", "Mülki-hüquqi"].map((v) => (
+                <option key={v}>{v}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Sınaq müddəti (ay)">
+            <input type="number" min={0} max={6} value={form.probationMonths} onChange={(e) => set("probationMonths", e.target.value)} />
+          </Field>
+          <Field label="İş qrafiki">
+            <input value={form.workSchedule} onChange={(e) => set("workSchedule", e.target.value)} />
+          </Field>
+          <Field label="İş yeri">
+            <input value={form.location} onChange={(e) => set("location", e.target.value)} />
+          </Field>
+          <Field label="Əlavə imkanlar">
+            <input value={form.benefits} onChange={(e) => set("benefits", e.target.value)} />
+          </Field>
+          <Field label="Təklifin son tarixi">
+            <input type="date" value={form.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
+          </Field>
+          <Field label="İmza edən">
+            <input value={form.signerName} onChange={(e) => set("signerName", e.target.value)} />
+          </Field>
+          <Field label="Giriş mətni (boş buraxsanız hazır mətn qoyulur)">
+            <textarea value={form.message} onChange={(e) => set("message", e.target.value)} />
+          </Field>
+        </div>
+        <pre className="muted" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
+          {offer.text}
+        </pre>
+        <div className="admin-actions">
+          <button type="button" className="primary" disabled={busy || !ready || !employee?.email} title={employee && !employee.email ? "İşçinin e-poçtu yoxdur" : ""} onClick={send}>
+            E-poçtla göndər
+          </button>
+          {employee?.email && (
+            <a className="secondary report-button" href={`mailto:${employee.email}?subject=${encodeURIComponent(offer.subject)}&body=${encodeURIComponent(offer.text)}`}>
+              Poçt proqramında aç
+            </a>
+          )}
+          <button type="button" className="secondary" onClick={print}>
+            <Printer size={14} /> Çap et / PDF
+          </button>
+          <button type="button" className="secondary" onClick={word}>
+            <Download size={14} /> Word (.doc)
+          </button>
+        </div>
       </div>
-      <pre className="muted" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
-        {offer.text}
-      </pre>
-      <div className="admin-actions">
-        <button type="button" className="primary" disabled={busy || !ready || !employee.email} title={employee.email ? "" : "İşçinin e-poçtu yoxdur"} onClick={send}>
-          E-poçtla göndər
-        </button>
-        <a
-          className={`secondary report-button${ready ? "" : " disabled"}`}
-          href={`mailto:${employee.email}?subject=${encodeURIComponent(offer.subject)}&body=${encodeURIComponent(offer.text)}`}
-          aria-disabled={!ready}
-        >
-          Poçt proqramında aç
-        </a>
-        <button type="button" className="secondary" onClick={print}>
-          <Printer size={14} /> Çap et / PDF
-        </button>
-        <button type="button" className="secondary" onClick={word}>
-          <Download size={14} /> Word (.doc)
-        </button>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

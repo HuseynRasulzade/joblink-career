@@ -37,6 +37,7 @@ import { SaveTemplateModal, TemplatesModal, duplicateJob } from "./JobTemplates"
 import { CloseJobModal, EditJobModal } from "./JobsManage";
 import { closeReasonLabel, daysLeft, extendedDeadline } from "@/lib/job-edit";
 import { OfferComposer, type Offer } from "./Offers";
+import { InternalOfferModal } from "./StaffPages";
 import { CandidateComparison, CompareBar } from "./Comparison";
 import { REJECTION_REASONS, VACANCY_REASONS } from "@/lib/recruitment";
 import { formatDate } from "@/lib/dates";
@@ -172,6 +173,13 @@ export default function HrPanel({
   const [saveTemplate, setSaveTemplate] = useState<{ jobId?: string; job?: Job; name: string } | null>(null);
   const [saveTalent, setSaveTalent] = useState<{ candidateId: string; name: string } | null>(null);
   const [bulk, setBulk] = useState<{ ids: string[]; action: "status" | "message" | "pool" | "test" } | null>(null);
+  const [internalOffer, setInternalOffer] = useState<Job | null>(null);
+  // Selection is finished when a candidate has passed every stage of the vacancy (the same rule as a candidate's offer).
+  const selectionDone = (j: Job) => {
+    const stages = j.stages || [];
+    const last = stages[stages.length - 1];
+    return applications.some((a) => a.jobId === j.id && a.status === "Müsahibə" && (!stages.length || a.stage === last));
+  };
   const [rejecting, setRejecting] = useState<{ application: Application; status: string; stage: string; reason: string; note: string; share: boolean } | null>(null);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [relations, setRelations] = useState<{ following: string[]; blocked: string[] }>({ following: [], blocked: [] });
@@ -762,6 +770,13 @@ export default function HrPanel({
                       >
                         Link kopyala
                       </button>
+                      <button
+                        disabled={!selectionDone(j)}
+                        title={selectionDone(j) ? "" : "Seçim mərhələləri tamamlanmayıb: heç bir namizəd son mərhələyə çatmayıb."}
+                        onClick={() => setInternalOffer(j)}
+                      >
+                        Daxili işçiyə təklif
+                      </button>
                     </div>
                   )}
                   {!j.demo && jobStatus(j) !== "archived" && (
@@ -1337,6 +1352,7 @@ export default function HrPanel({
       {saveTalent && <SaveTalentModal candidateId={saveTalent.candidateId} name={saveTalent.name} onClose={() => setSaveTalent(null)} notify={notify} />}
       {bulk && <BulkModal ids={bulk.ids} action={bulk.action} onClose={() => setBulk(null)} onDone={() => void refresh()} notify={notify} />}
       {interviewFor && <ScheduleInterviewModal application={interviewFor} onClose={() => setInterviewFor(null)} onDone={() => void refresh()} notify={notify} />}
+      {internalOffer && <InternalOfferModal job={internalOffer} notify={notify} onClose={() => setInternalOffer(null)} />}
       {offerFor && selectedJob && (
         <OfferComposer
           application={offerFor}

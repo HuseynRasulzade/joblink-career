@@ -32,7 +32,7 @@ import { formatDate } from "@/lib/dates";
 import { VACANCY_REASONS } from "@/lib/recruitment";
 import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
-import { EmployeeOfferMaker, EmployeePayPanel, OrderMaker, SheetImport, StaffTable } from "./StaffPages";
+import { EmployeePayPanel, OrderMaker, SheetImport, StaffTable } from "./StaffPages";
 
 export type CompanyMe = {
   company: { id: string; name: string } | null;
@@ -2792,20 +2792,6 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   salaryType: editing.salaryType || "gross",
                   probationEnd: editing.probationEnd || "",
                   endDate: editing.endDate || "",
-                }}
-              />
-            )}
-            {editing.id && (
-              <EmployeeOfferMaker
-                notify={notify}
-                employee={{
-                  id: editing.id,
-                  name: editing.name || "",
-                  position: editing.position || "",
-                  department: editing.department || "",
-                  email: editing.email || "",
-                  salary: editing.salary ?? null,
-                  salaryType: editing.salaryType || "gross",
                 }}
               />
             )}

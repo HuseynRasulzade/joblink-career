@@ -7094,6 +7094,20 @@ async function route(request: Request) {
     if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(employee.email))
       throw new HttpError(400, "İşçinin e-poçt ünvanı yoxdur. Onu işçi kartında yazın.");
+    // A job offer belongs to a vacancy whose selection is finished: a candidate has passed every stage.
+    const offerJob = await db
+      .prepare("SELECT data FROM jobs WHERE id=? AND owner=?")
+      .bind(str(b.jobId, 100), id)
+      .first<{ data: string }>();
+    if (!offerJob) throw new HttpError(400, "İş təklifi vakansiyaya bağlı olmalıdır. Vakansiyanı seçin.");
+    const offerStages = (JSON.parse(offerJob.data) as { stages?: string[] }).stages || [];
+    const lastStage = offerStages.length ? offerStages[offerStages.length - 1] : "";
+    const finished = await db
+      .prepare("SELECT 1 AS yes FROM applications WHERE job_id=? AND status='Müsahibə' AND (?='' OR stage=?) LIMIT 1")
+      .bind(str(b.jobId, 100), lastStage, lastStage)
+      .first();
+    if (!finished)
+      throw new HttpError(409, lastStage ? `İş təklifi yalnız seçim mərhələləri tamamlanandan sonra göndərilir: heç bir namizəd son mərhələyə (“${lastStage}”) çatmayıb.` : "İş təklifi yalnız müsahibə mərhələsindən sonra göndərilir.");
     const settings = runtime();
     if (!mailConfigured(settings))
       throw new HttpError(409, "E-poçt göndərişi hələ qurulmayıb. Məktubu çap edin, Word kimi yükləyin və ya “Poçt proqramında aç” düyməsini işlədin.");
