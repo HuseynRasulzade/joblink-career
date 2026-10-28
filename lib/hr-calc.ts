@@ -466,11 +466,15 @@ export type DeductionKind = "general" | "writ" | "alimony";
 
 // Art. 176: all deductions at one pay-out are at most 20% of the pay due, 50% where the law allows it, and 70% for
 // alimony, damage to health, loss of the breadwinner and crime damage; with several writs 50% stays with the worker.
-export function deductionLimit(payDue: number, kind: DeductionKind) {
-  const share = kind === "general" ? 0.2 : kind === "writ" ? 0.5 : 0.7;
+export function deductionLimit(payDue: number, kind: DeductionKind, chosenPercent?: number | null) {
+  const maxShare = kind === "general" ? 0.2 : kind === "writ" ? 0.5 : 0.7;
+  const chosen = chosenPercent === null || chosenPercent === undefined || !Number.isFinite(Number(chosenPercent)) ? maxShare : Math.max(0, Number(chosenPercent)) / 100;
+  const share = Math.min(maxShare, chosen);
   const due = pos(payDue);
   return {
     share,
+    maxShare,
+    capped: chosen > maxShare,
     maximum: r2(due * share),
     left: r2(due - due * share),
     articles: ["175", "176"],

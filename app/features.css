@@ -5635,3 +5635,16 @@ a svg {
 .plan-state.plan-pending {
   background: #fff6e0;
 }
+.calc-export {
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.calc-employee {
+  margin-bottom: 12px;
+}
+@media print {
+  .calc-tabs,
+  .calc-export {
+    display: none;
+  }
+}

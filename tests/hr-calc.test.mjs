@@ -102,6 +102,10 @@ test("two thirds pay, proration and deductions (art. 167-176)", () => {
   assert.equal(c.deductionLimit(1000, "general").maximum, 200);
   assert.equal(c.deductionLimit(1000, "writ").left, 500);
   assert.equal(c.deductionLimit(1000, "alimony").maximum, 700);
+  assert.equal(c.deductionLimit(1000, "alimony", 25).maximum, 250);
+  assert.equal(c.deductionLimit(1000, "alimony", 90).maximum, 700);
+  assert.equal(c.deductionLimit(1000, "alimony", 90).capped, true);
+  assert.equal(c.deductionLimit(1000, "general", 0).left, 1000);
   assert.equal(c.belowMinimumWage(400, 500), true);
 });
 

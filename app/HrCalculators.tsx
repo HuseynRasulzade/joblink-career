@@ -1,12 +1,99 @@
 "use client";
-import { useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as hr from "@/lib/hr-calc";
 import { calculateFromGross } from "@/lib/salary";
 import { SalaryCalculator } from "./SalaryCalculator";
+import { createXlsx } from "@/lib/xlsx";
+import type { EmployeeProfile } from "@/lib/employee-profile";
 import { Field } from "./components";
 
 const azn = (v: number) => `${v.toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AZN`;
 const today = () => new Date().toISOString().slice(0, 10);
+
+// An employee of the company, as the employees page returns it.
+type Emp = {
+  id: string;
+  name: string;
+  position: string;
+  department: string;
+  startDate: string;
+  status: string;
+  salary: number | null;
+  salaryType?: "gross" | "net";
+  sector?: "private" | "public";
+  vacationDays?: number;
+  vacationUsed?: number;
+  vacation?: { remaining: number; used: number };
+  pay?: { gross: number; net: number } | null;
+  profile?: EmployeeProfile | null;
+};
+const empLabel = (e: Emp) => `${e.name} — ${e.position || "vəzifəsiz"}${e.department ? ` (${e.department})` : ""}`;
+const grossOf = (e?: Emp | null) => e?.pay?.gross || 0;
+const yearsSince = (start?: string) => (start ? Math.max(0, Math.round(((Date.now() - new Date(`${start}T00:00:00Z`).getTime()) / (365.25 * 86_400_000)) * 10) / 10) : 0);
+
+// What the result panel needs to print or save the calculation.
+type ExportContext = { title: string; employee: string; inputs: () => [string, string][] };
+const Export = createContext<ExportContext>({ title: "", employee: "", inputs: () => [] });
+const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function exportLines(ctx: ExportContext, rows: [string, ReactNode, boolean?][], articles: string[], notes: string[]) {
+  const results = rows.map(([label, value]) => [label, typeof value === "string" || typeof value === "number" ? String(value) : ""] as [string, string]);
+  return { inputs: ctx.inputs(), results, basis: `Əmək Məcəlləsi / Vergi Məcəlləsi, maddə ${articles.join(", ")}`, notes };
+}
+function saveXlsx(ctx: ExportContext, rows: [string, ReactNode, boolean?][], articles: string[], notes: string[]) {
+  const { inputs, results, basis } = exportLines(ctx, rows, articles, notes);
+  const sheet: (string | number)[][] = [
+    ["Hesablama", ctx.title],
+    ["İşçi", ctx.employee || "—"],
+    ["Tarix", today()],
+    ["", ""],
+    ["Daxil edilən məlumat", ""],
+    ...inputs,
+    ["", ""],
+    ["Nəticə", ""],
+    ...results,
+    ["", ""],
+    ["Əsas", basis],
+    ...notes.map((n) => ["Qeyd", n] as [string, string]),
+  ];
+  const bytes = createXlsx(["Göstərici", "Dəyər"], sheet, ctx.title.slice(0, 28));
+  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  const link = document.createElement("a");
+  link.href = url;
+  const ascii = ctx.title.toLocaleLowerCase("az").replace(/[əıöüçşğ]/g, (ch) => ({ ə: "e", ı: "i", ö: "o", ü: "u", ç: "c", ş: "s", ğ: "g" })[ch] || ch);
+  link.download = `hesablama-${ascii.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${today()}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+// A printable page; "Save as PDF" in the print window makes the PDF file.
+function printPage(ctx: ExportContext, rows: [string, ReactNode, boolean?][], articles: string[], notes: string[]) {
+  const { inputs, results, basis } = exportLines(ctx, rows, articles, notes);
+  const table = (list: [string, string][]) => `<table>${list.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("")}</table>`;
+  const win = window.open("", "_blank");
+  if (!win) {
+    window.alert("Çap pəncərəsi bloklanıb. Brauzerdə bu sayt üçün pəncərəyə icazə verin.");
+    return;
+  }
+  win.document.write(`<!doctype html><html lang="az"><head><meta charset="utf-8"><title>${esc(ctx.title)}</title><style>
+    body{font:14px/1.5 Arial,sans-serif;color:#17332b;max-width:760px;margin:24px auto;padding:0 16px}
+    h1{font-size:20px;margin:0 0 4px} h2{font-size:15px;margin:20px 0 6px} table{width:100%;border-collapse:collapse}
+    td{border-bottom:1px solid #dfe8e3;padding:6px 8px;vertical-align:top} td:last-child{text-align:right;font-weight:600}
+    p{font-size:12px;color:#556;margin:6px 0} .sign{margin-top:36px;display:flex;justify-content:space-between;font-size:13px}
+  </style></head><body>
+    <h1>${esc(ctx.title)}</h1>
+    <p>Tarix: ${today()}${ctx.employee ? ` · İşçi: ${esc(ctx.employee)}` : ""}</p>
+    <h2>Daxil edilən məlumat</h2>${table(inputs)}
+    <h2>Nəticə</h2>${table(results)}
+    <p>Əsas: ${esc(basis)}.</p>${notes.map((n) => `<p>${esc(n)}</p>`).join("")}
+    <p>Hesablama məlumat xarakterlidir; rəsmi sənədləşmədən əvvəl mühasib və ya hüquqşünasla yoxlayın.</p>
+    <div class="sign"><span>Hazırladı: ____________</span><span>Təsdiq etdi: ____________</span></div>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  win.print();
+}
 
 // One number is taken as the pay of every month, several numbers as the months one by one.
 const parseMonths = (text: string) => {
@@ -32,8 +119,13 @@ function Check({ label, value, onChange }: { label: string; value: boolean; onCh
   );
 }
 function Result({ rows, articles, notes }: { rows: [string, ReactNode, boolean?][]; articles: string[]; notes: string[] }) {
+  const ctx = useContext(Export);
   return (
     <section className="panel calc-result">
+      <div className="admin-actions calc-export">
+        <button type="button" className="secondary" onClick={() => printPage(ctx, rows, articles, notes)}>Çap et / PDF</button>
+        <button type="button" className="secondary" onClick={() => saveXlsx(ctx, rows, articles, notes)}>Excel (.xlsx)</button>
+      </div>
       <table className="admin-table">
         <tbody>
           {rows.map(([label, value, strong]) => (
@@ -51,25 +143,45 @@ function Result({ rows, articles, notes }: { rows: [string, ReactNode, boolean?]
     </section>
   );
 }
-const Layout = ({ title, children, result }: { title: string; children: ReactNode; result: ReactNode }) => (
-  <div className="calc-page">
-    <section className="panel calc-form">
-      <h3>{title}</h3>
-      <div className="form-grid">{children}</div>
-    </section>
-    {result}
-  </div>
-);
+function Layout({ title, children, result, employee }: { title: string; children: ReactNode; result: ReactNode; employee?: Emp | null }) {
+  const form = useRef<HTMLElement>(null);
+  const inputs = (): [string, string][] => {
+    const out: [string, string][] = [];
+    form.current?.querySelectorAll("label").forEach((label) => {
+      const control = label.querySelector("input, select, textarea") as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
+      if (!control) return;
+      if (control instanceof HTMLInputElement && control.type === "checkbox") out.push([label.textContent?.trim() || "", control.checked ? "Bəli" : "Xeyr"]);
+      else {
+        const text = control instanceof HTMLSelectElement ? control.selectedOptions[0]?.textContent || "" : control.value;
+        out.push([label.querySelector("span")?.textContent?.trim() || "", text.trim()]);
+      }
+    });
+    return out;
+  };
+  const ctx: ExportContext = { title, employee: employee ? empLabel(employee) : "", inputs };
+  return (
+    <Export.Provider value={ctx}>
+      <div className="calc-page">
+        <section className="panel calc-form" ref={form}>
+          <h3>{title}{employee ? ` — ${employee.name}` : ""}</h3>
+          <div className="form-grid">{children}</div>
+        </section>
+        {result}
+      </div>
+    </Export.Provider>
+  );
+}
 
-function Vacation() {
+function Vacation({ emp }: { emp: Emp | null }) {
   const [extended, setExtended] = useState(false);
-  const [tenure, setTenure] = useState(3);
-  const [kids, setKids] = useState(0);
-  const [childRight, setChildRight] = useState(false);
-  const [disabledChild, setDisabledChild] = useState(false);
+  const profile = emp?.profile;
+  const [tenure, setTenure] = useState(emp ? yearsSince(emp.startDate) : 3);
+  const [kids, setKids] = useState(profile?.childrenUnder14 || 0);
+  const [childRight, setChildRight] = useState(Boolean(profile && (profile.gender === "female" || profile.soleParent)));
+  const [disabledChild, setDisabledChild] = useState(Boolean(profile?.hasDisabledChild));
   const [harmful, setHarmful] = useState(0);
   const [start, setStart] = useState(today());
-  const [earnings, setEarnings] = useState("1500");
+  const [earnings, setEarnings] = useState(String(grossOf(emp) || 1500));
   const [daysText, setDaysText] = useState("");
   const e = hr.vacationEntitlement({ extendedMain: extended, tenureYears: tenure, childrenUnder14: kids, eligibleForChildLeave: childRight, hasDisabledChild: disabledChild, harmfulConditionsDays: harmful });
   const days = daysText === "" ? e.total : Number(daysText);
@@ -77,6 +189,7 @@ function Vacation() {
   const pay = hr.vacationPay(parseMonths(earnings), days, start);
   return (
     <Layout
+      employee={emp}
       title="Məzuniyyət müddəti və məzuniyyət pulu"
       result={
         <Result
@@ -122,15 +235,16 @@ function Vacation() {
   );
 }
 
-function Unused() {
-  const [hire, setHire] = useState("2024-03-01");
+function Unused({ emp }: { emp: Emp | null }) {
+  const [hire, setHire] = useState(emp?.startDate || "2024-03-01");
   const [end, setEnd] = useState(today());
-  const [main, setMain] = useState(21);
-  const [used, setUsed] = useState(0);
-  const [earnings, setEarnings] = useState("1500");
+  const [main, setMain] = useState(emp?.vacationDays ?? 21);
+  const [used, setUsed] = useState(emp?.vacation?.used ?? emp?.vacationUsed ?? 0);
+  const [earnings, setEarnings] = useState(String(grossOf(emp) || 1500));
   const r = hr.unusedLeaveCompensation({ hireDate: hire, endDate: end, mainLeaveDays: main, usedDays: used, monthlyEarnings: parseMonths(earnings) });
   return (
     <Layout
+      employee={emp}
       title="İstifadə edilməmiş məzuniyyət kompensasiyası"
       result={
         r ? (
@@ -161,15 +275,16 @@ function Unused() {
   );
 }
 
-function Average() {
-  const [earnings, setEarnings] = useState(3000);
+function Average({ emp }: { emp: Emp | null }) {
+  const [earnings, setEarnings] = useState(grossOf(emp) ? grossOf(emp) * 2 : 3000);
   const [workDays, setWorkDays] = useState(43);
   const [paid, setPaid] = useState(5);
-  const [last, setLast] = useState(0);
+  const [last, setLast] = useState(grossOf(emp) ? Math.round((grossOf(emp) / 22) * 100) / 100 : 0);
   const [floor, setFloor] = useState(false);
   const r = hr.averageDailyEarnings({ earnings, workingDays: workDays, paidDays: paid, lastDailyPay: last, floorToLastDay: floor });
   return (
     <Layout
+      employee={emp}
       title="Orta əmək haqqı (ezamiyyət, donor günü, məhkəmə və s.)"
       result={
         <Result
@@ -193,14 +308,15 @@ function Average() {
   );
 }
 
-function Termination() {
-  const [tenure, setTenure] = useState(3);
-  const [average, setAverage] = useState(1500);
+function Termination({ emp }: { emp: Emp | null }) {
+  const [tenure, setTenure] = useState(emp ? yearsSince(emp.startDate) : 3);
+  const [average, setAverage] = useState(grossOf(emp) || 1500);
   const [reason, setReason] = useState<hr.TerminationReason>("reduction");
   const [noticeDate, setNoticeDate] = useState(today());
   const t = hr.termination({ tenureYears: tenure, averageMonthly: average, reason });
   return (
     <Layout
+      employee={emp}
       title="İxtisar, işdənçıxarma müavinəti və xəbərdarlıq"
       result={
         <Result
@@ -231,21 +347,22 @@ function Termination() {
   );
 }
 
-function ExtraWork() {
-  const [salary, setSalary] = useState(1600);
+function ExtraWork({ emp }: { emp: Emp | null }) {
+  const [salary, setSalary] = useState(grossOf(emp) || 1600);
   const [norm, setNorm] = useState(168);
   const [over, setOver] = useState(2);
   const [rest, setRest] = useState(8);
   const [within, setWithin] = useState(true);
   const [night, setNight] = useState(0);
   const [percent, setPercent] = useState(0);
-  const [tariff, setTariff] = useState(1600);
+  const [tariff, setTariff] = useState(grossOf(emp) || 1600);
   const o = hr.overtimePay({ monthlySalary: salary, normHours: norm, hours: over });
   const d = hr.restDayPay({ monthlySalary: salary, normHours: norm, hours: rest, withinMonthlyNorm: within });
   const n = hr.nightPay({ monthlySalary: salary, normHours: norm, nightHours: night, supplementPercent: percent });
   const idle = hr.twoThirdsPay(tariff, "downtime");
   return (
     <Layout
+      employee={emp}
       title="İş vaxtından artıq, istirahət günü, gecə işi və boşdayanma"
       result={
         <Result
@@ -274,23 +391,26 @@ function ExtraWork() {
   );
 }
 
-function Deductions() {
-  const [due, setDue] = useState(1000);
+function Deductions({ emp }: { emp: Emp | null }) {
+  const [due, setDue] = useState(emp?.pay?.net || 1000);
   const [kind, setKind] = useState<hr.DeductionKind>("general");
-  const r = hr.deductionLimit(due, kind);
-  const [salary, setSalary] = useState(1500);
+  const [percent, setPercent] = useState("");
+  const r = hr.deductionLimit(due, kind, percent === "" ? null : Number(percent));
+  const [salary, setSalary] = useState(grossOf(emp) || 1500);
   const [worked, setWorked] = useState(15);
   const [normDays, setNormDays] = useState(22);
   return (
     <Layout
+      employee={emp}
       title="Tutulmaların həddi və yarımçıq ay"
       result={
         <Result
           articles={[...r.articles, "171"]}
           notes={r.notes}
           rows={[
-            ["Tutulmanın maksimum payı", `${r.share * 100}%`],
-            ["Maksimum tutula bilən", azn(r.maximum), true],
+            ["Qanunun həddi (maksimum)", `${Math.round(r.maxShare * 100)}%`],
+            ["Tətbiq olunan faiz", `${Math.round(r.share * 10000) / 100}%${r.capped ? " (həddə endirildi)" : ""}`],
+            ["Tutulan məbləğ", azn(r.maximum), true],
             ["İşçidə qalmalı", azn(r.left)],
             ["Yarımçıq ay üçün əmək haqqı", azn(hr.proratedSalary(salary, worked, normDays)), true],
           ]}
@@ -305,6 +425,9 @@ function Deductions() {
           <option value="alimony">Aliment, sağlamlığa/cinayət zərəri (70%)</option>
         </select>
       </Field>
+      <Field label="Tutulma faizi (boş = qanunun həddi qədər)">
+        <input type="number" min={0} max={100} step={0.5} value={percent} placeholder={String(Math.round(r.maxShare * 100))} onChange={(e) => setPercent(e.target.value)} />
+      </Field>
       <Num label="Aylıq maaş" value={salary} onChange={setSalary} />
       <Num label="İşlənmiş iş günü" value={worked} onChange={setWorked} />
       <Num label="Aydakı norma iş günü" value={normDays} onChange={setNormDays} />
@@ -312,7 +435,7 @@ function Deductions() {
   );
 }
 
-function Taxes() {
+function Taxes({ emp }: { emp: Emp | null }) {
   const [amount, setAmount] = useState(1180);
   const [mode, setMode] = useState<"add" | "extract">("extract");
   const [turnover, setTurnover] = useState(10000);
@@ -320,6 +443,7 @@ function Taxes() {
   const v = hr.vat(amount, mode);
   return (
     <Layout
+      employee={emp}
       title="ƏDV, sadələşdirilmiş vergi, sahibkar gəlir vergisi"
       result={
         <Result
@@ -348,12 +472,14 @@ function Taxes() {
   );
 }
 
-function WorkDays() {
-  const [start, setStart] = useState(`${new Date().getFullYear()}-01-01`);
+function WorkDays({ emp }: { emp: Emp | null }) {
+  const yearStart = `${new Date().getFullYear()}-01-01`;
+  const [start, setStart] = useState(emp?.startDate && emp.startDate > yearStart ? emp.startDate : yearStart);
   const [end, setEnd] = useState(`${new Date().getFullYear()}-12-31`);
   const r = hr.workingDaysBetween(start, end);
   return (
     <Layout
+      employee={emp}
       title="İş günləri (istehsalat təqvimi)"
       result={
         r ? (
@@ -379,7 +505,7 @@ function WorkDays() {
   );
 }
 
-function Maternity() {
+function Maternity({ emp }: { emp: Emp | null }) {
   const [expected, setExpected] = useState(today());
   const [actual, setActual] = useState("");
   const [hard, setHard] = useState(false);
@@ -388,6 +514,7 @@ function Maternity() {
   const r = hr.maternityLeave({ expectedBirth: expected, actualBirth: actual, hardBirth: hard, multiple, agriculture: agri });
   return (
     <Layout
+      employee={emp}
       title="Hamiləlik və doğuş məzuniyyəti"
       result={
         r ? (
@@ -418,8 +545,8 @@ function Maternity() {
   );
 }
 
-function Service() {
-  const [text, setText] = useState("2018-03-01 – 2021-05-31\n2022-01-10 – 2026-01-09");
+function Service({ emp }: { emp: Emp | null }) {
+  const [text, setText] = useState(emp?.startDate ? `${emp.startDate} – ${today()}` : "2018-03-01 – 2021-05-31\n2022-01-10 – 2026-01-09");
   const periods = text
     .split(/\n/)
     .map((line) => line.match(/(\d{4}-\d{2}-\d{2})\D+(\d{4}-\d{2}-\d{2})/))
@@ -428,6 +555,7 @@ function Service() {
   const r = hr.serviceLength(periods);
   return (
     <Layout
+      employee={emp}
       title="İş stajı"
       result={
         <Result
@@ -448,20 +576,21 @@ function Service() {
   );
 }
 
-function Settlement() {
-  const [salary, setSalary] = useState(1500);
+function Settlement({ emp }: { emp: Emp | null }) {
+  const [salary, setSalary] = useState(grossOf(emp) || 1500);
   const [worked, setWorked] = useState(10);
   const [norm, setNorm] = useState(22);
-  const [unused, setUnused] = useState(12);
-  const [daily, setDaily] = useState(49.34);
+  const [unused, setUnused] = useState(emp?.vacation ? Math.max(0, Math.round(emp.vacation.remaining * 10) / 10) : 12);
+  const [daily, setDaily] = useState(grossOf(emp) ? Math.round((grossOf(emp) / 30.4) * 100) / 100 : 49.34);
   const [severance, setSeverance] = useState(0);
-  const [sector, setSector] = useState<"private" | "public">("private");
+  const [sector, setSector] = useState<"private" | "public">(emp?.sector || "private");
   const r = hr.finalSettlement({
     monthlySalary: salary, workedDays: worked, normDays: norm, unusedLeaveDays: unused, leaveDailyRate: daily,
     severance, sector, calculate: (gross, s) => calculateFromGross(gross, s),
   });
   return (
     <Layout
+      employee={emp}
       title="Son haqq-hesab"
       result={
         <Result
@@ -524,8 +653,37 @@ export function HrCalculators({
 }) {
   const tell = notify || ((message: string) => window.alert(message));
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("salary");
+  const [employees, setEmployees] = useState<Emp[]>([]);
+  const [empId, setEmpId] = useState("");
+  useEffect(() => {
+    if (!employer) return;
+    fetch("/api/joblink/company/employees", { credentials: "same-origin", cache: "no-store" })
+      .then((response) => (response.ok ? (response.json() as Promise<{ employees?: Emp[] }>) : { employees: [] }))
+      .then((data) => setEmployees((data.employees || []).filter((e) => e.status !== "left")))
+      .catch(() => undefined);
+  }, [employer]);
+  const emp = employees.find((e) => e.id === empId) || null;
   return (
     <div className="hr-calcs">
+      {employer && !!employees.length && (
+        <section className="panel calc-employee">
+          <label className="field">
+            <span>İşçi seçin (məlumatlar avtomatik dolur)</span>
+            <select value={empId} onChange={(e) => setEmpId(e.target.value)}>
+              <option value="">— işçi seçilməyib —</option>
+              {employees
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name, "az"))
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {empLabel(e)}
+                  </option>
+                ))}
+            </select>
+          </label>
+          {emp && !grossOf(emp) && <small className="muted">Bu işçinin maaşı daxil edilməyib və ya sizin rolunuz maaşı görmür — maaş sahələrini əl ilə doldurun.</small>}
+        </section>
+      )}
       <div className="calc-tabs" role="tablist">
         {TABS.map((t) => (
           <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "primary" : "ghost"} onClick={() => setTab(t.id)}>
@@ -533,18 +691,26 @@ export function HrCalculators({
           </button>
         ))}
       </div>
-      {tab === "salary" && <SalaryCalculator employer={employer} api={api} notify={tell} />}
-      {tab === "vacation" && <Vacation />}
-      {tab === "unused" && <Unused />}
-      {tab === "average" && <Average />}
-      {tab === "termination" && <Termination />}
-      {tab === "settlement" && <Settlement />}
-      {tab === "workdays" && <WorkDays />}
-      {tab === "maternity" && <Maternity />}
-      {tab === "service" && <Service />}
-      {tab === "extra" && <ExtraWork />}
-      {tab === "deductions" && <Deductions />}
-      {tab === "taxes" && <Taxes />}
+      {tab === "salary" && (
+        <SalaryCalculator
+          key={empId}
+          employer={employer}
+          api={api}
+          notify={tell}
+          initial={emp && emp.salary ? { amount: emp.salary, from: emp.salaryType || "gross", sector: emp.sector || "private" } : undefined}
+        />
+      )}
+      {tab === "vacation" && <Vacation key={empId} emp={emp} />}
+      {tab === "unused" && <Unused key={empId} emp={emp} />}
+      {tab === "average" && <Average key={empId} emp={emp} />}
+      {tab === "termination" && <Termination key={empId} emp={emp} />}
+      {tab === "settlement" && <Settlement key={empId} emp={emp} />}
+      {tab === "workdays" && <WorkDays key={empId} emp={emp} />}
+      {tab === "maternity" && <Maternity key={empId} emp={emp} />}
+      {tab === "service" && <Service key={empId} emp={emp} />}
+      {tab === "extra" && <ExtraWork key={empId} emp={emp} />}
+      {tab === "deductions" && <Deductions key={empId} emp={emp} />}
+      {tab === "taxes" && <Taxes key={empId} emp={emp} />}
       <p className="muted fine-print">
         Hesablamalar məlumat xarakterlidir; kollektiv/əmək müqaviləsi qanundan yüksək şərtlər nəzərdə tuta bilər. Rəsmi
         sənədləşmədən əvvəl mühasib və ya hüquqşünasla yoxlayın.

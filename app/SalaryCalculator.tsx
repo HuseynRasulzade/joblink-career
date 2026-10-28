@@ -23,14 +23,16 @@ export function SalaryCalculator({
   employer = false,
   api,
   notify,
+  initial,
 }: {
   employer?: boolean;
   api?: (path: string, body?: unknown) => Promise<any>;
   notify: (message: string) => void;
+  initial?: { amount: number; from: "gross" | "net"; sector: Sector };
 }) {
-  const [from, setFrom] = useState<"gross" | "net">("gross");
-  const [sector, setSector] = useState<Sector>("private");
-  const [amount, setAmount] = useState(1500);
+  const [from, setFrom] = useState<"gross" | "net">(initial?.from || "gross");
+  const [sector, setSector] = useState<Sector>(initial?.sector || "private");
+  const [amount, setAmount] = useState(initial?.amount || 1500);
   const [headcount, setHeadcount] = useState(1);
   const [serverResult, setServerResult] = useState<Employer | null>(null);
   const local = useMemo(
