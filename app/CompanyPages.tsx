@@ -2391,7 +2391,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const [importing, setImporting] = useState(false);
   // Extra sections of the employee card open in their own pop-up windows.
   const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | null>(null);
-  const { names: orgNames } = useOrgNames();
+  const { names: orgNames, remember: rememberOrg } = useOrgNames();
   const [history, setHistory] = useState<
     {
       type: string;
@@ -2619,8 +2619,8 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                 />
               </Field>
               <JobTitleInput label="Vəzifə" value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
-              <OrgNameInput label="Departament" kind="department" names={orgNames} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
-              <OrgNameInput label="Şöbə" kind="section" names={orgNames} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
+              <OrgNameInput label="Departament" kind="department" names={orgNames} onAdded={rememberOrg} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
+              <OrgNameInput label="Şöbə" kind="section" names={orgNames} onAdded={rememberOrg} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
               <Field label="İşə başlama">
                 <input
                   type="date"

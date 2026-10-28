@@ -5648,3 +5648,11 @@ a svg {
     display: none;
   }
 }
+.org-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.org-add input {
+  flex: 1;
+}

@@ -1030,41 +1030,86 @@ export function useOrgNames() {
   return { names, remember };
 }
 
-// Name from the company catalog. An existing name in other letters turns into the catalog spelling;
-// a new name is added to the catalog when the form is saved.
+// Name from the company catalog, chosen from a list. A name the catalog lacks is added with "Yeni əlavə et";
+// a name that is already there is not created again, the catalog spelling is chosen instead.
+const NEW_NAME = "__new__";
 export function OrgNameInput({
   label,
   kind,
   value,
   onChange,
   names,
-  placeholder,
+  onAdded,
 }: {
   label: string;
   kind: "department" | "section";
   value: string;
   onChange: (value: string) => void;
   names: OrgNames;
+  onAdded?: (kind: "department" | "section", name: string) => void;
   placeholder?: string;
 }) {
   const list = kind === "department" ? names.departments : names.sections;
-  const listId = `org-${kind}-${label}`;
-  const match = value.trim() ? canonicalOrgName(list, value) : null;
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [hint, setHint] = useState("");
+  const options = value && !canonicalOrgName(list, value).existing ? [...list, value] : list;
+  async function add() {
+    const name = draft.trim();
+    if (name.length < 2) return;
+    try {
+      const result = await request<{ name: string; existing: boolean }>("company/org-names/add", { kind, name });
+      onAdded?.(kind, result.name);
+      onChange(result.name);
+      setHint(result.existing ? `“${result.name}” kataloqda artıq var — mövcud ad seçildi.` : `“${result.name}” kataloqa əlavə edildi.`);
+      setAdding(false);
+      setDraft("");
+    } catch (error) {
+      setHint((error as Error).message);
+    }
+  }
   return (
     <Field label={label}>
-      <input
-        list={listId}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={() => match?.existing && match.name !== value && onChange(match.name)}
-      />
-      <datalist id={listId}>
-        {list.map((name) => (
-          <option key={name} value={name} />
+      <select
+        value={adding ? NEW_NAME : value}
+        onChange={(e) => {
+          if (e.target.value === NEW_NAME) {
+            setAdding(true);
+            setHint("");
+          } else {
+            setAdding(false);
+            onChange(e.target.value);
+          }
+        }}
+      >
+        <option value="">— seçin —</option>
+        {options.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
         ))}
-      </datalist>
-      {match && !match.existing && <small className="skill-picker-help">Kataloqda yoxdur — saxlayanda yeni ad kimi əlavə olunacaq.</small>}
+        <option value={NEW_NAME}>＋ Yeni ad əlavə et…</option>
+      </select>
+      {adding && (
+        <span className="org-add">
+          <input
+            autoFocus
+            value={draft}
+            placeholder="Yeni adı yazın"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void add();
+              }
+            }}
+          />
+          <button type="button" className="secondary" onClick={() => void add()}>
+            Əlavə et
+          </button>
+        </span>
+      )}
+      {hint && <small className="skill-picker-help">{hint}</small>}
     </Field>
   );
 }
@@ -1181,17 +1226,6 @@ export function StaffTable({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  // The plan of a whole department is the sum of its rows; with one row it is edited right here.
-  async function savePlan(department: string, value: string) {
-    try {
-      const result = await request<{ pending?: boolean }>("company/headcount/save", { department, planned: value === "" ? null : Number(value) });
-      if (result.pending) notify("Ştat planı dəyişikliyi direktorun təsdiqinə göndərildi.");
-      load();
-    } catch (error) {
-      notify((error as Error).message);
-      load();
-    }
-  }
   async function submitPlan() {
     if (!window.confirm("Plan direktorun təsdiqinə göndərilsin? Təsdiqdən sonra dəyişikliklər də direktorun təsdiqi ilə olacaq.")) return;
     try {
@@ -1282,18 +1316,7 @@ export function StaffTable({ notify }: { notify: Notify }) {
                     <b>{d.department || "—"}</b>
                   </td>
                   <td>
-                    {d.units > 1 ? (
-                      <span title="Departamentin bir neçə ştat sətri var: cədvəldə dəyişin">{d.planned}</span>
-                    ) : (
-                      <input
-                        type="number"
-                        min={0}
-                        style={{ width: 80 }}
-                        defaultValue={d.planned}
-                        aria-label={`${d.department} ştat planı`}
-                        onBlur={(e) => e.target.value !== String(d.planned) && void savePlan(d.department, e.target.value)}
-                      />
-                    )}
+                    <span title="Plan ştat sətirlərinin cəmidir: dəyişmək üçün aşağıdakı cədvəldə “Düzəlt” düyməsini istifadə edin">{d.planned}</span>
                   </td>
                   <td>{d.filled}</td>
                   <td>{d.openVacancies}</td>
@@ -1363,8 +1386,8 @@ export function StaffTable({ notify }: { notify: Notify }) {
         <Modal title={editing.id ? "Ştat sətrini düzəlt" : "Yeni ştat sətri"} onClose={() => setEditing(null)}>
           <div className="offer-composer">
             <div className="form-grid">
-              <OrgNameInput label="Departament" kind="department" names={names} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
-              <OrgNameInput label="Şöbə" kind="section" names={names} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
+              <OrgNameInput label="Departament" kind="department" names={names} onAdded={remember} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
+              <OrgNameInput label="Şöbə" kind="section" names={names} onAdded={remember} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
               <JobTitleInput label="Vəzifə" value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
               <Field label="Ştat sayı">
                 <input type="number" min={0} value={editing.planned ?? 1} onChange={(e) => setEditing({ ...editing, planned: Number(e.target.value) })} />
