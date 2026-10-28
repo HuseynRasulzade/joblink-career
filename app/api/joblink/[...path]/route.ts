@@ -133,6 +133,9 @@ import {
   newApproval,
   pendingStep,
   permissionsOf,
+  permissionForPath,
+  PERMISSION_INFO,
+  PERMISSION_GROUPS,
   roleLabel,
   validVoen,
   type CompanyPermission,
@@ -1974,7 +1977,9 @@ async function route(request: Request) {
     permission: CompanyPermission,
     message = "Bu əməliyyat üçün rolunuzun icazəsi yoxdur.",
   ) => {
-    if (accountRole !== "company" || !can(memberRole, permission, memberGrants))
+    // The broad "salaries" check of the HR endpoints becomes the permission of the section the path belongs to.
+    const needed = permission === "salaries" ? permissionForPath(path) : permission;
+    if (accountRole !== "company" || !can(memberRole, needed, memberGrants))
       throw new HttpError(403, message);
   };
   // Package limits apply only when BILLING_ENFORCED=1; until then everyone has full access.
@@ -6121,6 +6126,10 @@ async function route(request: Request) {
       inviteDays: INVITE_DAYS,
       roles: COMPANY_ROLES,
       grantable: GRANTABLE,
+      // Every permission with its group and what each role holds by itself, for the roles table.
+      permissionInfo: PERMISSION_INFO,
+      permissionGroups: PERMISSION_GROUPS,
+      matrix: COMPANY_ROLES.map((r) => ({ role: r.id, permissions: permissionsOf(r.id) })),
       canManage: can(memberRole, "team"),
     });
   }
@@ -6988,7 +6997,11 @@ async function route(request: Request) {
     const annualBy = new Map(annual.results.map((row) => [row.employee_id, Number(row.n)]));
     return ok({
       showSalary,
-      canEdit: showSalary,
+      canEdit: can(memberRole, "employees", memberGrants),
+      canStaff: can(memberRole, "staff", memberGrants),
+      canOrders: can(memberRole, "orders", memberGrants),
+      canDocs: can(memberRole, "documents", memberGrants),
+      canPersonal: can(memberRole, "personal-data", memberGrants),
       exitTypes: EXIT_TYPES,
       exitReasons: EXIT_REASONS,
       employees: rows.results.map((r) => ({
@@ -7008,7 +7021,7 @@ async function route(request: Request) {
         sector: r.sector === "public" ? "public" : "private",
         vacationDays: r.vacation_days ?? 21,
         vacationUsed: r.vacation_used ?? 0,
-        profile: showSalary ? parseProfile((r as { profile?: string }).profile) : null,
+        profile: can(memberRole, "personal-data", memberGrants) ? parseProfile((r as { profile?: string }).profile) : null,
         // Time worked and leave left (leave counts as earned a twelfth per month).
         tenure: tenure(r.start_date, r.status === "left" ? r.end_date || "" : "", todayIso)?.text || "",
         vacation: vacationBalance(
@@ -7133,6 +7146,9 @@ async function route(request: Request) {
     );
     if (!incoming.rows.length)
       throw new HttpError(400, incoming.issues[0]?.reason || "Faylda işçi tapılmadı.");
+    const mayPay = can(memberRole, "salaries", memberGrants);
+    if (!mayPay && incoming.rows.some((row) => row.salary > 0))
+      throw new HttpError(403, "Faylda əmək haqqı sütunu var, amma maaşları dəyişmək üçün “Maaşlar” icazəniz yoxdur. Maaş sütununu silib yenidən yükləyin.");
     for (const row of incoming.rows) {
       row.department = await canonicalOrg(db, id, "department", row.department);
       row.section = await canonicalOrg(db, id, "section", row.section, row.department);
@@ -7164,9 +7180,15 @@ async function route(request: Request) {
         statements.push(
           db
             .prepare(
-              "UPDATE company_employees SET name=?,position=?,department=?,section=?,phone=?,start_date=?,salary_cents=?,salary_type=?,sector=?,vacation_days=?,vacation_used=?,updated=? WHERE id=? AND company_id=?",
+              mayPay
+                ? "UPDATE company_employees SET name=?,position=?,department=?,section=?,phone=?,start_date=?,salary_cents=?,salary_type=?,sector=?,vacation_days=?,vacation_used=?,updated=? WHERE id=? AND company_id=?"
+                : "UPDATE company_employees SET name=?,position=?,department=?,section=?,phone=?,start_date=?,vacation_days=?,vacation_used=?,updated=? WHERE id=? AND company_id=?",
             )
-            .bind(row.name, row.position, row.department, row.section, row.phone, row.startDate, Math.round(row.salary * 100), row.salaryType, row.sector, row.vacationDays, row.vacationUsed, now, found, id),
+            .bind(
+              ...(mayPay
+                ? [row.name, row.position, row.department, row.section, row.phone, row.startDate, Math.round(row.salary * 100), row.salaryType, row.sector, row.vacationDays, row.vacationUsed, now, found, id]
+                : [row.name, row.position, row.department, row.section, row.phone, row.startDate, row.vacationDays, row.vacationUsed, now, found, id]),
+            ),
         );
         updated++;
         continue;
@@ -7999,6 +8021,18 @@ async function route(request: Request) {
     const name = str(b.name, 120);
     if (name.length < 2) throw new HttpError(400, "İşçinin adını yazın.");
     let salary = Math.max(0, Math.min(1_000_000, Number(b.salary) || 0));
+    // Someone who may edit employee cards but not see pay keeps the pay as it is.
+    if (!can(memberRole, "salaries", memberGrants)) {
+      const prev = str(b.id, 100)
+        ? await db
+            .prepare("SELECT salary_cents,salary_type,sector FROM company_employees WHERE id=? AND company_id=?")
+            .bind(str(b.id, 100), id)
+            .first<{ salary_cents: number; salary_type: string; sector: string }>()
+        : null;
+      salary = (prev?.salary_cents || 0) / 100;
+      b.salaryType = prev?.salary_type || "gross";
+      b.sector = prev?.sector || "private";
+    }
     let status = ["active", "leave", "left"].includes(str(b.status, 10))
       ? str(b.status, 10)
       : "active";

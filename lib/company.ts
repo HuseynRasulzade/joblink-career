@@ -49,8 +49,17 @@ export type CompanyPermission =
   | "company-profile" // company details and verification
   | "offers" // send job offers
   | "reports" // dashboard reports and XLSX
-  | "tests"; // employer tests: create, send, results and the exam file
+  | "tests" // employer tests: create, send, results and the exam file
+  | "employees" // add, edit, import and remove employee cards
+  | "staff" // staff table, departments and sections
+  | "orders" // order documents and the register
+  | "attendance" // attendance sheet and the production calendar
+  | "documents" // employee document folder: contracts, orders, IDs
+  | "personal-data" // identity card, address and bank data of employees
+  | "audit"; // the company journal
 
+// What owner, director and HR do every day; a role below them gets each only as a grant.
+const HR_WORK: CompanyPermission[] = ["employees", "staff", "orders", "attendance", "documents", "personal-data", "audit"];
 const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
   owner: [
     "team",
@@ -63,6 +72,7 @@ const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
     "offers",
     "reports",
     "tests",
+    ...HR_WORK,
   ],
   director: [
     "team",
@@ -74,6 +84,7 @@ const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
     "offers",
     "reports",
     "tests",
+    ...HR_WORK,
   ],
   hr: [
     "publish",
@@ -84,18 +95,51 @@ const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
     "offers",
     "reports",
     "tests",
+    ...HR_WORK,
   ],
   manager: ["reports"],
   recruiter: [],
 };
-// Permissions the account owner may give to one person beyond their role.
-export const GRANTABLE: { id: CompanyPermission; label: string }[] = [
-  {
-    id: "tests",
-    label: "Testlərə giriş (yaratmaq, göndərmək, nəticələr, test faylı)",
-  },
-  { id: "reports", label: "Hesabatların ixracı" },
+// Every permission with its group, a line of explanation and whether the owner may give it to one person
+// beyond their role. "team" and the director's approval stay with the roles.
+export type PermissionInfo = { id: CompanyPermission; label: string; group: string; description: string; grantable: boolean; sensitive?: boolean };
+export const PERMISSION_INFO: PermissionInfo[] = [
+  { id: "publish", label: "Vakansiyanı təsdiqsiz yayımlamaq", group: "Vakansiya və işə qəbul", description: "Vakansiya HR və direktor təsdiqi olmadan dərc olunur.", grantable: true },
+  { id: "approve-hr", label: "Vakansiya və sorğuları HR mərhələsində təsdiqləmək", group: "Vakansiya və işə qəbul", description: "Təsdiq zəncirinin birinci pilləsi.", grantable: true },
+  { id: "approve-director", label: "Yekun təsdiq (direktor)", group: "Vakansiya və işə qəbul", description: "Təsdiq zəncirinin son pilləsi, ştat planının təsdiqi.", grantable: false },
+  { id: "offers", label: "İş təklifi göndərmək", group: "Vakansiya və işə qəbul", description: "Namizədə və işçiyə təklif məktubu göndərir.", grantable: true },
+  { id: "tests", label: "Testlər (yaratmaq, göndərmək, nəticələr, test faylı)", group: "Vakansiya və işə qəbul", description: "İşəgötürən testləri ilə tam iş.", grantable: true },
+  { id: "employees", label: "İşçi kartları (əlavə, düzəliş, Excel idxalı, silmə)", group: "Kadr və işçilər", description: "İşçi siyahısını idarə edir; maaşı görmək üçün ayrıca maaş icazəsi lazımdır.", grantable: true },
+  { id: "staff", label: "Ştat cədvəli, departament və şöbələr", group: "Kadr və işçilər", description: "Ştat sətirləri, struktur və tarixçə. Təsdiqlənmiş plan dəyişiklikləri direktora gedir.", grantable: true },
+  { id: "orders", label: "Əmrlər və əmrlər reyestri", group: "Kadr və işçilər", description: "Əmr yaradır, imzaya göndərir, reyestri idarə edir.", grantable: true },
+  { id: "attendance", label: "Davamiyyət (tabel) və istehsalat təqvimi", group: "Kadr və işçilər", description: "İşçilərin gününü qeyd edir, şirkət təqvimini dəyişir.", grantable: true },
+  { id: "documents", label: "İşçi sənəd qovluğu", group: "Kadr və işçilər", description: "Müqavilə, əmr və vəsiqə kimi sənədləri yükləyir və açır.", grantable: true, sensitive: true },
+  { id: "personal-data", label: "İşçilərin şəxsi məlumatları", group: "Kadr və işçilər", description: "Şəxsiyyət vəsiqəsi, FİN, ünvan, IBAN və ailə məlumatları.", grantable: true, sensitive: true },
+  { id: "salaries", label: "Maaşlar və təklif məbləğləri", group: "Maliyyə və hesabat", description: "İşçilərin əmək haqqını, vergi və sığorta hesabını və təklif məbləğlərini görür və dəyişir.", grantable: true, sensitive: true },
+  { id: "reports", label: "Hesabatların Excel-ə ixracı", group: "Maliyyə və hesabat", description: "Panel hesabatları və XLSX faylları.", grantable: true },
+  { id: "billing", label: "Hesab-fakturalar və ödənişlər", group: "Maliyyə və hesabat", description: "Paket, ödəniş və hesab-fakturalar.", grantable: true, sensitive: true },
+  { id: "company-profile", label: "Şirkət məlumatları və təsdiqləmə", group: "Şirkət", description: "Şirkət profilini və doğrulama sənədlərini dəyişir.", grantable: true },
+  { id: "audit", label: "Şirkət jurnalı", group: "Şirkət", description: "Kimin nə etdiyini görür.", grantable: true },
+  { id: "team", label: "Komanda və rolların idarəsi", group: "Şirkət", description: "Üzv dəvət edir, rolları və icazələri dəyişir.", grantable: false, sensitive: true },
 ];
+export const PERMISSION_GROUPS = [...new Set(PERMISSION_INFO.map((p) => p.group))];
+// Permissions the account owner may give to one person beyond their role.
+export const GRANTABLE: { id: CompanyPermission; label: string; group: string; description: string; sensitive?: boolean }[] = PERMISSION_INFO.filter(
+  (p) => p.grantable,
+).map(({ id, label, group, description, sensitive }) => ({ id, label, group, description, sensitive }));
+
+// The HR endpoints behind the one broad "salaries" check each need their own permission.
+const PATH_PERMISSION: [RegExp, CompanyPermission][] = [
+  [/^company\/(staff|headcount|org-names|structure)(\/|$)/, "staff"],
+  [/^company\/(orders|order-signers)(\/|$)/, "orders"],
+  [/^company\/(attendance|calendar)(\/|$)/, "attendance"],
+  [/^company\/employee-docs?(\/|$)/, "documents"],
+  [/^company\/employees\/profile$/, "personal-data"],
+  [/^company\/(employees|employee-tasks|employee-events)(\/|$)/, "employees"],
+];
+export function permissionForPath(path: string): CompanyPermission {
+  return PATH_PERMISSION.find(([pattern]) => pattern.test(path))?.[1] || "salaries";
+}
 // Ready role + extra-permission combinations offered when inviting a member.
 export const ROLE_PRESETS: {
   id: string;
@@ -104,34 +148,16 @@ export const ROLE_PRESETS: {
   grants: CompanyPermission[];
   description: string;
 }[] = [
-  {
-    id: "test-owner",
-    label: "Test məsul şəxsi",
-    role: "recruiter",
-    grants: ["tests"],
-    description: "Rekruter + testləri yaradır, göndərir və nəticələri görür",
-  },
-  {
-    id: "analyst",
-    label: "Hesabat analitiki",
-    role: "manager",
-    grants: ["reports"],
-    description: "Şöbə rəhbəri + hesabatları Excel-ə ixrac edir",
-  },
-  {
-    id: "screening",
-    label: "İlkin seçim üzrə rekruter",
-    role: "recruiter",
-    grants: ["tests", "reports"],
-    description: "Rekruter + testlər və hesabatlar",
-  },
-  {
-    id: "dept-head",
-    label: "Şöbə rəhbəri (testlərlə)",
-    role: "manager",
-    grants: ["tests"],
-    description: "Şöbə rəhbəri + namizədlərə test göndərir",
-  },
+  { id: "test-owner", label: "Test məsul şəxsi", role: "recruiter", grants: ["tests"], description: "Rekruter + testləri yaradır, göndərir və nəticələri görür" },
+  { id: "analyst", label: "Hesabat analitiki", role: "manager", grants: ["reports"], description: "Şöbə rəhbəri + hesabatları Excel-ə ixrac edir" },
+  { id: "screening", label: "İlkin seçim üzrə rekruter", role: "recruiter", grants: ["tests", "reports"], description: "Rekruter + testlər və hesabatlar" },
+  { id: "dept-head", label: "Şöbə rəhbəri (testlərlə)", role: "manager", grants: ["tests"], description: "Şöbə rəhbəri + namizədlərə test göndərir" },
+  { id: "hr-officer", label: "Kadr mütəxəssisi", role: "recruiter", grants: ["employees", "orders", "documents", "personal-data", "attendance"], description: "İşçi kartları, əmrlər, sənəd qovluğu, şəxsi məlumatlar və davamiyyət (maaşsız)" },
+  { id: "timekeeper", label: "Tabel məsulu", role: "manager", grants: ["attendance"], description: "Şöbə rəhbəri + davamiyyət cədvəlini və təqvimi aparır" },
+  { id: "org-planner", label: "Ştat və struktur məsulu", role: "manager", grants: ["staff", "reports"], description: "Şöbə rəhbəri + ştat cədvəli, departament və şöbələr (dəyişikliklər direktora gedir)" },
+  { id: "order-clerk", label: "Əmr və sənəd məsulu", role: "recruiter", grants: ["orders", "documents"], description: "Rekruter + əmrlər reyestri və işçi sənəd qovluğu" },
+  { id: "payroll", label: "Maliyyə / əmək haqqı mütəxəssisi", role: "manager", grants: ["salaries", "reports", "attendance"], description: "Şöbə rəhbəri + maaşlar, hesabatlar və davamiyyət" },
+  { id: "vacancy-lead", label: "Vakansiya meneceri", role: "manager", grants: ["publish", "offers", "tests"], description: "Şöbə rəhbəri + vakansiyanı təsdiqsiz yayımlayır, təklif və test göndərir" },
 ];
 export const normalizeGrants = (value: unknown): CompanyPermission[] =>
   [...new Set((Array.isArray(value) ? value : []).map(String))].filter(

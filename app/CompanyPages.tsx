@@ -1441,10 +1441,97 @@ type Team = {
     expired?: boolean;
   }[];
   inviteDays?: number;
-  grantable?: { id: string; label: string }[];
+  grantable?: Grantable[];
+  permissionInfo?: { id: string; label: string; group: string; description: string; grantable: boolean; sensitive?: boolean }[];
+  permissionGroups?: string[];
+  matrix?: { role: string; permissions: string[] }[];
   roles: { id: string; label: string; description: string }[];
   canManage: boolean;
 };
+type Grantable = { id: string; label: string; group: string; description: string; sensitive?: boolean };
+
+// The extra permissions of one person, grouped; what the role already brings is shown ticked and locked.
+function GrantPicker({ grantable, value, onChange, rolePermissions }: { grantable: Grantable[]; value: string[]; onChange: (next: string[]) => void; rolePermissions: string[] }) {
+  const groups = [...new Set(grantable.map((g) => g.group))];
+  return (
+    <div className="grant-picker">
+      {groups.map((group) => (
+        <div key={group} className="grant-group">
+          <h5>{group}</h5>
+          {grantable
+            .filter((g) => g.group === group)
+            .map((g) => {
+              const byRole = rolePermissions.includes(g.id);
+              return (
+                <label key={g.id} className={`grant-item${byRole ? " grant-role" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={byRole || value.includes(g.id)}
+                    disabled={byRole}
+                    onChange={(e) => onChange(e.target.checked ? [...value, g.id] : value.filter((x) => x !== g.id))}
+                  />
+                  <span>
+                    <b>{g.label}</b>
+                    {g.sensitive && <em className="grant-sensitive"> həssas</em>}
+                    {byRole && <em className="grant-by-role"> rolla gəlir</em>}
+                    <small>{g.description}</small>
+                  </span>
+                </label>
+              );
+            })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// What every role holds by itself.
+function RoleMatrix({ team }: { team: Team }) {
+  if (!team.matrix || !team.permissionInfo) return null;
+  const roles = team.roles;
+  return (
+    <details className="panel role-matrix">
+      <summary>
+        <b>Rolların icazələri</b> <small className="muted">— hər rolun özündə nə var</small>
+      </summary>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>İcazə</th>
+              {roles.map((r) => (
+                <th key={r.id}>{r.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(team.permissionGroups || []).map((group) => [
+              <tr key={`g-${group}`} className="staff-department">
+                <td colSpan={roles.length + 1}>
+                  <b>{group}</b>
+                </td>
+              </tr>,
+              ...team.permissionInfo!
+                .filter((p) => p.group === group)
+                .map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      {p.label}
+                      <small className="skill-description">{p.description}</small>
+                    </td>
+                    {roles.map((r) => (
+                      <td key={r.id}>{team.matrix!.find((m) => m.role === r.id)?.permissions.includes(p.id) ? "✓" : p.grantable ? <span className="muted">əlavə</span> : "—"}</td>
+                    ))}
+                  </tr>
+                )),
+            ])}
+          </tbody>
+        </table>
+      </div>
+      <small className="skill-picker-help">“əlavə” — rolda yoxdur, amma hesab sahibi bu icazəni konkret şəxsə verə bilər. “—” — yalnız rolla gəlir, ayrıca verilmir.</small>
+    </details>
+  );
+}
 type Invite = {
   id: string;
   role: string;
@@ -1472,6 +1559,8 @@ export function TeamPage({
     department: string;
     grants: string[];
   }>({ email: "", role: "manager", department: "", grants: [] });
+  const [grantsFor, setGrantsFor] = useState<Team["members"][number] | null>(null);
+  const [draftGrants, setDraftGrants] = useState<string[]>([]);
   const [activity, setActivity] = useState<
     | {
         actor: string;
@@ -1657,31 +1746,57 @@ export function TeamPage({
             {team.roles.find((r) => r.id === form.role)?.description}
           </small>
           {!!team.grantable?.length && (
-            <fieldset className="field">
-              <legend>Əlavə icazələr (rolun üstündən)</legend>
-              {team.grantable.map((g) => (
-                <label key={g.id}>
-                  <input
-                    type="checkbox"
-                    checked={form.grants.includes(g.id)}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        grants: e.target.checked
-                          ? [...form.grants, g.id]
-                          : form.grants.filter((x) => x !== g.id),
-                      })
-                    }
-                  />{" "}
-                  {g.label}
-                </label>
-              ))}
-            </fieldset>
+            <details className="field grant-details" open={form.grants.length > 0}>
+              <summary>
+                Əlavə icazələr (rolun üstündən){form.grants.length ? ` — ${form.grants.length} seçilib` : ""}
+              </summary>
+              <GrantPicker
+                grantable={team.grantable}
+                value={form.grants}
+                rolePermissions={team.matrix?.find((m) => m.role === form.role)?.permissions || []}
+                onChange={(grants) => setForm({ ...form, grants })}
+              />
+            </details>
           )}
           <button className="primary">
             <Plus size={14} /> Dəvət et
           </button>
         </form>
+      )}
+      {team && <RoleMatrix team={team} />}
+      {grantsFor && team?.grantable && (
+        <Modal title={`İcazələr: ${grantsFor.name || grantsFor.email}`} onClose={() => setGrantsFor(null)}>
+          <div className="offer-composer">
+            <p className="muted">
+              Rol: <b>{roleName(grantsFor.role)}</b>. Rolun özündə olan icazələr işarəli və kilidlidir; aşağıdakılar bu şəxsə əlavə verilir.
+            </p>
+            <GrantPicker
+              grantable={team.grantable}
+              value={draftGrants}
+              rolePermissions={team.matrix?.find((x) => x.role === grantsFor.role)?.permissions || []}
+              onChange={setDraftGrants}
+            />
+            <div className="admin-actions">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  void act(
+                    "company/team/update",
+                    { id: grantsFor.id, role: grantsFor.role, department: grantsFor.department, grants: draftGrants },
+                    "İcazələr yeniləndi.",
+                  );
+                  setGrantsFor(null);
+                }}
+              >
+                Yadda saxla
+              </button>
+              <button type="button" className="secondary" onClick={() => setDraftGrants([])}>
+                Əlavə icazələri sıfırla
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
       <section className="panel">
         <h3>
@@ -1750,30 +1865,17 @@ export function TeamPage({
                     ) : (
                       roleName(m.role)
                     )}
-                    {team.canManage &&
-                      team.grantable?.map((g) => (
-                        <label key={g.id} className="skill-description">
-                          <input
-                            type="checkbox"
-                            checked={m.grants.includes(g.id)}
-                            onChange={(e) =>
-                              act(
-                                "company/team/update",
-                                {
-                                  id: m.id,
-                                  role: m.role,
-                                  department: m.department,
-                                  grants: e.target.checked
-                                    ? [...m.grants, g.id]
-                                    : m.grants.filter((x) => x !== g.id),
-                                },
-                                "İcazə yeniləndi.",
-                              )
-                            }
-                          />{" "}
-                          {g.label}
-                        </label>
-                      ))}
+                    {team.canManage && !!team.grantable?.length && (
+                      <button type="button" className="text-button" onClick={() => {
+                          setGrantsFor(m);
+                          setDraftGrants(m.grants);
+                        }}>
+                        İcazələr{m.grants.length ? ` (+${m.grants.length})` : ""}
+                      </button>
+                    )}
+                    {!team.canManage && !!m.grants.length && (
+                      <small className="skill-description">Əlavə icazə: {m.grants.length}</small>
+                    )}
                   </td>
                   <td>{m.department || "—"}</td>
                   <td>
@@ -2383,6 +2485,10 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
     employees: Employee[];
     showSalary: boolean;
     canEdit: boolean;
+    canStaff?: boolean;
+    canOrders?: boolean;
+    canDocs?: boolean;
+    canPersonal?: boolean;
     exitTypes: Option[];
     exitReasons: Option[];
   }>("company/employees", notify);
@@ -2446,7 +2552,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const payrollCost = data.showSalary ? active.reduce((sum, e) => sum + (e.pay?.superGross || 0), 0) : 0;
   return (
     <div className="company-page">
-      {data.canEdit && (
+      {data.canStaff && (
         <div className="calc-tabs" role="tablist" aria-label="İşçilər bölməsi">
           <button type="button" role="tab" aria-selected={view === "people"} className={view === "people" ? "primary" : "ghost"} onClick={() => setView("people")}>
             İşçi siyahısı ({active.length})
@@ -2456,7 +2562,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           </button>
         </div>
       )}
-      {(view === "people" || !data.canEdit) && (
+      {(view === "people" || !data.canStaff) && (
         <>
       <div className="section-heading">
         <input
@@ -2613,7 +2719,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
       </div>
         </>
       )}
-      {data.canEdit && view === "staff" && <StaffTable notify={notify} />}
+      {data.canStaff && view === "staff" && <StaffTable notify={notify} />}
       {importing && <SheetImport kind="employees" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {editing && (
         <Modal
@@ -2800,17 +2906,17 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   Kalkulyatorlar
                 </button>
               )}
-              {editing.id && (
+              {editing.id && data.canPersonal && (
                 <button type="button" className="secondary" onClick={() => setPanel("profile")}>
                   Şəxsi məlumatlar
                 </button>
               )}
-              {editing.id && (
+              {editing.id && data.canOrders && (
                 <button type="button" className="secondary" onClick={() => setPanel("orders")}>
                   Əmr sənədləri
                 </button>
               )}
-              {editing.id && (
+              {editing.id && data.canDocs && (
                 <button type="button" className="secondary" onClick={() => setPanel("docs")}>
                   Sənəd qovluğu
                 </button>

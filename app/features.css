@@ -5892,3 +5892,65 @@ a svg {
 .chip-button:hover:not(:disabled) {
   background: #e3f1ea;
 }
+.grant-picker {
+  display: grid;
+  gap: 14px;
+  margin-top: 10px;
+}
+.grant-group h5 {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5b7068;
+}
+.grant-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  border: 1px solid #e4ece8;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.grant-item input {
+  margin-top: 3px;
+}
+.grant-item small {
+  display: block;
+  color: #5b7068;
+  font-weight: 400;
+}
+.grant-item.grant-role {
+  background: #f3f9f6;
+  cursor: default;
+}
+.grant-sensitive,
+.grant-by-role {
+  font-style: normal;
+  font-size: 0.72rem;
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 4px;
+}
+.grant-sensitive {
+  background: #fff1d6;
+  color: #8a5a00;
+}
+.grant-by-role {
+  background: #e3f1ea;
+  color: #0f766e;
+}
+.grant-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.role-matrix summary {
+  cursor: pointer;
+  padding: 2px 0;
+}
+.role-matrix td:not(:first-child),
+.role-matrix th:not(:first-child) {
+  text-align: center;
+}

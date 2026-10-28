@@ -443,6 +443,8 @@ export default function Joblink() {
     "hr-billing": "billing",
     "hr-tests": "tests",
     "hr-reports": "reports",
+    "hr-orders": "orders",
+    "hr-attendance": "attendance",
   };
   const hrVisible = hrNav.filter(
     (item) =>
