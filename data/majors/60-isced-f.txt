@@ -1,0 +1,74 @@
+# UNESCO ISCED-F 2013 detailed fields (field|English|Azərbaycanca|Русский|aliases)
+education|Education Science|Təhsil elmi|Науки об образовании|ISCED 0111;education sciences
+education|Pre-school Teacher Training|Məktəbəqədər müəllim hazırlığı|Подготовка педагогов дошкольного образования|ISCED 0112
+education|Teacher Training without Subject Specialisation|Fənn ixtisaslaşması olmayan müəllim hazırlığı|Подготовка учителей без предметной специализации|ISCED 0113
+education|Teacher Training with Subject Specialisation|Fənn üzrə müəllim hazırlığı|Подготовка учителей по предметам|ISCED 0114
+arts|Audio-visual Techniques and Media Production|Audiovizual texnika və media istehsalı|Аудиовизуальные технологии и медиапроизводство|ISCED 0211
+arts|Fashion, Interior and Industrial Design|Moda, interyer və sənaye dizaynı|Дизайн моды, интерьеров и промышленный дизайн|ISCED 0212
+arts|Fine Arts and Handicrafts|Təsviri sənət və sənətkarlıq|Изобразительное искусство и ремёсла|ISCED 0213;ISCED 0214;handicrafts
+arts|Music and Performing Arts|Musiqi və ifaçılıq sənəti|Музыка и исполнительское искусство|ISCED 0215
+humanities|Religion and Theology|Din və teologiya|Религия и теология|ISCED 0221
+humanities|History and Archaeology|Tarix və arxeologiya|История и археология|ISCED 0222
+humanities|Philosophy and Ethics|Fəlsəfə və etika|Философия и этика|ISCED 0223;Ethics
+humanities|Language Acquisition|Dil öyrənmə|Изучение языков|ISCED 0231;Foreign Languages
+humanities|Literature and Linguistics|Ədəbiyyat və dilçilik|Литература и лингвистика|ISCED 0232
+business|Economics and Economic Sciences|İqtisad elmləri|Экономические науки|ISCED 0311
+social|Political Sciences and Civics|Siyasi elmlər və vətəndaşlıq|Политология и гражданское воспитание|ISCED 0312;Civics
+social|Sociology and Cultural Studies|Sosiologiya və mədəniyyətşünaslıq|Социология и культурология|ISCED 0314
+social|Journalism and Reporting|Jurnalistika və xəbər hazırlığı|Журналистика и репортаж|ISCED 0321
+social|Library, Information and Archival Studies|Kitabxana, informasiya və arxiv işi|Библиотечное, информационное и архивное дело|ISCED 0322
+business|Accounting and Taxation|Mühasibat uçotu və vergiqoyma|Бухгалтерский учёт и налогообложение|ISCED 0411
+business|Finance, Banking and Insurance|Maliyyə, bank və sığorta|Финансы, банковское дело и страхование|ISCED 0412
+business|Management and Administration|Menecment və idarəetmə|Менеджмент и администрирование|ISCED 0413
+business|Marketing and Advertising|Marketinq və reklam|Маркетинг и реклама|ISCED 0414
+business|Secretarial and Office Work|Katiblik və ofis işi|Секретарское дело и офисная работа|ISCED 0415
+business|Wholesale and Retail Sales|Topdan və pərakəndə satış|Оптовая и розничная торговля|ISCED 0416;Sales
+business|Work Skills|Peşə bacarıqları|Трудовые навыки|ISCED 0417
+law|Law and Jurisprudence|Hüquqşünaslıq|Юриспруденция|ISCED 0421
+science|Biological Sciences|Bioloji elmlər|Биологические науки|ISCED 0511
+science|Environmental Sciences|Ətraf mühit elmləri|Науки об окружающей среде|ISCED 0521
+science|Natural Environments and Wildlife|Təbii mühit və vəhşi təbiət|Природная среда и дикая природа|ISCED 0522;Wildlife Management
+science|Earth Science and Geosciences|Yer elmləri|Науки о Земле|ISCED 0532
+science|Mathematics and Statistics|Riyaziyyat və statistika|Математика и статистика|ISCED 0541;ISCED 0542
+ict|Computer Use|Kompüter istifadəsi|Использование компьютера|ISCED 0611;Computer Literacy
+ict|Database and Network Design and Administration|Verilənlər bazası və şəbəkə dizaynı və administrasiyası|Проектирование и администрирование баз данных и сетей|ISCED 0612
+ict|Software and Applications Development and Analysis|Proqram və tətbiqlərin hazırlanması və təhlili|Разработка и анализ программного обеспечения и приложений|ISCED 0613
+engineering|Chemical Engineering and Processes|Kimya mühəndisliyi və prosesləri|Химическая инженерия и процессы|ISCED 0711
+engineering|Environmental Protection Technology|Ətraf mühitin mühafizəsi texnologiyası|Технологии охраны окружающей среды|ISCED 0712
+engineering|Electricity and Energy|Elektrik və enerji|Электричество и энергетика|ISCED 0713
+engineering|Electronics and Automation|Elektronika və avtomatlaşdırma|Электроника и автоматизация|ISCED 0714
+engineering|Mechanics and Metal Trades|Mexanika və metal emalı|Механика и металлообработка|ISCED 0715;Metalworking
+engineering|Motor Vehicles, Ships and Aircraft|Avtomobil, gəmi və təyyarə texnologiyaları|Автомобили, суда и воздушные суда|ISCED 0716
+engineering|Food Processing|Qida emalı|Переработка пищевых продуктов|ISCED 0721
+engineering|Materials: Glass, Paper, Plastic and Wood|Materiallar: şüşə, kağız, plastik və ağac|Материалы: стекло, бумага, пластик и дерево|ISCED 0722;Wood Technology;Pulp and Paper Technology
+engineering|Textiles: Clothes, Footwear and Leather|Tekstil: geyim, ayaqqabı və dəri|Текстиль: одежда, обувь и кожа|ISCED 0723;Leather Technology;Footwear Technology
+engineering|Mining and Extraction|Mədən və hasilat|Горное дело и добыча|ISCED 0724
+engineering|Architecture and Town Planning|Memarlıq və şəhərsalma|Архитектура и градостроительство|ISCED 0731
+engineering|Building and Civil Engineering|Tikinti və inşaat mühəndisliyi|Строительство и гражданская инженерия|ISCED 0732
+agri|Crop and Livestock Production|Bitkiçilik və heyvandarlıq|Растениеводство и животноводство|ISCED 0811
+agri|Forestry Science|Meşəçilik elmi|Лесоводство|ISCED 0821
+agri|Fisheries Science|Balıqçılıq elmi|Рыбное хозяйство|ISCED 0831
+agri|Veterinary Science|Baytarlıq elmi|Ветеринарные науки|ISCED 0841
+health|Dental Studies|Stomatoloji tədqiqatlar|Стоматологические исследования|ISCED 0911
+health|Nursing and Midwifery|Tibb bacısı işi və mamalıq|Сестринское дело и акушерство|ISCED 0913
+health|Medical Diagnostic and Treatment Technology|Tibbi diaqnostika və müalicə texnologiyası|Медицинская диагностика и лечебные технологии|ISCED 0914
+health|Therapy and Rehabilitation|Terapiya və reabilitasiya|Терапия и реабилитация|ISCED 0915;Rehabilitation
+health|Traditional and Complementary Medicine|Ənənəvi və alternativ təbabət|Традиционная и комплементарная медицина|ISCED 0917;Alternative Medicine
+social|Care of the Elderly and Disabled Adults|Yaşlıların və əlilliyi olan böyüklərin qayğısı|Уход за пожилыми и инвалидами|ISCED 0921;Elderly Care
+social|Child Care and Youth Services|Uşaq qayğısı və gənclər xidmətləri|Уход за детьми и услуги для молодёжи|ISCED 0922;Youth Work
+social|Social Work and Counselling|Sosial iş və məsləhətçilik|Социальная работа и консультирование|ISCED 0923;Counselling
+services|Domestic Services|Məişət xidmətləri|Бытовые услуги|ISCED 1011
+services|Hair and Beauty Services|Saç və gözəllik xidmətləri|Парикмахерские и косметические услуги|ISCED 1012
+services|Hotel, Restaurants and Catering|Otel, restoran və ictimai iaşə|Гостиничное дело, рестораны и общественное питание|ISCED 1013
+services|Sports Science|İdman elmləri|Спортивные науки|ISCED 1014
+services|Travel, Tourism and Leisure|Səyahət, turizm və istirahət|Путешествия, туризм и досуг|ISCED 1015
+services|Community Sanitation|İcma sanitariyası|Общественная санитария|ISCED 1021
+services|Occupational Health and Safety|Əməyin mühafizəsi və təhlükəsizliyi|Охрана труда и техника безопасности|ISCED 1022
+services|Military and Defence|Hərbi və müdafiə|Военное дело и оборона|ISCED 1031
+services|Protection of Persons and Property|Şəxslərin və əmlakın mühafizəsi|Охрана лиц и имущества|ISCED 1032
+services|Transport Services|Nəqliyyat xidmətləri|Транспортные услуги|ISCED 1041
+business|Business and Administration|Biznes və idarəetmə|Бизнес и администрирование|ISCED 04
+ict|Information and Communication Technologies|İnformasiya və kommunikasiya texnologiyaları|Информационно-коммуникационные технологии|ICT;ISCED 06
+engineering|Engineering, Manufacturing and Construction|Mühəndislik, istehsal və tikinti|Инженерия, производство и строительство|ISCED 07
+science|Natural Sciences, Mathematics and Statistics|Təbiət elmləri, riyaziyyat və statistika|Естественные науки, математика и статистика|ISCED 05
+health|Health and Welfare|Səhiyyə və sosial rifah|Здравоохранение и социальное обеспечение|ISCED 09
