@@ -154,7 +154,7 @@ export function parseEmployeeRows(rows: string[][], limit = 500): { rows: Employ
       sector: /dovlet|state|public|neft|oil|gosud/.test(sectorText) ? "public" : "private",
       email: get(row, "email").slice(0, 160),
       phone: get(row, "phone").slice(0, 40),
-      vacationDays: header.map.has("vacationDays") ? Math.max(0, Math.min(365, Math.round(parseNumberCell(get(row, "vacationDays"))))) : 21,
+      vacationDays: get(row, "vacationDays") ? Math.max(0, Math.min(365, Math.round(parseNumberCell(get(row, "vacationDays"))))) : 21,
       vacationUsed: Math.max(0, Math.min(3650, Math.round(parseNumberCell(get(row, "vacationUsed"))))),
     });
   }

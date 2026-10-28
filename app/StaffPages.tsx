@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileSpreadsheet, Plus, Printer, Trash2, Upload } from "lucide-react";
-import { buildOrder, leaveDays, orderNumber, ORDER_KINDS, type OrderInput, type OrderKind } from "@/lib/orders";
+import { buildEmployeeOffer, buildOrder, leaveDays, orderNumber, ORDER_KINDS, type OrderInput, type OrderKind } from "@/lib/orders";
 import { employeePay, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 import { readSheetRows } from "@/lib/question-file";
 import {
@@ -382,6 +382,165 @@ export function OrderMaker({
         </button>
       </div>
       <small className="muted">İmzalanmış əmri “İşçi sənədləri” bölməsinə yükləyib saxlaya bilərsiniz.</small>
+    </div>
+  );
+}
+
+
+// ---------- Job offer letter to an employee ----------
+export function EmployeeOfferMaker({
+  employee,
+  notify,
+}: {
+  employee: { id: string; name: string; position: string; department: string; email: string; salary: number | null; salaryType: SalaryType };
+  notify: Notify;
+}) {
+  const [facts, setFacts] = useState<CompanyFacts>({ name: "", voen: "", director: "" });
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    position: "",
+    department: employee.department,
+    salary: "",
+    startDate: "",
+    contractType: "Müddətsiz",
+    probationMonths: "0",
+    workSchedule: "",
+    location: "",
+    benefits: "",
+    validUntil: "",
+    message: "",
+    signerName: "",
+    signerTitle: "Direktor",
+  });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void Promise.all([request<{ company: { name: string } | null }>("company/me"), request<{ details: { legalName: string; voen: string; director: string } }>("company/profile")])
+      .then(([me, profile]) => {
+        setFacts({ name: profile.details.legalName || me.company?.name || "", voen: profile.details.voen, director: profile.details.director });
+        setForm((value) => ({ ...value, signerName: value.signerName || profile.details.director }));
+      })
+      .catch(() => undefined);
+  }, []);
+  const set = (key: keyof typeof form, value: string) => setForm({ ...form, [key]: value });
+  const offer = buildEmployeeOffer({
+    date: today,
+    city: "Bakı",
+    company: facts,
+    employee: { name: employee.name, position: employee.position },
+    position: form.position,
+    department: form.department,
+    salary: Number(form.salary) || undefined,
+    salaryType: employee.salaryType,
+    startDate: form.startDate,
+    contractType: form.contractType,
+    probationMonths: Number(form.probationMonths) || 0,
+    workSchedule: form.workSchedule,
+    location: form.location,
+    benefits: form.benefits,
+    validUntil: form.validUntil,
+    message: form.message,
+    signerName: form.signerName,
+    signerTitle: form.signerTitle,
+  });
+  const html = () => {
+    const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return `<!doctype html><html lang="az"><head><meta charset="utf-8"><title>${escape(offer.subject)}</title><style>body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.55;max-width:720px;margin:40px auto;padding:0 24px}p{margin:10px 0}</style></head><body>${offer.paragraphs.map((p) => `<p>${escape(p)}</p>`).join("")}<p style="margin-top:36px">${escape(offer.signature)}</p></body></html>`;
+  };
+  const print = () => {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html());
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+  const word = () => {
+    const url = URL.createObjectURL(new Blob(["\ufeff", html()], { type: "application/msword" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "is-teklifi.doc";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  async function send() {
+    setBusy(true);
+    try {
+      await request("company/employees/send-offer", { employeeId: employee.id, subject: offer.subject, text: offer.text });
+      notify(`Təklif ${employee.email} ünvanına göndərildi.`);
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const ready = !!form.position && Number(form.salary) > 0 && !!form.startDate;
+  return (
+    <div className="panel" style={{ marginTop: 12 }}>
+      <h4>İşçiyə iş təklifi (job offer)</h4>
+      <p className="muted">Hazır şablon: işçiyə yeni vəzifə, yüksəliş və ya köçürmə təklifi. Məktub maaşı dəyişmir; razılıq alınandan sonra maaşı işçi kartında, vəzifəni isə “Əmr sənədləri”ndə rəsmiləşdirin.</p>
+      <div className="form-grid">
+        <Field label="Təklif olunan vəzifə *">
+          <input value={form.position} onChange={(e) => set("position", e.target.value)} />
+        </Field>
+        <Field label="Departament">
+          <input value={form.department} onChange={(e) => set("department", e.target.value)} />
+        </Field>
+        <Field label={`Aylıq əmək haqqı (AZN, ${employee.salaryType}) *`}>
+          <input type="number" min={0} value={form.salary} onChange={(e) => set("salary", e.target.value)} />
+        </Field>
+        <Field label="Başlama tarixi *">
+          <input type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />
+        </Field>
+        <Field label="Müqavilə növü">
+          <select value={form.contractType} onChange={(e) => set("contractType", e.target.value)}>
+            {["Müddətsiz", "Müddətli", "Mülki-hüquqi"].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Sınaq müddəti (ay)">
+          <input type="number" min={0} max={6} value={form.probationMonths} onChange={(e) => set("probationMonths", e.target.value)} />
+        </Field>
+        <Field label="İş qrafiki">
+          <input value={form.workSchedule} onChange={(e) => set("workSchedule", e.target.value)} />
+        </Field>
+        <Field label="İş yeri">
+          <input value={form.location} onChange={(e) => set("location", e.target.value)} />
+        </Field>
+        <Field label="Əlavə imkanlar">
+          <input value={form.benefits} onChange={(e) => set("benefits", e.target.value)} />
+        </Field>
+        <Field label="Təklifin son tarixi">
+          <input type="date" value={form.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
+        </Field>
+        <Field label="İmza edən">
+          <input value={form.signerName} onChange={(e) => set("signerName", e.target.value)} />
+        </Field>
+        <Field label="Giriş mətni (boş buraxsanız hazır mətn qoyulur)">
+          <textarea value={form.message} onChange={(e) => set("message", e.target.value)} />
+        </Field>
+      </div>
+      <pre className="muted" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
+        {offer.text}
+      </pre>
+      <div className="admin-actions">
+        <button type="button" className="primary" disabled={busy || !ready || !employee.email} title={employee.email ? "" : "İşçinin e-poçtu yoxdur"} onClick={send}>
+          E-poçtla göndər
+        </button>
+        <a
+          className={`secondary report-button${ready ? "" : " disabled"}`}
+          href={`mailto:${employee.email}?subject=${encodeURIComponent(offer.subject)}&body=${encodeURIComponent(offer.text)}`}
+          aria-disabled={!ready}
+        >
+          Poçt proqramında aç
+        </a>
+        <button type="button" className="secondary" onClick={print}>
+          <Printer size={14} /> Çap et / PDF
+        </button>
+        <button type="button" className="secondary" onClick={word}>
+          <Download size={14} /> Word (.doc)
+        </button>
+      </div>
     </div>
   );
 }

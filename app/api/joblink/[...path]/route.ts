@@ -7099,6 +7099,27 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "employees-imported", "", `${created} yeni, ${updated} yenilənən`);
     return ok({ created, updated, issues: incoming.issues });
   }
+  // ---- A job offer letter to a current employee, sent by e-mail ----
+  if (request.method === "POST" && path === "company/employees/send-offer") {
+    requirePermission("salaries", "İşçiyə təklifi yalnız HR, direktor və hesab sahibi göndərə bilər.");
+    const b = await jsonBody(request);
+    const employee = await db
+      .prepare("SELECT id,name,email FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'")
+      .bind(str(b.employeeId, 100), id)
+      .first<{ id: string; name: string; email: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(employee.email))
+      throw new HttpError(400, "İşçinin e-poçt ünvanı yoxdur. Onu işçi kartında yazın.");
+    const settings = runtime();
+    if (!mailConfigured(settings))
+      throw new HttpError(409, "E-poçt göndərişi hələ qurulmayıb. Məktubu çap edin, Word kimi yükləyin və ya “Poçt proqramında aç” düyməsini işlədin.");
+    const subject = str(b.subject, 200);
+    const text = str(b.text, 6000);
+    if (subject.length < 3 || text.length < 20) throw new HttpError(400, "Mövzu və məktub mətni boş ola bilməz.");
+    await sendMail(settings, { to: employee.email, subject, text });
+    await companyAudit(db, id, userId, "employee-offer-sent", employee.id, `${employee.name}: ${subject}`);
+    return ok({ ok: true });
+  }
   // ---- Staff table: places per department, section and position ----
   const staffOverview = async () => {
     const [units, people, open] = await Promise.all([

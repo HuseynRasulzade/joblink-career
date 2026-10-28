@@ -32,3 +32,26 @@ test("vacation order states the days and a missing value is shown as such", () =
   assert.match(buildOrder({ ...base, kind: "termination" }).text, /\[daxil edilməlidir\]/);
   assert.equal(orderNumber("vacation", "2026-05-04", "ab12cd-ef"), "2026-M-AB12");
 });
+
+test("an employee job offer states the post, pay, start date and the deadline", async () => {
+  const { buildEmployeeOffer } = await import("../lib/orders.ts");
+  const offer = buildEmployeeOffer({
+    date: "2026-05-04",
+    city: "Bakı",
+    company: { name: "Sirket Test MMC", director: "Əli Əliyev" },
+    employee: { name: "Aysel Məmmədova", position: "Baş mühasib" },
+    position: "Maliyyə meneceri",
+    department: "Maliyyə",
+    salary: 3200,
+    salaryType: "gross",
+    startDate: "2026-06-01",
+    probationMonths: 0,
+    validUntil: "2026-05-20",
+  });
+  assert.match(offer.subject, /Maliyyə meneceri/);
+  assert.match(offer.text, /Hörmətli Aysel Məmmədova/);
+  assert.match(offer.text, /3[  ,.]?200/);
+  assert.match(offer.text, /01\.06\.2026/);
+  assert.match(offer.text, /20\.05\.2026/);
+  assert.ok(!/undefined|NaN/.test(offer.text));
+});

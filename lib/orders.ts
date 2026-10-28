@@ -111,3 +111,53 @@ export function buildOrder(input: OrderInput): Order {
 // Order number: year, kind and a running part taken from the employee id.
 export const orderNumber = (kindId: OrderKind, date: string, employeeId: string) =>
   `${date.slice(0, 4)}-${{ hire: "İQ", vacation: "M", salary: "ƏH", transfer: "K", termination: "X" }[kindId]}-${employeeId.replace(/-/g, "").slice(0, 4).toUpperCase()}`;
+
+// ---- Job offer letter to a current employee (a new post, a raise or a transfer) ----
+export type EmployeeOfferInput = {
+  date: string;
+  city: string;
+  company: { name: string; voen?: string; director?: string };
+  employee: { name: string; position: string; department?: string };
+  position: string;
+  department?: string;
+  salary?: number;
+  salaryType?: "gross" | "net";
+  startDate?: string;
+  contractType?: string;
+  probationMonths?: number;
+  workSchedule?: string;
+  location?: string;
+  benefits?: string;
+  validUntil?: string;
+  message?: string;
+  signerName?: string;
+  signerTitle?: string;
+};
+export type EmployeeOffer = { subject: string; paragraphs: string[]; signature: string; text: string };
+
+export function buildEmployeeOffer(input: EmployeeOfferInput): EmployeeOffer {
+  const company = fill(input.company.name);
+  const lines = [
+    `Hörmətli ${fill(input.employee.name)},`,
+    input.message?.trim() ||
+      `${company} olaraq sizə ${input.position ? `“${input.position}”` : missing} vəzifəsi üzrə yeni iş təklifi göndərməkdən məmnunuq. Hazırda ${fill(input.employee.position)} vəzifəsində çalışırsınız.`,
+    "Təklifin şərtləri:",
+    `• Vəzifə: ${fill(input.position)}${input.department ? ` (${input.department})` : ""}`,
+    `• Aylıq əmək haqqı: ${azn(input.salary)} (${kind(input.salaryType)})`,
+    `• Başlama tarixi: ${dmy(input.startDate)}`,
+    `• Müqavilə növü: ${input.contractType || "Müddətsiz"}`,
+    input.probationMonths ? `• Sınaq müddəti: ${input.probationMonths} ay` : "• Sınaq müddəti: yoxdur",
+    input.workSchedule ? `• İş qrafiki: ${input.workSchedule}` : "",
+    input.location ? `• İş yeri: ${input.location}` : "",
+    input.benefits ? `• Əlavə imkanlar: ${input.benefits}` : "",
+    input.validUntil ? `Təklif ${dmy(input.validUntil)} tarixinədək qüvvədədir. Qərarınızı həmin tarixədək bildirməyinizi xahiş edirik.` : "Qərarınızı yaxın günlərdə bildirməyinizi xahiş edirik.",
+    "Təklifi qəbul etdiyiniz halda yeni şərtlər əmək müqaviləsinə əlavə və müvafiq əmrlə rəsmiləşdiriləcək.",
+  ].filter(Boolean);
+  const signature = `${fill(input.signerName || input.company.director)}${input.signerTitle ? `, ${input.signerTitle}` : ""}, ${company}`;
+  return {
+    subject: `${company}: iş təklifi — ${fill(input.position)}`,
+    paragraphs: [`${input.city || "Bakı"}, ${dmy(input.date)}`, ...lines],
+    signature,
+    text: [`${input.city || "Bakı"}, ${dmy(input.date)}`, "", ...lines, "", signature].join("\n"),
+  };
+}
