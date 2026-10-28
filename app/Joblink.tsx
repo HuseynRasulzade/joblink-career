@@ -314,6 +314,9 @@ const ISSUE_TYPE_LABELS: Record<string, string> = {
   content: "Məzmun",
   ats: "ATS",
 };
+// A visitor who arrived from a shared vacancy link goes to that vacancy after signing in.
+const sharedVacancy = () => typeof window !== "undefined" && !!new URLSearchParams(window.location.search).get("job");
+
 export default function Joblink() {
   const [page, setPage] = useState("overview");
   const [profile, setProfile] = useState<Profile>(sampleProfile);
@@ -1694,7 +1697,9 @@ export default function Joblink() {
                     ? "admin-overview"
                     : role === "company"
                       ? "hr-overview"
-                      : "overview";
+                      : sharedVacancy()
+                        ? "jobs"
+                        : "overview";
                 setPage(destination);
                 window.location.hash = destination;
               }}
@@ -4046,7 +4051,9 @@ export default function Joblink() {
                     ? "admin-overview"
                     : role === "company"
                       ? "hr-overview"
-                      : "profile";
+                      : sharedVacancy()
+                        ? "jobs"
+                        : "profile";
                 setPage(destination);
                 window.location.hash = destination;
               }}
