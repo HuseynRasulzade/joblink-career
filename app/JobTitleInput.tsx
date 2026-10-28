@@ -60,7 +60,9 @@ export default function JobTitleInput({
   }, [open, value, world.length]);
   const known = canonicalJobTitle(value);
   const worldKnown = !known && world.length ? worldJobTitleKnown(world, value) : null;
-  const suggestions = open && value.trim() && !known ? searchJobTitles(value, 10) : [];
+  // A title that is already in the catalog still lists its levels (Kiçik, Aparıcı, Baş ...).
+  const listed = open && value.trim() ? searchJobTitles(value, 10) : [];
+  const suggestions = known ? listed.filter((title) => title.id !== known.id) : listed;
   const wider = open && value.trim() && !known && !worldKnown && suggestions.length < 10 ? searchWorldJobTitles(world, value, 10 - suggestions.length) : [];
 
   async function check() {
