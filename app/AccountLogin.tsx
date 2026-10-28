@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Building2, LockKeyhole, UserPlus, UserRound } from "lucide-react";
 import { Field } from "./components";
 import { localizeTree } from "./i18n";
@@ -19,6 +19,62 @@ export default function AccountLogin({
   const [twoFactor, setTwoFactor] = useState(false);
   const [info, setInfo] = useState("");
   const [register, setRegister] = useState(false);
+  // Cloudflare Turnstile robot check; shown only when the server has it switched on.
+  type Turnstile = { render: (el: HTMLElement, options: Record<string, unknown>) => string; reset: (id?: string) => void; remove: (id?: string) => void };
+  const turnstile = () => (window as unknown as { turnstile?: Turnstile }).turnstile;
+  const [siteKey, setSiteKey] = useState("");
+  const [robotToken, setRobotToken] = useState("");
+  const robotBox = useRef<HTMLDivElement>(null);
+  const robotId = useRef("");
+  useEffect(() => {
+    fetch("/api/joblink/auth/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then((response) => response.json() as Promise<{ turnstileSiteKey?: string }>)
+      .then((data) => setSiteKey(data.turnstileSiteKey || ""))
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (!siteKey || view) return;
+    let cancelled = false;
+    const mount = () => {
+      const api = turnstile();
+      if (cancelled || !api || !robotBox.current) return false;
+      robotId.current = api.render(robotBox.current, {
+        sitekey: siteKey,
+        callback: (token: string) => setRobotToken(token),
+        "expired-callback": () => setRobotToken(""),
+        "error-callback": () => setRobotToken(""),
+      });
+      return true;
+    };
+    if (!mount()) {
+      let script = document.getElementById("turnstile-script") as HTMLScriptElement | null;
+      if (!script) {
+        script = document.createElement("script");
+        script.id = "turnstile-script";
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        document.head.appendChild(script);
+      }
+      script.addEventListener("load", mount);
+    }
+    return () => {
+      cancelled = true;
+      try {
+        turnstile()?.remove(robotId.current);
+      } catch {
+        // The widget may already be gone.
+      }
+    };
+  }, [siteKey, view, register]);
+  // A visitor who came from a shared vacancy link is told why an account is needed.
+  const [fromVacancy, setFromVacancy] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get("job")) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFromVacancy(true);
+    if (params.get("register") === "1") setRegister(true);
+  }, []);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -69,7 +125,7 @@ export default function AccountLogin({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password, role, code }),
+          body: JSON.stringify({ name, email, password, role, code, turnstile: robotToken }),
         },
       );
       const body = (await response.json()) as {
@@ -82,6 +138,15 @@ export default function AccountLogin({
       await onComplete(body.role || role);
     } catch (caught) {
       setError((caught as Error).message || "Giriş alınmadı.");
+      // A robot token works once.
+      if (siteKey) {
+        setRobotToken("");
+        try {
+          turnstile()?.reset(robotId.current);
+        } catch {
+          // Nothing to reset.
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -98,6 +163,11 @@ export default function AccountLogin({
       <p>
         E-poçt və şifrənizlə istənilən müasir brauzerdən daxil ola bilərsiniz.
       </p>
+      {fromVacancy && !view && (
+        <div className="notice" role="status">
+          Seçdiyiniz vakansiyaya müraciət etmək üçün {register ? "qeydiyyatdan keçin" : "daxil olun"}. Bundan sonra vakansiya avtomatik açılacaq.
+        </div>
+      )}
       {view ? (
         <form
           onSubmit={(event) => {
@@ -221,6 +291,7 @@ export default function AccountLogin({
             {error}
           </div>
         )}
+        {siteKey && <div ref={robotBox} className="robot-check" />}
         <button className="primary wide" disabled={busy}>
           <LockKeyhole size={17} />
           {busy ? "Gözləyin…" : register ? "Hesab yarat" : "Daxil ol"}

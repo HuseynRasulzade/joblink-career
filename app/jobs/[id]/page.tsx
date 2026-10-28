@@ -12,6 +12,14 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// Leads into the app: /?job=ID opens the vacancy after sign-in; the channel travels along.
+function applyLink(id: string, src: string | undefined, register: boolean) {
+  const query = new URLSearchParams({ job: id });
+  if (src && /^[a-z]{2,20}$/.test(src)) query.set("src", src);
+  if (register) query.set("register", "1");
+  return `/?${query.toString()}`;
+}
+
 async function load(id: string) {
   const row = await runtime()
     .DB.prepare(`${OPEN_VACANCIES_SQL} AND j.id=?`)
@@ -21,7 +29,10 @@ async function load(id: string) {
   return row ? publicVacancy(row.id, JSON.parse(row.data), row.created) : null;
 }
 
-type Params = { params: Promise<{ id: string }> | { id: string } };
+type Params = {
+  params: Promise<{ id: string }> | { id: string };
+  searchParams?: Promise<{ src?: string }> | { src?: string };
+};
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await Promise.resolve(params);
@@ -38,8 +49,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   };
 }
 
-export default async function JobPage({ params }: Params) {
+export default async function JobPage({ params, searchParams }: Params) {
   const { id } = await Promise.resolve(params);
+  const { src } = await Promise.resolve(searchParams || {});
   const job = await load(id);
   if (!job) notFound();
   const origin = siteUrl(runtime().SITE_URL);
@@ -68,9 +80,13 @@ export default async function JobPage({ params }: Params) {
         </>
       )}
       <p>
-        <a className="seo-apply" href={`/?job=${encodeURIComponent(job.id)}`}>
-          Müraciət et
-        </a>
+        Vakansiyaya müraciət etmək üçün hesab lazımdır: qeydiyyatdan keçin və ya daxil olun, vakansiya özü açılacaq.
+      </p>
+      <p>
+        <a className="seo-apply" href={applyLink(job.id, src, true)}>
+          Qeydiyyatdan keç və müraciət et
+        </a>{" "}
+        <a href={applyLink(job.id, src, false)}>Hesabım var — daxil ol</a>
       </p>
     </main>
   );

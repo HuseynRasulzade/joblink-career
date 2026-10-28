@@ -194,6 +194,43 @@ function normalizeEmail(value: unknown) {
   return str(value, 254).toLocaleLowerCase("en-US");
 }
 
+// Wrong passwords for one account are counted whatever address they come from, so a
+// password cannot be guessed by spreading the attempts over many IP addresses.
+const ACCOUNT_FAILURES = 8;
+async function accountFailureKey(email: string) {
+  return hash(`account:${email}:${Math.floor(now() / 900)}`);
+}
+async function assertAccountNotLocked(email: string) {
+  const row = await (await store())
+    .prepare("SELECT count FROM auth_limits WHERE id=?")
+    .bind(await accountFailureKey(email))
+    .first<{ count: number }>();
+  if ((row?.count || 0) >= ACCOUNT_FAILURES)
+    throw new HttpError(429, "Bu hesab üçün çox sayda yanlış cəhd olub. 15 dəqiqə sonra yenidən sınayın.");
+}
+async function noteAccountFailure(email: string) {
+  const expiry = (Math.floor(now() / 900) + 1) * 900;
+  await (await store())
+    .prepare("INSERT INTO auth_limits(id,count,expires) VALUES(?,1,?) ON CONFLICT(id) DO UPDATE SET count=count+1")
+    .bind(await accountFailureKey(email), expiry)
+    .run();
+}
+
+// Cloudflare Turnstile: only when TURNSTILE_SECRET is set.
+async function checkRobot(request: Request, body: Record<string, unknown>) {
+  const secret = runtime().TURNSTILE_SECRET;
+  if (!secret) return;
+  const token = typeof body.turnstile === "string" ? body.turnstile.slice(0, 2100) : "";
+  if (!token) throw new HttpError(400, "Robot yoxlamasını tamamlayın.");
+  const form = new URLSearchParams({ secret, response: token });
+  const ip = request.headers.get("cf-connecting-ip");
+  if (ip) form.set("remoteip", ip);
+  const result = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: form })
+    .then((r) => r.json() as Promise<{ success?: boolean }>)
+    .catch(() => null);
+  if (!result?.success) throw new HttpError(400, "Robot yoxlaması alınmadı. Səhifəni yeniləyib yenidən cəhd edin.");
+}
+
 function validateEmail(email: string) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new HttpError(400, "Etibarlı e-poçt ünvanı yazın.");
@@ -224,6 +261,7 @@ export async function authRoute(request: Request, path: string) {
     return response({ ok: true }, [setCookie(sessionCookie, "", 0)]);
   }
   // Forgotten password: always the same answer, so the form cannot be used to find out who has an account.
+  if (kind === "config") return response({ turnstileSiteKey: runtime().TURNSTILE_SITE_KEY && runtime().TURNSTILE_SECRET ? runtime().TURNSTILE_SITE_KEY : "" });
   if (kind === "forgot") {
     await limit(request, "forgot", 5);
     const body = await jsonBody(request);
@@ -417,6 +455,8 @@ export async function authRoute(request: Request, path: string) {
   const password = typeof body.password === "string" ? body.password : "";
   validateEmail(email);
   validatePassword(password);
+  await checkRobot(request, body);
+  if (kind === "login") await assertAccountNotLocked(email);
 
   if (kind === "register") {
     const name = str(body.name, 100);
@@ -455,15 +495,20 @@ export async function authRoute(request: Request, path: string) {
     )
     .bind(email)
     .first<PasswordAccount>();
-  if (!account || !(await passwordsMatch(password, account)))
+  if (!account || !(await passwordsMatch(password, account))) {
+    await noteAccountFailure(email);
     throw new HttpError(401, "E-poçt və ya şifrə yanlışdır.");
+  }
   if (account.status === "suspended")
     throw new HttpError(403, "Bu hesab administrator tərəfindən dayandırılıb.");
   const second = await db.prepare("SELECT secret,backup_codes FROM totp_secrets WHERE user_id=? AND enabled=1").bind(account.user_id).first<{ secret: string; backup_codes: string }>();
   if (second) {
     const code = str(body.code, 20);
     if (!code) return response({ error: "Doğrulama kodunu yazın (autentifikator tətbiqindən və ya ehtiyat kod).", twoFactor: true }, [], 401);
-    if (!(await secondFactorOk(db, account.user_id, second, code))) return response({ error: "Doğrulama kodu yanlışdır.", twoFactor: true }, [], 401);
+    if (!(await secondFactorOk(db, account.user_id, second, code))) {
+      await noteAccountFailure(email);
+      return response({ error: "Doğrulama kodu yanlışdır.", twoFactor: true }, [], 401);
+    }
   }
   return response(
     { ok: true, role: account.role || "candidate" },

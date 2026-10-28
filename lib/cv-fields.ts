@@ -64,12 +64,19 @@ function mergeSpacedHeadings(lines: string[]) {
   }
   return out;
 }
+// A name printed letter by letter, words apart by a wider gap ("G İ Z E M   K A Y A"),
+// is put back together. A single run of letters is left alone: it may be a heading.
+function collapseSpacedWords(line: string) {
+  const groups = line.trim().split(/\s{2,}|\t+/);
+  if (groups.length < 2 || !groups.every((g) => /^(?:\p{L}\s){2,}\p{L}$/u.test(g))) return line;
+  return groups.map((g) => g.replace(/\s+/g, "")).join(" ");
+}
 // Conservative local extraction: uncertain facts stay empty for human review.
 export function cvFields(text: string): Partial<Profile> {
   const lines = mergeSpacedHeadings(
     text
       .split(/\r?\n/)
-      .map((x) => x.trim())
+      .map((x) => collapseSpacedWords(x).trim())
       // Page markers added when a PDF is read are not part of the CV.
       .filter((x) => x && !/^\[SƏHİFƏ \d+\]$/u.test(x)),
   );
@@ -353,8 +360,17 @@ export function cvEducation(sectionLines: string[]): Profile["education"] {
     const before = sectionLines[i - 1];
     const below: string[] = [];
     const belowAt: number[] = [];
+    // "İşletme 2014 - 2018" under the school: the subject and the years share a line.
+    let subjectDates: ReturnType<typeof readDates> = null;
     for (let j = i + 1; j < sectionLines.length && below.length < 3; j++) {
       const next = sectionLines[j];
+      const withDates: ReturnType<typeof readDates> = !below.length && !subjectDates ? readDates(next) : null;
+      if (withDates?.rest && !hasWord(SCHOOL_WORD, next) && !sentenceLike(next)) {
+        subjectDates = withDates;
+        below.push(withDates.rest.trim());
+        belowAt.push(j);
+        continue;
+      }
       if (hasWord(SCHOOL_WORD, next) || isDate(next) || sentenceLike(next) || readDates(next)) break;
       below.push(next);
       belowAt.push(j);
@@ -366,7 +382,7 @@ export function cvEducation(sectionLines: string[]): Profile["education"] {
     const forward = [sectionLines[i + 1], sectionLines[i + 2]];
     const stopAt = forward.findIndex((x) => x && hasWord(SCHOOL_WORD, x));
     const near = (stopAt >= 0 ? forward.slice(0, stopAt) : forward).find((x) => isDate(x));
-    const when = dated || (near ? readDates(near) : null) || (isDate(before) ? readDates(before!) : null);
+    const when = dated || subjectDates || (near ? readDates(near) : null) || (isDate(before) ? readDates(before!) : null);
     const year = (when?.end || when?.start || "").slice(0, 4);
     if (!degreeBefore) belowAt.forEach((at) => taken.add(at));
     if (rows.some((r) => r.school.toLowerCase() === school.toLowerCase() && r.degree === degree)) continue;

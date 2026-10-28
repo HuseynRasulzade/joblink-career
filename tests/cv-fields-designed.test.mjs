@@ -38,3 +38,21 @@ test("a first line with a phone number is not mistaken for a profession", () => 
   assert.equal(fields.name, "GİZEM KAYA");
   assert.equal(fields.title, "");
 });
+
+test("a name printed letter by letter, and a subject sharing a line with its years", () => {
+  const out = cvFields(`G İ Z E M   K A Y A
+Pazarlama Yöneticisi
+gizem@mail.com
+
+DENEYİM
+Pazarlama Yöneticisi
+Acme Teknoloji A.Ş. | 2020 - Devam
+
+EĞİTİM
+İstanbul Üniversitesi
+İşletme 2014 - 2018`);
+  assert.equal(out.name, "GİZEM KAYA");
+  assert.equal(out.title, "Pazarlama Yöneticisi");
+  assert.equal(out.education?.[0].degree, "İşletme");
+  assert.equal(out.education?.[0].year, "2018");
+});

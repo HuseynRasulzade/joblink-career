@@ -1120,7 +1120,7 @@ function fitParts(f: FitInput): FitPart[] {
 }
 export function match(p: Profile, j: Job) {
   const profileSkillIds = new Set(
-    normalizeSkills(p.skills, { max: 50 }).map(skillId),
+    normalizeSkills(p.skills, { max: 50, allowCustom: true }).map(skillId),
   );
   const roles = roleRecords(p);
   const relevance = roles.map((r) => roleRelevance(r.title, j));
@@ -1167,7 +1167,7 @@ export function match(p: Profile, j: Job) {
   );
   const declaredText = factualText(p.summary);
   const mentionedText = factualText(p.cvText);
-  const requiredSkills = normalizeSkills(j.skills, { max: 30 });
+  const requiredSkills = normalizeSkills(j.skills, { max: 30, allowCustom: true });
   const certifications = candidateCertifications(p);
   // An active certification evidences the skills it examines.
   const certifiedSkillIds = new Set(

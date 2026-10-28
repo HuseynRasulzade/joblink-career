@@ -49,6 +49,9 @@ export function runtime() {
       }) => Promise<unknown>;
     };
     EXTERNAL_AUTH?: string;
+    // Cloudflare Turnstile (robot check on sign-in and sign-up); both unset means no check.
+    TURNSTILE_SECRET?: string;
+    TURNSTILE_SITE_KEY?: string;
     // "1" prints account e-mails (reset and verification links) to the log; for local checks only.
     DEV_MAIL_LOG?: string;
     // "1" turns on package limits; without it everyone keeps full access.

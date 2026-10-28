@@ -28,7 +28,11 @@ for (const [name, cases] of [["main set", EVAL_CASES], ["second set", BLIND_CASE
   });
 }
 
-test("a vacancy skill outside the catalog is ignored by the matching (known limit)", () => {
-  const job = { ...EVAL_CASES[0].job, skills: ["Tamamilə uydurma bacarıq"] };
-  assert.equal(match(EVAL_CASES[0].profile, job).skillEvidence.length, 0);
+test("a skill outside the catalog (for example an O*NET tool) counts when the vacancy and the person both have it", () => {
+  const job = { ...EVAL_CASES[0].job, skills: ["AdSense Tracker"] };
+  const with_ = match({ ...EVAL_CASES[0].profile, skills: ["AdSense Tracker"] }, job);
+  const without = match({ ...EVAL_CASES[0].profile, skills: [] }, job);
+  assert.deepEqual(with_.missing, []);
+  assert.ok(without.missing.some((skill) => /adsense/i.test(skill)));
+  assert.ok(with_.score > without.score);
 });

@@ -13,8 +13,8 @@ test("old applications get a source from the auto flag", () => {
   assert.equal(effectiveSource("linkedin", 0), "linkedin");
 });
 test("tracking links carry the job and the channel", () => {
-  assert.equal(trackingLink("https://x.test", "j1", "linkedin"), "https://x.test/?job=j1&src=linkedin");
-  assert.equal(trackingLink("https://x.test", "j1", "nonsense"), "https://x.test/?job=j1");
+  assert.equal(trackingLink("https://x.test", "j1", "linkedin"), "https://x.test/jobs/j1?src=linkedin");
+  assert.equal(trackingLink("https://x.test", "j1", "nonsense"), "https://x.test/jobs/j1");
 });
 test("source breakdown counts and sorts", () => {
   const b = sourceBreakdown([{ source: "linkedin" }, { source: "linkedin" }, { source: "", auto: 1 }, { source: "" , auto: 0 }]);

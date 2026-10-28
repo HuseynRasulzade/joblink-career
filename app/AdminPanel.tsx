@@ -30,7 +30,7 @@ import { localizeTree } from "./i18n";
 import { invalidateRuntimeSkills } from "./components";
 import AdminCertifications, { type AdminCertificationData } from "./AdminCertifications";
 import AdminJobTitles from "./AdminJobTitles";
-import { AiHealthBanner } from "./AdminAiBudget";
+import { AdminTwoFactorBanner, AiHealthBanner } from "./AdminAiBudget";
 import AdminEducation from "./AdminEducation";
 import AdminMatching from "./AdminMatching";
 import type { JobTitleDefinition } from "@/lib/job-title-catalog";
@@ -506,6 +506,7 @@ export default function AdminPanel({
       </section>
 
       {page === "admin-overview" && <AiHealthBanner />}
+      {page === "admin-overview" && <AdminTwoFactorBanner />}
       {page === "admin-overview" && (
         <>
           <div className="admin-metrics">

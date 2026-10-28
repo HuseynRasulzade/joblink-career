@@ -45,6 +45,25 @@ export function AiHealthBanner() {
   );
 }
 
+// The administrator account can see everyone's data: say so while it has no second step at sign-in.
+export function AdminTwoFactorBanner({ openSettings }: { openSettings?: () => void }) {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    fetch("/api/joblink/auth/2fa-status", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then((response) => (response.ok ? (response.json() as Promise<{ enabled?: boolean }>) : null))
+      .then((data) => setEnabled(data ? !!data.enabled : null))
+      .catch(() => setEnabled(null));
+  }, []);
+  if (enabled !== false) return null;
+  return (
+    <div className="panel" role="alert" style={{ borderColor: "#c2554a", background: "#fff5f3" }}>
+      <b>Administrator hesabında iki mərhələli giriş söndürülüdür</b>
+      <p>Bu hesab bütün istifadəçilərin məlumatlarına çatır. Yuxarıdakı hesab menyusundan “Hesab parametrləri”ni açıb autentifikator tətbiqi ilə iki mərhələli girişi aktiv edin.</p>
+      {openSettings && <button type="button" className="secondary" onClick={openSettings}>Hesab parametrlərinə keç</button>}
+    </div>
+  );
+}
+
 // The monthly spending limit: current spend against it, and the form to change it.
 export function AiBudgetPanel({ notify }: { notify: (message: string) => void }) {
   const { state, setState } = useAiState();

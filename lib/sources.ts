@@ -1,5 +1,5 @@
 // Where an application came from. "platform", "auto" and "invite" are set by the server;
-// the rest come from a tracking link such as /?job=ID&src=linkedin that the employer shares.
+// the rest come from a tracking link such as /jobs/ID?src=linkedin that the employer shares.
 export const EXTERNAL_SOURCES = [
   { id: "linkedin", label: "LinkedIn" },
   { id: "facebook", label: "Facebook" },
@@ -27,9 +27,10 @@ export const normalizeExternalSource = (value: unknown): string => {
 export const effectiveSource = (stored: string | null | undefined, auto: number | null | undefined) =>
   stored || (auto === 1 ? "auto" : "platform");
 
+// The link opens the public vacancy page, so a visitor can read the vacancy before
+// creating an account; "Müraciət et" there continues to /?job=ID.
 export function trackingLink(origin: string, jobId: string, source: string) {
-  const url = new URL("/", origin);
-  url.searchParams.set("job", jobId);
+  const url = new URL(`/jobs/${encodeURIComponent(jobId)}`, origin);
   const src = normalizeExternalSource(source);
   if (src) url.searchParams.set("src", src);
   return url.toString();
