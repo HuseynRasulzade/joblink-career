@@ -109,7 +109,8 @@ export function normalizeProfile(input: unknown): ProfileResult {
 
 export function parseProfile(json: string | null | undefined): EmployeeProfile {
   try {
-    return { ...EMPTY_PROFILE, ...normalizeProfile(JSON.parse(json || "{}")).profile };
+    const profile = normalizeProfile(JSON.parse(json || "{}")).profile;
+    return { ...profile, citizenship: profile.citizenship || EMPTY_PROFILE.citizenship };
   } catch {
     return { ...EMPTY_PROFILE };
   }
