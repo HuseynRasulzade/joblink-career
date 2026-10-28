@@ -1092,7 +1092,7 @@ export default function Joblink() {
   // A shared link /?job=ID&src=linkedin opens that vacancy and remembers the channel until the candidate applies.
   const deepLinked = useRef("");
   useEffect(() => {
-    if (hr || admin || !jobs.length) return;
+    if (!signedIn || hr || admin || !jobs.length) return;
     const params = new URLSearchParams(window.location.search);
     const wanted = params.get("job") || "";
     if (!wanted || deepLinked.current === wanted) return;
@@ -1109,10 +1109,11 @@ export default function Joblink() {
     } catch {
       // Storage is optional.
     }
-    openJob(target);
+    // go() clears the open vacancy, so it comes first.
     go("jobs");
+    openJob(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs, hr, admin]);
+  }, [jobs, hr, admin, signedIn]);
   // Remember the one-time consent and load the admin's choice.
   useEffect(() => {
     if (!signedIn || hr || admin) return;
