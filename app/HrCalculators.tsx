@@ -674,24 +674,62 @@ export function HrCalculators({
       .catch(() => undefined);
   }, [employer]);
   const emp = employees.find((e) => e.id === empId) || null;
+  const [search, setSearch] = useState("");
+  const [picking, setPicking] = useState(false);
+  const needle = search.toLocaleLowerCase("az").trim();
+  const matches = employees
+    .filter((e) => !needle || `${e.name} ${e.position} ${e.department}`.toLocaleLowerCase("az").includes(needle))
+    .sort((a, b) => a.name.localeCompare(b.name, "az"))
+    .slice(0, 12);
   return (
     <div className="hr-calcs">
       {employer && !!employees.length && (
         <section className="panel calc-employee">
           <label className="field">
-            <span>İşçi seçin (məlumatlar avtomatik dolur)</span>
-            <select value={empId} onChange={(e) => setEmpId(e.target.value)}>
-              <option value="">— işçi seçilməyib —</option>
-              {employees
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name, "az"))
-                .map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {empLabel(e)}
-                  </option>
-                ))}
-            </select>
+            <span>İşçi axtar və seç (məlumatlar avtomatik dolur)</span>
+            <input
+              value={search}
+              placeholder="Ad, vəzifə və ya departament yazın"
+              autoComplete="off"
+              onFocus={() => setPicking(true)}
+              onBlur={() => window.setTimeout(() => setPicking(false), 150)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPicking(true);
+              }}
+            />
           </label>
+          {picking && (
+            <ul className="emp-results" role="listbox">
+              {matches.map((e) => (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={e.id === empId}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      setEmpId(e.id);
+                      setSearch("");
+                      setPicking(false);
+                    }}
+                  >
+                    <strong>{e.name}</strong>
+                    <small>{[e.position || "vəzifəsiz", e.department].filter(Boolean).join(" · ")}</small>
+                  </button>
+                </li>
+              ))}
+              {!matches.length && <li className="muted emp-none">Uyğun işçi tapılmadı.</li>}
+            </ul>
+          )}
+          {emp && (
+            <p className="emp-chosen">
+              Seçilib: <b>{empLabel(emp)}</b>{" "}
+              <button type="button" className="text-button" onClick={() => setEmpId("")}>
+                Təmizlə
+              </button>
+            </p>
+          )}
           {emp && !grossOf(emp) && <small className="muted">Bu işçinin maaşı daxil edilməyib və ya sizin rolunuz maaşı görmür — maaş sahələrini əl ilə doldurun.</small>}
         </section>
       )}

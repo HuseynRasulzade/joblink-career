@@ -5749,3 +5749,43 @@ a svg {
   padding: 4px 0;
   border-bottom: 1px solid #eef3f0;
 }
+.calc-employee {
+  position: relative;
+}
+.emp-results {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 4px;
+  border: 1px solid #dfe8e3;
+  border-radius: 10px;
+  background: #fff;
+  max-height: 280px;
+  overflow-y: auto;
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(23, 51, 43, 0.12);
+}
+.emp-results button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.emp-results button:hover,
+.emp-results button[aria-selected="true"] {
+  background: #eef5f2;
+}
+.emp-none {
+  padding: 8px 10px;
+}
+.emp-chosen {
+  margin: 8px 0 0;
+}
