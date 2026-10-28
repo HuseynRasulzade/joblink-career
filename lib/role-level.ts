@@ -55,7 +55,7 @@ const LEVEL_PATTERNS: Array<[number, RegExp]> = [
   [
     3,
     word(
-      "senior|aparici|boyuk|bas mutexessis|ekspert|expert|principal|lider",
+      "senior|aparici|boyuk|bas |ekspert|expert|principal|lider",
       "lead",
     ),
   ],

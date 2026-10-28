@@ -1,0 +1,15 @@
+# Everyday Azerbaijani professions that vacancies use on their own, with seniority prefixes added automatically
+# family|English|Azərbaycanca|Русский|aliases
+engineering|Engineer|Mühəndis|Инженер|
+finance|Finance Professional|Maliyyəçi|Финансист|finansist
+finance|Banker|Bankçı|Банкир|bank əməkdaşı;bank işçisi
+finance|Insurance Professional|Sığortaçı|Страховщик|
+finance|Reporting Specialist|Hesabat mütəxəssisi|Специалист по отчётности|hesabatçı
+finance|Economist-Accountant|İqtisadçı-mühasib|Экономист-бухгалтер|
+supply|Supply Specialist|Təchizat mütəxəssisi|Специалист по снабжению|təchizatçı
+supply|Supply Manager|Təchizat meneceri|Менеджер по снабжению|
+admin|Specialist|Mütəxəssis|Специалист|
+admin|Manager|Menecer|Менеджер|manager
+admin|Analyst|Analitik|Аналитик|analyst
+admin|Coordinator|Koordinator|Координатор|
+public|Inspector|İnspektor|Инспектор|

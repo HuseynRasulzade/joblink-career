@@ -305,7 +305,16 @@ export const BASE_JOB_TITLES: JobTitleDefinition[] = [
 ].map((t) => (RU_LABELS_OF_BASE[t.id] ? { ...t, labelRu: RU_LABELS_OF_BASE[t.id], aliases: [...t.aliases, RU_LABELS_OF_BASE[t.id]] } : t));
 
 // Hand-written core titles plus the large generated list.
-export const JOB_TITLE_CATALOG: JobTitleDefinition[] = [...BASE_JOB_TITLES, ...EXTRA_JOB_TITLES];
+// Everyday short forms people write instead of the full title ("maliyyəçi").
+const SHORT_FORMS: Record<string, string[]> = {
+  "procurement-specialist": ["satınalmaçı"],
+  "hr-specialist": ["kadrlar mütəxəssisi"],
+  "logistics-specialist": ["logistik"],
+  controller: ["maliyyə kontrolleri"],
+};
+export const JOB_TITLE_CATALOG: JobTitleDefinition[] = [...BASE_JOB_TITLES, ...EXTRA_JOB_TITLES].map((t) =>
+  SHORT_FORMS[t.id] ? { ...t, aliases: [...t.aliases, ...SHORT_FORMS[t.id]] } : t,
+);
 
 export const normalizeJobTitleKey = (value: string) =>
   normalizeSkillKey(value).replace(/ə/g, "e");
@@ -318,11 +327,12 @@ export const normalizeJobTitleKey = (value: string) =>
 export const SENIORITY_LEVELS: { id: string; en: string; az: string; aliases: string[] }[] = [
   { id: "intern", en: "Intern", az: "Təcrübəçi", aliases: ["stajyor", "trainee"] },
   { id: "assistant", en: "Assistant", az: "Köməkçi", aliases: ["köməkçi"] },
-  { id: "junior", en: "Junior", az: "Junior", aliases: ["kiçik", "başlanğıc səviyyə", "entry level"] },
+  { id: "junior", en: "Junior", az: "Kiçik", aliases: ["junior", "başlanğıc səviyyə", "entry level"] },
   { id: "middle", en: "Middle", az: "Middle", aliases: ["orta səviyyə", "mid-level", "mid"] },
-  { id: "senior", en: "Senior", az: "Senior", aliases: ["böyük", "təcrübəli"] },
-  { id: "lead", en: "Lead", az: "Aparıcı (Lead)", aliases: ["aparıcı", "team lead", "komanda lideri"] },
-  { id: "head", en: "Head of", az: "Rəhbər (Head of)", aliases: ["rəhbər", "baş mütəxəssis"] },
+  { id: "senior", en: "Senior", az: "Böyük", aliases: ["senior", "təcrübəli"] },
+  { id: "lead", en: "Lead", az: "Aparıcı", aliases: ["lead", "team lead", "komanda lideri"] },
+  { id: "chief", en: "Chief", az: "Baş", aliases: ["chief", "principal"] },
+  { id: "head", en: "Head of", az: "Rəhbər", aliases: ["rəhbər"] },
 ];
 const SENIORITY_WORDS = /^(senior|junior|middle|lead|head|chief|assistant|deputy|intern|principal|vice|trainee)\b|\b(chief|director|head of|intern|ceo|cfo|cto|coo)\b/i;
 
@@ -360,11 +370,15 @@ function indexed() {
   return baseIndex;
 }
 
-const lowerFirst = (value: string) => value.charAt(0).toLocaleLowerCase("az") + value.slice(1);
+// "Mühasib" -> "mühasib", but acronyms ("HR mütəxəssisi") keep their capitals.
+const lowerFirst = (value: string) =>
+  /^\p{Lu}{2}/u.test(value) ? value : value.charAt(0).toLocaleLowerCase("az") + value.slice(1);
+// Titles that already say their level ("Baş mühasib", "Köməkçi") get no prefix.
+const AZ_LEVEL_WORDS = /^(baş|aparıcı|kiçik|böyük|senior|junior|köməkçi|təcrübəçi|rəhbər|müavin)\b/i;
 const variants = new Map<string, JobTitleDefinition>();
 function variantOf(base: JobTitleDefinition, levelId: string): JobTitleDefinition | null {
   const level = SENIORITY_LEVELS.find((l) => l.id === levelId);
-  if (!level || SENIORITY_WORDS.test(base.labelEn)) return null;
+  if (!level || SENIORITY_WORDS.test(base.labelEn) || AZ_LEVEL_WORDS.test(base.label)) return null;
   const id = `${level.id}-${base.id}`;
   const cached = variants.get(id);
   if (cached) return cached;
@@ -376,7 +390,7 @@ function variantOf(base: JobTitleDefinition, levelId: string): JobTitleDefinitio
     label: az,
     labelEn: en,
     family: base.family,
-    aliases: [az, en, ...level.aliases.map((a) => `${a} ${lowerAz}`)],
+    aliases: [az, en, ...level.aliases.map((a) => `${a} ${lowerAz}`), ...(level.id === "head" ? [`${lowerAz} rəhbəri`] : [])],
     base: base.id,
     level: level.id,
   };
@@ -458,7 +472,7 @@ export function searchJobTitles(query: string, limit = 8, extra: JobTitleDefinit
   const found = searchBase(needle, limit, extra);
   const first = found.find((t) => !t.base && !SENIORITY_WORDS.test(t.labelEn));
   if (!first || found.length >= limit) return found;
-  const extras = ["junior", "middle", "senior", "lead", "head"]
+  const extras = ["junior", "senior", "lead", "chief", "head"]
     .map((level) => variantOf(first, level))
     .filter((t): t is JobTitleDefinition => !!t && !found.some((f) => f.id === t.id));
   return [...found, ...extras].slice(0, limit);
