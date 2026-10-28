@@ -355,6 +355,7 @@ import { seedOnboardingTasks, taskSummary } from "@/lib/onboarding";
 import { compareInterviews, type FeedbackRow } from "@/lib/interview-compare";
 import { WORLD_SKILLS } from "@/lib/world-skills-data";
 import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
+import { pickSigners, sameName } from "@/lib/order-signers";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
@@ -7083,6 +7084,107 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "employees-imported", "", `${created} yeni, ${updated} yenilənən`);
     return ok({ created, updated, issues: incoming.issues });
   }
+  // ---- Orders about an employee: who signs, and each signer's approval ----
+  type OrderSigner = { role: string; title: string; name: string; approvedAt?: string; approvedBy?: string };
+  if (request.method === "GET" && path === "company/order-signers") {
+    requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi hazırlaya bilər.");
+    const employee = await db
+      .prepare("SELECT id,name,department,section,position FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'")
+      .bind(str(requestUrl.searchParams.get("employeeId"), 100), id)
+      .first<{ id: string; name: string; department: string; section: string; position: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const people = await db
+      .prepare("SELECT id,name,position,department,section,status FROM company_employees WHERE company_id=? AND status IN ('active','leave')")
+      .bind(id)
+      .all<{ id: string; name: string; position: string; department: string; section: string; status: string }>();
+    const profile = await db.prepare("SELECT data FROM company_profiles WHERE company_id=?").bind(id).first<{ data: string }>();
+    const details = companyDetailsInput(profile ? JSON.parse(profile.data) : {});
+    return ok({
+      employee: { name: employee.name, department: employee.department, section: employee.section, position: employee.position },
+      people: people.results.filter((p) => p.id !== employee.id).map((p) => ({ name: p.name, position: p.position, department: p.department })),
+      ...pickSigners(employee, people.results, details.director),
+    });
+  }
+  const orderRow = (r: { id: string; kind: string; number: string; order_date: string; input: string; signers: string; status: string; created: string }) => ({
+    id: r.id,
+    kind: r.kind,
+    number: r.number,
+    date: r.order_date,
+    status: r.status,
+    created: r.created,
+    input: JSON.parse(r.input || "{}"),
+    signers: JSON.parse(r.signers || "[]") as OrderSigner[],
+  });
+  if (request.method === "GET" && path === "company/orders") {
+    requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi görə bilər.");
+    const rows = await db
+      .prepare("SELECT id,kind,number,order_date,input,signers,status,created FROM employee_orders WHERE company_id=? AND employee_id=? ORDER BY created DESC LIMIT 100")
+      .bind(id, str(requestUrl.searchParams.get("employeeId"), 100))
+      .all<{ id: string; kind: string; number: string; order_date: string; input: string; signers: string; status: string; created: string }>();
+    return ok({ orders: rows.results.map(orderRow) });
+  }
+  if (request.method === "POST" && path === "company/orders/save") {
+    requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi hazırlaya bilər.");
+    const b = await jsonBody(request);
+    const employee = await db
+      .prepare("SELECT id,name FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'")
+      .bind(str(b.employeeId, 100), id)
+      .first<{ id: string; name: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const kind = str(b.kind, 20);
+    if (!["hire", "vacation", "salary", "transfer", "termination"].includes(kind)) throw new HttpError(400, "Əmrin növü düzgün deyil.");
+    const date = str(b.date, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, "Əmrin tarixini yazın.");
+    const signers: OrderSigner[] = (Array.isArray(b.signers) ? b.signers : [])
+      .slice(0, 4)
+      .map((x: { role?: unknown; title?: unknown; name?: unknown }) => ({ role: x.role === "director" ? "director" : "head", title: str(x.title, 60), name: str(x.name, 120) }))
+      .filter((x: OrderSigner) => x.name);
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM employee_orders WHERE company_id=? AND employee_id=?").bind(id, employee.id).first<{ n: number }>();
+    if (Number(count?.n) >= 100) throw new HttpError(409, "Bir işçi üçün ən çox 100 əmr saxlamaq olar.");
+    const input = JSON.stringify(b.input && typeof b.input === "object" ? b.input : {}).slice(0, 8000);
+    const now = new Date().toISOString();
+    const orderId = crypto.randomUUID();
+    await db
+      .prepare("INSERT INTO employee_orders(id,company_id,employee_id,kind,number,order_date,input,signers,status,created_by,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(orderId, id, employee.id, kind, str(b.number, 40), date, input, JSON.stringify(signers), signers.length ? "pending" : "signed", userId, now, now)
+      .run();
+    await companyAudit(db, id, userId, "order-created", employee.id, `${employee.name}: ${kind}`);
+    return ok({ ok: true, id: orderId }, 201);
+  }
+  if (request.method === "POST" && path === "company/orders/approve") {
+    const b = await jsonBody(request);
+    const order = await db
+      .prepare("SELECT id,employee_id,signers,status FROM employee_orders WHERE id=? AND company_id=?")
+      .bind(str(b.id, 100), id)
+      .first<{ id: string; employee_id: string; signers: string; status: string }>();
+    if (!order) throw new HttpError(404, "Əmr tapılmadı.");
+    const signers = JSON.parse(order.signers || "[]") as OrderSigner[];
+    const signer = signers.find((x) => x.role === str(b.role, 20));
+    if (!signer) throw new HttpError(404, "İmzalayan tapılmadı.");
+    if (signer.approvedAt) throw new HttpError(409, "Bu imza artıq təsdiqlənib.");
+    const who = await requesterName();
+    // The director's signature: a director (or the owner) or the named person; the head's: HR, a director or the named person.
+    const allowed =
+      sameName(who, signer.name) || (signer.role === "director" ? canAct("approve-director") : canAct("approve-hr") || canAct("approve-director"));
+    if (!allowed)
+      throw new HttpError(403, signer.role === "director" ? "Direktorun imzasını yalnız direktor və ya hesab sahibi təsdiqləyə bilər." : "Şöbə rəhbərinin imzasını yalnız o, HR, direktor və ya hesab sahibi təsdiqləyə bilər.");
+    signer.approvedAt = new Date().toISOString();
+    signer.approvedBy = who;
+    const done = signers.every((x) => x.approvedAt);
+    await db
+      .prepare("UPDATE employee_orders SET signers=?,status=?,updated=? WHERE id=? AND company_id=?")
+      .bind(JSON.stringify(signers), done ? "signed" : "pending", signer.approvedAt, order.id, id)
+      .run();
+    await companyAudit(db, id, userId, "order-approved", order.employee_id, `${signer.title}: ${signer.name} (${who})`);
+    return ok({ ok: true, signed: done });
+  }
+  if (request.method === "POST" && path === "company/orders/delete") {
+    requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi silə bilər.");
+    const b = await jsonBody(request);
+    const result = await db.prepare("DELETE FROM employee_orders WHERE id=? AND company_id=? AND status='pending'").bind(str(b.id, 100), id).run();
+    if (!result.meta.changes) throw new HttpError(409, "Yalnız imzası gözləyən əmr silinə bilər.");
+    return ok({ ok: true });
+  }
   // ---- A job offer letter to a current employee, sent by e-mail ----
   if (request.method === "POST" && path === "company/employees/send-offer") {
     requirePermission("salaries", "İşçiyə təklifi yalnız HR, direktor və hesab sahibi göndərə bilər.");
@@ -7732,6 +7834,7 @@ async function route(request: Request) {
       .prepare("DELETE FROM employee_tasks WHERE employee_id=? AND company_id=?")
       .bind(str(b.id, 100), id)
       .run();
+    await db.prepare("DELETE FROM employee_orders WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run();
     await companyAudit(db, id, userId, "employee-removed", str(b.id, 100));
     return ok({ ok: true });
   }

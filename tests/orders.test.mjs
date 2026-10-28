@@ -22,6 +22,7 @@ test("every order names the company, the employee, the dates and a signature lin
     assert.match(order.text, /Aysel Məmmədova/);
     assert.match(order.text, /01\.06\.2026/);
     assert.ok(order.signature.includes("Əli Əliyev"));
+    assert.match(order.signature, /Aysel Məmmədova/);
     assert.ok(!/undefined|NaN/.test(order.text), id);
   }
 });
@@ -54,4 +55,19 @@ test("an employee job offer states the post, pay, start date and the deadline", 
   assert.match(offer.text, /01\.06\.2026/);
   assert.match(offer.text, /20\.05\.2026/);
   assert.ok(!/undefined|NaN/.test(offer.text));
+});
+
+test("signers: each line shows the title, the name and whether it is approved", () => {
+  const order = buildOrder({
+    ...{ number: "1", date: "2026-05-04", city: "Bakı", company: { name: "X MMC" }, employee: { name: "Aysel", position: "Mühasib", department: "Maliyyə" } },
+    kind: "hire",
+    signers: [
+      { role: "head", title: "Şöbə rəhbəri", name: "Rəşad Quliyev", approvedAt: "2026-05-05T10:00:00Z" },
+      { role: "director", title: "Direktor", name: "Elçin Hüseynov" },
+    ],
+  });
+  const lines = order.signature.split("\n");
+  assert.match(lines[0], /Şöbə rəhbəri: Rəşad Quliyev — elektron təsdiq 05\.05\.2026/);
+  assert.match(lines[1], /Direktor: Elçin Hüseynov — _+/);
+  assert.match(lines[2], /İşçi ilə tanış oldum/);
 });

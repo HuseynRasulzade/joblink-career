@@ -1134,3 +1134,23 @@ export const jobViews = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.jobId, t.viewer, t.day] }), index("job_views_day").on(t.day)],
 );
+
+// Orders about an employee, with the people who have to approve (sign) them.
+export const employeeOrders = sqliteTable(
+  "employee_orders",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    kind: text("kind").notNull(),
+    number: text("number").notNull().default(""),
+    orderDate: text("order_date").notNull().default(""),
+    input: text("input").notNull().default("{}"),
+    signers: text("signers").notNull().default("[]"),
+    status: text("status").notNull().default("pending"),
+    createdBy: text("created_by").notNull().default(""),
+    created: text("created").notNull(),
+    updated: text("updated").notNull(),
+  },
+  (t) => [index("employee_orders_employee").on(t.companyId, t.employeeId, t.created)],
+);

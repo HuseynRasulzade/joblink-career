@@ -2834,6 +2834,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                     probationEnd: editing.probationEnd || "",
                     endDate: editing.endDate || "",
                   }}
+                  notify={notify}
                 />
               </Modal>
             )}

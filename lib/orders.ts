@@ -29,6 +29,8 @@ export type OrderInput = {
   newPosition?: string;
   newDepartment?: string;
   basis?: string; // legal basis or reason
+  // Who signs: the section head and the director. A signer with a date has approved it electronically.
+  signers?: { role: string; title: string; name: string; approvedAt?: string }[];
 };
 
 export type Order = { number: string; title: string; paragraphs: string[]; signature: string; text: string };
@@ -98,7 +100,11 @@ export function buildOrder(input: OrderInput): Order {
     "Əsas: işçinin ərizəsi və ya əmək müqaviləsi.",
     "İşçi bu əmrlə imza qarşılığında tanış edilsin.",
   ];
-  const signature = `${fill(company.directorTitle || "Direktor")}: ${fill(company.director)}   ____________   İşçi ilə tanış oldum: ${fill(employee.name)}   ____________`;
+  const signers = input.signers && input.signers.length ? input.signers : [{ role: "director", title: company.directorTitle || "Direktor", name: company.director || "" }];
+  const signature = [
+    ...signers.map((signer) => `${signer.title}: ${fill(signer.name)} — ${signer.approvedAt ? `elektron təsdiq ${dmy(signer.approvedAt.slice(0, 10))}` : "____________"}`),
+    `İşçi ilə tanış oldum: ${fill(employee.name)} — ____________`,
+  ].join("\n");
   return {
     number: input.number,
     title: meta.label,

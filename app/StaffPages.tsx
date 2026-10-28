@@ -257,33 +257,75 @@ function orderHtml(order: ReturnType<typeof buildOrder>) {
   return `<!doctype html><html lang="az"><head><meta charset="utf-8"><title>${escape(order.title)}</title>
 <style>body{font-family:"Times New Roman",serif;font-size:14pt;line-height:1.5;max-width:720px;margin:40px auto;padding:0 24px}
 h1{font-size:16pt;text-align:center;text-transform:uppercase}p{margin:10px 0;text-align:justify}.sign{margin-top:48px}.note{margin-top:40px;font-size:10pt;color:#666}</style></head>
-<body><h1>${escape(order.title)}</h1>${order.paragraphs.map((p) => `<p>${escape(p)}</p>`).join("")}<p class="sign">${escape(order.signature)}</p>
+<body><h1>${escape(order.title)}</h1>${order.paragraphs.map((p) => `<p>${escape(p)}</p>`).join("")}<p class="sign">${order.signature.split("\n").map(escape).join("<br>")}</p>
 <p class="note">Bu mətn layihədir; hüquqi əsaslar Azərbaycan Respublikasının Əmək Məcəlləsinə görə yoxlanmalıdır.</p></body></html>`;
 }
+function printOrder(order: ReturnType<typeof buildOrder>) {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(orderHtml(order));
+  win.document.close();
+  win.focus();
+  win.print();
+}
+function downloadOrderWord(order: ReturnType<typeof buildOrder>) {
+  const url = URL.createObjectURL(new Blob(["\ufeff", orderHtml(order)], { type: "application/msword" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `emr-${order.number || "sened"}.doc`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+type SignerState = { role: "head" | "director"; title: string; name: string; approvedAt?: string; approvedBy?: string };
+type SavedOrder = { id: string; kind: OrderKind; number: string; date: string; status: string; created: string; input: Omit<OrderInput, "signers">; signers: SignerState[] };
 
 export function OrderMaker({
   employee,
+  notify,
 }: {
   employee: { id: string; name: string; position: string; department: string; section: string; startDate: string; salary: number | null; salaryType: SalaryType; probationEnd: string; endDate: string };
+  notify: Notify;
 }) {
   const [facts, setFacts] = useState<CompanyFacts>({ name: "", voen: "", director: "" });
   const today = new Date().toISOString().slice(0, 10);
   const [kind, setKind] = useState<OrderKind>("vacation");
   const [form, setForm] = useState({ date: today, from: today, to: "", newPosition: "", newDepartment: "", salary: "", basis: "", vacationKind: "illik əmək məzuniyyəti" });
   const [number, setNumber] = useState("");
-  useEffect(() => {
-    void Promise.all([request<{ company: { name: string } | null }>("company/me"), request<{ details: { legalName: string; voen: string; director: string } }>("company/profile")])
-      .then(([me, profile]) =>
-        setFacts({ name: profile.details.legalName || me.company?.name || "", voen: profile.details.voen, director: profile.details.director }),
-      )
+  // The section head and the director are picked from the staff list; the names can be changed.
+  const [head, setHead] = useState({ use: true, name: "", note: "" });
+  const [director, setDirector] = useState({ name: "", note: "" });
+  const [saved, setSaved] = useState<SavedOrder[]>([]);
+  const [busy, setBusy] = useState(false);
+  const loadSaved = useCallback(() => {
+    request<{ orders: SavedOrder[] }>(`company/orders?employeeId=${employee.id}`)
+      .then((r) => setSaved(r.orders))
       .catch(() => undefined);
-  }, []);
+  }, [employee.id]);
+  useEffect(() => {
+    void Promise.all([
+      request<{ company: { name: string } | null }>("company/me"),
+      request<{ details: { legalName: string; voen: string; director: string } }>("company/profile"),
+      request<{ head: { name: string; position: string } | null; director: { name: string; position: string; source: string } | null }>(`company/order-signers?employeeId=${employee.id}`),
+    ])
+      .then(([me, profile, signers]) => {
+        setFacts({ name: profile.details.legalName || me.company?.name || "", voen: profile.details.voen, director: signers.director?.name || profile.details.director });
+        setHead({ use: !!signers.head, name: signers.head?.name || "", note: signers.head ? `${signers.head.position} (ştat cədvəlindən)` : "Departamentdə şöbə rəhbəri tapılmadı: adı yazın və ya imzanı götürün." });
+        setDirector({ name: signers.director?.name || "", note: signers.director ? (signers.director.source === "staff" ? `${signers.director.position} (ştat cədvəlindən)` : "Şirkət məlumatlarındakı direktor") : "Direktor tapılmadı: adı yazın." });
+      })
+      .catch(() => undefined);
+    loadSaved();
+  }, [employee.id, loadSaved]);
+  const signerList: SignerState[] = [
+    ...(head.use && head.name.trim() ? [{ role: "head" as const, title: "Şöbə rəhbəri", name: head.name.trim() }] : []),
+    ...(director.name.trim() ? [{ role: "director" as const, title: "Direktor", name: director.name.trim() }] : []),
+  ];
   const input: OrderInput = {
     kind,
     number: number || orderNumber(kind, form.date, employee.id),
     date: form.date,
     city: "Bakı",
-    company: { name: facts.name, voen: facts.voen, director: facts.director, directorTitle: "Direktor" },
+    company: { name: facts.name, voen: facts.voen, director: director.name || facts.director, directorTitle: "Direktor" },
     employee: { name: employee.name, position: employee.position, department: employee.department, section: employee.section, startDate: employee.startDate },
     from: kind === "hire" ? employee.startDate : kind === "termination" ? form.from || employee.endDate : form.from,
     to: form.to,
@@ -296,28 +338,49 @@ export function OrderMaker({
     newPosition: form.newPosition,
     newDepartment: form.newDepartment,
     basis: form.basis,
+    signers: signerList,
   };
   const order = buildOrder(input);
-  const print = () => {
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(orderHtml(order));
-    win.document.close();
-    win.focus();
-    win.print();
-  };
-  const word = () => {
-    const url = URL.createObjectURL(new Blob(["﻿", orderHtml(order)], { type: "application/msword" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `emr-${order.number || "sened"}.doc`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
   const set = (key: keyof typeof form, value: string) => setForm({ ...form, [key]: value });
+  async function create() {
+    setBusy(true);
+    try {
+      const { signers, ...rest } = input;
+      void signers;
+      await request("company/orders/save", { employeeId: employee.id, kind, number: input.number, date: form.date, input: rest, signers: signerList });
+      notify("Əmr yaradıldı və imzaya göndərildi. İmzalayanlar aşağıdan təsdiq edə bilər.");
+      setNumber("");
+      loadSaved();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function approve(order: SavedOrder, role: string) {
+    try {
+      const result = await request<{ signed: boolean }>("company/orders/approve", { id: order.id, role });
+      notify(result.signed ? "Əmr bütün imzalarla təsdiqləndi." : "İmza təsdiqləndi.");
+      loadSaved();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function remove(order: SavedOrder) {
+    if (!window.confirm(`№ ${order.number} əmri silinsin?`)) return;
+    try {
+      await request("company/orders/delete", { id: order.id });
+      loadSaved();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  const rebuild = (item: SavedOrder) => buildOrder({ ...item.input, signers: item.signers });
   return (
     <div className="panel" style={{ marginTop: 12 }}>
-      <h4>Əmr sənədləri</h4>
+      <p className="muted">
+        <b>İşçi:</b> {employee.name || "—"} · <b>Departament:</b> {employee.department || "—"} · <b>Şöbə:</b> {employee.section || "—"} · <b>Vəzifə:</b> {employee.position || "—"}
+      </p>
       <div className="form-grid">
         <Field label="Əmrin növü">
           <select value={kind} onChange={(e) => setKind(e.target.value as OrderKind)}>
@@ -370,22 +433,97 @@ export function OrderMaker({
           </Field>
         )}
       </div>
+      <h4>İmzalayanlar</h4>
+      <div className="form-grid">
+        <Field label="Şöbə rəhbəri">
+          <input value={head.name} disabled={!head.use} onChange={(e) => setHead({ ...head, name: e.target.value })} />
+          <small className="skill-picker-help">{head.note}</small>
+          <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="checkbox" checked={head.use} onChange={(e) => setHead({ ...head, use: e.target.checked })} /> Bu əmri şöbə rəhbəri də imzalasın
+          </label>
+        </Field>
+        <Field label="Direktor">
+          <input value={director.name} onChange={(e) => setDirector({ ...director, name: e.target.value })} />
+          <small className="skill-picker-help">{director.note}</small>
+        </Field>
+      </div>
       <pre className="muted" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
         {order.text}
       </pre>
       <div className="admin-actions">
-        <button type="button" className="primary" onClick={print}>
+        <button type="button" className="primary" disabled={busy || !signerList.length} onClick={create}>
+          Əmri yarat və imzaya göndər
+        </button>
+        <button type="button" className="secondary" onClick={() => printOrder(order)}>
           <Printer size={14} /> Çap et / PDF
         </button>
-        <button type="button" className="secondary" onClick={word}>
+        <button type="button" className="secondary" onClick={() => downloadOrderWord(order)}>
           <Download size={14} /> Word (.doc)
         </button>
       </div>
-      <small className="muted">İmzalanmış əmri “İşçi sənədləri” bölməsinə yükləyib saxlaya bilərsiniz.</small>
+      {!!saved.length && (
+        <>
+          <h4>Yaradılmış əmrlər</h4>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Əmr</th>
+                  <th>İmzalar</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {saved.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <b>№ {item.number}</b>
+                      <small className="skill-description">
+                        {ORDER_KINDS.find((k) => k.id === item.kind)?.label} · {item.date}
+                      </small>
+                    </td>
+                    <td>
+                      {item.signers.map((signer) => (
+                        <div key={signer.role} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <span>
+                            {signer.title}: <b>{signer.name}</b>
+                          </span>
+                          {signer.approvedAt ? (
+                            <small className="skill-description">təsdiqləyib: {signer.approvedBy} · {signer.approvedAt.slice(0, 10)}</small>
+                          ) : (
+                            <button type="button" onClick={() => void approve(item, signer.role)}>
+                              Təsdiq et
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </td>
+                    <td>{item.status === "signed" ? "İmzalanıb" : "İmza gözləyir"}</td>
+                    <td className="admin-actions">
+                      <button type="button" onClick={() => printOrder(rebuild(item))}>
+                        Çap et
+                      </button>
+                      <button type="button" onClick={() => downloadOrderWord(rebuild(item))}>
+                        Word
+                      </button>
+                      {item.status === "pending" && (
+                        <button type="button" aria-label="Sil" onClick={() => void remove(item)}>
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      <small className="muted">İmzalanmış əmri çap edib əl ilə də imzalaya və “Sənəd qovluğu”na yükləyə bilərsiniz.</small>
     </div>
   );
 }
-
 
 // ---------- Job offer to a current employee, from a vacancy whose selection is finished ----------
 type OfferJob = {
