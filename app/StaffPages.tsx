@@ -1633,12 +1633,13 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
         {data.departments.map((d) => (
           <div key={d.name} className="structure-card">
             <div className="structure-head">
-              <div>
+              <div className="structure-title">
                 <b>{d.name}</b>
-                <small className="muted">
-                  {" "}
-                  {d.sections.length} şöbə · {d.units} ştat sətri · {d.people} işçi
-                </small>
+                <span className="structure-meta">
+                  <span>{d.sections.length} şöbə</span>
+                  <span>{d.units} ştat sətri</span>
+                  <span>{d.people} işçi</span>
+                </span>
               </div>
               <div className="admin-actions">
                 <button type="button" onClick={() => rename(d.name)}>
@@ -1652,8 +1653,10 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
             <ul>
               {d.sections.map((x) => (
                 <li key={x.name}>
-                  <span>
-                    {x.name} <small className="muted">· {x.units} sətir · {x.people} işçi</small>
+                  <span className="structure-name">{x.name}</span>
+                  <span className="structure-meta">
+                    <span>{x.units} sətir</span>
+                    <span>{x.people} işçi</span>
                   </span>
                   <span className="admin-actions">
                     <button type="button" onClick={() => rename(d.name, x.name)}>
@@ -1665,10 +1668,11 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
                   </span>
                 </li>
               ))}
-              {!d.sections.length && <li className="muted">Şöbə yoxdur</li>}
+              {!d.sections.length && <li className="structure-empty muted">Şöbə yoxdur</li>}
             </ul>
-            <div className="org-add">
+            <div className="org-add structure-add">
               <input
+                className="search-input"
                 value={section[d.name] || ""}
                 placeholder="Yeni şöbənin adı"
                 onChange={(e) => setSection({ ...section, [d.name]: e.target.value })}

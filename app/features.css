@@ -5720,34 +5720,105 @@ a svg {
   gap: 12px;
   padding: 4px 0;
 }
+.structure-panel {
+  padding-top: 4px;
+}
+.structure-panel > p {
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
 .structure-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+  align-items: start;
 }
 .structure-card {
   border: 1px solid #dfe8e3;
-  border-radius: 10px;
-  padding: 12px 14px;
+  border-radius: 12px;
+  padding: 16px 18px;
+  background: #fff;
 }
 .structure-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 8px;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eef3f0;
+}
+.structure-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.structure-title b {
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+.structure-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.structure-meta span {
+  background: #eef5f2;
+  color: #3d5a50;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 .structure-card ul {
   list-style: none;
   padding: 0;
-  margin: 8px 0;
+  margin: 4px 0 12px;
 }
 .structure-card li {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
+  gap: 10px;
+  padding: 9px 0;
   border-bottom: 1px solid #eef3f0;
+}
+.structure-card li.structure-empty {
+  display: block;
+  border-bottom: 0;
+}
+.structure-name {
+  overflow-wrap: anywhere;
+}
+.structure-card .admin-actions {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.structure-card .admin-actions button {
+  white-space: nowrap;
+}
+.structure-add {
+  margin-top: 0;
+  flex-wrap: nowrap;
+}
+.structure-add input {
+  flex: 1;
+  min-width: 0;
+}
+.structure-add button {
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .structure-grid {
+    grid-template-columns: 1fr;
+  }
+  .structure-card li {
+    grid-template-columns: 1fr auto;
+  }
+  .structure-card li .structure-meta {
+    grid-column: 1 / -1;
+    order: 3;
+  }
 }
 .calc-employee {
   position: relative;
