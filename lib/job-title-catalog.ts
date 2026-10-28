@@ -471,11 +471,25 @@ export function searchJobTitles(query: string, limit = 8, extra: JobTitleDefinit
   }
   const found = searchBase(needle, limit, extra);
   const first = found.find((t) => !t.base && !SENIORITY_WORDS.test(t.labelEn));
-  if (!first || found.length >= limit) return found;
-  const extras = ["junior", "senior", "lead", "chief", "head"]
-    .map((level) => variantOf(first, level))
-    .filter((t): t is JobTitleDefinition => !!t && !found.some((f) => f.id === t.id));
-  return [...found, ...extras].slice(0, limit);
+  if (!first) return found;
+  // The levels of the best match come right after it, so "mühasib" offers
+  // Kiçik / Böyük / Aparıcı / Baş mühasib before other titles that contain the word.
+  // A level the catalog already has as a title of its own ("Baş mühasib") is used as it is.
+  const seen = new Set(found.slice(0, found.indexOf(first) + 1).map((t) => normalizeJobTitleKey(t.label)));
+  const extras: JobTitleDefinition[] = [];
+  for (const level of ["junior", "senior", "lead", "chief", "head"]) {
+    const made = variantOf(first, level);
+    if (!made) continue;
+    const key = normalizeJobTitleKey(made.label);
+    const own = indexed().get(key);
+    const title = own && normalizeJobTitleKey(own.label) === key ? own : made;
+    if (seen.has(key) || seen.has(normalizeJobTitleKey(title.label))) continue;
+    seen.add(key);
+    seen.add(normalizeJobTitleKey(title.label));
+    extras.push(title);
+  }
+  const rest = found.filter((t) => t !== first && !extras.some((e) => e.id === t.id));
+  return [first, ...extras, ...rest].slice(0, limit);
 }
 
 // Every base title and every seniority variant (exports and tests only).

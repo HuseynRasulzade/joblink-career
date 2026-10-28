@@ -60,8 +60,8 @@ export default function JobTitleInput({
   }, [open, value, world.length]);
   const known = canonicalJobTitle(value);
   const worldKnown = !known && world.length ? worldJobTitleKnown(world, value) : null;
-  const suggestions = open && value.trim() && !known ? searchJobTitles(value, 8) : [];
-  const wider = open && value.trim() && !known && !worldKnown && suggestions.length < 8 ? searchWorldJobTitles(world, value, 8 - suggestions.length) : [];
+  const suggestions = open && value.trim() && !known ? searchJobTitles(value, 10) : [];
+  const wider = open && value.trim() && !known && !worldKnown && suggestions.length < 10 ? searchWorldJobTitles(world, value, 10 - suggestions.length) : [];
 
   async function check() {
     setResolution({ state: "checking" });
