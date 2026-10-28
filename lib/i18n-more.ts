@@ -59,6 +59,9 @@ export const EN_MORE: Record<string, string> = {
   "Təşəkkür edirik.": "Thank you.",
   "“AI düz dedi” kimi qeyd olundu.": "Marked “the AI was right”.",
   "“AI yanlış dedi” kimi qeyd olundu.": "Marked “the AI was wrong”.",
+  "Kataloqda yoxdur: uyğunluq hesabında nəzərə alınmır": "Not in the catalog: not counted in the match",
+  "Kataloqda olmayan bacarıqlar uyğunluq hesabında nəzərə alınmır:": "Skills outside the catalog are not counted in the match:",
+  "Oxşar kataloq bacarığını seçin və ya yazıb “Yeni bacarıq kimi yoxla və əlavə et” düyməsini basın.": "Pick a similar catalog skill, or type it and press “Check and add as a new skill”.",
 };
 export const RU_MORE: Record<string, string> = {
   "Vəzifə səviyyəsi:": "Уровень должности:",
@@ -123,4 +126,7 @@ export const RU_MORE: Record<string, string> = {
   "AI-nin aylıq xərc limiti": "Месячный лимит расходов на ИИ",
   "AI diqqət tələb edir": "ИИ требует внимания",
   "Saxla": "Сохранить",
+  "Kataloqda yoxdur: uyğunluq hesabında nəzərə alınmır": "Нет в каталоге: не учитывается при подборе",
+  "Kataloqda olmayan bacarıqlar uyğunluq hesabında nəzərə alınmır:": "Навыки вне каталога не учитываются при подборе:",
+  "Oxşar kataloq bacarığını seçin və ya yazıb “Yeni bacarıq kimi yoxla və əlavə et” düyməsini basın.": "Выберите похожий навык из каталога или введите его и нажмите «Проверить и добавить как новый навык».",
 };

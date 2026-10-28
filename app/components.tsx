@@ -221,6 +221,12 @@ export function SkillPicker({
   const runtimeByLabel = new Map(
     allRuntimeSkills.map((item) => [normalizeSkillKey(item.label), item]),
   );
+  // A skill that is not in the catalog (for example one read from a CV) is kept,
+  // but the matching cannot use it.
+  const isKnown = (item: string) =>
+    runtimeByLabel.has(normalizeSkillKey(item)) ||
+    normalizeSkills([item], { max: 1 }).length > 0;
+  const unknown = selected.filter((item) => !isKnown(item));
   const add = (candidate: string) => {
     const next = normalizeSkills([...selected, candidate], {
       allowCustom: true,
@@ -281,7 +287,15 @@ export function SkillPicker({
       <div className="skill-picker-control">
         <div className="skill-picker-chips">
           {selected.map((item) => (
-            <span className="skill-chip" key={skillId(item)}>
+            <span
+              className={`skill-chip${isKnown(item) ? "" : " unknown"}`}
+              key={skillId(item)}
+              title={
+                isKnown(item)
+                  ? undefined
+                  : translate("Kataloqda yoxdur: uyğunluq hesabında nəzərə alınmır", language)
+              }
+            >
               {runtimeByLabel.get(normalizeSkillKey(item))
                 ? language === "en"
                   ? runtimeByLabel.get(normalizeSkillKey(item))!.labelEn
@@ -371,6 +385,13 @@ export function SkillPicker({
       {proposalMessage && (
         <small className="skill-proposal-message" role="status">
           {proposalMessage}
+        </small>
+      )}
+      {!!unknown.length && (
+        <small className="skill-unknown-note" role="note">
+          {translate("Kataloqda olmayan bacarıqlar uyğunluq hesabında nəzərə alınmır:", language)}{" "}
+          <b>{unknown.slice(0, 5).join(", ")}{unknown.length > 5 ? "…" : ""}</b>.{" "}
+          {translate("Oxşar kataloq bacarığını seçin və ya yazıb “Yeni bacarıq kimi yoxla və əlavə et” düyməsini basın.", language)}
         </small>
       )}
       <small className="skill-picker-help">
