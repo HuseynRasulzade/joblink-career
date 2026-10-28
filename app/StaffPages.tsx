@@ -1115,11 +1115,23 @@ export function OrgNameInput({
     const name = draft.trim();
     if (name.length < 2) return;
     try {
-      const result = await request<{ name: string; existing: boolean }>("company/org-names/add", { kind, name, department });
+      const result = await request<{ name: string; existing: boolean; matched?: "exact" | "close" | null; requested?: "new" | "known" | null; original?: string }>("company/org-names/add", { kind, name, department });
       onAdded?.(kind, result.name);
       if (kind === "section") setScoped((current) => (current && !canonicalOrgName(current, result.name).existing ? [...current, result.name] : current));
       onChange(result.name);
-      setHint(result.existing ? `“${result.name}” kataloqda artıq var — mövcud ad seçildi.` : `“${result.name}” şirkət kataloquna əlavə edildi.`);
+      setHint(
+        result.matched === "close"
+          ? `“${result.original}” ümumi kataloqda “${result.name}” kimi var — o seçildi (təkrar ad yaranmadı).`
+          : result.matched === "exact" && result.original && result.original !== result.name
+            ? `“${result.original}” ümumi kataloqda “${result.name}” adı ilə var — o seçildi.`
+            : result.requested === "new"
+              ? `“${result.name}” ümumi vəzifə kataloqunda yoxdur. Şirkət siyahınıza əlavə edildi və kataloqa əlavə olunması üçün adminə sorğu göndərildi — vəzifəni indi seçə bilərsiniz.`
+              : result.requested === "known"
+                ? `“${result.name}” şirkət siyahınıza əlavə edildi; kataloqa əlavə sorğusu artıq adminə göndərilib.`
+                : result.existing
+                  ? `“${result.name}” kataloqda artıq var — mövcud ad seçildi.`
+                  : `“${result.name}” şirkət kataloquna əlavə edildi.`,
+      );
       setAdding(false);
       setDraft("");
     } catch (error) {

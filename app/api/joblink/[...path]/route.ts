@@ -368,6 +368,7 @@ import { addSections, addStructure, canonicalOrg, deleteStructure, loadStaffHist
 import { assignPeople, checkSalary, normalizeRate, RATE_LABEL, summarize, type PlanPerson, type PlanUnit } from "@/lib/staff-plan";
 import { parseStructureRows } from "@/lib/staff-import";
 import { splitNames } from "@/lib/section-suggestions";
+import { bestCatalogMatch } from "@/lib/job-title-match";
 import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
@@ -432,6 +433,36 @@ function parsedStringArray(value: string) {
     return [];
   }
 }
+// A position typed by a company: the shared catalog title when there is one (exact, with a typo or in another
+// word order), otherwise the typed name is kept for the company and the admin is asked once to add it to the
+// catalog. Either way the name can be chosen at once.
+type PositionResult = { name: string; original: string; matched: "exact" | "close" | null; requested: "new" | "known" | null };
+async function resolvePosition(db: D1Database, companyId: string, input: string): Promise<PositionResult> {
+  const original = cleanOrgName(input);
+  if (!original) return { name: "", original, matched: null, requested: null };
+  const match = bestCatalogMatch(original);
+  const name = await canonicalOrg(db, companyId, "position", match ? match.title.label : original);
+  if (match) return { name, original, matched: match.how, requested: null };
+  const known = await db
+    .prepare("SELECT 1 AS yes FROM support_threads WHERE topic='job-title' AND lower(subject)=lower(?) LIMIT 1")
+    .bind(name)
+    .first();
+  if (known) return { name, original, matched: null, requested: "known" };
+  const today = await db
+    .prepare("SELECT COUNT(*) AS n FROM support_threads WHERE topic='job-title' AND user_id=? AND created>=datetime('now','-1 day')")
+    .bind(companyId)
+    .first<{ n: number }>();
+  if (Number(today?.n) >= 30) return { name, original, matched: null, requested: "known" };
+  await createSupportThread(db, {
+    userId: companyId,
+    role: "company",
+    topic: "job-title",
+    subject: name,
+    body: `Şirkət ştat cədvəlinə kataloqda olmayan vəzifə adı əlavə edib: “${name}”. Ümumi vəzifə kataloquna əlavə edilməsi xahiş olunur.`,
+    meta: { label: name, source: "staff-plan" },
+  });
+  return { name, original, matched: null, requested: "new" };
+}
 type StaffInput = { department: string; section: string; position: string; planned: number; salaryCents: number; note: string; rate?: number; salaryMaxCents?: number };
 async function saveStaffUnit(
   db: D1Database,
@@ -444,7 +475,7 @@ async function saveStaffUnit(
     ...unit,
     department,
     section: await canonicalOrg(db, companyId, "section", unit.section, department),
-    position: await canonicalOrg(db, companyId, "position", unit.position),
+    position: (await resolvePosition(db, companyId, unit.position)).name,
   };
   const rate = normalizeRate(unit.rate ?? 1);
   const salaryMaxCents = Math.max(unit.salaryCents, Math.round(Number(unit.salaryMaxCents) || 0));
@@ -513,7 +544,7 @@ async function applyStaffRows(db: D1Database, companyId: string, rows: StaffInpu
   for (const row of rows) {
     const department = await canonicalOrg(db, companyId, "department", row.department);
     const section = await canonicalOrg(db, companyId, "section", row.section, department);
-    const position = await canonicalOrg(db, companyId, "position", row.position);
+    const position = (await resolvePosition(db, companyId, row.position)).name;
     const found = await db
       .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(department)=lower(?) AND lower(section)=lower(?) AND lower(position)=lower(?)")
       .bind(companyId, department, section, position)
@@ -7152,7 +7183,7 @@ async function route(request: Request) {
     for (const row of incoming.rows) {
       row.department = await canonicalOrg(db, id, "department", row.department);
       row.section = await canonicalOrg(db, id, "section", row.section, row.department);
-      row.position = await canonicalOrg(db, id, "position", row.position);
+      row.position = (await resolvePosition(db, id, row.position)).name;
     }
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
@@ -7661,6 +7692,17 @@ async function route(request: Request) {
     const kind: OrgKind = b.kind === "section" ? "section" : b.kind === "position" ? "position" : "department";
     const name = cleanOrgName(str(b.name, 120));
     if (name.length < 2) throw new HttpError(400, "Adı yazın.");
+    if (kind === "position") {
+      const before = await orgNameList(db, id, "position");
+      const resolved = await resolvePosition(db, id, name);
+      return ok({
+        name: resolved.name,
+        existing: canonicalOrgName(before, resolved.name).existing,
+        matched: resolved.matched,
+        requested: resolved.requested,
+        original: resolved.original,
+      });
+    }
     const parent = kind === "section" ? await canonicalOrg(db, id, "department", str(b.department, 120)) : "";
     const known = await orgNameList(db, id, kind, parent);
     const match = canonicalOrgName(known, name);
@@ -8036,7 +8078,7 @@ async function route(request: Request) {
     let status = ["active", "leave", "left"].includes(str(b.status, 10))
       ? str(b.status, 10)
       : "active";
-    const position = await canonicalOrg(db, id, "position", str(b.position, 120)),
+    const position = (await resolvePosition(db, id, str(b.position, 120))).name,
       department = await canonicalOrg(db, id, "department", str(b.department, 120)),
       email = str(b.email, 160),
       phone = str(b.phone, 40),
