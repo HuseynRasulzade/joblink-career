@@ -358,7 +358,7 @@ import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
 import { pickSigners, sameName } from "@/lib/order-signers";
 import { normalizeDocType } from "@/lib/employee-docs";
 import { ORDER_KINDS } from "@/lib/orders";
-import { ATTENDANCE_CODES, RELIGIOUS_YEARS, attendanceCode, daysOff, monthDays, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
+import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
@@ -7170,6 +7170,21 @@ async function route(request: Request) {
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
     return marked;
   };
+  // The production calendar of a year: working and rest days, holidays and hours, with the company's own changes.
+  const calendarYear = () => {
+    const year = Number(str(requestUrl.searchParams.get("year"), 4) || new Date().getFullYear());
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new HttpError(400, "İli düzgün seçin.");
+    return year;
+  };
+  if (request.method === "GET" && path === "company/calendar") {
+    requirePermission("salaries", "İstehsalat təqvimini yalnız HR, direktor və hesab sahibi görə bilər.");
+    const year = calendarYear();
+    const overrides = await db
+      .prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ? ORDER BY day")
+      .bind(id, `${year}-01-01`, `${year}-12-31`)
+      .all<CalendarOverride>();
+    return ok({ year, overrides: overrides.results, months: yearCalendar(year, overrides.results), religiousYears: RELIGIOUS_YEARS, hoursPerDay: HOURS_PER_DAY });
+  }
   if (request.method === "POST" && path === "company/attendance/set") {
     requirePermission("salaries", "Davamiyyəti yalnız HR, direktor və hesab sahibi dəyişə bilər.");
     const b = await jsonBody(request);
@@ -8548,6 +8563,7 @@ async function route(request: Request) {
         "staff",
         "orders",
         "attendance",
+        "calendar",
         "workforce",
         "exits",
         "invoices",
@@ -8653,6 +8669,25 @@ async function route(request: Request) {
           Number(r.hired),
         ];
       });
+    } else if (kind === "calendar") {
+      const year = calendarYear();
+      const own = await db
+        .prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?")
+        .bind(id, `${year}-01-01`, `${year}-12-31`)
+        .all<CalendarOverride>();
+      const months = yearCalendar(year, own.results);
+      const names = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun", "İyul", "Avqust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
+      headers = [`${year}-ci il`, "Təqvim günü", "İş günü", "İstirahət günü", "Bayram və köçürülmüş gün", `İş saatı (gündə ${HOURS_PER_DAY} saat)`, "Bayram və qeyri-iş günləri"];
+      rows = months.map((m) => [
+        names[m.month - 1],
+        m.calendarDays,
+        m.workDays,
+        m.restDays,
+        m.holidayDays,
+        m.hours,
+        m.days.filter((d) => d.off && d.off !== "weekend" && d.label).map((d) => `${d.date.slice(8)} — ${d.label}`).join("; "),
+      ]);
+      rows.push(["İl üzrə cəmi", months.reduce((x, m) => x + m.calendarDays, 0), months.reduce((x, m) => x + m.workDays, 0), months.reduce((x, m) => x + m.restDays, 0), months.reduce((x, m) => x + m.holidayDays, 0), months.reduce((x, m) => x + m.hours, 0), ""]);
     } else if (kind === "attendance") {
       const sheet = await attendanceData();
       headers = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "İş günü norması", "İşlənmiş gün", ...ATTENDANCE_CODES.filter((c) => c.id !== "work").map((c) => `${c.short} (${c.label})`), ...sheet.days.map((d) => d.date.slice(8))];

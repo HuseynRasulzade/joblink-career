@@ -43,3 +43,20 @@ test("summary: norm, days worked and leave by code, only for the days employed",
   assert.equal(joined.norm, 10);
   assert.ok(ATTENDANCE_CODES.some((c) => c.id === "paternity") && ATTENDANCE_CODES.some((c) => c.id === "maternity"));
 });
+
+test("production calendar: days, hours and the year's total", async () => {
+  const { yearCalendar, HOURS_PER_DAY } = await import("../lib/calendar-az.ts");
+  const year = yearCalendar(2026);
+  assert.equal(year.length, 12);
+  const march = year[2];
+  // March 2026: 31 days, 22 weekdays, 8 of them holidays -> 14 working days
+  assert.equal(march.calendarDays, 31);
+  assert.equal(march.workDays, 14);
+  assert.equal(march.holidayDays, 8);
+  assert.equal(march.restDays, 9);
+  assert.equal(march.hours, 14 * HOURS_PER_DAY);
+  assert.equal(year.reduce((sum, m) => sum + m.calendarDays, 0), 365);
+  assert.ok(year.every((m) => m.workDays + m.restDays + m.holidayDays === m.calendarDays));
+  const withOwn = yearCalendar(2026, [{ day: "2026-03-14", kind: "work", label: "" }]);
+  assert.equal(withOwn[2].workDays, 15);
+});

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Plus, Trash2 } from "lucide-react";
-import { ATTENDANCE_CODES, attendanceCode, type CalendarDay, type AttendanceSummary } from "@/lib/calendar-az";
+import { ATTENDANCE_CODES, attendanceCode, type CalendarDay, type CalendarOverride, type AttendanceSummary, type MonthSummary } from "@/lib/calendar-az";
 import { Field, Modal } from "./components";
 
 type Notify = (message: string) => void;
@@ -47,7 +47,7 @@ const shift = (month: string, by: number) => {
 };
 const COLOR: Record<string, string> = { leave: "#e0ecff", absence: "#fde2e0", work: "#e4f3e6" };
 
-export function AttendancePage({ notify }: { notify: Notify }) {
+function AttendanceSheet({ notify }: { notify: Notify }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [department, setDepartment] = useState("");
@@ -326,5 +326,207 @@ function MarkModal({
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ---------- Production calendar of the year ----------
+const DAY_COLOR: Record<string, string> = { weekend: "#eceff1", holiday: "#ffd9d4", transfer: "#ffe9c2", company: "#e0d4ff" };
+const MONTH_HEAD = ["B.e", "Ç.a", "Ç", "C.a", "C", "Ş", "B"];
+
+function ProductionCalendar({ notify }: { notify: Notify }) {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [data, setData] = useState<{ months: MonthSummary[]; overrides: CalendarOverride[]; religiousYears: number[]; hoursPerDay: number } | null>(null);
+  const [pick, setPick] = useState<CalendarDay | null>(null);
+  const [label, setLabel] = useState("");
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  });
+  const load = useCallback(() => {
+    request<NonNullable<typeof data>>(`company/calendar?year=${year}`)
+      .then(setData)
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, [year]);
+  useEffect(load, [load]);
+  async function change(day: string, kind: "off" | "work" | "") {
+    try {
+      await request("company/attendance/calendar", { day, kind, label });
+      setPick(null);
+      setLabel("");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  const total = (key: "calendarDays" | "workDays" | "restDays" | "holidayDays" | "hours") => data.months.reduce((sum, m) => sum + m[key], 0);
+  const holidays = data.months.flatMap((m) => m.days.filter((d) => d.off && d.off !== "weekend" && d.label));
+  return (
+    <div className="company-page">
+      <div className="section-heading">
+        <div className="admin-actions">
+          <button type="button" aria-label="Əvvəlki il" onClick={() => setYear(year - 1)}>
+            <ChevronLeft size={16} />
+          </button>
+          <b>{year}-ci ilin istehsalat təqvimi</b>
+          <button type="button" aria-label="Növbəti il" onClick={() => setYear(year + 1)}>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        <a className="secondary report-button" href={`/api/joblink/company/report?kind=calendar&year=${year}`} download>
+          <Download size={14} /> Excel
+        </a>
+      </div>
+      {!data.religiousYears.includes(year) && (
+        <div className="notice" role="status">
+          {year}-ci il üçün Ramazan və Qurban bayramı günləri Nazirlər Kabinetinin qərarı ilə müəyyən edilir və hələ daxil edilməyib. Qərar çıxandan sonra həmin günləri xanaya basıb “Qeyri-iş günü” kimi əlavə edin.
+        </div>
+      )}
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Ay</th>
+              <th>Təqvim günü</th>
+              <th>İş günü</th>
+              <th>İstirahət günü</th>
+              <th>Bayram və köçürülmüş gün</th>
+              <th>İş saatı ({data.hoursPerDay} saat/gün)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.months.map((m) => (
+              <tr key={m.month}>
+                <td>
+                  <b>{MONTHS[m.month - 1]}</b>
+                </td>
+                <td>{m.calendarDays}</td>
+                <td>{m.workDays}</td>
+                <td>{m.restDays}</td>
+                <td>{m.holidayDays}</td>
+                <td>{m.hours}</td>
+              </tr>
+            ))}
+            <tr>
+              <td>
+                <b>İl üzrə</b>
+              </td>
+              <td>
+                <b>{total("calendarDays")}</b>
+              </td>
+              <td>
+                <b>{total("workDays")}</b>
+              </td>
+              <td>
+                <b>{total("restDays")}</b>
+              </td>
+              <td>
+                <b>{total("holidayDays")}</b>
+              </td>
+              <td>
+                <b>{total("hours")}</b>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="muted">
+        <span style={{ background: DAY_COLOR.weekend, padding: "0 6px" }}>istirahət</span>{" "}
+        <span style={{ background: DAY_COLOR.holiday, padding: "0 6px" }}>bayram</span>{" "}
+        <span style={{ background: DAY_COLOR.transfer, padding: "0 6px" }}>köçürülmüş istirahət günü</span>{" "}
+        <span style={{ background: DAY_COLOR.company, padding: "0 6px" }}>şirkətin qeyri-iş günü</span>. İş saatı həftədə 40 saatla (gündə {data.hoursPerDay} saat) hesablanıb. Günə basıb şirkətiniz üçün qeyri-iş günü və ya işlək gün (məsələn, Kabinetin elan etdiyi işlək şənbə) təyin edin.
+      </p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 14 }}>
+        {data.months.map((m) => {
+          const lead = (m.days[0].weekday + 6) % 7;
+          return (
+            <section key={m.month} className="panel" style={{ padding: 10 }}>
+              <b>{MONTHS[m.month - 1]}</b> <small className="muted">· {m.workDays} iş günü, {m.hours} saat</small>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginTop: 6, textAlign: "center", fontSize: 12 }}>
+                {MONTH_HEAD.map((h) => (
+                  <small key={h} className="muted">
+                    {h}
+                  </small>
+                ))}
+                {Array.from({ length: lead }, (_, i) => (
+                  <span key={`b${i}`} />
+                ))}
+                {m.days.map((d) => (
+                  <button
+                    key={d.date}
+                    type="button"
+                    title={d.label}
+                    onClick={() => {
+                      setPick(d);
+                      setLabel(data.overrides.find((o) => o.day === d.date)?.label || "");
+                    }}
+                    style={{ padding: "4px 0", border: "none", borderRadius: 4, cursor: "pointer", background: d.off ? DAY_COLOR[d.off] : "#f7fbf7", fontWeight: d.off === "holiday" || d.off === "transfer" ? 700 : 400 }}
+                  >
+                    {Number(d.date.slice(8))}
+                  </button>
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+      <section className="panel">
+        <h4>{year}-ci ilin bayram və qeyri-iş günləri</h4>
+        <ul>
+          {holidays.map((d) => (
+            <li key={d.date}>
+              <b>
+                {d.date.slice(8)}.{d.date.slice(5, 7)}
+              </b>{" "}
+              — {d.label}
+            </li>
+          ))}
+        </ul>
+        <small className="muted">Əmək Məcəlləsinin 105-ci maddəsinə və Nazirlər Kabinetinin qərarına əsasən. Bayram istirahət gününə və ya başqa bayrama təsadüf edəndə ondan sonrakı iş günü istirahət olur.</small>
+      </section>
+      {pick && (
+        <Modal title={`${pick.date.slice(8)}.${pick.date.slice(5, 7)}.${pick.date.slice(0, 4)}`} onClose={() => setPick(null)}>
+          <div className="offer-composer">
+            <p>
+              Hazırda: <b>{pick.off === "" ? "iş günü" : pick.off === "weekend" ? "istirahət günü" : pick.off === "company" ? "şirkətin qeyri-iş günü" : "bayram / köçürülmüş gün"}</b>
+              {pick.label ? ` — ${pick.label}` : ""}
+            </p>
+            <Field label="Qeyd (ad)">
+              <input value={label} onChange={(e) => setLabel(e.target.value)} />
+            </Field>
+            <div className="admin-actions">
+              <button type="button" className="secondary" onClick={() => void change(pick.date, "off")}>
+                Şirkət üçün qeyri-iş günü
+              </button>
+              <button type="button" className="secondary" onClick={() => void change(pick.date, "work")}>
+                İş günü et
+              </button>
+              {data.overrides.some((o) => o.day === pick.date) && (
+                <button type="button" onClick={() => void change(pick.date, "")}>
+                  Şirkət dəyişikliyini sil
+                </button>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+export function AttendancePage({ notify }: { notify: Notify }) {
+  const [tab, setTab] = useState<"sheet" | "calendar">("sheet");
+  return (
+    <div>
+      <div className="admin-actions" role="tablist" style={{ marginBottom: 12 }}>
+        <button type="button" role="tab" aria-selected={tab === "sheet"} className={tab === "sheet" ? "primary" : "secondary"} onClick={() => setTab("sheet")}>
+          Davamiyyət cədvəli
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "calendar"} className={tab === "calendar" ? "primary" : "secondary"} onClick={() => setTab("calendar")}>
+          İstehsalat təqvimi və bayramlar
+        </button>
+      </div>
+      {tab === "sheet" ? <AttendanceSheet notify={notify} /> : <ProductionCalendar notify={notify} />}
+    </div>
   );
 }

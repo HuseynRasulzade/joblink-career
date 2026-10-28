@@ -138,3 +138,36 @@ export function summarize(
   }
   return { norm, worked, byCode };
 }
+
+// ---- Production calendar of a year: the working days, rest and holiday days and the hours of each month ----
+export const HOURS_PER_DAY = 8; // a five-day, 40-hour week
+
+export type MonthSummary = {
+  month: number;
+  days: CalendarDay[];
+  calendarDays: number;
+  workDays: number;
+  restDays: number; // weekends
+  holidayDays: number; // holidays, moved days and the company's own days off that fall on a weekday
+  hours: number;
+};
+
+export function yearCalendar(year: number, overrides: CalendarOverride[] = []): MonthSummary[] {
+  return Array.from({ length: 12 }, (_, i) => {
+    const month = i + 1;
+    const prefix = `${year}-${String(month).padStart(2, "0")}-`;
+    const days = monthDays(year, month, overrides.filter((o) => o.day.startsWith(prefix)));
+    const workDays = days.filter((d) => !d.off).length;
+    // A holiday on a weekend is a weekend; the day moved in its place counts as a holiday.
+    const holidayDays = days.filter((d) => d.off && d.off !== "weekend" && d.weekday !== 0 && d.weekday !== 6).length;
+    return {
+      month,
+      days,
+      calendarDays: days.length,
+      workDays,
+      restDays: days.length - workDays - holidayDays,
+      holidayDays,
+      hours: workDays * HOURS_PER_DAY,
+    };
+  });
+}
