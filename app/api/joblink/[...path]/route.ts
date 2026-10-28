@@ -361,7 +361,7 @@ import { ORDER_KINDS } from "@/lib/orders";
 import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
-import { addStructure, canonicalOrg, deleteStructure, loadStaffHistory, loadStructure, orgNameList, renameStructure, type OrgKind } from "@/lib/staff-db";
+import { addSections, addStructure, canonicalOrg, deleteStructure, loadStaffHistory, loadStructure, orgNameList, renameStructure, type OrgKind } from "@/lib/staff-db";
 import { assignPeople, checkSalary, normalizeRate, RATE_LABEL, summarize, type PlanPerson, type PlanUnit } from "@/lib/staff-plan";
 import { parseStructureRows } from "@/lib/staff-import";
 import { splitNames } from "@/lib/section-suggestions";
@@ -7678,20 +7678,7 @@ async function route(request: Request) {
     if (department.length < 2) throw new HttpError(400, "Departamentin adını yazın.");
     const names = splitNames((Array.isArray(b.sections) ? b.sections : []).slice(0, 300).map((x: unknown) => String(x ?? "")).join("\n"), 200);
     if (!names.length) throw new HttpError(400, "Şöbə adı tapılmadı.");
-    const before = await loadStructure(db, id);
-    const have = new Set((before.departments.find((d) => d.name.toLocaleLowerCase("az") === department.toLocaleLowerCase("az"))?.sections || []).map((x) => x.name.toLocaleLowerCase("az")));
-    let created = 0;
-    let existing = 0;
-    let owner = department;
-    for (const name of names) {
-      const result = await addStructure(db, id, department, name);
-      owner = result.department;
-      if (have.has(result.section.toLocaleLowerCase("az"))) existing += 1;
-      else {
-        have.add(result.section.toLocaleLowerCase("az"));
-        created += 1;
-      }
-    }
+    const { department: owner, created, existing } = await addSections(db, id, department, names);
     await companyAudit(db, id, userId, "structure-added", owner, `${created} şöbə əlavə edildi, ${existing} mövcud`);
     return ok({ ok: true, created, existing, department: owner });
   }
@@ -7720,17 +7707,24 @@ async function route(request: Request) {
       (Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])),
     );
     if (!incoming.rows.length) throw new HttpError(400, incoming.issues[0]?.reason || "Faylda departament tapılmadı.");
+    // One pass per department: the department once, then its sections in batches.
     const before = await loadStructure(db, id);
-    const known = new Set(before.departments.flatMap((d) => [d.name.toLocaleLowerCase("az"), ...d.sections.map((x) => `${d.name}|${x.name}`.toLocaleLowerCase("az"))]));
+    const haveDepartment = new Set(before.departments.map((d) => d.name.toLocaleLowerCase("az")));
+    const groups = new Map<string, { name: string; sections: string[] }>();
+    for (const row of incoming.rows) {
+      const group = groups.get(row.department.toLocaleLowerCase("az")) || { name: row.department, sections: [] };
+      if (row.section) group.sections.push(row.section);
+      groups.set(row.department.toLocaleLowerCase("az"), group);
+    }
     let created = 0;
     let existing = 0;
-    for (const row of incoming.rows) {
-      const result = await addStructure(db, id, row.department, row.section);
-      const keys = [result.department.toLocaleLowerCase("az"), ...(result.section ? [`${result.department}|${result.section}`.toLocaleLowerCase("az")] : [])];
-      const fresh = keys.filter((k) => !known.has(k));
-      fresh.forEach((k) => known.add(k));
-      if (fresh.length) created += fresh.length;
-      else existing += 1;
+    for (const group of groups.values()) {
+      const known = haveDepartment.has(group.name.toLocaleLowerCase("az"));
+      const result = group.sections.length ? await addSections(db, id, group.name, group.sections) : { department: await canonicalOrg(db, id, "department", group.name), created: 0, existing: 0 };
+      if (!known) created += 1;
+      else if (!group.sections.length) existing += 1;
+      created += result.created;
+      existing += result.existing;
     }
     await companyAudit(db, id, userId, "structure-imported", "", `${created} yeni, ${existing} mövcud`);
     return ok({ created, existing, issues: incoming.issues });

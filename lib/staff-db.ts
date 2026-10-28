@@ -104,6 +104,34 @@ export async function addStructure(db: D1Database, companyId: string, department
   return { department, section };
 }
 
+// Many sections of one department with a handful of queries: the existing names are read once and the
+// new ones are written in batches. A name the department already has is not created again.
+export async function addSections(db: D1Database, companyId: string, departmentInput: string, names: string[]) {
+  const department = await canonicalOrg(db, companyId, "department", departmentInput);
+  const known = await orgNameList(db, companyId, "section", department);
+  const now = new Date().toISOString();
+  const statements: D1PreparedStatement[] = [];
+  let created = 0;
+  let existing = 0;
+  for (const name of names) {
+    const match = canonicalOrgName(known, name);
+    if (!match.name) continue;
+    if (match.existing) {
+      existing += 1;
+      continue;
+    }
+    known.push(match.name);
+    created += 1;
+    statements.push(
+      db
+        .prepare("INSERT OR IGNORE INTO org_names(company_id,kind,key,name,parent,created) VALUES(?,?,?,?,?,?)")
+        .bind(companyId, "section", sectionKey(department, match.name), match.name, department, now),
+    );
+  }
+  for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+  return { department, created, existing };
+}
+
 // A department or section that a staff row or an employee still uses cannot be deleted.
 export async function deleteStructure(db: D1Database, companyId: string, department: string, section = "") {
   const used = async (table: string, extra = "") =>
