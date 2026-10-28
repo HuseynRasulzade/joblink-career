@@ -357,6 +357,7 @@ import { WORLD_SKILLS } from "@/lib/world-skills-data";
 import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
 import { pickSigners, sameName } from "@/lib/order-signers";
 import { normalizeDocType } from "@/lib/employee-docs";
+import { ATTENDANCE_CODES, RELIGIOUS_YEARS, attendanceCode, daysOff, monthDays, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
@@ -6896,6 +6897,13 @@ async function route(request: Request) {
     const tasksBy = new Map<string, { done: number; due: string }[]>();
     for (const t of taskRows.results) tasksBy.set(t.employee_id, [...(tasksBy.get(t.employee_id) || []), t]);
     const todayIso = new Date().toISOString().slice(0, 10);
+    // Annual leave days marked in the attendance sheet are used leave too.
+    const annual = await db
+      .prepare("SELECT employee_id,COUNT(*) AS n FROM attendance_marks WHERE company_id=? AND code='annual' GROUP BY employee_id")
+      .bind(id)
+      .all<{ employee_id: string; n: number }>()
+      .catch(() => ({ results: [] as { employee_id: string; n: number }[] }));
+    const annualBy = new Map(annual.results.map((row) => [row.employee_id, Number(row.n)]));
     return ok({
       showSalary,
       canEdit: showSalary,
@@ -6921,7 +6929,7 @@ async function route(request: Request) {
         // Time worked and leave left (leave counts as earned a twelfth per month).
         tenure: tenure(r.start_date, r.status === "left" ? r.end_date || "" : "", todayIso)?.text || "",
         vacation: vacationBalance(
-          { start: r.start_date, end: r.status === "left" ? r.end_date || "" : "", entitlement: r.vacation_days ?? 21, used: r.vacation_used ?? 0 },
+          { start: r.start_date, end: r.status === "left" ? r.end_date || "" : "", entitlement: r.vacation_days ?? 21, used: (r.vacation_used ?? 0) + (annualBy.get(r.id) || 0) },
           todayIso,
         ),
         // Net, gross, super-gross (the employer's total cost), income tax and insurance, from the stored pay.
@@ -7085,6 +7093,113 @@ async function route(request: Request) {
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
     await companyAudit(db, id, userId, "employees-imported", "", `${created} yeni, ${updated} yenilənən`);
     return ok({ created, updated, issues: incoming.issues });
+  }
+  // ---- Attendance (tabel): how each day of each employee is marked, with the holidays of the Labor Code ----
+  const attendanceMonth = () => {
+    const raw = str(requestUrl.searchParams.get("month"), 7) || new Date().toISOString().slice(0, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) throw new HttpError(400, "Ayı düzgün seçin (YYYY-AA).");
+    return { raw, year: Number(raw.slice(0, 4)), month: Number(raw.slice(5, 7)) };
+  };
+  const attendanceData = async () => {
+    const { raw, year, month } = attendanceMonth();
+    const first = `${raw}-01`;
+    const last = `${raw}-31`;
+    const [overrides, people, marks] = await Promise.all([
+      db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<CalendarOverride>(),
+      db
+        .prepare(
+          "SELECT id,name,position,department,section,start_date,end_date,status FROM company_employees WHERE company_id=? AND status<>'removed' AND (start_date='' OR start_date<=?) AND (status<>'left' OR end_date='' OR end_date>=?) ORDER BY department,section,name",
+        )
+        .bind(id, last, first)
+        .all<{ id: string; name: string; position: string; department: string; section: string; start_date: string; end_date: string; status: string }>(),
+      db.prepare("SELECT employee_id,day,code,note FROM attendance_marks WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<{ employee_id: string; day: string; code: string; note: string }>(),
+    ]);
+    const days = monthDays(year, month, overrides.results);
+    const byEmployee = new Map<string, Record<string, string>>();
+    const notes = new Map<string, Record<string, string>>();
+    for (const m of marks.results) {
+      byEmployee.set(m.employee_id, { ...(byEmployee.get(m.employee_id) || {}), [m.day]: m.code });
+      if (m.note) notes.set(m.employee_id, { ...(notes.get(m.employee_id) || {}), [m.day]: m.note });
+    }
+    const employees = people.results.map((p) => {
+      const mine = byEmployee.get(p.id) || {};
+      const employed = { start: p.start_date, end: p.status === "left" ? p.end_date : "" };
+      return {
+        id: p.id,
+        name: p.name,
+        position: p.position,
+        department: p.department,
+        section: p.section,
+        startDate: p.start_date,
+        endDate: employed.end,
+        status: p.status,
+        marks: mine,
+        notes: notes.get(p.id) || {},
+        summary: summarizeAttendance(days, mine, employed),
+      };
+    });
+    return { month: raw, days, employees, overrides: overrides.results };
+  };
+  if (request.method === "GET" && path === "company/attendance") {
+    requirePermission("salaries", "Davamiyyəti yalnız HR, direktor və hesab sahibi görə bilər.");
+    return ok({ ...(await attendanceData()), codes: ATTENDANCE_CODES, years: RELIGIOUS_YEARS });
+  }
+  if (request.method === "POST" && path === "company/attendance/set") {
+    requirePermission("salaries", "Davamiyyəti yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const employee = await db
+      .prepare("SELECT id,name FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'")
+      .bind(str(b.employeeId, 100), id)
+      .first<{ id: string; name: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const code = str(b.code, 20);
+    if (code && !attendanceCode(code)) throw new HttpError(400, "Davamiyyət kodu düzgün deyil.");
+    const from = str(b.from, 10);
+    const to = str(b.to, 10) || from;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) throw new HttpError(400, "Tarixləri düzgün yazın.");
+    const length = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+    if (length > 366) throw new HttpError(400, "Bir dəfəyə ən çox 366 gün qeyd etmək olar.");
+    const note = str(b.note, 200);
+    const now = new Date().toISOString();
+    const overrides = await db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, from, to).all<CalendarOverride>();
+    const own = new Map(overrides.results.map((o) => [o.day, o.kind]));
+    const statements: D1PreparedStatement[] = [];
+    let marked = 0;
+    for (let i = 0; i < length; i++) {
+      const date = new Date(Date.parse(`${from}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
+      if (!code) {
+        statements.push(db.prepare("DELETE FROM attendance_marks WHERE company_id=? AND employee_id=? AND day=?").bind(id, employee.id, date));
+        continue;
+      }
+      // Annual leave is counted in calendar days without the holidays.
+      if (code === "annual" && (daysOff(Number(date.slice(0, 4))).has(date) || own.get(date) === "off")) continue;
+      statements.push(
+        db
+          .prepare("INSERT INTO attendance_marks(company_id,employee_id,day,code,note,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(company_id,employee_id,day) DO UPDATE SET code=excluded.code,note=excluded.note,updated=excluded.updated")
+          .bind(id, employee.id, date, code, note, now),
+      );
+      marked++;
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "attendance-set", employee.id, `${employee.name}: ${code || "silindi"} ${from}–${to}`);
+    return ok({ ok: true, marked });
+  }
+  // The company's own days off and working days (for example a working Saturday the Cabinet declared).
+  if (request.method === "POST" && path === "company/attendance/calendar") {
+    requirePermission("salaries", "Şirkət təqvimini yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const day = str(b.day, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new HttpError(400, "Tarixi düzgün yazın.");
+    const kind = str(b.kind, 10);
+    if (!kind) await db.prepare("DELETE FROM company_calendar WHERE company_id=? AND day=?").bind(id, day).run();
+    else {
+      if (!["off", "work"].includes(kind)) throw new HttpError(400, "Növ düzgün deyil.");
+      await db
+        .prepare("INSERT INTO company_calendar(company_id,day,kind,label) VALUES(?,?,?,?) ON CONFLICT(company_id,day) DO UPDATE SET kind=excluded.kind,label=excluded.label")
+        .bind(id, day, kind, str(b.label, 100))
+        .run();
+    }
+    return ok({ ok: true });
   }
   // ---- Orders about an employee: who signs, and each signer's approval ----
   if (request.method === "GET" && path === "company/order-signers") {
@@ -7931,6 +8046,7 @@ async function route(request: Request) {
       .bind(str(b.id, 100), id)
       .run();
     await db.prepare("DELETE FROM employee_orders WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    await db.prepare("DELETE FROM attendance_marks WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run();
     await companyAudit(db, id, userId, "employee-removed", str(b.id, 100));
     return ok({ ok: true });
   }
@@ -8420,6 +8536,7 @@ async function route(request: Request) {
         "employees",
         "staff",
         "orders",
+        "attendance",
         "workforce",
         "exits",
         "invoices",
@@ -8525,6 +8642,23 @@ async function route(request: Request) {
           Number(r.hired),
         ];
       });
+    } else if (kind === "attendance") {
+      const sheet = await attendanceData();
+      headers = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "İş günü norması", "İşlənmiş gün", ...ATTENDANCE_CODES.filter((c) => c.id !== "work").map((c) => `${c.short} (${c.label})`), ...sheet.days.map((d) => d.date.slice(8))];
+      rows = sheet.employees.map((e) => [
+        e.name,
+        e.position,
+        e.department,
+        e.section,
+        e.summary.norm,
+        e.summary.worked,
+        ...ATTENDANCE_CODES.filter((c) => c.id !== "work").map((c) => e.summary.byCode[c.id] || 0),
+        ...sheet.days.map((d) => {
+          const code = e.marks[d.date];
+          if (code) return attendanceCode(code)?.short || code;
+          return d.off === "weekend" ? "İ.g." : d.off ? "B" : "";
+        }),
+      ]);
     } else if (kind === "orders") {
       const list = await registryRows();
       const KIND_LABEL: Record<string, string> = { hire: "İşə qəbul", vacation: "Məzuniyyət", salary: "Əmək haqqı dəyişikliyi", transfer: "Köçürmə", termination: "Xitam" };

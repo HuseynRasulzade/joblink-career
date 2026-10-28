@@ -1161,3 +1161,28 @@ export const employeeOrders = sqliteTable(
   },
   (t) => [index("employee_orders_employee").on(t.companyId, t.employeeId, t.created)],
 );
+
+// Attendance: how each day of an employee is marked (worked, leave of a kind, absent).
+export const attendanceMarks = sqliteTable(
+  "attendance_marks",
+  {
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    day: text("day").notNull(),
+    code: text("code").notNull(),
+    note: text("note").notNull().default(""),
+    updated: text("updated").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.employeeId, t.day] }), index("attendance_marks_day").on(t.companyId, t.day)],
+);
+// The company's own days off and working days (for example a working Saturday), over the state calendar.
+export const companyCalendar = sqliteTable(
+  "company_calendar",
+  {
+    companyId: text("company_id").notNull(),
+    day: text("day").notNull(),
+    kind: text("kind").notNull(),
+    label: text("label").notNull().default(""),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.day] })],
+);

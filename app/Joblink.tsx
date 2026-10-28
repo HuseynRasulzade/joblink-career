@@ -3,6 +3,7 @@ import { formatDate } from "@/lib/dates";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BookmarkCheck,
+  CalendarCheck,
   CalendarClock,
   ClipboardCheck,
   LayoutDashboard,
@@ -67,6 +68,7 @@ import AccountLogin from "./AccountLogin";
 import AdminPanel from "./AdminPanel";
 import AccountSettings from "./AccountSettings";
 import { OrdersRegistry } from "./StaffPages";
+import { AttendancePage } from "./AttendancePage";
 import { JobAlerts } from "./JobAlerts";
 import { AdminAiUsage, AdminOps, AdminReviews } from "./CompanyReviews";
 import AdminCatalogCheck from "./AdminCatalogCheck";
@@ -142,6 +144,7 @@ const hrNav = [
   { id: "hr-reports", label: "Hesabatlar", icon: BarChart3 },
   { id: "hr-employees", label: "İşçilər", icon: Contact },
   { id: "hr-orders", label: "Əmrlər reyestri", icon: FileCheck2 },
+  { id: "hr-attendance", label: "Davamiyyət", icon: CalendarCheck },
   { id: "hr-workforce", label: "İşçi axını", icon: TrendingUp },
   { id: "hr-team", label: "Komanda və rollar", icon: UserCog },
   { id: "hr-company", label: "Şirkət məlumatları", icon: Building2 },
@@ -2707,6 +2710,7 @@ export default function Joblink() {
               "hr-reports",
               "hr-employees",
               "hr-orders",
+              "hr-attendance",
               "hr-workforce",
               "hr-team",
               "hr-company",
@@ -2739,6 +2743,7 @@ export default function Joblink() {
               )}
               {page === "hr-employees" && <EmployeesPage notify={notify} />}
               {page === "hr-orders" && <OrdersRegistry notify={notify} />}
+              {page === "hr-attendance" && <AttendancePage notify={notify} />}
               {page === "hr-workforce" && (
                 <WorkforcePage me={companyMe} notify={notify} />
               )}
