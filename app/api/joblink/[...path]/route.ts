@@ -360,6 +360,8 @@ import { normalizeDocType } from "@/lib/employee-docs";
 import { ORDER_KINDS } from "@/lib/orders";
 import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
+import { canonicalOrgName, cleanOrgName, uniqueOrgNames } from "@/lib/org-names";
+import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
@@ -423,12 +425,41 @@ function parsedStringArray(value: string) {
     return [];
   }
 }
+// Names kept for a company: the catalog plus every name already used in the staff table or by an employee.
+async function orgNameList(db: D1Database, companyId: string, kind: "department" | "section") {
+  const rows = await db
+    .prepare(
+      `SELECT name FROM org_names WHERE company_id=?1 AND kind=?2
+       UNION SELECT ${kind} FROM staff_units WHERE company_id=?1
+       UNION SELECT ${kind} FROM company_employees WHERE company_id=?1 AND status<>'removed'`,
+    )
+    .bind(companyId, kind)
+    .all<Record<string, string>>();
+  return uniqueOrgNames(rows.results.map((row) => String(Object.values(row)[0] || "")));
+}
+// The spelling the company already uses for this name; a new name joins the catalog. No duplicates.
+async function canonicalOrg(db: D1Database, companyId: string, kind: "department" | "section", name: string) {
+  const cleaned = cleanOrgName(name);
+  if (!cleaned) return "";
+  const { name: canonical } = canonicalOrgName(await orgNameList(db, companyId, kind), cleaned);
+  await db
+    .prepare("INSERT OR IGNORE INTO org_names(company_id,kind,key,name,created) VALUES(?,?,?,?,?)")
+    .bind(companyId, kind, canonical.trim().replace(/\s+/g, " ").toLocaleLowerCase("az"), canonical, new Date().toISOString())
+    .run();
+  return canonical;
+}
+type StaffInput = { department: string; section: string; position: string; planned: number; salaryCents: number; note: string };
 async function saveStaffUnit(
   db: D1Database,
   companyId: string,
   unitId: string,
-  unit: { department: string; section: string; position: string; planned: number; salaryCents: number; note: string },
+  unit: StaffInput,
 ) {
+  unit = {
+    ...unit,
+    department: await canonicalOrg(db, companyId, "department", unit.department),
+    section: await canonicalOrg(db, companyId, "section", unit.section),
+  };
   const now = new Date().toISOString();
   if (unitId) {
     const result = await db
@@ -446,6 +477,29 @@ async function saveStaffUnit(
     .bind(created, companyId, unit.department, unit.section, unit.position, unit.planned, unit.salaryCents, unit.note, now)
     .run();
   return created;
+}
+async function setPlanStatus(db: D1Database, companyId: string, status: "draft" | "pending" | "approved") {
+  await db
+    .prepare("INSERT INTO staff_plan_state(company_id,status,updated) VALUES(?,?,?) ON CONFLICT(company_id) DO UPDATE SET status=excluded.status,updated=excluded.updated")
+    .bind(companyId, status, new Date().toISOString())
+    .run();
+}
+// Rows of a spreadsheet: a row that matches an existing department/section/position updates it.
+async function applyStaffRows(db: D1Database, companyId: string, rows: StaffInput[]) {
+  let created = 0;
+  let updated = 0;
+  for (const row of rows) {
+    const department = await canonicalOrg(db, companyId, "department", row.department);
+    const section = await canonicalOrg(db, companyId, "section", row.section);
+    const found = await db
+      .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(department)=lower(?) AND lower(section)=lower(?) AND lower(position)=lower(?)")
+      .bind(companyId, department, section, row.position)
+      .first<{ id: string }>();
+    await saveStaffUnit(db, companyId, found?.id || "", { ...row, department, section });
+    if (found) updated++;
+    else created++;
+  }
+  return { created, updated };
 }
 // A department plan that older versions kept on its own becomes one row of the staff table.
 async function absorbLegacyHeadcount(db: D1Database, companyId: string) {
@@ -1799,6 +1853,13 @@ async function route(request: Request) {
         .bind(userId)
         .first<{ name: string }>()
     )?.name || "";
+  // The plan is a draft until the director approves it; after that a change to it needs the director.
+  const planStatus = async () =>
+    (await db.prepare("SELECT status FROM staff_plan_state WHERE company_id=?").bind(id).first<{ status: string }>())?.status || "draft";
+  const planLocked = async () => {
+    if (canAct("approve-director")) return false;
+    return (await approvalRules()).headcount || (await planStatus()) === "approved";
+  };
   const queueApproval = async (
     kind: ApprovalKind,
     subject: string,
@@ -6927,6 +6988,7 @@ async function route(request: Request) {
         sector: r.sector === "public" ? "public" : "private",
         vacationDays: r.vacation_days ?? 21,
         vacationUsed: r.vacation_used ?? 0,
+        profile: showSalary ? parseProfile((r as { profile?: string }).profile) : null,
         // Time worked and leave left (leave counts as earned a twelfth per month).
         tenure: tenure(r.start_date, r.status === "left" ? r.end_date || "" : "", todayIso)?.text || "",
         vacation: vacationBalance(
@@ -7034,7 +7096,7 @@ async function route(request: Request) {
     if (!department) throw new HttpError(400, "Departamentin adını yazın.");
     const planned = b.planned === null || b.planned === "" ? null : Math.max(0, Math.min(10000, Math.round(Number(b.planned))));
     if (planned !== null && !Number.isFinite(planned)) throw new HttpError(400, "Say düzgün deyil.");
-    if (needsDirector(await approvalRules(), "headcount", canAct("approve-director"))) {
+    if (await planLocked()) {
       await queueApproval("headcount", `${department}: ${planned === null ? "plan silinir" : `${planned} ştat`}`, { department, planned });
       return ok({ ok: true, pending: true });
     }
@@ -7051,6 +7113,10 @@ async function route(request: Request) {
     );
     if (!incoming.rows.length)
       throw new HttpError(400, incoming.issues[0]?.reason || "Faylda işçi tapılmadı.");
+    for (const row of incoming.rows) {
+      row.department = await canonicalOrg(db, id, "department", row.department);
+      row.section = await canonicalOrg(db, id, "section", row.section);
+    }
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
     const existing = await db
@@ -7490,7 +7556,7 @@ async function route(request: Request) {
     });
     // People whose department/position is in no staff row.
     const placed = people.results.filter((person) => units.results.some((unit) => staffFill(unit, [person]) > 0)).length;
-    return { rows, departments, unplaced: people.results.length - placed };
+    return { rows, departments, unplaced: people.results.length - placed, locked: await planLocked(), planStatus: await planStatus() };
   };
   if (request.method === "GET" && path === "company/staff") {
     requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi görə bilər.");
@@ -7517,7 +7583,7 @@ async function route(request: Request) {
     if (!unit.department && !unit.position) throw new HttpError(400, "Departamenti və ya vəzifəni yazın.");
     if (!Number.isFinite(unit.planned)) throw new HttpError(400, "Ştat sayı düzgün deyil.");
     const unitId = str(b.id, 100);
-    if (needsDirector(await approvalRules(), "headcount", canAct("approve-director"))) {
+    if (await planLocked()) {
       await queueApproval("headcount", `${unit.department || "—"} / ${unit.position || "—"}: ${unit.planned} ştat`, { unit: { ...unit, id: unitId } });
       return ok({ ok: true, pending: true });
     }
@@ -7529,13 +7595,59 @@ async function route(request: Request) {
     requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi dəyişə bilər.");
     const b = await jsonBody(request);
     const unitId = str(b.id, 100);
-    if (needsDirector(await approvalRules(), "headcount", canAct("approve-director"))) {
+    if (await planLocked()) {
       await queueApproval("headcount", `Ştat sətri silinir`, { unitDelete: unitId });
       return ok({ ok: true, pending: true });
     }
     await db.prepare("DELETE FROM staff_units WHERE id=? AND company_id=?").bind(unitId, id).run();
     await companyAudit(db, id, userId, "staff-unit-removed", unitId);
     return ok({ ok: true });
+  }
+  // ---- Names of departments and sections kept in one catalog ----
+  if (request.method === "GET" && path === "company/org-names") {
+    requirePermission("salaries", "Şöbə adlarını yalnız HR, direktor və hesab sahibi görə bilər.");
+    const [departments, sections] = await Promise.all([orgNameList(db, id, "department"), orgNameList(db, id, "section")]);
+    return ok({ departments, sections });
+  }
+  if (request.method === "POST" && path === "company/org-names/add") {
+    requirePermission("salaries", "Şöbə adlarını yalnız HR, direktor və hesab sahibi əlavə edə bilər.");
+    const b = await jsonBody(request);
+    const kind = b.kind === "section" ? "section" : "department";
+    const name = cleanOrgName(str(b.name, 120));
+    if (name.length < 2) throw new HttpError(400, "Adı yazın.");
+    const known = await orgNameList(db, id, kind);
+    const match = canonicalOrgName(known, name);
+    if (match.existing) return ok({ name: match.name, existing: true });
+    await canonicalOrg(db, id, kind, name);
+    await companyAudit(db, id, userId, "org-name-added", kind, name);
+    return ok({ name, existing: false });
+  }
+  // ---- Personal data of an employee (identity card, address, family, bank) ----
+  if (request.method === "POST" && path === "company/employees/profile") {
+    requirePermission("salaries", "Şəxsi məlumatları yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const { profile, issues } = normalizeProfile(b.profile);
+    if (issues.length) throw new HttpError(400, issues[0]);
+    const done = await db
+      .prepare("UPDATE company_employees SET profile=?,updated=? WHERE id=? AND company_id=? AND status<>'removed'")
+      .bind(JSON.stringify(profile), new Date().toISOString(), str(b.id, 100), id)
+      .run();
+    if (!done.meta.changes) throw new HttpError(404, "İşçi tapılmadı.");
+    await companyAudit(db, id, userId, "employee-profile", str(b.id, 100), "Şəxsi məlumatlar yeniləndi");
+    return ok({ ok: true, profile });
+  }
+  if (request.method === "POST" && path === "company/staff/submit-plan") {
+    requirePermission("salaries", "Ştat planını yalnız HR, direktor və hesab sahibi təsdiqə göndərə bilər.");
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM staff_units WHERE company_id=?").bind(id).first<{ n: number }>();
+    if (!Number(count?.n)) throw new HttpError(400, "Əvvəl ştat sətirləri əlavə edin.");
+    if (canAct("approve-director")) {
+      await setPlanStatus(db, id, "approved");
+      await companyAudit(db, id, userId, "staff-plan-approved", "", "Ştat planı təsdiqləndi");
+      return ok({ ok: true, status: "approved" });
+    }
+    await setPlanStatus(db, id, "pending");
+    await queueApproval("headcount", `Ştat planının təsdiqi (${Number(count?.n)} sətir)`, { approvePlan: true });
+    return ok({ ok: true, status: "pending" });
   }
   if (request.method === "POST" && path === "company/staff/import") {
     requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi dəyişə bilər.");
@@ -7544,19 +7656,12 @@ async function route(request: Request) {
       (Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])),
     );
     if (!incoming.rows.length) throw new HttpError(400, incoming.issues[0]?.reason || "Faylda ştat sətri tapılmadı.");
-    if (needsDirector(await approvalRules(), "headcount", canAct("approve-director")))
-      throw new HttpError(409, "Ştat planı dəyişiklikləri direktorun təsdiqini tələb edir. Sətirləri tək-tək əlavə edin və ya direktor faylı yükləsin.");
-    let created = 0;
-    let updated = 0;
-    for (const row of incoming.rows) {
-      const existingUnit = await db
-        .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(department)=lower(?) AND lower(section)=lower(?) AND lower(position)=lower(?)")
-        .bind(id, row.department, row.section, row.position)
-        .first<{ id: string }>();
-      await saveStaffUnit(db, id, existingUnit?.id || "", { department: row.department, section: row.section, position: row.position, planned: row.planned, salaryCents: Math.round(row.salary * 100), note: row.note });
-      if (existingUnit) updated++;
-      else created++;
+    const rows = incoming.rows.map((row) => ({ department: row.department, section: row.section, position: row.position, planned: row.planned, salaryCents: Math.round(row.salary * 100), note: row.note }));
+    if (await planLocked()) {
+      await queueApproval("headcount", `Excel idxalı: ${rows.length} ştat sətri`, { units: rows });
+      return ok({ created: 0, updated: 0, pending: true, issues: incoming.issues });
     }
+    const { created, updated } = await applyStaffRows(db, id, rows);
     await companyAudit(db, id, userId, "staff-imported", "", `${created} yeni, ${updated} yenilənən`);
     return ok({ created, updated, issues: incoming.issues });
   }
@@ -7787,7 +7892,7 @@ async function route(request: Request) {
       ? str(b.status, 10)
       : "active";
     const position = str(b.position, 120),
-      department = str(b.department, 120),
+      department = await canonicalOrg(db, id, "department", str(b.department, 120)),
       email = str(b.email, 160),
       phone = str(b.phone, 40),
       startDate = str(b.startDate, 10);
@@ -7814,12 +7919,13 @@ async function route(request: Request) {
     );
     if (exit.error) throw new HttpError(400, exit.error);
     const existingId = str(b.id, 100);
+    const sectionName = await canonicalOrg(db, id, "section", str(b.section, 120));
     // Section, whether the pay is gross or net, the tax sector and the leave figures.
     const saveEmployeeExtras = (employeeId: string) =>
       db
         .prepare("UPDATE company_employees SET section=?,salary_type=?,sector=?,vacation_days=?,vacation_used=? WHERE id=? AND company_id=?")
         .bind(
-          str(b.section, 120),
+          sectionName,
           b.salaryType === "net" ? "net" : "gross",
           b.sector === "public" ? "public" : "private",
           Math.max(0, Math.min(365, Math.round(Number(b.vacationDays ?? 21)))),
@@ -13148,6 +13254,12 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
             ),
         ]);
         await companyAudit(db, id, userId, "employee-left", String(payload.employeeId), `${emp.name} (təsdiqləndi)`);
+      } else if (req.kind === "headcount" && payload.approvePlan) {
+        await setPlanStatus(db, id, "approved");
+        await companyAudit(db, id, userId, "staff-plan-approved", "", "Ştat planı təsdiqləndi");
+      } else if (req.kind === "headcount" && Array.isArray(payload.units)) {
+        const result = await applyStaffRows(db, id, payload.units as StaffInput[]);
+        await companyAudit(db, id, userId, "staff-imported", "", `${result.created} yeni, ${result.updated} yenilənən (təsdiqləndi)`);
       } else if (req.kind === "headcount" && (payload.unit || payload.unitDelete)) {
         if (payload.unitDelete) {
           await db.prepare("DELETE FROM staff_units WHERE id=? AND company_id=?").bind(String(payload.unitDelete), id).run();

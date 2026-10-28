@@ -2101,10 +2101,15 @@ function StaffPlaceFields({
   onChange: (department: string, section: string) => void;
 }) {
   const [departments, setDepartments] = useState<{ department: string; free: number }[]>([]);
+  const [sections, setSections] = useState<string[]>([]);
   useEffect(() => {
     fetch("/api/joblink/company/staff", { credentials: "same-origin", cache: "no-store" })
       .then((response) => (response.ok ? (response.json() as Promise<{ departments?: { department: string; free: number }[] }>) : { departments: [] }))
       .then((data) => setDepartments(data.departments || []))
+      .catch(() => undefined);
+    fetch("/api/joblink/company/org-names", { credentials: "same-origin", cache: "no-store" })
+      .then((response) => (response.ok ? (response.json() as Promise<{ sections?: string[] }>) : { sections: [] }))
+      .then((data) => setSections(data.sections || []))
       .catch(() => undefined);
   }, []);
   if (!departments.length && !department) return null;
@@ -2123,7 +2128,12 @@ function StaffPlaceFields({
         {known && <small className="skill-picker-help">{known.free > 0 ? `${known.free} boş ştat yeri var.` : "Bu departamentdə boş ştat yeri yoxdur (yayımlayanda xəbərdarlıq çıxacaq)."}</small>}
       </Field>
       <Field label="Şöbə">
-        <input value={section} onChange={(e) => onChange(department, e.target.value)} />
+        <input list="staff-sections" value={section} onChange={(e) => onChange(department, e.target.value)} />
+        <datalist id="staff-sections">
+          {sections.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
       </Field>
     </>
   );

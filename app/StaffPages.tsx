@@ -13,7 +13,10 @@ import {
   parseStaffRows,
 } from "@/lib/staff-import";
 import { createXlsx } from "@/lib/xlsx";
+import { canonicalOrgName } from "@/lib/org-names";
+import { EMPTY_PROFILE, ageOn, idExpiresSoon, type EmployeeProfile } from "@/lib/employee-profile";
 import { Field, Modal } from "./components";
+import JobTitleInput from "./JobTitleInput";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -1010,13 +1013,151 @@ export function InternalOfferModal({ job, notify, onClose }: { job: OfferJob; no
 // ---------- Staff table ----------
 type StaffRow = { id: string; department: string; section: string; position: string; planned: number; salary: number; note: string; filled: number; free: number };
 type StaffDepartment = { department: string; planned: number; filled: number; openVacancies: number; free: number; units: number };
-type StaffData = { rows: StaffRow[]; departments: StaffDepartment[]; unplaced: number };
+// ---------- Department and section catalog ----------
+type OrgNames = { departments: string[]; sections: string[] };
+export function useOrgNames() {
+  const [names, setNames] = useState<OrgNames>({ departments: [], sections: [] });
+  useEffect(() => {
+    request<OrgNames>("company/org-names")
+      .then(setNames)
+      .catch(() => undefined);
+  }, []);
+  const remember = (kind: "department" | "section", name: string) =>
+    setNames((current) => {
+      const key = kind === "department" ? "departments" : "sections";
+      return canonicalOrgName(current[key], name).existing || !name.trim() ? current : { ...current, [key]: [...current[key], name.trim()] };
+    });
+  return { names, remember };
+}
+
+// Name from the company catalog. An existing name in other letters turns into the catalog spelling;
+// a new name is added to the catalog when the form is saved.
+export function OrgNameInput({
+  label,
+  kind,
+  value,
+  onChange,
+  names,
+  placeholder,
+}: {
+  label: string;
+  kind: "department" | "section";
+  value: string;
+  onChange: (value: string) => void;
+  names: OrgNames;
+  placeholder?: string;
+}) {
+  const list = kind === "department" ? names.departments : names.sections;
+  const listId = `org-${kind}-${label}`;
+  const match = value.trim() ? canonicalOrgName(list, value) : null;
+  return (
+    <Field label={label}>
+      <input
+        list={listId}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => match?.existing && match.name !== value && onChange(match.name)}
+      />
+      <datalist id={listId}>
+        {list.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+      {match && !match.existing && <small className="skill-picker-help">Kataloqda yoxdur — saxlayanda yeni ad kimi əlavə olunacaq.</small>}
+    </Field>
+  );
+}
+
+// ---------- Personal data of an employee ----------
+const MARITAL: [string, string][] = [["", "—"], ["single", "Subay"], ["married", "Evli"], ["divorced", "Boşanıb"], ["widowed", "Dul"]];
+export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notify, onSaved }: { employeeId: string; initial?: EmployeeProfile | null; birthDateHint?: string; notify: Notify; onSaved?: (profile: EmployeeProfile) => void }) {
+  const [profile, setProfile] = useState<EmployeeProfile>({ ...EMPTY_PROFILE, ...(initial || {}) });
+  const set = <K extends keyof EmployeeProfile>(key: K, value: EmployeeProfile[K]) => setProfile((p) => ({ ...p, [key]: value }));
+  const today = new Date().toISOString().slice(0, 10);
+  const age = ageOn(profile.birthDate || birthDateHint || "", today);
+  async function save() {
+    try {
+      const result = await request<{ profile: EmployeeProfile }>("company/employees/profile", { id: employeeId, profile });
+      setProfile(result.profile);
+      onSaved?.(result.profile);
+      notify("Şəxsi məlumatlar yadda saxlanıldı.");
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  const text = (key: keyof EmployeeProfile, label: string, props: Record<string, unknown> = {}) => (
+    <Field label={label}>
+      <input value={String(profile[key] ?? "")} onChange={(e) => set(key, e.target.value as never)} {...props} />
+    </Field>
+  );
+  return (
+    <div className="offer-composer">
+      <p className="muted">
+        Şəxsiyyət vəsiqəsi, ünvan və bank məlumatları yalnız HR, direktor və hesab sahibinə görünür.
+        {age !== null && ` Yaş: ${age}.`}
+        {idExpiresSoon(profile, today) && <b className="danger-text"> Vəsiqənin müddəti bitir və ya bitib.</b>}
+      </p>
+      <h4>Şəxsiyyət vəsiqəsi</h4>
+      <div className="form-grid">
+        {text("fin", "FİN", { maxLength: 7, placeholder: "7 simvol" })}
+        {text("idSeries", "Seriya", { maxLength: 6, placeholder: "AZE / AA" })}
+        {text("idNumber", "Nömrə", { inputMode: "numeric", maxLength: 9 })}
+        {text("idIssuedBy", "Verən orqan")}
+        <Field label="Verilmə tarixi"><input type="date" value={profile.idIssuedDate} onChange={(e) => set("idIssuedDate", e.target.value)} /></Field>
+        <Field label="Etibarlılıq müddəti"><input type="date" value={profile.idExpires} onChange={(e) => set("idExpires", e.target.value)} /></Field>
+      </div>
+      <h4>Şəxsi</h4>
+      <div className="form-grid">
+        <Field label="Doğum tarixi"><input type="date" value={profile.birthDate} onChange={(e) => set("birthDate", e.target.value)} /></Field>
+        {text("birthPlace", "Doğum yeri")}
+        <Field label="Cins">
+          <select value={profile.gender} onChange={(e) => set("gender", e.target.value as EmployeeProfile["gender"])}>
+            <option value="">—</option>
+            <option value="male">Kişi</option>
+            <option value="female">Qadın</option>
+          </select>
+        </Field>
+        {text("citizenship", "Vətəndaşlıq")}
+        <Field label="Ailə vəziyyəti">
+          <select value={profile.maritalStatus} onChange={(e) => set("maritalStatus", e.target.value as EmployeeProfile["maritalStatus"])}>
+            {MARITAL.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="14 yaşınadək uşaq sayı"><input type="number" min={0} value={profile.childrenUnder14} onChange={(e) => set("childrenUnder14", Number(e.target.value))} /></Field>
+        <label className="check-row"><input type="checkbox" checked={profile.hasDisabledChild} onChange={(e) => set("hasDisabledChild", e.target.checked)} /> Əlilliyi olan uşaq var</label>
+        <label className="check-row"><input type="checkbox" checked={profile.soleParent} onChange={(e) => set("soleParent", e.target.checked)} /> Uşağı təkbaşına böyüdür</label>
+        {text("educationLevel", "Təhsil səviyyəsi")}
+        {text("militaryStatus", "Hərbi uçot")}
+      </div>
+      <h4>Ünvan və əlaqə</h4>
+      <div className="form-grid">
+        {text("registeredAddress", "Qeydiyyat ünvanı")}
+        {text("address", "Faktiki ünvan")}
+        {text("emergencyName", "Yaxın şəxs (ad)")}
+        {text("emergencyPhone", "Yaxın şəxs (telefon)")}
+      </div>
+      <h4>Sosial sığorta və bank</h4>
+      <div className="form-grid">
+        {text("ssn", "Sosial sığorta (SSN) nömrəsi")}
+        {text("voen", "VÖEN")}
+        {text("iban", "IBAN", { placeholder: "AZ00 XXXX ..." })}
+      </div>
+      <button type="button" className="primary" onClick={save}>Yadda saxla</button>
+    </div>
+  );
+}
+
+type StaffData = { rows: StaffRow[]; departments: StaffDepartment[]; unplaced: number; locked?: boolean; planStatus?: "draft" | "pending" | "approved" };
 
 export function StaffTable({ notify }: { notify: Notify }) {
   const [data, setData] = useState<StaffData | null>(null);
   const [editing, setEditing] = useState<Partial<StaffRow> | null>(null);
   const [importing, setImporting] = useState(false);
   const [query, setQuery] = useState("");
+  const { names, remember } = useOrgNames();
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -1032,6 +1173,8 @@ export function StaffTable({ notify }: { notify: Notify }) {
     try {
       const result = await request<{ pending?: boolean }>("company/staff/save", editing);
       notify(result.pending ? "Ştat dəyişikliyi direktorun təsdiqinə göndərildi." : "Ştat sətri yadda saxlanıldı.");
+      remember("department", editing.department || "");
+      remember("section", editing.section || "");
       setEditing(null);
       load();
     } catch (error) {
@@ -1047,6 +1190,16 @@ export function StaffTable({ notify }: { notify: Notify }) {
     } catch (error) {
       notify((error as Error).message);
       load();
+    }
+  }
+  async function submitPlan() {
+    if (!window.confirm("Plan direktorun təsdiqinə göndərilsin? Təsdiqdən sonra dəyişikliklər də direktorun təsdiqi ilə olacaq.")) return;
+    try {
+      const result = await request<{ status: string }>("company/staff/submit-plan", {});
+      notify(result.status === "approved" ? "Ştat planı təsdiqləndi." : "Ştat planı direktorun təsdiqinə göndərildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
     }
   }
   async function remove(row: StaffRow) {
@@ -1084,6 +1237,11 @@ export function StaffTable({ notify }: { notify: Notify }) {
           </p>
         </div>
         <div className="admin-actions">
+          {data.planStatus !== "approved" && !!data.rows.length && (
+            <button type="button" className="primary" onClick={submitPlan} disabled={data.planStatus === "pending"}>
+              {data.planStatus === "pending" ? "Təsdiq gözləyir" : "Planı təsdiqə göndər"}
+            </button>
+          )}
           <input className="search-input" placeholder="Departament, şöbə və ya vəzifə" value={query} onChange={(e) => setQuery(e.target.value)} />
           <a className="secondary report-button" href="/api/joblink/company/report?kind=staff" download>
             <Download size={14} /> XLSX
@@ -1096,6 +1254,15 @@ export function StaffTable({ notify }: { notify: Notify }) {
           </button>
         </div>
       </div>
+      <p className={`plan-state plan-${data.planStatus || "draft"}`}>
+        {data.planStatus === "approved"
+          ? data.locked
+            ? "Plan direktor tərəfindən təsdiqlənib. Dəyişikliklər, yeni sətirlər və silinmə direktorun təsdiqinə göndərilir."
+            : "Plan təsdiqlənib. Direktor və hesab sahibi dəyişiklikləri birbaşa edə bilər."
+          : data.planStatus === "pending"
+            ? "Plan direktorun təsdiqini gözləyir. Təsdiqə qədər sətirləri düzəltmək olar."
+            : "Plan layihə mərhələsindədir: sətirləri əlavə edin, Excel yükləyin, sonra “Planı təsdiqə göndər” düyməsini basın. Təsdiqdən sonra direktor təsdiqləməsə dəyişmək olmaz."}
+      </p>
       {!!data.departments.length && (
         <div className="admin-table-wrap">
           <table className="admin-table">
@@ -1196,15 +1363,9 @@ export function StaffTable({ notify }: { notify: Notify }) {
         <Modal title={editing.id ? "Ştat sətrini düzəlt" : "Yeni ştat sətri"} onClose={() => setEditing(null)}>
           <div className="offer-composer">
             <div className="form-grid">
-              <Field label="Departament">
-                <input value={editing.department || ""} onChange={(e) => setEditing({ ...editing, department: e.target.value })} />
-              </Field>
-              <Field label="Şöbə">
-                <input value={editing.section || ""} onChange={(e) => setEditing({ ...editing, section: e.target.value })} />
-              </Field>
-              <Field label="Vəzifə">
-                <input value={editing.position || ""} onChange={(e) => setEditing({ ...editing, position: e.target.value })} />
-              </Field>
+              <OrgNameInput label="Departament" kind="department" names={names} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
+              <OrgNameInput label="Şöbə" kind="section" names={names} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
+              <JobTitleInput label="Vəzifə" value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
               <Field label="Ştat sayı">
                 <input type="number" min={0} value={editing.planned ?? 1} onChange={(e) => setEditing({ ...editing, planned: Number(e.target.value) })} />
               </Field>

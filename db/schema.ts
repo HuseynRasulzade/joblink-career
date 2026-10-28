@@ -781,11 +781,31 @@ export const companyEmployees = sqliteTable(
     sector: text("sector").notNull().default("private"),
     vacationDays: integer("vacation_days").notNull().default(21),
     vacationUsed: integer("vacation_used").notNull().default(0),
+    // Identity card, birth, address, family and bank data as JSON (see lib/employee-profile.ts).
+    profile: text("profile").notNull().default("{}"),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
   },
   (t) => [index("company_employees_company").on(t.companyId, t.status)],
 );
+// Department and section names of a company, one spelling per name.
+export const orgNames = sqliteTable(
+  "org_names",
+  {
+    companyId: text("company_id").notNull(),
+    kind: text("kind").notNull(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.kind, t.key] })],
+);
+// Draft until the director approves the staff plan; after that changes need the director.
+export const staffPlanState = sqliteTable("staff_plan_state", {
+  companyId: text("company_id").primaryKey(),
+  status: text("status").notNull().default("draft"),
+  updated: text("updated").notNull(),
+});
 // Staff table: places per department, section and position.
 export const staffUnits = sqliteTable(
   "staff_units",

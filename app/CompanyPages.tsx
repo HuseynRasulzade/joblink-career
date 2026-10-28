@@ -33,7 +33,8 @@ import { VACANCY_REASONS } from "@/lib/recruitment";
 import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
 import { DOC_KINDS, OTHER_TYPE, docLabel } from "@/lib/employee-docs";
-import { EmployeePayPanel, OrderMaker, SheetImport, StaffTable } from "./StaffPages";
+import { EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
+import JobTitleInput from "./JobTitleInput";
 
 export type CompanyMe = {
   company: { id: string; name: string } | null;
@@ -2357,6 +2358,7 @@ type Employee = {
   sector?: "private" | "public";
   vacationDays?: number;
   vacationUsed?: number;
+  profile?: import("@/lib/employee-profile").EmployeeProfile | null;
   tenure?: string;
   vacation?: { entitlement: number; accrued: number; used: number; remaining: number };
   pay?: { net: number; gross: number; superGross: number; incomeTax: number; employeeSocial: number; employeeUnemployment: number; employeeMedical: number } | null;
@@ -2388,7 +2390,8 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const [editing, setEditing] = useState<Partial<Employee> | null>(null);
   const [importing, setImporting] = useState(false);
   // Extra sections of the employee card open in their own pop-up windows.
-  const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | null>(null);
+  const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | null>(null);
+  const { names: orgNames } = useOrgNames();
   const [history, setHistory] = useState<
     {
       type: string;
@@ -2615,28 +2618,9 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   }
                 />
               </Field>
-              <Field label="Vəzifə">
-                <input
-                  value={editing.position || ""}
-                  onChange={(e) =>
-                    setEditing({ ...editing, position: e.target.value })
-                  }
-                />
-              </Field>
-              <Field label="Departament">
-                <input
-                  value={editing.department || ""}
-                  onChange={(e) =>
-                    setEditing({ ...editing, department: e.target.value })
-                  }
-                />
-              </Field>
-              <Field label="Şöbə">
-                <input
-                  value={editing.section || ""}
-                  onChange={(e) => setEditing({ ...editing, section: e.target.value })}
-                />
-              </Field>
+              <JobTitleInput label="Vəzifə" value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
+              <OrgNameInput label="Departament" kind="department" names={orgNames} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
+              <OrgNameInput label="Şöbə" kind="section" names={orgNames} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
               <Field label="İşə başlama">
                 <input
                   type="date"
@@ -2786,6 +2770,11 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                 Maaş hesabı və məzuniyyət
               </button>
               {editing.id && (
+                <button type="button" className="secondary" onClick={() => setPanel("profile")}>
+                  Şəxsi məlumatlar
+                </button>
+              )}
+              {editing.id && (
                 <button type="button" className="secondary" onClick={() => setPanel("orders")}>
                   Əmr sənədləri
                 </button>
@@ -2817,6 +2806,16 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   status={editing.status || "active"}
                   vacationDays={editing.vacationDays ?? 21}
                   vacationUsed={editing.vacationUsed ?? 0}
+                />
+              </Modal>
+            )}
+            {panel === "profile" && editing.id && (
+              <Modal title={`Şəxsi məlumatlar: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
+                <EmployeeProfilePanel
+                  employeeId={editing.id}
+                  initial={editing.profile}
+                  notify={notify}
+                  onSaved={(profile) => setEditing({ ...editing, profile })}
                 />
               </Modal>
             )}

@@ -506,3 +506,158 @@ export function simplifiedTax(turnover: number, ratePercent = SIMPLIFIED_RATE * 
 export function entrepreneurIncomeTax(taxableIncome: number) {
   return { tax: r2(pos(taxableIncome) * 0.2), articles: ["101.3"] };
 }
+
+// ── Working days, maternity leave, service years, final settlement ─────────
+
+export type DaysBetween = {
+  calendarDays: number;
+  workDays: number;
+  weekendDays: number;
+  holidayDays: number;
+  hours: number; // working days x 8; a shortened pre-holiday day is paid in full so it is not cut here
+};
+
+// Working days from the first to the last day, both included, by the production calendar of the Labor Code.
+export function workingDaysBetween(start: string, end: string): DaysBetween | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || end < start) return null;
+  const years = new Map<number, ReturnType<typeof daysOff>>();
+  let calendarDays = 0;
+  let workDays = 0;
+  let weekendDays = 0;
+  let holidayDays = 0;
+  for (let cursor = start; cursor <= end && calendarDays < 3700; cursor = addDays(cursor, 1)) {
+    calendarDays += 1;
+    const year = Number(cursor.slice(0, 4));
+    if (!years.has(year)) years.set(year, daysOff(year));
+    const weekday = parse(cursor).getUTCDay();
+    if (years.get(year)!.has(cursor)) holidayDays += 1;
+    else if (weekday === 0 || weekday === 6) weekendDays += 1;
+    else workDays += 1;
+  }
+  return { calendarDays, workDays, weekendDays, holidayDays, hours: workDays * HOURS_PER_DAY };
+}
+
+export type MaternityLeave = Cited<{
+  start: string;
+  end: string;
+  returnDate: string;
+  beforeDays: number;
+  afterDays: number;
+  totalDays: number;
+}>;
+
+// Art. 125: 70 days before and 56 days after the birth (70 after a hard birth or twins); farm work 70 + 70/86/110.
+// Days between the expected and the real birth are added to the part before the birth and the part after stays whole.
+export function maternityLeave(input: {
+  expectedBirth: string;
+  actualBirth?: string;
+  hardBirth?: boolean;
+  multiple?: boolean;
+  agriculture?: boolean;
+}): MaternityLeave | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.expectedBirth)) return null;
+  const before = 70;
+  const after = input.agriculture ? (input.multiple ? 110 : input.hardBirth ? 86 : 70) : input.hardBirth || input.multiple ? 70 : 56;
+  const start = addDays(input.expectedBirth, -before);
+  const real = /^\d{4}-\d{2}-\d{2}$/.test(input.actualBirth || "") ? input.actualBirth! : "";
+  const delay = real && real > input.expectedBirth ? Math.round((parse(real).getTime() - parse(input.expectedBirth).getTime()) / 86_400_000) : 0;
+  const totalDays = before + delay + after;
+  const end = addDays(start, totalDays - 1);
+  return {
+    start,
+    end,
+    returnDate: addDays(end, 1),
+    beforeDays: before + delay,
+    afterDays: after,
+    totalDays,
+    articles: ["125", "125.3"],
+    notes: [
+      "Doğuş gözlənilən gündən gec olarsa, doğuşdan əvvəlki hissə o qədər gün ödənişli uzadılır; doğuşdan sonrakı hissə qısalmır (125.3).",
+      "Uşağı doğulan kişiyə tibb müəssisəsinin arayışı ilə cəmi 14 təqvim günü ödənişli məzuniyyət verilir (125.4).",
+      "Müavinətin məbləği Sosial Sığorta Qanunu ilə müəyyən edilir — bu kalkulyatorda yoxdur.",
+    ],
+  };
+}
+
+export const PATERNITY_LEAVE_DAYS = 14; // art. 125.4
+
+export type Service = { years: number; months: number; days: number; totalDays: number; text: string };
+
+// Adds up periods of work (both end days included). A month is taken as 30 days when the pieces are put together.
+export function serviceLength(periods: { start: string; end: string }[]): Service {
+  let total = 0;
+  for (const period of periods) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(period.start) || !/^\d{4}-\d{2}-\d{2}$/.test(period.end) || period.end < period.start) continue;
+    const from = parse(period.start);
+    const to = parse(period.end);
+    // whole calendar months count as 30 days, the rest are real days
+    let months = (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + (to.getUTCMonth() - from.getUTCMonth());
+    const anchor = () => new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + months, from.getUTCDate()));
+    while (months > 0 && anchor().getTime() > to.getTime() + 86_400_000) months -= 1;
+    const rest = Math.round((to.getTime() + 86_400_000 - anchor().getTime()) / 86_400_000);
+    total += months * 30 + Math.max(0, Math.min(rest, 30));
+  }
+  const years = Math.floor(total / 360);
+  const months = Math.floor((total % 360) / 30);
+  const days = total % 30;
+  return {
+    years,
+    months,
+    days,
+    totalDays: total,
+    text: [years && `${years} il`, months && `${months} ay`, days && `${days} gün`].filter(Boolean).join(" ") || "0 gün",
+  };
+}
+
+export type FinalSettlement = Cited<{
+  salaryForWorkedDays: number;
+  leaveCompensation: number;
+  severance: number;
+  taxable: number;
+  incomeTax: number;
+  employeeInsurance: number;
+  net: number;
+  exemptPayments: number;
+  toPay: number;
+}>;
+
+// Final payment on the last day (art. 77, 143, 144, 172): wages for the days of the last month and the pay for
+// unused main leave are wages and are taxed and insured; the severance of art. 77.3 is exempt from income tax
+// (Tax Code 102.1.4) and nothing is deducted from it (Labor Code 175.4). Other fixed payments can be added as
+// `exempt`. The tax and insurance rates come from lib/salary.ts.
+export function finalSettlement(input: {
+  monthlySalary: number;
+  workedDays: number;
+  normDays: number;
+  unusedLeaveDays: number;
+  leaveDailyRate: number;
+  severance?: number;
+  exempt?: number;
+  sector: "private" | "public";
+  calculate: (gross: number, sector: "private" | "public") => { net: number; incomeTax: number; employeeTotalDeductions: number };
+}): FinalSettlement {
+  const salaryForWorkedDays = proratedSalary(input.monthlySalary, input.workedDays, input.normDays);
+  const leaveCompensation = r2(pos(input.unusedLeaveDays) * pos(input.leaveDailyRate));
+  const severance = r2(pos(input.severance));
+  const exemptPayments = r2(pos(input.exempt));
+  const taxable = r2(salaryForWorkedDays + leaveCompensation);
+  const calc = input.calculate(taxable, input.sector);
+  const employeeInsurance = r2(calc.employeeTotalDeductions - calc.incomeTax);
+  return {
+    salaryForWorkedDays,
+    leaveCompensation,
+    severance,
+    taxable,
+    incomeTax: r2(calc.incomeTax),
+    employeeInsurance,
+    net: r2(calc.net),
+    exemptPayments,
+    toPay: r2(calc.net + severance + exemptPayments),
+    articles: ["77", "143", "144", "172", "175.4", "VM 102.1.4"],
+    notes: [
+      "Əmək müqaviləsinə xitam verilən gün işçi ilə tam hesablaşma aparılmalıdır.",
+      "Aylıq gəlir 2500 AZN-ə qədərdirsə 200 AZN gəlir vergisindən azaddır (VM 102.1.6) — bu, yalnız əsas iş yerində tətbiq olunur və aylıq məcmu gəlirə görə hesablanır.",
+      "Məbləğ təxminidir: bu ayın digər ödənişləri (mükafat, əlavə) ayrıca daxil edilməlidir.",
+    ],
+  };
+}

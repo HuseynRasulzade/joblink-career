@@ -5622,3 +5622,16 @@ a svg {
   align-items: center;
   gap: 8px;
 }
+.plan-state {
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f1f5f4;
+  font-size: 0.9rem;
+}
+.plan-state.plan-approved {
+  background: #e6f4ee;
+}
+.plan-state.plan-pending {
+  background: #fff6e0;
+}

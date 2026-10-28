@@ -114,3 +114,40 @@ test("Tax Code figures: VAT 18%, simplified 2%, entrepreneur 20%", () => {
   assert.equal(c.simplifiedTax(10000, 8).tax, 800);
   assert.equal(c.entrepreneurIncomeTax(1000).tax, 200);
 });
+
+import { calculateFromGross } from "../lib/salary.ts";
+test("working days between dates use the production calendar", () => {
+  const march = c.workingDaysBetween("2026-03-01", "2026-03-31");
+  assert.equal(march.calendarDays, 31);
+  // the official 2026 calendar has 17 working days in March (see calendar-az tests)
+  assert.equal(march.workDays + march.weekendDays + march.holidayDays, 31);
+  assert.equal(c.workingDaysBetween("2026-01-01", "2026-12-31").workDays, 241);
+  assert.equal(c.workingDaysBetween("2026-02-01", "2026-01-01"), null);
+});
+test("maternity leave (art. 125)", () => {
+  const normal = c.maternityLeave({ expectedBirth: "2026-06-10" });
+  assert.equal(normal.totalDays, 126);
+  assert.equal(normal.start, "2026-04-01");
+  assert.equal(normal.end, "2026-08-04");
+  assert.equal(c.maternityLeave({ expectedBirth: "2026-06-10", hardBirth: true }).totalDays, 140);
+  assert.equal(c.maternityLeave({ expectedBirth: "2026-06-10", multiple: true, agriculture: true }).totalDays, 180);
+  assert.equal(c.maternityLeave({ expectedBirth: "2026-06-10", actualBirth: "2026-06-15" }).totalDays, 131);
+  assert.equal(c.maternityLeave({ expectedBirth: "x" }), null);
+});
+test("service length adds periods", () => {
+  assert.equal(c.serviceLength([{ start: "2020-01-01", end: "2020-12-31" }]).years, 1);
+  const two = c.serviceLength([{ start: "2020-01-01", end: "2020-06-30" }, { start: "2021-01-01", end: "2021-06-30" }]);
+  assert.equal(two.years, 1);
+  assert.equal(c.serviceLength([]).text, "0 gün");
+});
+test("final settlement taxes wages but not the severance", () => {
+  const r = c.finalSettlement({
+    monthlySalary: 1000, workedDays: 11, normDays: 22, unusedLeaveDays: 10, leaveDailyRate: 50,
+    severance: 1400, sector: "private", calculate: (g, s) => calculateFromGross(g, s),
+  });
+  assert.equal(r.salaryForWorkedDays, 500);
+  assert.equal(r.leaveCompensation, 500);
+  assert.equal(r.taxable, 1000);
+  assert.equal(r.toPay, Math.round((r.net + 1400) * 100) / 100);
+  assert.ok(r.net < 1000 && r.net > 800);
+});

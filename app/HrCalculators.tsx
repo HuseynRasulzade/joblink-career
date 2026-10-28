@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState, type ReactNode } from "react";
 import * as hr from "@/lib/hr-calc";
+import { calculateFromGross } from "@/lib/salary";
 import { SalaryCalculator } from "./SalaryCalculator";
 import { Field } from "./components";
 
@@ -347,12 +348,164 @@ function Taxes() {
   );
 }
 
+function WorkDays() {
+  const [start, setStart] = useState(`${new Date().getFullYear()}-01-01`);
+  const [end, setEnd] = useState(`${new Date().getFullYear()}-12-31`);
+  const r = hr.workingDaysBetween(start, end);
+  return (
+    <Layout
+      title="İş günləri (istehsalat təqvimi)"
+      result={
+        r ? (
+          <Result
+            articles={["89", "104", "105"]}
+            notes={["Bayram günləri və istirahət günlərinə təsadüf edən bayramların keçirildiyi günlər iş günü sayılmır. Qısaldılmış (bayram qabağı) günlər iş günü sayılır."]}
+            rows={[
+              ["Təqvim günü", `${r.calendarDays}`],
+              ["İş günü", `${r.workDays}`, true],
+              ["İstirahət günü", `${r.weekendDays}`],
+              ["Bayram və qeyri-iş günü", `${r.holidayDays}`],
+              ["İş saatı (8 saat × iş günü)", `${r.hours}`],
+            ]}
+          />
+        ) : (
+          <p className="muted">Tarixləri düzgün daxil edin.</p>
+        )
+      }
+    >
+      <Field label="Başlanğıc"><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+      <Field label="Son"><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
+    </Layout>
+  );
+}
+
+function Maternity() {
+  const [expected, setExpected] = useState(today());
+  const [actual, setActual] = useState("");
+  const [hard, setHard] = useState(false);
+  const [multiple, setMultiple] = useState(false);
+  const [agri, setAgri] = useState(false);
+  const r = hr.maternityLeave({ expectedBirth: expected, actualBirth: actual, hardBirth: hard, multiple, agriculture: agri });
+  return (
+    <Layout
+      title="Hamiləlik və doğuş məzuniyyəti"
+      result={
+        r ? (
+          <Result
+            articles={r.articles}
+            notes={r.notes}
+            rows={[
+              ["Məzuniyyətin başlanğıcı", r.start],
+              ["Doğuşdan əvvəl", `${r.beforeDays} gün`],
+              ["Doğuşdan sonra", `${r.afterDays} gün`],
+              ["Cəmi", `${r.totalDays} gün`, true],
+              ["Son gün", r.end],
+              ["İşə çıxış", r.returnDate, true],
+              ["Ata üçün ödənişli məzuniyyət", `${hr.PATERNITY_LEAVE_DAYS} gün`],
+            ]}
+          />
+        ) : (
+          <p className="muted">Gözlənilən doğuş tarixini daxil edin.</p>
+        )
+      }
+    >
+      <Field label="Gözlənilən doğuş tarixi"><input type="date" value={expected} onChange={(e) => setExpected(e.target.value)} /></Field>
+      <Field label="Faktiki doğuş tarixi (məlumdursa)"><input type="date" value={actual} onChange={(e) => setActual(e.target.value)} /></Field>
+      <Check label="Çətin doğuş" value={hard} onChange={setHard} />
+      <Check label="İki və daha çox uşaq" value={multiple} onChange={setMultiple} />
+      <Check label="Kənd təsərrüfatı istehsalında çalışır" value={agri} onChange={setAgri} />
+    </Layout>
+  );
+}
+
+function Service() {
+  const [text, setText] = useState("2018-03-01 – 2021-05-31\n2022-01-10 – 2026-01-09");
+  const periods = text
+    .split(/\n/)
+    .map((line) => line.match(/(\d{4}-\d{2}-\d{2})\D+(\d{4}-\d{2}-\d{2})/))
+    .filter((m): m is RegExpMatchArray => Boolean(m))
+    .map((m) => ({ start: m[1], end: m[2] }));
+  const r = hr.serviceLength(periods);
+  return (
+    <Layout
+      title="İş stajı"
+      result={
+        <Result
+          articles={["116", "132"]}
+          notes={["Əmək məzuniyyətinə görə staj bir işəgötürəndə faktiki işlənmiş dövrdən və əmək qabiliyyətinin müvəqqəti itirildiyi, orta əmək haqqı saxlanılan dövrlərdən ibarətdir. Pensiya stajı başqa qaydalarla hesablanır."]}
+          rows={[
+            ["Dövr sayı", `${periods.length}`],
+            ["Cəmi staj", r.text, true],
+            ["Məzuniyyətə görə əlavə gün", `${hr.tenureLeaveDays(r.totalDays / 360)} gün`],
+          ]}
+        />
+      }
+    >
+      <Field label="Hər sətirdə bir dövr: 2020-01-01 – 2022-06-30">
+        <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} />
+      </Field>
+    </Layout>
+  );
+}
+
+function Settlement() {
+  const [salary, setSalary] = useState(1500);
+  const [worked, setWorked] = useState(10);
+  const [norm, setNorm] = useState(22);
+  const [unused, setUnused] = useState(12);
+  const [daily, setDaily] = useState(49.34);
+  const [severance, setSeverance] = useState(0);
+  const [sector, setSector] = useState<"private" | "public">("private");
+  const r = hr.finalSettlement({
+    monthlySalary: salary, workedDays: worked, normDays: norm, unusedLeaveDays: unused, leaveDailyRate: daily,
+    severance, sector, calculate: (gross, s) => calculateFromGross(gross, s),
+  });
+  return (
+    <Layout
+      title="Son haqq-hesab"
+      result={
+        <Result
+          articles={r.articles}
+          notes={r.notes}
+          rows={[
+            ["Son ayın işlənmiş günlərinin maaşı", azn(r.salaryForWorkedDays)],
+            ["İstifadə edilməmiş məzuniyyət kompensasiyası", azn(r.leaveCompensation)],
+            ["Vergiyə cəlb olunan cəmi (gross)", azn(r.taxable)],
+            ["Gəlir vergisi", azn(r.incomeTax)],
+            ["Sosial, işsizlik və tibbi sığorta (işçi)", azn(r.employeeInsurance)],
+            ["Ələ keçən (net)", azn(r.net), true],
+            ["İşdənçıxarma müavinəti (vergisiz)", azn(r.severance)],
+            ["Ödəniləcək cəmi", azn(r.toPay), true],
+          ]}
+        />
+      }
+    >
+      <Num label="Aylıq maaş (gross)" value={salary} onChange={setSalary} />
+      <Num label="Son ayda işlənmiş gün" value={worked} onChange={setWorked} />
+      <Num label="Aydakı norma iş günü" value={norm} onChange={setNorm} />
+      <Num label="İstifadə edilməmiş əsas məzuniyyət (gün)" value={unused} onChange={setUnused} />
+      <Num label="Bir günlük məzuniyyət məbləği" value={daily} step={0.01} onChange={setDaily} />
+      <Num label="İşdənçıxarma müavinəti" value={severance} onChange={setSeverance} />
+      <Field label="Sektor">
+        <select value={sector} onChange={(e) => setSector(e.target.value as "private" | "public")}>
+          <option value="private">Qeyri-neft özəl</option>
+          <option value="public">Dövlət / neft-qaz</option>
+        </select>
+      </Field>
+    </Layout>
+  );
+}
+
 const TABS = [
   { id: "salary", label: "Maaş (gross ↔ net)" },
   { id: "vacation", label: "Məzuniyyət" },
   { id: "unused", label: "Məzuniyyət kompensasiyası" },
   { id: "average", label: "Orta əmək haqqı" },
   { id: "termination", label: "İxtisar / xitam" },
+  { id: "settlement", label: "Son haqq-hesab" },
+  { id: "workdays", label: "İş günləri" },
+  { id: "maternity", label: "Hamiləlik və doğuş" },
+  { id: "service", label: "İş stajı" },
   { id: "extra", label: "Artıq iş, gecə, boşdayanma" },
   { id: "deductions", label: "Tutulmalar" },
   { id: "taxes", label: "ƏDV və vergilər" },
@@ -385,6 +538,10 @@ export function HrCalculators({
       {tab === "unused" && <Unused />}
       {tab === "average" && <Average />}
       {tab === "termination" && <Termination />}
+      {tab === "settlement" && <Settlement />}
+      {tab === "workdays" && <WorkDays />}
+      {tab === "maternity" && <Maternity />}
+      {tab === "service" && <Service />}
       {tab === "extra" && <ExtraWork />}
       {tab === "deductions" && <Deductions />}
       {tab === "taxes" && <Taxes />}
