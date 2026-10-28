@@ -17,3 +17,9 @@ AI-nin real işdə nə qədər düz olduğunu bilmək üçün işəgötürən r�
 2. “Yanlış” rəylərin qeydlərini oxuyub təkrarlanan səbəbi tapın (məsələn, “həddindən artıq təcrübəli namizədi çox aşağı qiymətləndirir”).
 3. Səbəb təkrarlanırsa, həmin qaydanı AI təlimatına (`app/api/joblink/[...path]/route.ts` içində `hr-rank` təlimatı, `lib/fit-review.ts`) konkret cümlə kimi əlavə edin.
 4. Dəyişiklikdən sonra yeni rəyləri ayrıca izləyin; AI qaydalardan pis çıxırsa (“qaydalar AI-dən yaxşıdır”), AI-nin çəkisini azaldın.
+
+## Qaydaların ölçülməsi (AI olmadan)
+- `tests/fixtures/eval-set.mjs` iki dəstdən ibarətdir: əsas dəst (28 cüt, qaydalar buna görə tənzimlənib) və ikinci dəst (10 cüt). Hər cütdə HR-ın verəcəyi qərar yazılıb (müsahibə / nəzərə al / uyğun deyil; bal ≥75 müsahibə, 45–74 nəzərə al, <45 uyğun deyil).
+- `node --experimental-strip-types scripts/rule-eval.mjs` hər cütün balını və qərarını göstərir. `npm test` qaydaların hər iki dəstdə ən azı 90% düz olmasını və heç vaxt “müsahibə” ilə “uyğun deyil” arasında səhv etməməsini yoxlayır.
+- **Məhdudiyyət:** qərarları tərtibatçılar yazıb, ikinci dəstin bacarıq adları isə nəticəyə baxandan sonra kataloqa uyğunlaşdırılıb, ona görə bu dəstlər “həqiqi” ölçü yox, reqressiya qoruyucusudur. Real HR qərarları ilə əvəz edin və ya genişləndirin.
+- **Kataloqdan kənar bacarıq:** vakansiyada və ya profildə kataloqda olmayan bacarıq uyğunluq hesabında nəzərə alınmır (yalnız kataloq və admin təsdiqli bacarıqlar sayılır). Vakansiya yaradanda bunu nəzərə alın.

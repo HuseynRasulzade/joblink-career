@@ -19,7 +19,7 @@ export type FeedbackRow = {
 
 // The recommendation an evaluation implies when it only has a score.
 export const recommendationForScore = (score: number): AiDecision =>
-  score >= 75 ? "interview" : score >= 55 ? "consider" : "reject";
+  score >= 75 ? "interview" : score >= 45 ? "consider" : "reject";
 
 export const normalizeDecision = (value: unknown): AiDecision | "" =>
   AI_DECISIONS.includes(value as AiDecision) ? (value as AiDecision) : "";

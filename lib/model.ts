@@ -1345,7 +1345,9 @@ export function match(p: Profile, j: Job) {
     caps.push("missing-certification");
   }
   if (requiredSkills.length && !matched.length) {
-    score = Math.min(score, 20);
+    // Nothing shows the required skills. Someone who has done the same work for
+    // years probably has them but did not list them, so the limit is higher.
+    score = Math.min(score, role >= 0.7 && relevantYears > 0 ? 50 : 20);
     caps.push("no-skills");
   }
   if (role <= 0.1) {
@@ -1357,7 +1359,7 @@ export function match(p: Profile, j: Job) {
     score = Math.min(score, stepDown ? 65 : 55);
     caps.push("overqualified-level");
   } else if (levelGap <= -3) {
-    score = Math.min(score, 50);
+    score = Math.min(score, 44);
     caps.push("underqualified-level");
   }
   if (j.minYears && relevantYears < j.minYears * 0.5) {

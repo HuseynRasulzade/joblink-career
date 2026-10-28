@@ -11615,7 +11615,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           score: c.rule.score,
           strengths: "",
           gaps: "",
-          recommendation: c.rule.score >= 70 ? "interview" : "consider",
+          recommendation: recommendationForScore(c.rule.score),
         })),
       });
     const anonymousAll = ranked.map((c) => ({
