@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Download, Upload } from "lucide-react";
+import { EDUCATION_SAMPLE, JOB_TITLES_SAMPLE, downloadCsv } from "@/lib/sample-files";
 
 async function request<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(`/api/joblink/${path}`, {
@@ -85,6 +86,8 @@ export default function AdminCatalogCheck({ notify }: { notify: (message: string
         <div className="admin-actions">
           <label className="secondary"><Upload size={15} /> Vəzifələri idxal et<input type="file" hidden accept=".csv,text/csv,text/plain" onChange={(e) => importFile("admin/job-titles/import", e)} /></label>
           <label className="secondary"><Upload size={15} /> Təhsil siyahısını idxal et<input type="file" hidden accept=".csv,text/csv,text/plain" onChange={(e) => importFile("admin/education/import", e)} /></label>
+          <button type="button" className="secondary" onClick={() => downloadCsv(JOB_TITLES_SAMPLE, "vezifeler-numune.csv")}><Download size={15} /> Vəzifə nümunəsi (.csv)</button>
+          <button type="button" className="secondary" onClick={() => downloadCsv(EDUCATION_SAMPLE, "tehsil-numune.csv")}><Download size={15} /> Təhsil nümunəsi (.csv)</button>
         </div>
       </section>
 

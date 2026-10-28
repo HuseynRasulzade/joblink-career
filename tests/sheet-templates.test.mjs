@@ -109,3 +109,33 @@ test("a row finds its employee by e-mail or by a unique name", () => {
   assert.match(matchEmployee(list, { name: "Eyni Ad", email: "" }).error, /e-poçt/);
   assert.match(matchEmployee(list, { name: "Yoxdur", email: "" }).error, /tapılmadı/);
 });
+
+import { parseQuestionRows } from "../lib/question-import.ts";
+import { JOB_TITLES_SAMPLE, EDUCATION_SAMPLE, SKILLS_SAMPLE } from "../lib/sample-files.ts";
+import { parseTitleCsv, parseEducationCsv } from "../lib/catalog-check.ts";
+import { parseSkillCsv } from "../lib/skill-import.ts";
+import { JOB_TITLE_FAMILIES } from "../lib/job-title-catalog.ts";
+import { COUNTRIES } from "../lib/university-catalog.ts";
+import { MAJOR_FIELDS } from "../lib/major-catalog.ts";
+
+test("the test-question sample is read back as four questions of the right kinds", () => {
+  const result = parseQuestionRows(asRows("questions"));
+  assert.deepEqual(result.skipped, []);
+  assert.equal(result.questions.length, 4);
+  assert.deepEqual(result.questions.map((q) => q.type), ["single", "multiple", "single", "text"]);
+  assert.deepEqual(result.questions[1].correct, [0, 1, 2]);
+  assert.equal(result.questions[1].points, 2);
+  assert.equal(result.questions[3].points, 3);
+});
+
+test("the admin CSV samples are accepted by their importers", () => {
+  const titles = parseTitleCsv(JOB_TITLES_SAMPLE, JOB_TITLE_FAMILIES);
+  assert.deepEqual(titles.issues, []);
+  assert.equal(titles.rows.length, 3);
+  const education = parseEducationCsv(EDUCATION_SAMPLE, { university: COUNTRIES, major: MAJOR_FIELDS });
+  assert.deepEqual(education.issues, []);
+  assert.equal(education.rows.length, 2);
+  const skills = parseSkillCsv(SKILLS_SAMPLE);
+  assert.deepEqual(skills.issues, []);
+  assert.equal(skills.rows.length, 2);
+});

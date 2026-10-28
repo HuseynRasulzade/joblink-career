@@ -932,7 +932,7 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
     countRef.current = onCount;
   });
   const load = useCallback(() => {
-    request<{ requests: RequestRow[] }>("company/requests")
+    request<{ requests: RequestRow[] }>("company/applications")
       .then((r) => {
         setRows(r.requests);
         countRef.current(r.requests.filter((x) => x.status === "new").length);
@@ -944,7 +944,7 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
     const reason = window.prompt(`“${row.employee.name}” ərizəsinin rədd səbəbi:`);
     if (!reason || reason.trim().length < 3) return;
     try {
-      await request("company/requests/reject", { id: row.id, reason });
+      await request("company/applications/reject", { id: row.id, reason });
       notify("Ərizə rədd edildi.");
       load();
     } catch (error) {
@@ -954,7 +954,7 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
   async function remove(row: RequestRow) {
     if (!window.confirm("Ərizə silinsin?")) return;
     try {
-      await request("company/requests/delete", { id: row.id });
+      await request("company/applications/delete", { id: row.id });
       load();
     } catch (error) {
       notify((error as Error).message);
@@ -1062,7 +1062,7 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
 
 type PersonOption = { id: string; name: string; position: string; department: string };
 function RequestForm({ notify, onClose, onSaved }: { notify: Notify; onClose: () => void; onSaved: () => void }) {
-  const [people, setPeople] = useState<PersonOption[]>([]);
+  const [people, setPeople] = useState<PersonOption[] | null>(null);
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<PersonOption | null>(null);
   const [kind, setKind] = useState<string>("vacation");
@@ -1071,7 +1071,7 @@ function RequestForm({ notify, onClose, onSaved }: { notify: Notify; onClose: ()
   useEffect(() => {
     request<{ employees: (PersonOption & { status: string })[] }>("company/employees")
       .then((r) => setPeople(r.employees.filter((e) => e.status !== "left")))
-      .catch(() => undefined);
+      .catch(() => setPeople([]));
   }, []);
   const today = new Date().toISOString().slice(0, 10);
   const meta = REQUEST_KINDS.find((k) => k.id === kind)!;
@@ -1079,12 +1079,12 @@ function RequestForm({ notify, onClose, onSaved }: { notify: Notify; onClose: ()
   const problems = requestProblems(kind, data);
   const warnings = requestWarnings(kind, data, today);
   const needle = search.toLocaleLowerCase("az").trim();
-  const matches = people.filter((p) => !needle || `${p.name} ${p.position} ${p.department}`.toLocaleLowerCase("az").includes(needle)).slice(0, 8);
+  const matches = (people || []).filter((p) => !needle || `${p.name} ${p.position} ${p.department}`.toLocaleLowerCase("az").includes(needle)).slice(0, 8);
   async function save() {
     if (!picked) return notify("İşçini seçin.");
     setBusy(true);
     try {
-      const result = await request<{ warnings: string[] }>("company/requests/save", { employeeId: picked.id, kind, data });
+      const result = await request<{ warnings: string[] }>("company/applications/save", { employeeId: picked.id, kind, data });
       notify(`Ərizə qeyd edildi.${result.warnings?.length ? ` Diqqət: ${result.warnings[0]}` : ""}`);
       onSaved();
       onClose();
@@ -1117,7 +1117,8 @@ function RequestForm({ notify, onClose, onSaved }: { notify: Notify; onClose: ()
                 </button>
               </li>
             ))}
-            {!matches.length && <li className="muted emp-none">Uyğun işçi tapılmadı.</li>}
+            {people === null && <li className="muted emp-none">Yüklənir…</li>}
+            {people !== null && !matches.length && <li className="muted emp-none">Uyğun işçi tapılmadı.</li>}
           </ul>
         )}
         <div className="form-grid">
@@ -1618,7 +1619,7 @@ export function StaffTable({ notify }: { notify: Notify }) {
   const [data, setData] = useState<StaffData | null>(null);
   const [editing, setEditing] = useState<EditingUnit | null>(null);
   const [importing, setImporting] = useState<SheetKind | null>(null);
-  const [tab, setTab] = useState<"table" | "structure" | "history">("table");
+  const [tab, setTab] = useState<"table" | "structure" | "positions" | "history">("table");
   const [query, setQuery] = useState("");
   const { names, remember } = useOrgNames();
   const notifyRef = useRef(notify);
@@ -1729,13 +1730,14 @@ export function StaffTable({ notify }: { notify: Notify }) {
         </div>
       )}
       <div className="calc-tabs" role="tablist">
-        {([["table", "Ştat cədvəli"], ["structure", "Departament və şöbələr"], ["history", "Dəyişiklik tarixçəsi"]] as const).map(([id, label]) => (
+        {([["table", "Ştat cədvəli"], ["structure", "Departament və şöbələr"], ["positions", "Vəzifələr"], ["history", "Dəyişiklik tarixçəsi"]] as const).map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "primary" : "ghost"} onClick={() => setTab(id)}>
             {label}
           </button>
         ))}
       </div>
       {tab === "structure" && <StructurePanel notify={notify} onChanged={load} onImport={() => setImporting("structure")} />}
+      {tab === "positions" && <PositionsPanel notify={notify} onChanged={load} />}
       {tab === "history" && <StaffHistory />}
       {tab === "table" && (
         <>
@@ -2196,6 +2198,115 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
         </p>
       )}
       {open && <DepartmentSections department={open} notify={notify} onClose={() => setOpen(null)} onChanged={() => { load(); onChanged(); }} />}
+    </div>
+  );
+}
+
+// ---------- The company's own list of positions ----------
+function PositionsPanel({ notify, onChanged }: { notify: Notify; onChanged: () => void }) {
+  const [rows, setRows] = useState<{ name: string; units: number; people: number }[] | null>(null);
+  const [adding, setAdding] = useState("");
+  const [hint, setHint] = useState("");
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  });
+  const load = useCallback(() => {
+    request<{ positions: { name: string; units: number; people: number }[] }>("company/structure/positions")
+      .then((r) => setRows(r.positions))
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, []);
+  useEffect(load, [load]);
+  async function add() {
+    if (adding.trim().length < 2) return;
+    try {
+      const r = await request<{ name: string; existing: boolean; matched?: string | null; requested?: string | null; original?: string }>("company/org-names/add", { kind: "position", name: adding });
+      setHint(
+        r.matched === "close"
+          ? `“${r.original}” ümumi kataloqda “${r.name}” kimi var — o əlavə edildi.`
+          : r.requested === "new"
+            ? `“${r.name}” ümumi kataloqda yoxdur: siyahınıza əlavə edildi və adminə kataloqa əlavə sorğusu göndərildi.`
+            : r.existing
+              ? `“${r.name}” siyahınızda artıq var.`
+              : `“${r.name}” siyahınıza əlavə edildi.`,
+      );
+      setAdding("");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  function rename(name: string) {
+    const to = window.prompt(`“${name}” vəzifəsinin yeni adı:`, name);
+    if (to && to.trim() && to.trim() !== name)
+      void request("company/structure/positions/rename", { from: name, to })
+        .then(() => {
+          notify("Ad dəyişdirildi: ştat sətirləri və işçilər də yeni adla görünür.");
+          load();
+          onChanged();
+        })
+        .catch((error) => notify((error as Error).message));
+  }
+  function drop(name: string) {
+    if (!window.confirm(`“${name}” vəzifəsi siyahıdan silinsin?`)) return;
+    void request("company/structure/positions/delete", { name })
+      .then(() => {
+        notify("Silindi.");
+        load();
+      })
+      .catch((error) => notify((error as Error).message));
+  }
+  if (!rows) return null;
+  return (
+    <div className="structure-panel">
+      <p className="muted">
+        Şirkətin vəzifə siyahısı: ştat cədvəli və işçi kartında bu siyahıdan seçilir. Yeni vəzifə ümumi vəzifə kataloqundan seçilir və ya yazılır; kataloqda olmayan ad siyahınıza əlavə olunur və adminə kataloqa əlavə sorğusu gedir. İstifadədə olan vəzifəni silmək olmaz; adını dəyişsəniz ştat sətirləri və işçilər də yeni adla görünür.
+      </p>
+      <div className="org-add structure-add">
+        <JobTitleInput label="Yeni vəzifə" value={adding} onChange={setAdding} />
+        <button type="button" className="primary" disabled={adding.trim().length < 2} onClick={() => void add()}>
+          <Plus size={14} /> Əlavə et
+        </button>
+      </div>
+      {hint && <small className="skill-picker-help">{hint}</small>}
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Vəzifə</th>
+              <th>Ştat sətri</th>
+              <th>İşçi</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.name}>
+                <td>
+                  <b>{r.name}</b>
+                </td>
+                <td>{r.units}</td>
+                <td>{r.people}</td>
+                <td className="admin-actions">
+                  <button type="button" onClick={() => rename(r.name)}>
+                    Adını dəyiş
+                  </button>
+                  <button type="button" aria-label="Sil" onClick={() => drop(r.name)}>
+                    <Trash2 size={14} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr>
+                <td colSpan={4}>
+                  <p className="admin-empty">Hələ vəzifə yoxdur. Yuxarıdan əlavə edin və ya ştat sətri yaradın.</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -230,3 +230,41 @@ export async function loadStaffHistory(db: D1Database, companyId: string): Promi
     .catch(() => ({ results: [] as StaffHistoryEntry[] }));
   return rows.results.map((row) => ({ ...row, action: historyLabel(row.action) }));
 }
+
+export type PositionRow = { name: string; units: number; people: number };
+
+// The company's positions with how many staff rows and people use each.
+export async function loadPositions(db: D1Database, companyId: string): Promise<PositionRow[]> {
+  const [names, units, people] = await Promise.all([
+    orgNameList(db, companyId, "position"),
+    db.prepare("SELECT position,COUNT(*) AS n FROM staff_units WHERE company_id=? GROUP BY position").bind(companyId).all<{ position: string; n: number }>(),
+    db.prepare("SELECT position,COUNT(*) AS n FROM company_employees WHERE company_id=? AND status IN ('active','leave') GROUP BY position").bind(companyId).all<{ position: string; n: number }>(),
+  ]);
+  const count = (rows: { position: string; n: number }[], name: string) => rows.filter((r) => orgKey(r.position) === orgKey(name)).reduce((s, r) => s + Number(r.n), 0);
+  return names.map((name) => ({ name, units: count(units.results, name), people: count(people.results, name) }));
+}
+
+// A position used by a staff row or a working person cannot be deleted.
+export async function deletePosition(db: D1Database, companyId: string, name: string) {
+  const row = (await loadPositions(db, companyId)).find((p) => orgKey(p.name) === orgKey(name));
+  if (row && (row.units || row.people))
+    throw Object.assign(new Error(`“${row.name}” vəzifəsi silinə bilməz: ${row.units} ştat sətri, ${row.people} işçi ona bağlıdır. Əvvəl onları başqa vəzifəyə keçirin.`), { status: 409 });
+  await db.prepare("DELETE FROM org_names WHERE company_id=? AND kind='position' AND key=?").bind(companyId, orgKey(name)).run();
+}
+
+// A position gets a new name: staff rows and people that held the old one follow.
+export async function renamePosition(db: D1Database, companyId: string, from: string, to: string) {
+  const next = cleanOrgName(to);
+  if (next.length < 2) throw Object.assign(new Error("Yeni adı yazın."), { status: 400 });
+  const existing = await orgNameList(db, companyId, "position");
+  if (existing.some((n) => orgKey(n) === orgKey(next) && orgKey(n) !== orgKey(from)))
+    throw Object.assign(new Error(`“${next}” vəzifəsi artıq var. Birləşdirmək üçün ştat sətirlərini və işçiləri ona keçirin, sonra köhnəni silin.`), { status: 409 });
+  const now = new Date().toISOString();
+  await db.batch([
+    db.prepare("UPDATE staff_units SET position=?,updated=? WHERE company_id=? AND lower(position)=lower(?)").bind(next, now, companyId, from),
+    db.prepare("UPDATE company_employees SET position=?,updated=? WHERE company_id=? AND lower(position)=lower(?)").bind(next, now, companyId, from),
+    db.prepare("DELETE FROM org_names WHERE company_id=? AND kind='position' AND key=?").bind(companyId, orgKey(from)),
+    db.prepare("INSERT OR IGNORE INTO org_names(company_id,kind,key,name,parent,created) VALUES(?,?,?,?,?,?)").bind(companyId, "position", orgKey(next), next, "", now),
+  ]);
+  return next;
+}

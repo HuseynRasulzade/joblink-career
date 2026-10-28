@@ -5,6 +5,8 @@ import type { Application, Job } from "@/lib/model";
 import { questionStats, type Question, type QuestionType } from "@/lib/assessments";
 import { QUESTION_FILE_ACCEPT, readQuestionFile } from "@/lib/question-file";
 import { Field, Modal } from "./components";
+import { createXlsxBook } from "@/lib/xlsx";
+import { templateSheets } from "@/lib/sheet-templates";
 import { formatDate } from "@/lib/dates";
 import { siteLanguage } from "./i18n";
 
@@ -366,6 +368,23 @@ export default function AssessmentsPage({ notify }: { notify: (message: string) 
                   }
                 }}
               />
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => {
+                  const bytes = createXlsxBook(templateSheets("questions"));
+                  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = "test-suallari-numune.xlsx";
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+                }}
+              >
+                Nümunə fayl və təlimat (.xlsx)
+              </button>
               <small className="skill-picker-help">{FILE_FORMAT_HELP}</small>
             </div>
             <QuestionBank

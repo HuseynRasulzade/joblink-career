@@ -50,7 +50,9 @@ test("HR endpoints are guarded by the permission of their section", () => {
   assert.equal(permissionForPath("company/headcount/save"), "staff");
   assert.equal(permissionForPath("company/orders/save"), "orders");
   assert.equal(permissionForPath("company/order-signers"), "orders");
-  assert.equal(permissionForPath("company/requests/save"), "orders");
+  assert.equal(permissionForPath("company/applications/save"), "orders");
+  // the approvals page keeps its own endpoints
+  assert.equal(permissionForPath("company/requests/decide"), "salaries");
   assert.equal(permissionForPath("company/attendance/set"), "attendance");
   assert.equal(permissionForPath("company/calendar"), "attendance");
   assert.equal(permissionForPath("company/employee-docs/upload"), "documents");

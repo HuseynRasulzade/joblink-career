@@ -4,7 +4,7 @@
 import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -125,6 +125,28 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
     ],
     rules: ["Rəsmi bayramlar və köçürmələr artıq təqvimdədir; yalnız şirkətin ondan fərqli günlərini yazın.", "Bir dəfəyə ən çox 400 gün yüklənir."],
   },
+  questions: {
+    title: "Test sualları",
+    file: "test-suallari-numune.xlsx",
+    sheet: "Suallar",
+    columns: [
+      { header: "Sual", required: true, format: "Mətn", description: "Sualın mətni." },
+      { header: "Variant A", required: false, format: "Mətn", description: "Birinci cavab variantı. Çoxseçimli sual üçün ən azı iki variant lazımdır; variantsız sətir açıq sual olur." },
+      { header: "Variant B", required: false, format: "Mətn", description: "İkinci variant." },
+      { header: "Variant C", required: false, format: "Mətn", description: "Üçüncü variant (ixtiyari)." },
+      { header: "Variant D", required: false, format: "Mətn", description: "Dördüncü variant (ixtiyari). Ən çox 8 variant yazıla bilər: Variant E, F, G, H." },
+      { header: "Düzgün cavab", required: false, format: "Hərf və ya variantın mətni", description: "Düzgün variantın hərfi (B). Bir neçə düzgün cavab olarsa vergüllə: A, C. Variantlı sualda cavab yoxdursa sual yüklənmir.", values: "A, B, C, D … və ya A, C" },
+      { header: "Bal", required: false, format: "1–20", description: "Sualın balı (boşdursa 1)." },
+      { header: "Tip", required: false, format: "Boş və ya açıq", description: "“açıq” yazılsa variantlar nəzərə alınmır və sual açıq (mətn cavablı) olur.", values: "açıq" },
+    ],
+    examples: [
+      ["Aylıq iş vaxtı norması neçə saatdan çox ola bilməz — həftəlik normal iş vaxtı?", "36", "40", "44", "48", "B", 1, ""],
+      ["Aşağıdakılardan hansılar əmək haqqına daxildir?", "Tarif maaşı", "Əlavələr", "Mükafatlar", "Pay (səhm) planı üzrə səhm", "A, B, C", 2, ""],
+      ["Əmək müqaviləsində sınaq müddəti ən çox neçə ay ola bilər?", "1", "2", "3", "6", "C", 1, ""],
+      ["Namizədə iş yerində ilk həftə üçün hansı planı təklif edərdiniz?", "", "", "", "", "", 3, "açıq"],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Bir fayldan ən çox 60 sual yüklənir; hər sual üçün 1–20 bal.", "Word, PDF və ya mətn faylı da yükləmək olar: “1. Sual? (2 bal)”, sonra “A) …  B) …” və “Cavab: B”."],
+  },
   profiles: {
     title: "İşçilərin şəxsi məlumatları",
     file: "sexsi-melumat-numune.xlsx",
@@ -165,8 +187,7 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
 };
 
 // The two sheets of the file to download: the sample first (the importer reads the first sheet), then the guide.
-export function templateSheets(kind: SheetKind): XlsxSheet[] {
-  const template = SHEET_TEMPLATES[kind];
+export function sheetsOf(template: SheetTemplate): XlsxSheet[] {
   const guide: XlsxCell[][] = template.columns.map((c) => [c.header, c.required ? "Bəli" : "Xeyr", c.format, c.description, c.values || ""]);
   guide.push([], ["Qaydalar", "", "", "", ""], ...template.rules.map((rule, i) => [`${i + 1}.`, "", "", rule, ""] as XlsxCell[]));
   guide.push([], ["", "", "", "Nümunə vərəqindəki sətirlərin üstünə yazın, sütun adlarını (birinci sətir) dəyişməyin.", ""]);
@@ -175,3 +196,4 @@ export function templateSheets(kind: SheetKind): XlsxSheet[] {
     { name: "Təlimat", headers: ["Sütun", "Məcburi?", "Format", "İzah", "İcazə verilən dəyərlər"], rows: guide },
   ];
 }
+export const templateSheets = (kind: SheetKind): XlsxSheet[] => sheetsOf(SHEET_TEMPLATES[kind]);

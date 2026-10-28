@@ -1,5 +1,6 @@
 "use client";
 import { formatDate } from "@/lib/dates";
+import { SKILLS_SAMPLE, downloadCsv } from "@/lib/sample-files";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -667,6 +668,7 @@ export default function AdminPanel({
               <div className="billing-head-actions">
                 <button className="billing-secondary" onClick={() => exportSkills(true)}><Download size={16} /> Hamısını XLSX</button>
                 <label className="billing-secondary" title="Ad;Name;Kateqoriya;Category;sinonim1|sinonim2"><Plus size={16} /> CSV idxal<input type="file" hidden accept=".csv,text/csv,text/plain" onChange={importSkills} /></label>
+                <button className="billing-secondary" onClick={() => downloadCsv(SKILLS_SAMPLE, "bacariqlar-numune.csv")}><Download size={16} /> CSV nümunəsi</button>
                 <button className="billing-primary" onClick={() => setSkillFormOpen((value) => !value)}><Plus size={16} /> Yeni bacarıq</button>
               </div>
             </div>

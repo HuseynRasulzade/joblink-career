@@ -364,7 +364,7 @@ import { ORDER_KINDS } from "@/lib/orders";
 import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
-import { addSections, addStructure, canonicalOrg, deleteStructure, loadStaffHistory, loadStructure, orgNameList, renameStructure, type OrgKind } from "@/lib/staff-db";
+import { addSections, addStructure, canonicalOrg, deletePosition, deleteStructure, loadPositions, renamePosition, loadStaffHistory, loadStructure, orgNameList, renameStructure, type OrgKind } from "@/lib/staff-db";
 import { assignPeople, checkSalary, normalizeRate, RATE_LABEL, summarize, type PlanPerson, type PlanUnit } from "@/lib/staff-plan";
 import { parseStructureRows } from "@/lib/staff-import";
 import { splitNames } from "@/lib/section-suggestions";
@@ -7681,7 +7681,7 @@ async function route(request: Request) {
       probationEnd: r.employee_probation,
     },
   });
-  if (request.method === "GET" && path === "company/requests") {
+  if (request.method === "GET" && path === "company/applications") {
     requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs görə bilər.");
     const rows = await db
       .prepare(
@@ -7695,7 +7695,7 @@ async function route(request: Request) {
       .all<Parameters<typeof requestRow>[0]>();
     return ok({ requests: rows.results.map(requestRow) });
   }
-  if (request.method === "POST" && path === "company/requests/save") {
+  if (request.method === "POST" && path === "company/applications/save") {
     requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs qeyd edə bilər.");
     const b = await jsonBody(request);
     const employee = await db
@@ -7720,7 +7720,7 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "request-recorded", employee.id, `${employee.name}: ${kind}`);
     return ok({ ok: true, id: requestId, warnings: requestWarnings(kind, data, now.slice(0, 10)) }, 201);
   }
-  if (request.method === "POST" && path === "company/requests/reject") {
+  if (request.method === "POST" && path === "company/applications/reject") {
     requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs rədd edə bilər.");
     const b = await jsonBody(request);
     const reason = str(b.reason, 300);
@@ -7733,7 +7733,7 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "request-rejected", str(b.id, 100), reason);
     return ok({ ok: true });
   }
-  if (request.method === "POST" && path === "company/requests/delete") {
+  if (request.method === "POST" && path === "company/applications/delete") {
     requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs silə bilər.");
     const b = await jsonBody(request);
     const result = await db.prepare("DELETE FROM employee_requests WHERE id=? AND company_id=? AND status<>'ordered'").bind(str(b.id, 100), id).run();
@@ -7900,6 +7900,26 @@ async function route(request: Request) {
   if (request.method === "GET" && path === "company/structure") {
     requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi görə bilər.");
     return ok(await loadStructure(db, id));
+  }
+  if (request.method === "GET" && path === "company/structure/positions") {
+    requirePermission("salaries", "Vəzifələri yalnız ştat icazəsi olan şəxs görə bilər.");
+    return ok({ positions: await loadPositions(db, id) });
+  }
+  if (request.method === "POST" && path === "company/structure/positions/rename") {
+    requirePermission("salaries", "Vəzifələri yalnız ştat icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    const from = str(b.from, 120);
+    const name = await structureDb(() => renamePosition(db, id, from, str(b.to, 120)));
+    await companyAudit(db, id, userId, "structure-renamed", from, `vəzifə: ${from} → ${name}`);
+    return ok({ ok: true, name });
+  }
+  if (request.method === "POST" && path === "company/structure/positions/delete") {
+    requirePermission("salaries", "Vəzifələri yalnız ştat icazəsi olan şəxs silə bilər.");
+    const b = await jsonBody(request);
+    const name = str(b.name, 120);
+    await structureDb(() => deletePosition(db, id, name));
+    await companyAudit(db, id, userId, "structure-removed", name, "vəzifə");
+    return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/structure/add") {
     requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");
@@ -13459,6 +13479,13 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       signerName: str(d.signerName, 120),
       signerTitle: str(d.signerTitle, 120),
     };
+    // The offered pay stays inside the band the staff table names for the position of the vacancy.
+    {
+      const plan = await loadPlanData(db, id);
+      const gross = employeePay(salary, data.salaryPeriod === "gross" ? "gross" : "net", "private").gross;
+      const problem = checkSalary(plan.units, { id: "", department: job.department || "", section: job.section || "", position: data.position }, gross);
+      if (problem) throw new HttpError(409, problem.replace("təyin etmək olmaz", "təklif etmək olmaz"));
+    }
     // With the offer rule on, only a director (or a substitute) sends offers directly.
     if (
       needsDirector(await approvalRules(), "offer", canAct("approve-director"), salary)
