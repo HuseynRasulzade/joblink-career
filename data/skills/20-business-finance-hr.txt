@@ -1,0 +1,184 @@
+Maliyyə|Cash Flow Management|Pul vəsaitlərinin hərəkətinin idarə edilməsi|cash flow;cashflow;pul axını;денежные потоки
+Maliyyə|Budget Control|Büdcə nəzarəti|budget monitoring;budget variance;бюджетный контроль
+Maliyyə|Cost Accounting|Maya dəyəri uçotu|cost calculation;costing;maya dəyərinin hesablanması;себестоимость
+Maliyyə|Cost Reduction|Xərclərin optimallaşdırılması|cost optimization;xərc optimallaşdırması;оптимизация затрат
+Maliyyə|Financial Modeling|Maliyyə modelləşdirilməsi|financial model;dcf model;финансовое моделирование
+Maliyyə|Valuation|Biznesin qiymətləndirilməsi|business valuation;company valuation;оценка бизнеса
+Maliyyə|Investment Analysis|İnvestisiya təhlili|investment appraisal;npv irr;инвестиционный анализ
+Maliyyə|Portfolio Management|Portfel idarəetməsi|investment portfolio;портфель
+Maliyyə|Corporate Finance|Korporativ maliyyə|corporate financing;корпоративные финансы
+Maliyyə|Treasury Management|Xəzinədarlıq|treasury;treasury operations;казначейство
+Maliyyə|Credit Analysis|Kredit təhlili|credit assessment;credit risk analysis;кредитный анализ
+Maliyyə|Risk Management|Risklərin idarə edilməsi|risk assessment;risk analysis;управление рисками
+Maliyyə|Internal Audit|Daxili audit|internal control;daxili nəzarət;внутренний аудит
+Maliyyə|External Audit|Xarici audit|statutory audit;audit procedures;внешний аудит
+Maliyyə|Audit Reporting|Audit hesabatları|audit documentation
+Maliyyə|Transfer Pricing|Transfer qiymətləndirməsi|transfer pricing documentation
+Maliyyə|Consolidation|Maliyyə konsolidasiyası|consolidated statements;konsolidasiya;консолидация
+Maliyyə|IPSAS|IPSAS|public sector accounting
+Maliyyə|US GAAP|US GAAP|gaap;us gaap reporting
+Maliyyə|Month-End Closing|Ay sonu bağlanışı|month end close;period closing;закрытие периода
+Maliyyə|General Ledger|Baş kitab|gl accounting;general ledger accounting;главная книга
+Maliyyə|Bank Reconciliation|Bank üzləşdirməsi|bank reconciliations;bank uzlaşması
+Maliyyə|Invoicing|Faktura hazırlanması|invoice processing;invoices;qaimə-faktura;выставление счетов
+Maliyyə|Payroll|Əmək haqqı hesablanması|salary calculation;payroll processing;расчёт заработной платы
+Maliyyə|Fixed Assets Accounting|Əsas vəsaitlərin uçotu|fixed assets;əsas vəsaitlər;основные средства
+Maliyyə|Inventory Accounting|Anbar uçotu|inventory control;ehtiyatların uçotu;складской учёт
+Maliyyə|Payment Processing|Ödənişlərin icrası|payments processing;payment orders
+Maliyyə|Collections|Debitor borcların toplanması|debt collection;receivables collection;взыскание задолженности
+Maliyyə|Petty Cash|Kassa əməliyyatları|cash operations;cash handling;kassa;касса
+Maliyyə|Customs Duty|Gömrük rüsumları|customs payments;customs clearance
+Maliyyə|Excise Tax|Aksiz vergisi|excise
+Maliyyə|Profit Tax|Mənfəət vergisi|corporate income tax;налог на прибыль
+Maliyyə|Withholding Tax|Mənbəyində tutulan vergi|withholding
+Maliyyə|Social Insurance|Sosial sığorta|dsmf;social contributions;dövlət sosial müdafiə fondu
+Maliyyə|Financial Controlling|Maliyyə kontrollinqi|controlling;controller;kontrollinq;контроллинг
+Maliyyə|Management Reporting|İdarəetmə hesabatlılığı|management reports;mis reporting
+Maliyyə|KPI Reporting|KPI hesabatları|kpi tracking;kpi monitoring
+Maliyyə|Procurement Finance|Satınalma maliyyələşdirilməsi|supplier payments
+Maliyyə|Mergers and Acquisitions|Birləşmə və satınalmalar|m&a;mergers acquisitions;слияния и поглощения
+Maliyyə|Equity Research|Səhm təhlili|stock analysis;equity analysis
+Maliyyə|Derivatives|Törəmə alətlər|options futures;derivative instruments
+Maliyyə|Capital Markets|Kapital bazarları|securities market;qiymətli kağızlar bazarı;рынок капитала
+Maliyyə|Fundraising|Vəsait cəlb edilməsi|capital raising;investor relations
+Maliyyə|Grant Management|Qrant idarəetməsi|grant writing;grants;qrant yazmaq
+Maliyyə|Project Finance|Layihə maliyyəsi|project financing
+Bank|Retail Banking|Pərakəndə bankçılıq|retail bank;fiziki şəxslərə bank xidməti;розничный банк
+Bank|Corporate Banking|Korporativ bankçılıq|corporate bank;korporativ müştərilər;корпоративный банк
+Bank|Credit Operations|Kredit əməliyyatları|loan processing;kredit rəsmiləşdirilməsi;кредитование
+Bank|Loan Underwriting|Kredit qərarlarının verilməsi|underwriting;credit decision
+Bank|Mortgage Lending|İpoteka kreditləşməsi|mortgage;ipoteka;ипотека
+Bank|Trade Finance|Ticarət maliyyələşdirilməsi|letters of credit;akkreditiv;аккредитив
+Bank|Card Products|Kart məhsulları|payment cards;bank cards;bank kartları
+Bank|Foreign Exchange|Valyuta əməliyyatları|fx;forex;currency exchange;валютные операции
+Bank|SWIFT|SWIFT|swift payments;swift messages
+Bank|Banking Operations|Bank əməliyyatları|back office banking;bank back-office
+Bank|Teller Operations|Kassir əməliyyatları|bank teller;bank kassiri
+Bank|Collateral Valuation|Girovun qiymətləndirilməsi|pledge valuation;girov;залоговая оценка
+Bank|Payment Systems|Ödəniş sistemləri|payment gateway;fintech payments;платежные системы
+Bank|Fintech|Fintech|financial technology;fintech products
+Bank|Open Banking|Açıq bankçılıq|open banking api
+Bank|Compliance Monitoring|Uyğunluğa nəzarət|banking compliance;regulatory compliance;комплаенс
+Bank|Basel|Basel standartları|basel iii;basel framework
+Bank|Credit Scoring|Kredit skorinqi|scoring models;skorinq
+Bank|Microfinance|Mikromaliyyə|microcredit;mikrokredit;микрофинансирование
+Bank|Leasing|Lizinq|leasing operations;лизинг
+Sığorta|Insurance Underwriting|Sığorta andrraytinqi|insurance risk assessment;underwriting insurance
+Sığorta|Claims Handling|Zərərin tənzimlənməsi|insurance claims;sığorta iddiaları;урегулирование убытков
+Sığorta|Life Insurance|Həyat sığortası|life insurance products
+Sığorta|Motor Insurance|Avtomobil sığortası|casco;osaqo;kasko
+Sığorta|Health Insurance|Tibbi sığorta|medical insurance;icbari tibbi sığorta
+Sığorta|Reinsurance|Təkrar sığorta|reinsurance
+Sığorta|Insurance Sales|Sığorta satışı|insurance agent;sığorta agenti
+Sığorta|Actuarial Analysis|Aktuar hesablamaları|actuary;aktuari;актуарные расчеты
+İdarəetmə|Strategic Planning|Strateji planlaşdırma|strategy development;стратегическое планирование
+İdarəetmə|Leadership|Liderlik|team leadership;leadership skills;лидерство
+İdarəetmə|Team Management|Komanda idarəetməsi|people management;team lead;управление командой
+İdarəetmə|Project Management|Layihə idarəetməsi|project manager;управление проектами
+İdarəetmə|PMP|PMP|project management professional;pmi
+İdarəetmə|Program Management|Proqram idarəetməsi|programme management
+İdarəetmə|Change Management|Dəyişikliklərin idarə edilməsi|change management;управление изменениями
+İdarəetmə|Performance Management|Fəaliyyətin idarə edilməsi|performance appraisal;performance review;оценка эффективности
+İdarəetmə|Operations Management|Əməliyyatların idarə edilməsi|operational management;операционное управление
+İdarəetmə|Process Improvement|Proseslərin təkmilləşdirilməsi|process optimization;continuous improvement;оптимизация процессов
+İdarəetmə|Lean|Lean|lean management;lean manufacturing;бережливое производство
+İdarəetmə|Six Sigma|Six Sigma|six sigma green belt;six sigma black belt
+İdarəetmə|Business Process Management|Biznes proseslərin idarə edilməsi|bpm;process modeling;бизнес-процессы
+İdarəetmə|Budget Planning|Büdcə planlaşdırması|budgeting;budget preparation;бюджетирование
+İdarəetmə|OKR|OKR|objectives and key results
+İdarəetmə|Stakeholder Management|Maraqlı tərəflərlə iş|stakeholder engagement
+İdarəetmə|Decision Making|Qərar qəbulu|decision-making;qərarvermə;принятие решений
+İdarəetmə|Delegation|Səlahiyyətlərin həvalə edilməsi|task delegation
+İdarəetmə|Crisis Management|Böhran idarəetməsi|crisis response;crisis management
+İdarəetmə|Contract Management|Müqavilələrin idarə edilməsi|contract administration;contract negotiation;управление договорами
+İdarəetmə|Vendor Management|Podratçı və təchizatçı idarəetməsi|supplier management;vendor relations
+İdarəetmə|Business Development|Biznesin inkişafı|business development;развитие бизнеса
+İdarəetmə|Entrepreneurship|Sahibkarlıq|startup management;startup;предпринимательство
+İdarəetmə|Office Management|Ofis idarəetməsi|office administration;ofis administratoru;офис-менеджмент
+İdarəetmə|Executive Assistance|Rəhbərin köməkçisi|personal assistant;executive assistant;katiblik;секретарь
+İdarəetmə|Document Management|Sənəd dövriyyəsi|document control;records management;делопроизводство
+İdarəetmə|Administrative Support|Inzibati dəstək|admin support;административная поддержка
+İdarəetmə|Meeting Organization|Görüşlərin təşkili|event coordination;calendar management
+İnsan resursları|Recruitment|İşə qəbul|recruiting;talent acquisition;подбор персонала
+İnsan resursları|Headhunting|Headhunting|executive search;aktiv axtarış
+İnsan resursları|Interviewing|Müsahibələrin aparılması|candidate interviews;competency based interview
+İnsan resursları|Onboarding|Adaptasiya proqramı|employee onboarding;yeni işçilərin adaptasiyası;адаптация персонала
+İnsan resursları|Employee Relations|İşçi münasibətləri|employee engagement;işçilərin bağlılığı
+İnsan resursları|Compensation and Benefits|Əmək haqqı və mükafat sistemi|c&b;compensation;benefits;мотивация и компенсации
+İnsan resursları|Grading|Vəzifə dərəcələndirilməsi|job grading;vəzifə təsnifatı;грейдирование
+İnsan resursları|Learning and Development|Təlim və inkişaf|l&d;training and development;təlimlərin təşkili;обучение персонала
+İnsan resursları|Talent Management|İstedad idarəetməsi|talent development;kadr ehtiyatı
+İnsan resursları|Succession Planning|Varisliyin planlaşdırılması|talent pipeline
+İnsan resursları|HR Analytics|HR analitikası|people analytics;hr metrics;hr hesabatları
+İnsan resursları|HRIS|HRIS sistemləri|hr information systems;hr software
+İnsan resursları|HR Administration|Kadr işi|hr documentation;kadr sənədləri;kadrlar üzrə sənədləşmə;кадровое делопроизводство
+İnsan resursları|Labor Law|Əmək hüququ|labour law;labor legislation;трудовое право
+İnsan resursları|Organizational Development|Təşkilati inkişaf|org development
+İnsan resursları|Employer Branding|İşəgötürən brendi|employer brand;hr brand
+İnsan resursları|Employee Motivation|İşçilərin motivasiyası|staff motivation
+İnsan resursları|Conflict Resolution|Münaqişələrin həlli|conflict management;mübahisələrin həlli;разрешение конфликтов
+İnsan resursları|Exit Interviews|İşdən çıxış müsahibələri|offboarding;işdən azad etmə proseslər
+İnsan resursları|Staff Training|Əməkdaşların təlimi|corporate training;staff development
+İnsan resursları|Diversity and Inclusion|Müxtəliflik və inklüzivlik|dei;d&i
+İnsan resursları|Workforce Planning|İşçi qüvvəsinin planlaşdırılması|headcount planning;staffing plan
+Satış|B2B Sales|B2B satış|business to business sales;b2b;корпоративные продажи
+Satış|B2C Sales|B2C satış|retail sales b2c;b2c
+Satış|Retail Sales|Pərakəndə satış|retail;mağaza satışı;розничные продажи
+Satış|Wholesale|Topdan satış|wholesale trade;оптовые продажи
+Satış|Key Account Management|Əsas müştərilərlə iş|kam;key accounts;работа с ключевыми клиентами
+Satış|Account Management|Müştəri hesablarının idarə edilməsi|account manager
+Satış|Lead Generation|Potensial müştərilərin cəlb edilməsi|lead gen;prospecting;поиск клиентов
+Satış|Cold Calling|Soyuq zənglər|cold calls;telefon satışı;холодные звонки
+Satış|Negotiation|Danışıqlar aparmaq|negotiations;negotiation skills;ticarət danışıqları;переговоры
+Satış|Sales Planning|Satış planlaşdırması|sales forecasting;sales plan
+Satış|Sales Strategy|Satış strategiyası|sales strategy development
+Satış|Upselling|Əlavə satış|cross-selling;cross sell;up-sell
+Satış|Tender Sales|Tender satışları|tender participation;tenderlərdə iştirak;тендеры
+Satış|Pricing|Qiymətləndirmə siyasəti|price setting;pricing strategy;ценообразование
+Satış|Merchandising|Merçandayzinq|merchandiser;mallaşdırma;мерчандайзинг
+Satış|Category Management|Kateqoriya idarəetməsi|category manager;ассортимент
+Satış|Distribution Management|Distribyusiya idarəetməsi|distribution network;dealer network;дистрибуция
+Satış|Field Sales|Səyyar satış|field sales;route sales;территориальные продажи
+Satış|Telesales|Telefon satışları|telemarketing;call center sales
+Satış|E-commerce Sales|Onlayn satış|online sales;e-commerce;интернет-продажи
+Satış|Marketplace Management|Marketplace idarəetməsi|amazon seller;trendyol;wildberries;marketplace
+Satış|Customer Service|Müştəri xidməti|customer support;müştəri dəstəyi;клиентский сервис
+Satış|Customer Retention|Müştərilərin saxlanması|customer loyalty;loyalty programs;лояльность клиентов
+Satış|Customer Success|Müştəri uğuru|customer success management
+Satış|Complaint Handling|Şikayətlərin həlli|complaints management;müştəri şikayətləri;работа с жалобами
+Satış|Call Center|Çağrı mərkəzi|contact center;call centre;колл-центр
+Satış|Presentation Skills|Təqdimat bacarığı|presenting;public presentations;презентации
+Satış|Product Knowledge|Məhsul biliyi|product expertise
+Satış|After-sales Service|Satışdan sonra xidmət|after sales;aftersales
+Satış|Sales Analytics|Satış analitikası|sales reporting;sales dashboard
+Satış|Consultative Selling|Məsləhətçi satış|solution selling;consultative sales
+Biznes|Market Research|Bazar araşdırması|market analysis;marketing research;исследование рынка
+Biznes|Competitor Analysis|Rəqib təhlili|competitive analysis;competitive intelligence
+Biznes|SWOT Analysis|SWOT analiz|swot;pestel analysis
+Biznes|Business Planning|Biznes planlaşdırma|business plan;biznes plan hazırlamaq;бизнес-планирование
+Biznes|Feasibility Study|Texniki-iqtisadi əsaslandırma|feasibility analysis;tea;ТЭО
+Biznes|Consulting|Konsaltinq|business consulting;management consulting;консалтинг
+Biznes|Due Diligence|Due diligence|hərtərəfli yoxlama
+Biznes|Franchise Management|Françayzinq idarəetməsi|franchising
+Biznes|Partnership Development|Tərəfdaşlıqların qurulması|partnerships;strategic partnerships
+Biznes|Public Procurement|Dövlət satınalmaları|state procurement;dövlət satınalma;госзакупки
+Biznes|Export Development|İxrac inkişafı|export sales;export promotion
+Biznes|International Trade|Beynəlxalq ticarət|foreign trade;xarici ticarət;внешняя торговля
+Biznes|Incoterms|Incoterms|incoterms 2020
+Biznes|Corporate Social Responsibility|Korporativ sosial məsuliyyət|csr;esg;sustainability reporting
+Biznes|Sustainability|Davamlılıq|sustainable development;davamlı inkişaf
+Biznes|Quality Management|Keyfiyyətin idarə edilməsi|qms;quality assurance;управление качеством
+Biznes|ISO 9001|ISO 9001|iso 9001 quality management
+Biznes|ISO 14001|ISO 14001|environmental management system
+Biznes|ISO 45001|ISO 45001|occupational health safety management
+Biznes|Compliance|Normativ uyğunluq|regulatory affairs;legal compliance
+Biznes|Anti-Corruption|Korrupsiyaya qarşı mübarizə|anti bribery;anti-corruption compliance
+Biznes|Business Ethics|Biznes etikası|corporate ethics;code of conduct
+Biznes|Data Protection|Şəxsi məlumatların qorunması|gdpr;privacy compliance;data privacy
+Biznes|Social Media Management|Sosial media idarəetməsi|smm;social media manager;управление соцсетями
+Biznes|Translation|Tərcümə|translator;translations;tercume;перевод
+Biznes|Interpreting|Şifahi tərcümə|simultaneous interpretation;consecutive interpretation;устный перевод
+Biznes|Proofreading|Redaktə və korrektura|copyediting;korrektura;редактирование
+Biznes|Research|Tədqiqat|research skills;academic research;исследования
+Biznes|Report Writing|Hesabatların hazırlanması|report preparation;подготовка отчетов
+Biznes|Business Correspondence|İşgüzar yazışma|business writing;official correspondence;деловая переписка

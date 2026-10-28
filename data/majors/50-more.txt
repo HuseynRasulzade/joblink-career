@@ -1,0 +1,207 @@
+business|Financial Management|Maliyyə menecmenti|Финансовый менеджмент|
+business|Financial Analysis|Maliyyə təhlili|Финансовый анализ|
+business|Financial Engineering|Maliyyə mühəndisliyi|Финансовая инженерия|
+business|Actuarial Science|Aktuar riyaziyyatı|Актуарная математика|aktuari
+business|Islamic Finance|İslam maliyyəsi|Исламские финансы|
+business|Investment Management|İnvestisiya menecmenti|Инвестиционный менеджмент|
+business|Stock Market and Securities|Qiymətli kağızlar bazarı|Рынок ценных бумаг|
+business|Treasury and Cash Management|Xəzinədarlıq|Казначейство|
+business|Management Accounting|İdarəetmə uçotu|Управленческий учёт|
+business|Forensic Accounting|Məhkəmə mühasibatlığı|Судебная бухгалтерия|
+business|Internal Audit and Control|Daxili audit və nəzarət|Внутренний аудит и контроль|
+business|Strategic Management|Strateji menecment|Стратегический менеджмент|
+business|Operations Management|Əməliyyat menecmenti|Операционный менеджмент|
+business|Marketing Management|Marketinq menecmenti|Маркетинговый менеджмент|
+business|Sales Management|Satış menecmenti|Управление продажами|
+business|Retail Management|Pərakəndə satış menecmenti|Управление розничной торговлей|
+business|Event Planning|Tədbirlərin planlaşdırılması|Организация мероприятий|
+business|Organizational Behavior|Təşkilati davranış|Организационное поведение|
+business|Labor Relations|Əmək münasibətləri|Трудовые отношения|
+business|Personnel Management|Kadr idarəetməsi|Управление персоналом|
+business|Procurement Management|Satınalmaların idarə edilməsi|Управление закупками|
+business|Public Procurement|Dövlət satınalmaları|Государственные закупки|
+business|Transport Economics|Nəqliyyat iqtisadiyyatı|Экономика транспорта|
+business|Industrial Economics|Sənaye iqtisadiyyatı|Экономика промышленности|
+business|Environmental Economics|Ekoloji iqtisadiyyat|Экономика природопользования|
+business|Behavioral Economics|Davranış iqtisadiyyatı|Поведенческая экономика|
+business|Econometrics|Ekonometrika|Эконометрика|
+business|Digital Business|Rəqəmsal biznes|Цифровой бизнес|
+business|E-commerce|Elektron ticarət|Электронная коммерция|elektron kommersiya
+business|Business Law and Taxation|Biznes hüququ və vergi|Предпринимательское право и налоги|
+business|Service Management|Xidmət menecmenti|Сервис-менеджмент|
+business|Consumer Behavior|İstehlakçı davranışı|Поведение потребителей|
+business|Corporate Governance|Korporativ idarəetmə|Корпоративное управление|
+business|MBA|MBA (Biznesin idarə edilməsi üzrə magistr)|MBA|Master of Business Administration
+business|Executive MBA|Executive MBA|Executive MBA|EMBA
+law|Tax Law|Vergi hüququ|Налоговое право|
+law|Banking Law|Bank hüququ|Банковское право|
+law|Maritime Law|Dəniz hüququ|Морское право|
+law|Energy Law|Enerji hüququ|Энергетическое право|
+law|Administrative Law|İnzibati hüquq|Административное право|
+law|Procedural Law|Prosessual hüquq|Процессуальное право|
+law|Human Rights Law|İnsan hüquqları|Права человека|
+law|Land Law|Torpaq hüququ|Земельное право|
+law|Family Law|Ailə hüququ|Семейное право|
+law|Notarial Practice|Notariat|Нотариат|
+law|Prosecution|Prokurorluq|Прокурорский надзор|
+law|Criminalistics|Kriminalistika|Криминалистика|
+law|Legal Informatics|Hüquqi informatika|Правовая информатика|
+social|Public Relations and Communication|İctimaiyyətlə əlaqələr|Связи с общественностью|
+social|Political Sociology|Siyasi sosiologiya|Политическая социология|
+social|Social Policy|Sosial siyasət|Социальная политика|
+social|Social Pedagogy|Sosial pedaqogika|Социальная педагогика|
+social|Applied Psychology|Tətbiqi psixologiya|Прикладная психология|
+social|Organizational Psychology|Təşkilati psixologiya|Организационная психология|
+social|Child Psychology|Uşaq psixologiyası|Детская психология|
+social|Counseling Psychology|Məsləhətçi psixologiya|Консультативная психология|
+social|Media Studies|Media tədqiqatları|Медиаисследования|
+social|Advertising and Public Relations|Reklam və PR|Реклама и PR|
+social|Publishing|Nəşriyyat işi|Издательское дело|
+social|Press and Editing|Redaktorluq|Редактирование|
+social|European Studies|Avropa tədqiqatları|Европейские исследования|
+social|Middle East Studies|Yaxın Şərq tədqiqatları|Ближневосточные исследования|
+social|Caucasus Studies|Qafqazşünaslıq|Кавказоведение|
+social|Migration Studies|Miqrasiya tədqiqatları|Исследования миграции|
+social|Development Studies|İnkişaf tədqiqatları|Исследования развития|
+ict|Cybersecurity|Kibertəhlükəsizlik|Кибербезопасность|cyber security
+ict|Network Engineering|Şəbəkə mühəndisliyi|Сетевая инженерия|
+ict|Systems Engineering|Sistem mühəndisliyi|Системная инженерия|
+ict|Software Architecture|Proqram arxitekturası|Архитектура программного обеспечения|
+ict|Human-Computer Interaction|İnsan-kompüter qarşılıqlı əlaqəsi|Взаимодействие человека и компьютера|
+ict|Big Data|Böyük verilənlər|Большие данные|
+ict|Computational Mathematics|Hesablama riyaziyyatı|Вычислительная математика|
+ict|Computer-Aided Design|Kompüter dəstəkli layihələndirmə|САПР|CAD
+ict|Digital Forensics|Rəqəmsal ekspertiza|Цифровая криминалистика|
+ict|Robotics|Robototexnika|Робототехника|
+ict|Information Management|İnformasiya idarəetməsi|Управление информацией|
+ict|E-government|Elektron hökumət|Электронное правительство|
+ict|IT Project Management|İT layihələrinin idarə edilməsi|Управление ИТ-проектами|
+ict|UX/UI Design|UX/UI dizayn|UX/UI дизайн|
+ict|Cloud Engineering|Bulud mühəndisliyi|Облачная инженерия|
+ict|DevOps Engineering|DevOps mühəndisliyi|DevOps-инженерия|
+engineering|Petroleum Geology|Neft geologiyası|Нефтяная геология|
+engineering|Reservoir Engineering|Lay mühəndisliyi|Разработка нефтяных пластов|
+engineering|Offshore Engineering|Dəniz mühəndisliyi|Морская инженерия|
+engineering|Gas Engineering|Qaz mühəndisliyi|Газовая инженерия|
+engineering|Pipeline Engineering|Boru kəmərləri mühəndisliyi|Трубопроводная инженерия|
+engineering|Mining and Minerals|Faydalı qazıntılar|Полезные ископаемые|
+engineering|Process Safety Engineering|Proses təhlükəsizliyi mühəndisliyi|Безопасность технологических процессов|
+engineering|Control Systems Engineering|İdarəetmə sistemləri mühəndisliyi|Системы управления|
+engineering|Instrumentation Engineering|Cihazqayırma|Приборостроение|
+engineering|Electrical Machines and Apparatus|Elektrik maşınları və aparatlar|Электрические машины и аппараты|
+engineering|High Voltage Engineering|Yüksək gərginlik texnikası|Техника высоких напряжений|
+engineering|Power Electronics|Güc elektronikası|Силовая электроника|
+engineering|Energy Efficiency Engineering|Enerji səmərəliliyi mühəndisliyi|Энергоэффективность|
+engineering|Solar Energy|Günəş enerjisi|Солнечная энергетика|
+engineering|Wind Energy|Külək enerjisi|Ветроэнергетика|
+engineering|Hydropower Engineering|Hidroenergetika|Гидроэнергетика|
+engineering|Structural Engineering|Konstruksiya mühəndisliyi|Строительные конструкции|
+engineering|Geotechnical Engineering|Geotexnika|Геотехника|
+engineering|Construction Technology|Tikinti texnologiyası|Технология строительства|
+engineering|Building Materials|Tikinti materialları|Строительные материалы|
+engineering|Building Services Engineering|Binaların mühəndis sistemləri|Инженерные системы зданий|
+engineering|Highway Engineering|Avtomobil yolları|Автомобильные дороги|
+engineering|Railway Engineering|Dəmir yol mühəndisliyi|Железнодорожная инженерия|
+engineering|Automobile Engineering|Avtomobil mühəndisliyi|Автомобильная инженерия|
+engineering|Machine Building|Maşınqayırma|Машиностроение|
+engineering|Mechanical Technology|Mexaniki texnologiya|Технология машиностроения|
+engineering|Welding Technology|Qaynaq texnologiyası|Сварочное производство|
+engineering|Production Automation|İstehsalatın avtomatlaşdırılması|Автоматизация производства|
+engineering|Polymer Engineering|Polimer mühəndisliyi|Полимерная инженерия|
+engineering|Ceramics and Glass|Keramika və şüşə texnologiyası|Керамика и стекло|
+engineering|Telecommunication Engineering|Telekommunikasiya mühəndisliyi|Телекоммуникационная инженерия|
+engineering|Satellite Communications|Peyk rabitəsi|Спутниковая связь|
+engineering|Environmental Protection|Ətraf mühitin mühafizəsi|Охрана окружающей среды|
+engineering|Water Resources|Su ehtiyatları|Водные ресурсы|
+engineering|Cartography|Kartoqrafiya|Картография|
+engineering|Standardization and Certification|Standartlaşdırma və sertifikatlaşdırma|Стандартизация и сертификация|
+science|Applied Physics|Tətbiqi fizika|Прикладная физика|
+science|Computational Physics|Hesablama fizikası|Вычислительная физика|
+science|Physical Chemistry|Fiziki kimya|Физическая химия|
+science|Polymer Chemistry|Polimer kimyası|Химия полимеров|
+science|Petrochemistry|Neft-kimya|Нефтехимия|
+science|Molecular Biology|Molekulyar biologiya|Молекулярная биология|
+science|Biophysics|Biofizika|Биофизика|
+science|Bioinformatics|Bioinformatika|Биоинформатика|
+science|Meteorology|Meteorologiya|Метеорология|
+science|Climate Science|İqlim elmləri|Климатология|
+science|Cartography and Geoinformatics|Kartoqrafiya və geoinformatika|Картография и геоинформатика|
+science|Probability and Statistics|Ehtimal və statistika|Теория вероятностей и статистика|
+science|Mathematical Modeling|Riyazi modelləşdirmə|Математическое моделирование|
+science|Operations Research|Əməliyyatların tədqiqi|Исследование операций|
+education|Teaching Azerbaijani Language|Azərbaycan dili müəllimliyi|Преподавание азербайджанского языка|
+education|German Language Teaching|Alman dili müəllimliyi|Преподавание немецкого языка|
+education|French Language Teaching|Fransız dili müəllimliyi|Преподавание французского языка|
+education|Turkish Language Teaching|Türk dili müəllimliyi|Преподавание турецкого языка|
+education|Informatics Teaching|İnformatika müəllimliyi|Преподавание информатики|
+education|Primary School Teaching|İbtidai sinif müəllimliyi|Учитель начальных классов|
+education|Inclusive Education|İnklüziv təhsil|Инклюзивное образование|
+education|Educational Technology|Təhsil texnologiyaları|Образовательные технологии|
+education|Higher Education Management|Ali təhsil menecmenti|Управление высшим образованием|
+education|Teaching English as a Foreign Language|İngilis dilinin xarici dil kimi tədrisi|Преподавание английского как иностранного|TEFL;TESOL
+education|Pedagogical Management|Pedaqoji menecment|Педагогический менеджмент|
+health|Pediatric Surgery|Uşaq cərrahiyyəsi|Детская хирургия|
+health|Dermatology|Dermatologiya|Дерматология|
+health|Endocrinology|Endokrinologiya|Эндокринология|
+health|Gastroenterology|Qastroenterologiya|Гастроэнтерология|
+health|Urology|Urologiya|Урология|
+health|Otolaryngology|Otorinolarinqologiya|Оториноларингология|
+health|Orthopedics|Ortopediya və travmatologiya|Травматология и ортопедия|
+health|Hematology|Hematologiya|Гематология|
+health|Emergency Medicine|Təcili tibbi yardım|Скорая медицинская помощь|
+health|Family Medicine|Ailə həkimliyi|Семейная медицина|
+health|Pathology|Patologiya|Патология|
+health|Clinical Pharmacy|Klinik əczaçılıq|Клиническая фармация|
+health|Pharmaceutical Technology|Əczaçılıq texnologiyası|Фармацевтическая технология|
+health|Sports Medicine|İdman təbabəti|Спортивная медицина|
+health|Clinical Laboratory Diagnostics|Klinik laborator diaqnostika|Клиническая лабораторная диагностика|
+health|Health Informatics|Səhiyyə informatikası|Медицинская информатика|
+health|Occupational Health|Əmək gigiyenası|Гигиена труда|
+health|Epidemiology|Epidemiologiya|Эпидемиология|
+health|Health Economics|Səhiyyə iqtisadiyyatı|Экономика здравоохранения|
+health|Medical Psychology|Tibbi psixologiya|Медицинская психология|
+health|Occupational Therapy|Əməklə müalicə|Трудотерапия|
+arts|Interior Architecture|Interyer memarlığı|Архитектура интерьера|
+arts|Digital Art|Rəqəmsal incəsənət|Цифровое искусство|
+arts|Jewelry Design|Zərgərlik dizaynı|Ювелирный дизайн|
+arts|Ceramics|Keramika|Керамика|
+arts|Folk Instruments|Xalq çalğı alətləri|Народные инструменты|
+arts|Mugham Singing|Muğam ifaçılığı|Мугамное исполнительство|
+arts|Piano|Fortepiano|Фортепиано|
+arts|Violin|Skripka|Скрипка|
+arts|Film Directing|Kino rejissorluğu|Режиссура кино|
+arts|Screenwriting|Ssenari yazıçılığı|Сценарное мастерство|
+arts|Sound Engineering|Səs rejissorluğu|Звукорежиссура|
+arts|Cultural Management|Mədəniyyət menecmenti|Менеджмент культуры|
+humanities|Comparative Literature|Müqayisəli ədəbiyyatşünaslıq|Сравнительное литературоведение|
+humanities|Folklore Studies|Folklorşünaslıq|Фольклористика|
+humanities|Applied Linguistics|Tətbiqi dilçilik|Прикладная лингвистика|
+humanities|Language and Literature|Dil və ədəbiyyat|Язык и литература|
+humanities|Spanish Philology|İspan filologiyası|Испанская филология|
+humanities|Chinese Philology|Çin filologiyası|Китайская филология|
+humanities|Japanese Studies|Yaponşünaslıq|Японистика|
+humanities|Islamic Studies|İslamşünaslıq|Исламоведение|
+humanities|Interpretation|Şifahi tərcümə|Устный перевод|
+humanities|Ancient History|Qədim tarix|Древняя история|
+humanities|World History|Ümumi tarix|Всеобщая история|
+humanities|History of Azerbaijan|Azərbaycan tarixi|История Азербайджана|
+agri|Soil Science and Agrochemistry|Torpaqşünaslıq və aqrokimya|Почвоведение и агрохимия|
+agri|Plant Breeding|Bitki seleksiyası|Селекция растений|
+agri|Veterinary Sanitation|Baytarlıq-sanitariya ekspertizası|Ветеринарно-санитарная экспертиза|
+agri|Aquaculture|Akvakultura|Аквакультура|
+agri|Tea and Subtropical Crops|Çay və subtropik bitkilər|Чай и субтропические культуры|
+agri|Cotton Growing|Pambıqçılıq|Хлопководство|
+agri|Grain Growing|Dənli bitkilər|Зерноводство|
+agri|Sericulture|İpəkçilik|Шелководство|
+services|Fitness and Wellness|Fitnes və sağlamlıq|Фитнес и оздоровление|
+services|Sports Coaching|İdman məşqçiliyi|Спортивный тренер|
+services|Hospitality and Tourism|Qonaqpərvərlik və turizm|Гостеприимство и туризм|
+services|Customs Service|Gömrük xidməti|Таможенное дело|
+services|Fire Service|Yanğından mühafizə|Пожарная служба|
+services|Rescue Service|Xilasetmə xidməti|Спасательная служба|
+services|Cabin Crew Service|Salon işçisi (stüardessa)|Бортпроводник|
+services|Aircraft Maintenance|Aviasiya texniki xidməti|Техническое обслуживание воздушных судов|
+services|Pilot Training|Pilot hazırlığı|Подготовка пилотов|
+services|Air Traffic Control|Hava hərəkəti dispetçerliyi|Управление воздушным движением|
+services|Ship Navigation|Gəmi naviqasiyası|Судовождение|
+services|Port Operations|Liman əməliyyatları|Портовые операции|

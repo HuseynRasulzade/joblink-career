@@ -1,0 +1,206 @@
+Təchizat|Supply Chain Management|Təchizat zəncirinin idarə edilməsi|scm;supply chain;управление цепями поставок
+Təchizat|Logistics|Logistika|logistics management;логистика
+Təchizat|Warehouse Management|Anbar idarəetməsi|warehouse operations;wms;управление складом
+Təchizat|Inventory Management|Ehtiyatların idarə edilməsi|stock control;inventory planning;управление запасами
+Təchizat|Demand Planning|Tələb planlaşdırması|demand forecast;планирование спроса
+Təchizat|Procurement|Satınalma|purchasing;sourcing and procurement;закупки
+Təchizat|Strategic Sourcing|Strateji təchizat|category sourcing;strategic procurement
+Təchizat|Supplier Evaluation|Təchizatçıların qiymətləndirilməsi|supplier audit;supplier selection
+Təchizat|Tender Management|Tender idarəetməsi|tender preparation;rfq;rfp;тендерные процедуры
+Təchizat|Freight Forwarding|Yük ekspedisiyası|forwarding;экспедирование
+Təchizat|Customs Clearance|Gömrük rəsmiləşdirilməsi|customs declaration;customs broker;таможенное оформление
+Təchizat|Transportation Planning|Daşımaların planlaşdırılması|route planning;fleet planning;планирование перевозок
+Təchizat|Fleet Management|Avtopark idarəetməsi|fleet operations;управление автопарком
+Təchizat|Import Operations|İdxal əməliyyatları|import documentation;импорт
+Təchizat|Production Planning|İstehsalın planlaşdırılması|production scheduling;mrp;планирование производства
+Təchizat|Forklift Operation|Yükləyici texnikanın idarə edilməsi|forklift driver;forklift;погрузчик
+Təchizat|Order Processing|Sifarişlərin emalı|order fulfillment;order management;обработка заказов
+Təchizat|Last Mile Delivery|Çatdırılma xidməti|courier;kuryer;курьерская доставка
+Təchizat|Cold Chain|Soyuq zəncir|temperature controlled logistics
+Mühəndislik|Mechanical Engineering|Mexanika mühəndisliyi|mechanical design;машиностроение
+Mühəndislik|Electrical Engineering|Elektrik mühəndisliyi|electrical design;электротехника
+Mühəndislik|Electronics|Elektronika|electronic engineering;радиоэлектроника
+Mühəndislik|Civil Engineering|İnşaat mühəndisliyi|structural engineering;гражданское строительство
+Mühəndislik|Structural Design|Konstruksiya layihələndirilməsi|structural analysis;rc design
+Mühəndislik|Chemical Engineering|Kimya mühəndisliyi|chemical process;химическая инженерия
+Mühəndislik|Process Engineering|Proses mühəndisliyi|process design;технологические процессы
+Mühəndislik|Industrial Engineering|Sənaye mühəndisliyi|industrial automation engineering
+Mühəndislik|Mechatronics|Mexatronika|robotics;robot programming;мехатроника
+Mühəndislik|Automation|Avtomatlaşdırma|industrial automation;process automation;автоматизация
+Mühəndislik|PLC Programming|PLC proqramlaşdırması|siemens plc;allen bradley;plc
+Mühəndislik|SCADA|SCADA|scada systems
+Mühəndislik|Instrumentation|Alətlər və ölçmə sistemləri|kipia;instrumentation and control;КИПиА
+Mühəndislik|Power Systems|Enerji sistemləri|power engineering;электроэнергетика
+Mühəndislik|Electrical Installation|Elektrik quraşdırma işləri|electrician;electrical works;электромонтаж
+Mühəndislik|High Voltage|Yüksək gərginlik|hv substations;transformer;подстанции
+Mühəndislik|Renewable Energy|Bərpa olunan enerji|solar energy;wind energy;günəş enerjisi;возобновляемая энергетика
+Mühəndislik|Energy Efficiency|Enerji səmərəliliyi|energy audit;energy management;энергоэффективность
+Mühəndislik|HVAC Design|HVAC layihələndirilməsi|ventilation;air conditioning;kondisioner;вентиляция
+Mühəndislik|Plumbing|Santexnika|plumber;water supply systems;сантехника
+Mühəndislik|Welding|Qaynaq|welder;welding works;сварка
+Mühəndislik|CNC Machining|CNC emalı|cnc operator;cnc;ЧПУ
+Mühəndislik|Mechanical Maintenance|Mexaniki təmir və texniki xidmət|equipment maintenance;maintenance engineer;техническое обслуживание
+Mühəndislik|Preventive Maintenance|Profilaktik texniki xidmət|ppm;preventive maintenance
+Mühəndislik|Reliability Engineering|Etibarlılıq mühəndisliyi|rcm;fmea
+Mühəndislik|Technical Drawing|Texniki rəsm|drafting;engineering drawings;чертежи
+Mühəndislik|CAD|CAD|computer aided design;cad design
+Mühəndislik|CAM|CAM|computer aided manufacturing
+Mühəndislik|Finite Element Analysis|Sonlu elementlər analizi|fea;fem
+Mühəndislik|Quality Control|Keyfiyyətə nəzarət|qc;quality inspection;контроль качества
+Mühəndislik|Non-Destructive Testing|Dağıdıcı olmayan nəzarət|ndt;ndt testing;неразрушающий контроль
+Mühəndislik|Metrology|Metrologiya|measurement;calibration;метрология
+Mühəndislik|Production Management|İstehsalın idarə edilməsi|production supervisor;manufacturing management;управление производством
+Mühəndislik|Telecommunications|Telekommunikasiya|telecom;network infrastructure;телекоммуникации
+Mühəndislik|Fiber Optics|Optik lif şəbəkələri|ftth;fiber optic
+Mühəndislik|Radio Engineering|Radio mühəndisliyi|rf engineering;ran
+Mühəndislik|Surveying|Geodeziya|land surveying;geodesy;геодезия
+Mühəndislik|GIS|GIS|geographic information systems;arcgis;qgis
+Mühəndislik|Environmental Engineering|Ekoloji mühəndislik|ecology;environmental protection;экология
+Mühəndislik|Waste Management|Tullantıların idarə edilməsi|waste treatment;recycling
+Mühəndislik|Water Treatment|Suyun təmizlənməsi|wastewater;su təchizatı
+Mühəndislik|Machine Operation|Dəzgah və avadanlıq operatoru|machine operator;equipment operator;оператор станка
+Mühəndislik|Textile Production|Toxuculuq istehsalı|textile;sewing;tikiş istehsalı
+Mühəndislik|Food Production|Qida istehsalı|food technology;food processing;пищевое производство
+Təhlükəsizlik|Occupational Safety|Əməyin mühafizəsi|ohs;hse;health and safety;охрана труда
+Təhlükəsizlik|NEBOSH|NEBOSH|nebosh igc
+Təhlükəsizlik|IOSH|IOSH|iosh managing safely
+Təhlükəsizlik|Fire Safety|Yanğın təhlükəsizliyi|fire protection;пожарная безопасность
+Təhlükəsizlik|First Aid|İlk tibbi yardım|first aid training;первая помощь
+Təhlükəsizlik|Risk Assessment|Risk qiymətləndirməsi|hazard identification;hira;оценка рисков
+Təhlükəsizlik|Emergency Response|Fövqəladə hallara reaksiya|emergency planning;чрезвычайные ситуации
+Təhlükəsizlik|Physical Security|Fiziki təhlükəsizlik|guard;security guard;mühafizə;охрана
+Təhlükəsizlik|Surveillance Systems|Video müşahidə sistemləri|cctv;video surveillance
+Təhlükəsizlik|Environmental Safety|Ətraf mühitin mühafizəsi|hse environment;environment protection
+Təhlükəsizlik|Working at Height|Hündürlükdə işlər|height safety;работа на высоте
+Təhlükəsizlik|Confined Space|Qapalı məkanda iş|confined space entry
+Neft və enerji|Oil and Gas|Neft-qaz sənayesi|upstream;downstream;нефтегазовая отрасль
+Neft və enerji|Drilling Engineering|Qazma mühəndisliyi|drilling operations;бурение
+Neft və enerji|Reservoir Engineering|Layihə mühəndisliyi (lay)|reservoir;petroleum engineering;разработка месторождений
+Neft və enerji|Petroleum Geology|Neft geologiyası|geology;geoloq;геология
+Neft və enerji|Geophysics|Geofizika|seismic interpretation;геофизика
+Neft və enerji|Well Services|Quyu xidmətləri|well intervention;workover;wireline
+Neft və enerji|Pipeline Engineering|Boru kəməri mühəndisliyi|pipelines;pipeline operations;трубопроводы
+Neft və enerji|Refinery Operations|Neft emalı|refining;petrochemical;нефтепереработка
+Neft və enerji|Petrochemicals|Neft-kimya|petrochemical industry;нефтехимия
+Neft və enerji|Offshore Operations|Dəniz əməliyyatları|offshore;offshore platform;оффшорные работы
+Neft və enerji|Process Safety|Proses təhlükəsizliyi|hazop;process safety management
+Neft və enerji|Corrosion Control|Korroziyaya nəzarət|corrosion engineering;cathodic protection
+Neft və enerji|Gas Processing|Qazın emalı|gas treatment;gas compression
+Neft və enerji|Power Plant Operations|Elektrik stansiyalarının istismarı|power generation;энергетика
+Neft və enerji|Energy Trading|Enerji ticarəti|power trading;gas trading
+Tikinti|Construction Management|Tikinti idarəetməsi|site management;construction supervision;управление строительством
+Tikinti|Site Supervision|Obyektdə texniki nəzarət|site engineer;prorab;прораб
+Tikinti|Quantity Surveying|Həcm və smeta hesablaması|smeta;смета
+Tikinti|Cost Estimation|Smeta tərtibatı|estimating;cost estimating;сметное дело
+Tikinti|Architecture|Memarlıq|architectural design;architect;архитектура
+Tikinti|Urban Planning|Şəhərsalma|city planning;градостроительство
+Tikinti|BIM|BIM|building information modeling;bim modeling
+Tikinti|Project Scheduling|Layihə qrafiki|gantt;planning engineer;календарный план
+Tikinti|Reinforced Concrete|Dəmir-beton konstruksiyalar|concrete works;бетонные работы
+Tikinti|Finishing Works|Təmir-bərpa işləri|finishing;renovation;отделочные работы
+Tikinti|Masonry|Hörgü işləri|bricklaying;mason;каменная кладка
+Tikinti|Road Construction|Yol tikintisi|highway engineering;дорожное строительство
+Tikinti|Bridge Engineering|Körpü mühəndisliyi|bridge design
+Tikinti|Geotechnical Engineering|Geotexnika|soil mechanics;foundation design
+Tikinti|Real Estate|Daşınmaz əmlak|property management;real estate agent;недвижимость
+Tikinti|Facility Management|Obyektlərin idarə edilməsi|fm;building management;эксплуатация зданий
+Tikinti|Interior Fit-out|Interyer quraşdırma işləri|fit out;fit-out works
+Nəqliyyat və logistika|Driving|Sürücülük|driver;professional driver;водитель
+Nəqliyyat və logistika|Driver's License B|B kateqoriyalı sürücülük vəsiqəsi|license b;driving licence b;водительские права категории b
+Nəqliyyat və logistika|Driver's License C|C kateqoriyalı sürücülük vəsiqəsi|license c;driving licence c;категория c
+Nəqliyyat və logistika|Heavy Vehicle Operation|Ağır texnika idarəetməsi|excavator operator;crane operator;kran operatoru
+Nəqliyyat və logistika|Aviation|Aviasiya|aircraft maintenance;aviation operations;авиация
+Nəqliyyat və logistika|Air Cargo|Hava yükdaşımaları|air freight;авиаперевозки
+Nəqliyyat və logistika|Maritime Transport|Dəniz nəqliyyatı|shipping;seafarer;морские перевозки
+Nəqliyyat və logistika|Railway Operations|Dəmir yolu əməliyyatları|railway;rail transport;железная дорога
+Nəqliyyat və logistika|Dispatching|Dispetçer xidməti|dispatcher;логист-диспетчер
+Nəqliyyat və logistika|Automotive Repair|Avtomobil təmiri|car mechanic;auto repair;автослесарь
+Nəqliyyat və logistika|Vehicle Diagnostics|Avtomobil diaqnostikası|auto diagnostics;диагностика авто
+Səhiyyə|Clinical Practice|Klinik təcrübə|clinical skills;patient care;клиническая практика
+Səhiyyə|Nursing|Tibb bacısı işi|nurse;nursing care;медсестринское дело
+Səhiyyə|Pharmacy|Əczaçılıq|pharmacist;pharmaceutical;фармация
+Səhiyyə|Medical Sales|Tibbi nümayəndəlik|medical representative;med rep;медицинский представитель
+Səhiyyə|Laboratory Analysis|Laboratoriya analizləri|lab technician;clinical laboratory;лабораторная диагностика
+Səhiyyə|Radiology|Radiologiya|mri;ct scan;ultrasound;радиология
+Səhiyyə|Dentistry|Stomatologiya|dental;dentist;стоматология
+Səhiyyə|Physiotherapy|Fizioterapiya|physical therapy;rehabilitation;физиотерапия
+Səhiyyə|Psychology|Psixologiya|psychologist;counseling;психология
+Səhiyyə|Nutrition|Qidalanma və dietologiya|dietitian;nutritionist;диетология
+Səhiyyə|Public Health|İctimai səhiyyə|epidemiology;общественное здоровье
+Səhiyyə|Medical Documentation|Tibbi sənədləşmə|medical records;medical coding
+Səhiyyə|Healthcare Management|Səhiyyə menecmenti|hospital administration;hospital management
+Səhiyyə|Veterinary|Baytarlıq|veterinarian;ветеринария
+Səhiyyə|Clinical Research|Klinik tədqiqatlar|clinical trials;gcp;cra
+Səhiyyə|Pharmacovigilance|Farmakovigilans|drug safety
+Səhiyyə|Medical Devices|Tibbi cihazlar|medical equipment;biomedical engineering
+Səhiyyə|Emergency Medicine|Təcili tibbi yardım|paramedic;ambulance;скорая помощь
+Səhiyyə|Caregiving|Qulluq və baxım|elderly care;patient caregiver;уход за больными
+Hüquq|Legal Advisory|Hüquqi məsləhət|legal counsel;lawyer;юридическая консультация
+Hüquq|Contract Drafting|Müqavilə hazırlanması|contracts;contract review;составление договоров
+Hüquq|Litigation|Məhkəmə işləri|court representation;civil litigation;судебная практика
+Hüquq|Corporate Law|Korporativ hüquq|company law;корпоративное право
+Hüquq|Civil Law|Mülki hüquq|civil code;гражданское право
+Hüquq|Criminal Law|Cinayət hüququ|criminal defense;уголовное право
+Hüquq|Tax Law|Vergi hüququ|tax legislation;налоговое право
+Hüquq|Intellectual Property|Əqli mülkiyyət|ip law;trademark;patent;интеллектуальная собственность
+Hüquq|International Law|Beynəlxalq hüquq|international legal;международное право
+Hüquq|Notary|Notariat|notarial acts;нотариат
+Hüquq|Legal Research|Hüquqi araşdırma|legal analysis;legal drafting
+Hüquq|Land and Property Law|Torpaq və əmlak hüququ|real estate law;земельное право
+Hüquq|Banking Law|Bank hüququ|financial law;банковское право
+Hüquq|Arbitration|Arbitraj|dispute resolution;mediation;арбитраж
+Hüquq|Regulatory Affairs|Normativ hüquqi tənzimləmə|
+Hüquq|Customs Law|Gömrük hüququ|customs legislation
+Hüquq|Legal Translation|Hüquqi tərcümə|legal translator
+Təhsil|Teaching|Müəllimlik|teacher;teaching experience;преподавание
+Təhsil|Curriculum Development|Tədris planı hazırlanması|curriculum design;syllabus;разработка учебных программ
+Təhsil|Lesson Planning|Dərs planlaşdırması|lesson plans
+Təhsil|Classroom Management|Sinif idarəetməsi|classroom control
+Təhsil|Early Childhood Education|Məktəbəqədər təhsil|kindergarten;preschool;дошкольное образование
+Təhsil|Primary Education|İbtidai təhsil|primary teacher;начальное образование
+Təhsil|Special Education|Xüsusi təhsil|inclusive education;special needs;коррекционное образование
+Təhsil|Tutoring|Repetitorluq|private tutor;репетиторство
+Təhsil|E-learning|Distant təhsil|online teaching;lms;moodle;дистанционное обучение
+Təhsil|Instructional Design|Tədris dizaynı|learning design;course design
+Təhsil|Academic Writing|Akademik yazı|scientific writing;research paper;научные публикации
+Təhsil|Education Management|Təhsil menecmenti|school management;school administration
+Təhsil|Test Preparation|İmtahana hazırlıq|exam preparation;sat;abituriyent hazırlığı
+Təhsil|Child Development|Uşaq inkişafı|child care;child psychology
+Təhsil|Mathematics|Riyaziyyat|math;mathematics teaching;математика
+Təhsil|Physics|Fizika|physics teaching;физика
+Təhsil|Chemistry|Kimya|chemistry teaching;химия
+Təhsil|Biology|Biologiya|biology teaching;биология
+Təhsil|History|Tarix|history teaching;история
+Təhsil|Music|Musiqi|music teaching;musiqi müəllimi;музыка
+Təhsil|Sports Coaching|İdman məşqçiliyi|fitness instructor;coach sports;тренер
+Xidmət|Hospitality|Qonaqpərvərlik|hospitality management;гостеприимство
+Xidmət|Hotel Management|Otel idarəetməsi|hotel operations;hotel manager;управление отелем
+Xidmət|Front Desk|Resepsiya|reception;front office;receptionist;ресепшн
+Xidmət|Housekeeping|Otaq xidməti|room service;хаускипинг
+Xidmət|Food and Beverage|Yeməkxana və içki xidməti|f&b;restaurant service;food service
+Xidmət|Waiter Service|Ofisiant xidməti|waiter;waitress;официант
+Xidmət|Barista|Barista|coffee making;бариста
+Xidmət|Bartending|Barmen|bartender;barman;бармен
+Xidmət|Cooking|Aşpazlıq|chef;cook;kitchen;повар
+Xidmət|Pastry|Qənnadı sənəti|baker;pastry chef;кондитер
+Xidmət|Restaurant Management|Restoran idarəetməsi|restaurant manager;управление рестораном
+Xidmət|Tourism|Turizm|tour operator;travel agency;туризм
+Xidmət|Tour Guide|Turist bələdçisi|travel guide;гид
+Xidmət|Ticketing|Bilet xidməti|airline ticketing;reservation
+Xidmət|Event Hosting|Tədbir aparıcılığı|events host
+Xidmət|Beauty Services|Gözəllik xidmətləri|hairdresser;makeup artist;парикмахер
+Xidmət|Cleaning Services|Təmizlik xidməti|cleaner;janitor;уборка
+Xidmət|Retail Cashier|Satış kassiri|cashier;kassir;кассир
+Xidmət|Concierge|Konsyerj xidməti|guest relations
+Kənd təsərrüfatı|Agronomy|Aqronomluq|agronomist;crop production;агрономия
+Kənd təsərrüfatı|Crop Production|Bitkiçilik|plant growing;растениеводство
+Kənd təsərrüfatı|Animal Husbandry|Heyvandarlıq|livestock;cattle breeding;животноводство
+Kənd təsərrüfatı|Horticulture|Bağçılıq|gardening;садоводство
+Kənd təsərrüfatı|Greenhouse Farming|Istixana təsərrüfatı|greenhouse;теплицы
+Kənd təsərrüfatı|Irrigation|Suvarma sistemləri|irrigation systems;орошение
+Kənd təsərrüfatı|Agricultural Machinery|Kənd təsərrüfatı texnikası|tractor operator;combine;сельхозтехника
+Kənd təsərrüfatı|Beekeeping|Arıçılıq|apiculture;пчеловодство
+Kənd təsərrüfatı|Fishery|Balıqçılıq|aquaculture;fish farming;рыбоводство
+Kənd təsərrüfatı|Food Safety|Qida təhlükəsizliyi|haccp;food quality;пищевая безопасность
+Kənd təsərrüfatı|Forestry|Meşə təsərrüfatı|forest management;лесное хозяйство
+Kənd təsərrüfatı|Agribusiness|Aqrobiznes|agricultural business;агробизнес

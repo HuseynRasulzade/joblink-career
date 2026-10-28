@@ -1,0 +1,202 @@
+# category|English|Azərbaycanca|aliases (separate with ;)
+İT|Java|Java|java programming;java developer;джава
+İT|C#|C#|c sharp;csharp;c# programming
+İT|C++|C++|cpp;c plus plus
+İT|C|C proqramlaşdırma dili|c language;c programming
+İT|Go|Go (Golang)|golang;go lang
+İT|Rust|Rust|rust lang;rust programming
+İT|Kotlin|Kotlin|kotlin android
+İT|Swift|Swift|swift ios;swift programming
+İT|PHP|PHP|php developer
+İT|Laravel|Laravel|laravel framework
+İT|Symfony|Symfony|symfony php
+İT|Ruby|Ruby|ruby lang
+İT|Ruby on Rails|Ruby on Rails|rails;ror
+İT|Scala|Scala|scala lang
+İT|R|R proqramlaşdırma dili|r language;r programming;r statistical
+İT|MATLAB|MATLAB|matlab simulink
+İT|Dart|Dart|dart lang
+İT|Flutter|Flutter|flutter mobile
+İT|React Native|React Native|react-native
+İT|Angular|Angular|angularjs;angular framework
+İT|Vue.js|Vue.js|vue;vuejs;vue 3
+İT|Next.js|Next.js|nextjs;next js
+İT|Node.js|Node.js|nodejs;node js;node backend
+İT|Express.js|Express.js|expressjs
+İT|NestJS|NestJS|nest js
+İT|Django|Django|django framework
+İT|Flask|Flask|flask python
+İT|FastAPI|FastAPI|fast api
+İT|Spring Boot|Spring Boot|spring framework;spring
+İT|.NET|.NET|dotnet;asp.net;.net core;asp net
+İT|HTML|HTML|html5
+İT|CSS|CSS|css3
+İT|Sass|Sass / SCSS|scss;sass css
+İT|Tailwind CSS|Tailwind CSS|tailwind
+İT|Bootstrap|Bootstrap|bootstrap css
+İT|jQuery|jQuery|jquery js
+İT|WordPress|WordPress|wordpress cms;wp
+İT|Webflow|Webflow|webflow cms
+İT|Shopify|Shopify|shopify store
+İT|REST API|REST API|rest;restful;restful api
+İT|GraphQL|GraphQL|graph ql
+İT|Microservices|Mikroservislər|microservice architecture;mikroservis
+İT|System Design|Sistem dizaynı|system architecture;software architecture;proqram arxitekturası
+İT|Design Patterns|Dizayn şablonları|software design patterns
+İT|OOP|Obyekt yönümlü proqramlaşdırma|object oriented programming;oop principles;ООП
+İT|Unit Testing|Unit testlər|unit tests;unit test yazmaq
+İT|Test Automation|Test avtomatlaşdırması|automated testing;avtomatlaşdırılmış test;автоматизация тестирования
+İT|Manual Testing|Manual test|manual qa;manual tester
+İT|QA Testing|Keyfiyyətə nəzarət testi|quality assurance testing;qa engineer;тестирование
+İT|Selenium|Selenium|selenium webdriver
+İT|Cypress|Cypress|cypress testing
+İT|Playwright|Playwright|playwright testing
+İT|Postman|Postman|postman api
+İT|JMeter|JMeter|apache jmeter;load testing
+İT|Git|Git|git version control;versiyaya nəzarət
+İT|GitHub|GitHub|github actions
+İT|GitLab|GitLab|gitlab ci
+İT|Jira|Jira|atlassian jira
+İT|Confluence|Confluence|atlassian confluence
+İT|Docker|Docker|docker containers;konteynerlər
+İT|Kubernetes|Kubernetes|k8s;kubernetes orchestration
+İT|CI/CD|CI/CD|continuous integration;continuous delivery;ci cd pipeline
+İT|Jenkins|Jenkins|jenkins ci
+İT|Terraform|Terraform|infrastructure as code;iac
+İT|Ansible|Ansible|ansible automation
+İT|DevOps|DevOps|devops engineering;девопс
+İT|AWS|AWS|amazon web services;aws cloud
+İT|Microsoft Azure|Microsoft Azure|azure cloud;azure
+İT|Google Cloud|Google Cloud Platform|gcp;google cloud platform
+İT|Cloud Computing|Bulud texnologiyaları|cloud technologies;cloud infrastructure;облачные технологии
+İT|Linux|Linux|linux administration;linux server;linux administrasiyası
+İT|Windows Server|Windows Server|windows server administration
+İT|Bash Scripting|Bash skriptləri|shell scripting;bash;shell script
+İT|PowerShell|PowerShell|powershell scripting
+İT|Active Directory|Active Directory|ad administration;active directory administrasiyası
+İT|Virtualization|Virtualizasiya|vmware;hyper-v;virtual machines;виртуализация
+İT|Computer Networks|Kompüter şəbəkələri|networking;computer networking;şəbəkə;сети
+İT|Cisco|Cisco şəbəkə avadanlıqları|cisco networking;ccna;cisco routers
+İT|Network Administration|Şəbəkə administrasiyası|network administrator;network management
+İT|Firewall|Firewall|fortigate;palo alto;firewall configuration
+İT|VPN|VPN|vpn setup;virtual private network
+İT|IT Support|İT dəstəyi|help desk;helpdesk;technical support;texniki dəstək;it helpdesk;техподдержка
+İT|System Administration|Sistem administrasiyası|sysadmin;system administrator;системный администратор
+İT|Cybersecurity|Kibertəhlükəsizlik|cyber security;information security;informasiya təhlükəsizliyi;кибербезопасность
+İT|Penetration Testing|Penetrasiya testi|pentest;ethical hacking
+İT|SIEM|SIEM|splunk;security monitoring
+İT|ISO 27001|ISO 27001|information security management
+İT|Cryptography|Kriptoqrafiya|encryption;şifrələmə
+İT|Android Development|Android proqramlaşdırma|android developer;android app development
+İT|iOS Development|iOS proqramlaşdırma|ios developer;ios app development
+İT|Mobile Development|Mobil tətbiq hazırlanması|mobile app development;mobil proqramlaşdırma
+İT|Game Development|Oyun hazırlanması|game developer;oyun proqramlaşdırma
+İT|Unity|Unity|unity 3d;unity engine
+İT|Unreal Engine|Unreal Engine|unreal
+İT|Blockchain|Blokçeyn|blockchain development;smart contracts
+İT|Embedded Systems|Quraşdırılmış sistemlər|embedded programming;embedded c;gömülü sistemlər
+İT|IoT|Əşyaların interneti|internet of things;iot solutions
+İT|Arduino|Arduino|arduino programming
+İT|Raspberry Pi|Raspberry Pi|raspberry
+İT|ERP Implementation|ERP tətbiqi|erp deployment;erp sisteminin tətbiqi
+İT|SAP|SAP|sap erp;sap system
+İT|SAP FICO|SAP FICO|sap fi;sap co;sap finance
+İT|Oracle ERP|Oracle ERP|oracle e-business suite;oracle fusion
+İT|Microsoft Dynamics|Microsoft Dynamics 365|dynamics 365;dynamics ax;dynamics nav
+İT|Odoo|Odoo|odoo erp
+İT|Salesforce|Salesforce|salesforce crm;salesforce admin
+İT|CRM Systems|CRM sistemləri|crm;crm management;crm sistemi
+İT|Business Analysis|Biznes analiz|business analyst;biznes analitik;бизнес-анализ
+İT|Requirements Analysis|Tələblərin analizi|requirements gathering;requirements engineering
+İT|UML|UML|uml modeling;bpmn
+İT|Scrum|Scrum|scrum master;scrum framework
+İT|Agile|Agile|agile methodology;agile metodologiyası
+İT|Kanban|Kanban|kanban board
+İT|Product Management|Məhsul idarəetməsi|product manager;product owner;продакт-менеджмент
+İT|Technical Writing|Texniki sənədləşmə|technical documentation;texniki yazı
+İT|Machine Learning|Maşın öyrənməsi|ml;machine learning models;машинное обучение
+İT|Deep Learning|Dərin öyrənmə|neural networks;deep neural networks;глубокое обучение
+İT|Artificial Intelligence|Süni intellekt|ai;ai technologies;süni zəka;искусственный интеллект
+İT|Natural Language Processing|Təbii dilin emalı|nlp;text mining
+İT|Computer Vision|Kompüter görmə|image recognition;opencv
+İT|TensorFlow|TensorFlow|tensorflow keras
+İT|PyTorch|PyTorch|pytorch deep learning
+İT|Prompt Engineering|Prompt mühəndisliyi|llm prompting;generative ai;generativ süni intellekt
+Məlumat|Data Analysis|Məlumat analizi|data analytics;data analyst;verilənlərin analizi;анализ данных
+Məlumat|Data Engineering|Məlumat mühəndisliyi|data engineer;etl development
+Məlumat|Data Science|Data Science|data scientist;məlumat elmi;наука о данных
+Məlumat|ETL|ETL|etl pipelines;data pipelines;extract transform load
+Məlumat|Data Warehouse|Məlumat anbarı|data warehousing;dwh;datawarehouse
+Məlumat|Data Modeling|Məlumat modelləşdirilməsi|data model;er modeling
+Məlumat|Data Visualization|Məlumatın vizuallaşdırılması|data viz;vizuallaşdırma;визуализация данных
+Məlumat|Data Cleaning|Məlumatın təmizlənməsi|data cleansing;data preparation;data wrangling
+Məlumat|Data Governance|Məlumat idarəçiliyi|data quality;data management
+Məlumat|Statistics|Statistika|statistical analysis;statistik analiz;статистика
+Məlumat|A/B Testing|A/B test|ab testing;split testing;experimentation
+Məlumat|Forecasting|Proqnozlaşdırma|demand forecasting;time series;proqnoz modelləri
+Məlumat|Predictive Modeling|Proqnoz modelləşdirilməsi|predictive analytics;predictive models
+Məlumat|PostgreSQL|PostgreSQL|postgres;postgresql database
+Məlumat|MySQL|MySQL|mysql database;mariadb
+Məlumat|Microsoft SQL Server|Microsoft SQL Server|mssql;ms sql;sql server;t-sql
+Məlumat|Oracle Database|Oracle verilənlər bazası|oracle db;pl/sql;plsql
+Məlumat|MongoDB|MongoDB|mongo;nosql mongodb
+Məlumat|Redis|Redis|redis cache
+Məlumat|Elasticsearch|Elasticsearch|elastic stack;elk
+Məlumat|Database Administration|Verilənlər bazasının administrasiyası|dba;database admin;db administration
+Məlumat|SQLite|SQLite|sqlite3
+Məlumat|Apache Spark|Apache Spark|spark;pyspark
+Məlumat|Hadoop|Hadoop|big data hadoop
+Məlumat|Big Data|Böyük verilənlər|big data analytics;bigdata
+Məlumat|Apache Kafka|Apache Kafka|kafka streaming
+Məlumat|Airflow|Apache Airflow|airflow dags
+Məlumat|Snowflake|Snowflake|snowflake data cloud
+Məlumat|BigQuery|Google BigQuery|bigquery
+Məlumat|Tableau|Tableau|tableau desktop
+Məlumat|Power BI|Power BI|powerbi;microsoft power bi;dax
+Məlumat|Looker|Looker Studio|google data studio;looker
+Məlumat|QlikView|QlikView / Qlik Sense|qlik;qlik sense
+Məlumat|Pandas|Pandas|python pandas
+Məlumat|NumPy|NumPy|numpy python
+Məlumat|Scikit-learn|Scikit-learn|sklearn
+Məlumat|SPSS|SPSS|ibm spss
+Məlumat|Stata|Stata|stata statistics
+Məlumat|SAS|SAS|sas analytics
+Məlumat|Google Analytics|Google Analytics|google analytics 4
+Məlumat|Google Sheets|Google Sheets|google cədvəllər;gsheets
+Məlumat|Excel VBA|Excel VBA və makrolar|vba;excel macros;excel makro
+Məlumat|Power Query|Power Query|power pivot;excel power query
+Məlumat|Pivot Tables|Pivot cədvəllər|pivot table;svod cədvəl;сводные таблицы
+Məlumat|Business Intelligence|Biznes intellekt|bi;bi reporting;bi hesabatları
+Proqramlar|Microsoft Word|Microsoft Word|ms word;word proqramı
+Proqramlar|Microsoft PowerPoint|Microsoft PowerPoint|powerpoint;ms powerpoint;təqdimat hazırlamaq
+Proqramlar|Microsoft Outlook|Microsoft Outlook|outlook email
+Proqramlar|Microsoft Teams|Microsoft Teams|ms teams
+Proqramlar|Microsoft Access|Microsoft Access|ms access
+Proqramlar|Microsoft Project|Microsoft Project|ms project
+Proqramlar|Microsoft Visio|Microsoft Visio|visio diagrams
+Proqramlar|SharePoint|SharePoint|microsoft sharepoint
+Proqramlar|Google Workspace|Google Workspace|g suite;google docs;google disk
+Proqramlar|Zoom|Zoom|zoom meetings
+Proqramlar|Slack|Slack|slack messenger
+Proqramlar|Trello|Trello|trello boards
+Proqramlar|Asana|Asana|asana tasks
+Proqramlar|Notion|Notion|notion workspace
+Proqramlar|Monday.com|Monday.com|monday
+Proqramlar|1C Mühasibat|1C Mühasibat|1c accounting;1с бухгалтерия;1c:accounting
+Proqramlar|1C Əmək haqqı və kadr|1C Əmək haqqı və kadr|1c zup;1с зуп;1c payroll
+Proqramlar|1C Ticarət idarəetməsi|1C Ticarət idarəetməsi|1c trade;1c ut;1с торговля
+Proqramlar|Asan Mühasib|ASAN Mühasib|asan muhasib
+Proqramlar|e-taxes|E-taxes sistemi|e-taxes.gov.az;vergi portalı;e taxes
+Proqramlar|Navision|Navision|microsoft navision;nav
+Proqramlar|QuickBooks|QuickBooks|quickbooks accounting
+Proqramlar|Xero|Xero|xero accounting
+Proqramlar|AutoCAD|AutoCAD|autodesk autocad;autokad
+Proqramlar|Revit|Revit|autodesk revit
+Proqramlar|SketchUp|SketchUp|sketch up
+Proqramlar|SolidWorks|SolidWorks|solid works
+Proqramlar|3ds Max|3ds Max|3dsmax;3d studio max
+Proqramlar|Blender|Blender|blender 3d
+Proqramlar|ArchiCAD|ArchiCAD|archi cad
+Proqramlar|Primavera P6|Primavera P6|primavera
+Proqramlar|ANSYS|ANSYS|ansys simulation
+Proqramlar|ETABS|ETABS / SAP2000|sap2000;etabs

@@ -1,0 +1,576 @@
+# family|English|Azərbaycanca|Русский|aliases
+finance|Credit Risk Analyst|Kredit risk analitiki|Аналитик кредитных рисков|
+finance|Market Risk Analyst|Bazar riski analitiki|Аналитик рыночных рисков|
+finance|Operational Risk Specialist|Əməliyyat riski üzrə mütəxəssis|Специалист по операционным рискам|
+finance|Compliance Officer|Uyğunluq üzrə mütəxəssis|Комплаенс-офицер|komplayens mütəxəssisi
+finance|AML Specialist|Çirkli pulların yuyulmasına qarşı mübarizə mütəxəssisi|Специалист по ПОД/ФТ|AML mütəxəssisi
+finance|KYC Analyst|KYC analitiki|KYC-аналитик|
+finance|Credit Officer|Kredit mütəxəssisi|Кредитный специалист|kredit inspektoru
+finance|Loan Officer|Kredit mütəxəssisi (fiziki şəxslər)|Кредитный инспектор|
+finance|Branch Manager|Filial müdiri|Директор филиала|bank filialının rəhbəri
+finance|Relationship Manager|Müştəri meneceri (bank)|Клиентский менеджер|korporativ müştəri meneceri
+finance|Bank Teller|Bank kassiri|Банковский кассир|
+finance|Investment Analyst|İnvestisiya analitiki|Инвестиционный аналитик|
+finance|Investment Manager|İnvestisiya meneceri|Инвестиционный менеджер|
+finance|Portfolio Manager|Portfel meneceri|Управляющий портфелем|
+finance|Financial Advisor|Maliyyə məsləhətçisi|Финансовый консультант|
+finance|Insurance Agent|Sığorta agenti|Страховой агент|
+finance|Insurance Underwriter|Sığorta andrraytiri|Андеррайтер|
+finance|Claims Adjuster|Zərər tənzimləyicisi|Урегулятор убытков|
+finance|Actuary|Aktuari|Актуарий|
+finance|Tax Consultant|Vergi məsləhətçisi|Налоговый консультант|
+finance|Tax Manager|Vergi meneceri|Налоговый менеджер|
+finance|Internal Auditor|Daxili auditor|Внутренний аудитор|
+finance|External Auditor|Xarici auditor|Внешний аудитор|
+finance|Audit Manager|Audit meneceri|Руководитель аудита|
+finance|Audit Assistant|Auditor köməkçisi|Ассистент аудитора|
+finance|Treasury Manager|Xəzinədarlıq meneceri|Менеджер казначейства|
+finance|Financial Controller|Maliyyə kontrolleri|Финансовый контролёр|
+finance|Budget Specialist|Büdcə üzrə mütəxəssis|Специалист по бюджетированию|
+finance|Cost Accountant|Maya dəyəri üzrə mühasib|Бухгалтер по себестоимости|
+finance|General Ledger Accountant|Baş kitab üzrə mühasib|Бухгалтер главной книги|
+finance|Billing Specialist|Hesablaşma üzrə mütəxəssis|Специалист по расчётам|
+finance|Credit Controller|Kredit nəzarətçisi|Кредитный контролёр|
+finance|Collections Specialist|Borcların yığılması üzrə mütəxəssis|Специалист по взысканию|
+finance|Payroll Specialist|Əmək haqqı üzrə mütəxəssis|Специалист по расчёту заработной платы|
+finance|Finance Director|Maliyyə direktoru|Финансовый директор|
+finance|Head of Finance|Maliyyə departamentinin rəhbəri|Руководитель финансового департамента|
+finance|Fund Accountant|Fond mühasibi|Бухгалтер фонда|
+finance|Grants Accountant|Qrantlar üzrə mühasib|Бухгалтер грантов|
+hr|HR Business Partner|HR biznes tərəfdaşı|HR бизнес-партнёр|HRBP
+hr|HR Generalist|HR generalisti|HR-генералист|
+hr|HR Assistant|HR assistenti|Помощник HR|
+hr|HR Coordinator|HR koordinatoru|Координатор по персоналу|
+hr|HR Director|HR direktoru|HR-директор|
+hr|Head of HR|HR departamentinin rəhbəri|Руководитель HR-департамента|
+hr|Talent Acquisition Specialist|İstedadların cəlb edilməsi üzrə mütəxəssis|Специалист по привлечению талантов|
+hr|Technical Recruiter|Texniki recruiter|Технический рекрутер|IT recruiter
+hr|Recruitment Coordinator|İşə qəbul koordinatoru|Координатор по подбору|
+hr|Executive Search Consultant|Üst səviyyəli kadr axtarışı məsləhətçisi|Консультант по executive search|headhunter
+hr|Learning and Development Specialist|Təlim və inkişaf üzrə mütəxəssis|Специалист по обучению и развитию|L&D mütəxəssisi
+hr|Training Manager|Təlim meneceri|Менеджер по обучению|
+hr|Corporate Trainer|Korporativ təlimçi|Корпоративный тренер|
+hr|Compensation and Benefits Specialist|Əmək haqqı və mükafatlar üzrə mütəxəssis|Специалист по компенсациям и льготам|C&B mütəxəssisi
+hr|HR Analyst|HR analitiki|HR-аналитик|
+hr|Employee Relations Specialist|İşçi münasibətləri üzrə mütəxəssis|Специалист по трудовым отношениям|
+hr|Personnel Administrator|Kadrlar üzrə inspektor|Инспектор по кадрам|kadr inspektoru
+hr|Labor Safety Specialist|Əmək mühafizəsi mütəxəssisi|Специалист по охране труда|
+hr|Onboarding Specialist|Adaptasiya üzrə mütəxəssis|Специалист по адаптации|
+hr|Internal Communications Specialist|Daxili kommunikasiya mütəxəssisi|Специалист по внутренним коммуникациям|
+sales|Sales Representative|Satış nümayəndəsi|Торговый представитель|
+sales|Sales Executive|Satış üzrə icraçı|Менеджер по продажам|
+sales|Senior Sales Manager|Baş satış meneceri|Старший менеджер по продажам|
+sales|Regional Sales Manager|Regional satış meneceri|Региональный менеджер по продажам|
+sales|Area Sales Manager|Ərazi satış meneceri|Менеджер по продажам территории|
+sales|Head of Sales|Satış şöbəsinin rəhbəri|Руководитель отдела продаж|satış rəhbəri
+sales|Sales Director|Satış direktoru|Директор по продажам|
+sales|Commercial Director|Kommersiya direktoru|Коммерческий директор|
+sales|Business Development Manager|Biznes inkişaf meneceri|Менеджер по развитию бизнеса|
+sales|Business Development Specialist|Biznes inkişaf mütəxəssisi|Специалист по развитию бизнеса|
+sales|Key Account Manager|Əsas müştərilər üzrə menecer|Менеджер по работе с ключевыми клиентами|KAM
+sales|Account Manager|Müştəri meneceri|Аккаунт-менеджер|
+sales|Customer Success Manager|Müştəri uğuru meneceri|Менеджер по успеху клиентов|
+sales|Customer Service Representative|Müştəri xidməti üzrə nümayəndə|Представитель службы поддержки клиентов|
+sales|Customer Support Specialist|Müştəri dəstəyi mütəxəssisi|Специалист клиентской поддержки|
+sales|Call Center Operator|Çağrı mərkəzi operatoru|Оператор колл-центра|
+sales|Call Center Supervisor|Çağrı mərkəzi supervayzeri|Супервайзер колл-центра|
+sales|Telesales Representative|Telefon satışları üzrə nümayəndə|Менеджер телефонных продаж|
+sales|Retail Sales Consultant|Satış məsləhətçisi|Консультант по продажам|satış məsləhətçisi
+sales|Store Manager|Mağaza meneçeri|Директор магазина|mağaza müdiri
+sales|Shop Assistant|Satıcı|Продавец|
+sales|Senior Cashier|Baş kassir|Старший кассир|
+sales|Merchandiser|Merçandayzer|Мерчандайзер|
+sales|Trade Marketing Manager|Trade marketinq meneceri|Трейд-маркетинг менеджер|
+sales|Category Manager|Kateqoriya meneceri|Категорийный менеджер|
+sales|Pricing Analyst|Qiymətləndirmə analitiki|Аналитик по ценообразованию|
+sales|Sales Analyst|Satış analitiki|Аналитик по продажам|
+sales|Sales Coordinator|Satış koordinatoru|Координатор продаж|
+sales|Sales Administrator|Satış administratoru|Администратор продаж|
+sales|Pre-sales Engineer|Satışönü mühəndis|Пресейл-инженер|
+sales|Real Estate Agent|Daşınmaz əmlak agenti|Агент по недвижимости|rieltor;realtor
+sales|Insurance Sales Manager|Sığorta satışı meneceri|Менеджер по страховым продажам|
+sales|Automotive Sales Consultant|Avtomobil satışı məsləhətçisi|Менеджер по продаже автомобилей|
+sales|Pharmaceutical Sales Representative|Əczaçılıq nümayəndəsi|Медицинский представитель|tibbi nümayəndə
+sales|E-commerce Manager|E-ticarət meneceri|Менеджер по электронной коммерции|
+sales|Marketplace Manager|Marketplace meneceri|Менеджер маркетплейсов|
+sales|Export Specialist|İxrac mütəxəssisi|Специалист по экспорту|
+supply|Procurement Manager|Satınalma meneceri|Менеджер по закупкам|
+supply|Procurement Specialist|Satınalma üzrə mütəxəssis|Специалист по закупкам|
+supply|Purchasing Officer|Satınalma üzrə əməkdaş|Сотрудник отдела закупок|
+supply|Buyer|Alıcı (satınalan)|Закупщик|
+supply|Senior Buyer|Baş alıcı|Старший закупщик|
+supply|Head of Procurement|Satınalma şöbəsinin rəhbəri|Руководитель отдела закупок|
+supply|Tender Specialist|Tender üzrə mütəxəssis|Тендерный специалист|
+supply|Contract Manager|Müqavilə meneceri|Менеджер по договорам|
+supply|Contracts Administrator|Müqavilələr administratoru|Администратор договоров|
+supply|Supply Chain Manager|Təchizat zənciri meneceri|Менеджер по цепям поставок|
+supply|Supply Chain Analyst|Təchizat zənciri analitiki|Аналитик цепей поставок|
+supply|Logistics Manager|Logistika meneceri|Менеджер по логистике|
+supply|Logistics Specialist|Logistika üzrə mütəxəssis|Специалист по логистике|
+supply|Logistics Coordinator|Logistika koordinatoru|Координатор по логистике|
+supply|Head of Logistics|Logistika şöbəsinin rəhbəri|Руководитель отдела логистики|
+supply|Freight Forwarder|Yük ekspeditoru|Экспедитор|
+supply|Customs Specialist|Gömrük üzrə mütəxəssis|Специалист по таможенному оформлению|
+supply|Customs Broker|Gömrük brokeri|Таможенный брокер|
+supply|Warehouse Manager|Anbar müdiri|Заведующий складом|
+supply|Warehouse Supervisor|Anbar supervayzeri|Начальник смены склада|
+supply|Warehouse Operator|Anbar operatoru|Оператор склада|
+supply|Storekeeper|Anbardar|Кладовщик|
+supply|Inventory Controller|Ehtiyatlara nəzarət mütəxəssisi|Специалист по контролю запасов|
+supply|Demand Planner|Tələb planlaşdırıcısı|Планировщик спроса|
+supply|Production Planner|İstehsalat planlaşdırıcısı|Планировщик производства|
+supply|Dispatcher|Dispetçer|Диспетчер|
+supply|Courier|Kuryer|Курьер|
+supply|Delivery Driver|Çatdırılma sürücüsü|Водитель-курьер|
+engineering|Project Engineer|Layihə mühəndisi|Инженер проекта|
+engineering|Project Manager (Engineering)|Mühəndislik layihələri meneceri|Руководитель инженерных проектов|
+engineering|Design Engineer|Layihələndirmə mühəndisi|Инженер-конструктор|
+engineering|Mechanical Design Engineer|Mexanika layihə mühəndisi|Инженер-конструктор механик|
+engineering|Electrical Design Engineer|Elektrik layihə mühəndisi|Инженер-проектировщик электрик|
+engineering|Structural Engineer|Konstruksiya mühəndisi|Инженер-конструктор строительных конструкций|
+engineering|Site Engineer|Obyekt mühəndisi|Инженер на объекте|
+engineering|Site Manager|Tikinti obyektinin rəhbəri|Руководитель строительного объекта|
+engineering|Construction Manager|Tikinti meneceri|Менеджер по строительству|
+engineering|Resident Engineer|Texniki nəzarət mühəndisi|Инженер технического надзора|
+engineering|Quantity Surveyor|Smeta mühəndisi|Инженер-сметчик|smetaçı
+engineering|Estimator|Smeta hazırlayan|Сметчик|
+engineering|Planning Engineer|Planlaşdırma mühəndisi|Инженер-плановик|
+engineering|QA/QC Engineer|QA/QC mühəndisi|Инженер по контролю качества|
+engineering|Quality Inspector|Keyfiyyət inspektoru|Инспектор по качеству|
+engineering|Quality Manager|Keyfiyyət meneceri|Менеджер по качеству|
+engineering|HSE Engineer|HSE mühəndisi|Инженер по ОТ, ТБ и ООС|
+engineering|HSE Manager|HSE meneceri|Менеджер по ОТ, ТБ и ООС|
+engineering|Safety Officer|Təhlükəsizlik üzrə məmur|Специалист по охране труда|əməyin mühafizəsi mühəndisi
+engineering|Maintenance Engineer|Texniki xidmət mühəndisi|Инженер по техническому обслуживанию|
+engineering|Maintenance Manager|Texniki xidmət meneceri|Руководитель службы ТО|
+engineering|Maintenance Technician|Texniki xidmət texniki|Техник по обслуживанию|
+engineering|Mechanic|Mexanik|Механик|
+engineering|Electrician|Elektrik|Электрик|elektrik montyoru
+engineering|Electronics Technician|Elektronika texniki|Техник-электронщик|
+engineering|Instrumentation Engineer|KİPiA mühəndisi|Инженер КИПиА|
+engineering|Automation Engineer|Avtomatlaşdırma mühəndisi|Инженер по автоматизации|
+engineering|PLC Programmer|PLC proqramçısı|PLC-программист|
+engineering|Process Engineer|Proses mühəndisi|Инженер-технолог|
+engineering|Production Engineer|İstehsalat mühəndisi|Инженер-технолог производства|
+engineering|Production Manager|İstehsalat meneceri|Руководитель производства|
+engineering|Production Supervisor|İstehsalat usta|Мастер производства|
+engineering|Plant Manager|Zavod müdiri|Директор завода|
+engineering|Machine Operator|Dəzgah operatoru|Оператор станка|
+engineering|CNC Operator|CNC operatoru|Оператор станков с ЧПУ|
+engineering|Welder|Qaynaqçı|Сварщик|
+engineering|Fitter|Çilingər|Слесарь|
+engineering|Turner|Tokar|Токарь|
+engineering|Telecommunications Engineer|Telekommunikasiya mühəndisi|Инженер связи|
+engineering|Network Engineer (Telecom)|Rabitə şəbəkəsi mühəndisi|Инженер сетей связи|
+engineering|RF Engineer|RF mühəndisi|RF-инженер|
+engineering|Power Engineer|Enerji mühəndisi|Инженер-энергетик|
+engineering|Energy Manager|Enerji meneceri|Энергетик|
+engineering|Solar Engineer|Günəş enerjisi mühəndisi|Инженер по солнечной энергетике|
+engineering|Environmental Engineer|Ekoloq mühəndis|Инженер-эколог|
+engineering|Geodetic Surveyor|Geodezist|Геодезист|
+engineering|Architect|Memar|Архитектор|
+engineering|Interior Designer|Interyer dizayneri|Дизайнер интерьера|
+engineering|CAD Designer|CAD dizayneri|CAD-проектировщик|
+engineering|BIM Specialist|BIM mütəxəssisi|BIM-специалист|
+engineering|Draftsman|Çertyojçu|Чертёжник|
+engineering|Civil Engineer|İnşaat mühəndisi|Инженер-строитель|
+engineering|Foreman|Prorab|Прораб|
+oilgas|Drilling Engineer|Qazma mühəndisi|Инженер по бурению|
+oilgas|Drilling Supervisor|Qazma üzrə nəzarətçi|Буровой супервайзер|
+oilgas|Driller|Qazmaçı|Бурильщик|
+oilgas|Reservoir Engineer|Lay mühəndisi|Инженер-разработчик|
+oilgas|Production Engineer (Oil)|Neft hasilatı mühəndisi|Инженер по добыче нефти|
+oilgas|Petroleum Engineer|Neft mühəndisi|Инженер-нефтяник|
+oilgas|Geologist|Geoloq|Геолог|
+oilgas|Geophysicist|Geofizik|Геофизик|
+oilgas|Petrophysicist|Petrofizik|Петрофизик|
+oilgas|Wellsite Geologist|Quyu geoloqu|Геолог на скважине|
+oilgas|Operator (Oil and Gas)|Neft-qaz operatoru|Оператор нефтегазового производства|
+oilgas|Process Operator|Texnoloji proses operatoru|Оператор технологических установок|
+oilgas|Control Room Operator|Mərkəzi idarəetmə otağı operatoru|Оператор диспетчерской|
+oilgas|Offshore Operator|Dəniz əməliyyatları operatoru|Оператор морских платформ|
+oilgas|Pipeline Engineer|Boru kəməri mühəndisi|Инженер-трубопроводчик|
+oilgas|Pipeline Operator|Boru kəməri operatoru|Оператор трубопровода|
+oilgas|Refinery Engineer|Neft emalı mühəndisi|Инженер по нефтепереработке|
+oilgas|Corrosion Engineer|Korroziya mühəndisi|Инженер по коррозии|
+oilgas|Inspection Engineer|İnspeksiya mühəndisi|Инженер-инспектор|
+oilgas|Well Test Engineer|Quyu sınaq mühəndisi|Инженер по испытанию скважин|
+oilgas|Mud Engineer|Qazma məhlulu mühəndisi|Инженер по буровым растворам|
+oilgas|Toolpusher|Qazma briqadiri|Буровой мастер|
+oilgas|Roustabout|Köməkçi fəhlə (qazma)|Разнорабочий на буровой|
+oilgas|Rigger|Rigger|Такелажник|
+oilgas|Crane Operator|Kran operatoru|Крановщик|
+oilgas|Gas Engineer|Qaz mühəndisi|Инженер-газовик|
+oilgas|LNG Operator|LNG operatoru|Оператор СПГ|
+oilgas|Energy Trader|Enerji treyderi|Энергетический трейдер|
+oilgas|Oil and Gas Economist|Neft-qaz iqtisadçısı|Экономист нефтегазовой отрасли|
+oilgas|Petroleum Accountant|Neft sənayesi mühasibi|Бухгалтер нефтегазовой отрасли|
+oilgas|Joint Venture Accountant|Birgə müəssisə mühasibi|Бухгалтер совместного предприятия|
+oilgas|Production Technologist|Hasilat texnoloqu|Технолог добычи|
+it|Software Engineer|Proqram mühəndisi|Инженер-программист|
+it|Software Developer|Proqram təminatı developeri|Разработчик программного обеспечения|
+it|Senior Software Engineer|Baş proqram mühəndisi|Старший инженер-программист|
+it|Backend Developer|Backend developer|Backend-разработчик|
+it|Frontend Developer|Frontend developer|Frontend-разработчик|
+it|Full Stack Developer|Full Stack developer|Fullstack-разработчик|
+it|Mobile Developer|Mobil tətbiq developeri|Мобильный разработчик|
+it|iOS Developer|iOS developer|iOS-разработчик|
+it|Android Developer|Android developer|Android-разработчик|
+it|Java Developer|Java developer|Java-разработчик|
+it|Python Developer|Python developer|Python-разработчик|
+it|PHP Developer|PHP developer|PHP-разработчик|
+it|.NET Developer|.NET developer|.NET-разработчик|
+it|Node.js Developer|Node.js developer|Node.js-разработчик|
+it|React Developer|React developer|React-разработчик|
+it|Game Developer|Oyun developeri|Разработчик игр|
+it|Embedded Developer|Embedded developer|Embedded-разработчик|
+it|WordPress Developer|WordPress developer|WordPress-разработчик|
+it|1C Developer|1C proqramçısı|1С-программист|
+it|DevOps Engineer|DevOps mühəndisi|DevOps-инженер|
+it|Site Reliability Engineer|Etibarlılıq mühəndisi (SRE)|SRE-инженер|SRE
+it|Cloud Engineer|Bulud mühəndisi|Облачный инженер|
+it|Cloud Architect|Bulud arxitekti|Облачный архитектор|
+it|Solutions Architect|Həll arxitekti|Архитектор решений|
+it|Software Architect|Proqram arxitekti|Архитектор программного обеспечения|
+it|Data Engineer|Data mühəndisi|Дата-инженер|
+it|Data Scientist|Data scientist|Специалист по данным|
+it|Data Analyst|Data analitik|Аналитик данных|
+it|BI Developer|BI developeri|BI-разработчик|
+it|BI Analyst|BI analitiki|BI-аналитик|
+it|Database Administrator|Verilənlər bazası administratoru|Администратор баз данных|DBA
+it|Machine Learning Engineer|Maşın öyrənməsi mühəndisi|Инженер по машинному обучению|ML engineer
+it|AI Engineer|Süni intellekt mühəndisi|Инженер по ИИ|
+it|Business Analyst (IT)|Biznes analitik (İT)|Бизнес-аналитик (ИТ)|
+it|System Analyst|Sistem analitiki|Системный аналитик|
+it|Product Manager|Məhsul meneceri|Менеджер продукта|
+it|Product Owner|Product Owner|Владелец продукта|
+it|Project Manager (IT)|İT layihə meneceri|Руководитель ИТ-проектов|
+it|Scrum Master|Scrum Master|Скрам-мастер|
+it|QA Engineer|QA mühəndisi|QA-инженер|
+it|Test Automation Engineer|Test avtomatlaşdırma mühəndisi|Инженер по автоматизации тестирования|
+it|Manual QA Tester|Manual tester|Тестировщик|
+it|System Administrator|Sistem administratoru|Системный администратор|sysadmin
+it|Network Administrator|Şəbəkə administratoru|Сетевой администратор|
+it|Network Engineer|Şəbəkə mühəndisi|Сетевой инженер|
+it|IT Support Specialist|İT dəstək mütəxəssisi|Специалист ИТ-поддержки|
+it|Help Desk Technician|Help desk texniki|Специалист службы поддержки|
+it|IT Manager|İT meneceri|ИТ-менеджер|
+it|Head of IT|İT şöbəsinin rəhbəri|Руководитель ИТ-отдела|
+it|CTO|Texniki direktor (CTO)|Технический директор|
+it|CIO|İnformasiya texnologiyaları direktoru|Директор по информационным технологиям|
+it|Information Security Specialist|İnformasiya təhlükəsizliyi mütəxəssisi|Специалист по информационной безопасности|
+it|Cybersecurity Analyst|Kibertəhlükəsizlik analitiki|Аналитик кибербезопасности|
+it|Penetration Tester|Penetrasiya testçisi|Специалист по тестированию на проникновение|
+it|SOC Analyst|SOC analitiki|Аналитик SOC|
+it|UX Designer|UX dizayner|UX-дизайнер|
+it|UI Designer|UI dizayner|UI-дизайнер|
+it|UX/UI Designer|UX/UI dizayner|UX/UI дизайнер|
+it|Product Designer|Məhsul dizayneri|Продуктовый дизайнер|
+it|Technical Writer|Texniki yazıçı|Технический писатель|
+it|Technical Support Engineer|Texniki dəstək mühəndisi|Инженер технической поддержки|
+it|ERP Consultant|ERP məsləhətçisi|ERP-консультант|
+it|SAP Consultant|SAP məsləhətçisi|SAP-консультант|
+it|CRM Administrator|CRM administratoru|Администратор CRM|
+it|Web Administrator|Veb administrator|Веб-администратор|
+it|Blockchain Developer|Blokçeyn developer|Блокчейн-разработчик|
+marketing|Marketing Manager|Marketinq meneceri|Маркетинг-менеджер|
+marketing|Marketing Specialist|Marketinq mütəxəssisi|Специалист по маркетингу|
+marketing|Marketing Director|Marketinq direktoru|Директор по маркетингу|
+marketing|Head of Marketing|Marketinq şöbəsinin rəhbəri|Руководитель отдела маркетинга|
+marketing|Digital Marketing Manager|Rəqəmsal marketinq meneceri|Менеджер по digital-маркетингу|
+marketing|Digital Marketing Specialist|Rəqəmsal marketinq mütəxəssisi|Digital-маркетолог|
+marketing|SEO Specialist|SEO mütəxəssisi|SEO-специалист|
+marketing|SMM Manager|SMM meneceri|SMM-менеджер|
+marketing|SMM Specialist|SMM mütəxəssisi|SMM-специалист|
+marketing|Social Media Manager|Sosial media meneceri|Менеджер по социальным сетям|
+marketing|Content Manager|Kontent meneceri|Контент-менеджер|
+marketing|Content Creator|Kontent yaradıcısı|Контент-мейкер|
+marketing|Copywriter|Kopirayter|Копирайтер|
+marketing|Content Writer|Kontent yazarı|Контент-райтер|
+marketing|Performance Marketer|Performans marketoloqu|Performance-маркетолог|
+marketing|PPC Specialist|PPC mütəxəssisi|PPC-специалист|
+marketing|Targetologist|Hədəfləmə mütəxəssisi|Таргетолог|
+marketing|Email Marketing Specialist|E-poçt marketinqi mütəxəssisi|Email-маркетолог|
+marketing|Brand Manager|Brend meneceri|Бренд-менеджер|
+marketing|Product Marketing Manager|Məhsul marketinqi meneceri|Менеджер по продуктовому маркетингу|
+marketing|Marketing Analyst|Marketinq analitiki|Маркетинговый аналитик|
+marketing|Market Researcher|Bazar tədqiqatçısı|Маркетинговый исследователь|
+marketing|PR Manager|PR meneceri|PR-менеджер|
+marketing|PR Specialist|PR mütəxəssisi|PR-специалист|
+marketing|Press Secretary|Mətbuat katibi|Пресс-секретарь|
+marketing|Event Manager|Tədbir meneceri|Ивент-менеджер|
+marketing|Event Coordinator|Tədbir koordinatoru|Координатор мероприятий|
+marketing|Media Planner|Media planlaşdırıcı|Медиапланер|
+marketing|Media Buyer|Media alıcı|Медиабайер|
+marketing|Graphic Designer|Qrafik dizayner|Графический дизайнер|
+marketing|Motion Designer|Motion dizayner|Моушн-дизайнер|
+marketing|Video Editor|Video montajçı|Видеомонтажёр|
+marketing|Videographer|Videoqraf|Видеограф|
+marketing|Photographer|Fotoqraf|Фотограф|
+marketing|Art Director|Art direktor|Арт-директор|
+marketing|Creative Director|Kreativ direktor|Креативный директор|
+marketing|Community Manager|Komyuniti meneceri|Комьюнити-менеджер|
+marketing|Influencer Manager|İnfluenser meneceri|Менеджер по работе с блогерами|
+marketing|Journalist|Jurnalist|Журналист|
+marketing|Editor|Redaktor|Редактор|
+marketing|Presenter|Aparıcı|Ведущий|
+legal|Legal Counsel|Hüquqşünas (şirkət)|Корпоративный юрист|
+legal|Corporate Lawyer|Korporativ hüquqşünas|Юрист по корпоративному праву|
+legal|Senior Lawyer|Baş hüquqşünas|Старший юрист|
+legal|Junior Lawyer|Kiçik hüquqşünas|Младший юрист|
+legal|Head of Legal|Hüquq şöbəsinin rəhbəri|Руководитель юридического отдела|
+legal|General Counsel|Baş hüquq məsləhətçisi|Генеральный юрисконсульт|
+legal|Legal Assistant|Hüquqşünas köməkçisi|Помощник юриста|
+legal|Paralegal|Paralegal|Парелиголь|
+legal|Notary|Notarius|Нотариус|
+legal|Judge|Hakim|Судья|
+legal|Prosecutor|Prokuror|Прокурор|
+legal|Advocate|Vəkil|Адвокат|
+legal|Contract Lawyer|Müqavilə üzrə hüquqşünas|Юрист по договорам|
+legal|Compliance Manager|Uyğunluq meneceri|Менеджер по комплаенсу|
+legal|Data Protection Officer|Şəxsi məlumatların mühafizəsi üzrə məmur|Инспектор по защите данных|DPO
+legal|Intellectual Property Specialist|Əqli mülkiyyət üzrə mütəxəssis|Специалист по интеллектуальной собственности|
+legal|Legal Translator|Hüquqi tərcüməçi|Юридический переводчик|
+education|Primary School Teacher|İbtidai sinif müəllimi|Учитель начальных классов|
+education|Mathematics Teacher|Riyaziyyat müəllimi|Учитель математики|
+education|Physics Teacher|Fizika müəllimi|Учитель физики|
+education|Chemistry Teacher|Kimya müəllimi|Учитель химии|
+education|Biology Teacher|Biologiya müəllimi|Учитель биологии|
+education|History Teacher|Tarix müəllimi|Учитель истории|
+education|Geography Teacher|Coğrafiya müəllimi|Учитель географии|
+education|Azerbaijani Language Teacher|Azərbaycan dili müəllimi|Учитель азербайджанского языка|
+education|English Teacher|İngilis dili müəllimi|Учитель английского языка|
+education|Russian Language Teacher|Rus dili müəllimi|Учитель русского языка|
+education|German Teacher|Alman dili müəllimi|Учитель немецкого языка|
+education|Informatics Teacher|İnformatika müəllimi|Учитель информатики|
+education|Physical Education Teacher|Fiziki tərbiyə müəllimi|Учитель физкультуры|
+education|Music Teacher|Musiqi müəllimi|Учитель музыки|
+education|Art Teacher|Təsviri incəsənət müəllimi|Учитель изобразительного искусства|
+education|Kindergarten Teacher|Uşaq bağçası tərbiyəçisi|Воспитатель детского сада|tərbiyəçi
+education|Preschool Teacher|Məktəbəqədər təhsil müəllimi|Воспитатель дошкольного образования|
+education|Teaching Assistant|Müəllim köməkçisi|Помощник учителя|
+education|Private Tutor|Repetitor|Репетитор|
+education|School Principal|Məktəb direktoru|Директор школы|
+education|Deputy Principal|Direktor müavini|Заместитель директора школы|
+education|School Psychologist|Məktəb psixoloqu|Школьный психолог|
+education|Speech Therapist|Loqoped|Логопед|
+education|Special Education Teacher|Xüsusi təhsil müəllimi|Учитель специального образования|
+education|University Lecturer|Universitet müəllimi|Преподаватель университета|
+education|Professor|Professor|Профессор|
+education|Associate Professor|Dosent|Доцент|
+education|Researcher|Tədqiqatçı|Научный сотрудник|
+education|Academic Coordinator|Akademik koordinator|Академический координатор|
+education|Education Consultant|Təhsil məsləhətçisi|Консультант по образованию|
+education|Language Instructor|Dil təlimçisi|Преподаватель иностранных языков|
+education|IT Instructor|İT təlimçisi|Преподаватель ИТ|
+education|Corporate Training Specialist|Korporativ təlim mütəxəssisi|Специалист по корпоративному обучению|
+education|Lab Assistant|Laborant|Лаборант|
+education|Librarian|Kitabxanaçı|Библиотекарь|
+hospitality|Hotel Manager|Otel meneceri|Управляющий отелем|
+hospitality|Front Office Manager|Resepsiya meneceri|Менеджер службы приёма и размещения|
+hospitality|Receptionist|Resepsionist|Администратор ресепшн|
+hospitality|Hotel Administrator|Otel administratoru|Администратор отеля|
+hospitality|Housekeeping Manager|Otaq xidməti meneceri|Менеджер по хаускипингу|
+hospitality|Housekeeper|Otaq xidmətçisi|Горничная|
+hospitality|Concierge|Konsyerj|Консьерж|
+hospitality|Restaurant Manager|Restoran meneceri|Управляющий рестораном|
+hospitality|Head Waiter|Baş ofisiant|Старший официант|
+hospitality|Waiter|Ofisiant|Официант|
+hospitality|Bartender|Barmen|Бармен|
+hospitality|Barista|Barista|Бариста|
+hospitality|Chef|Aşpaz|Повар|
+hospitality|Sous Chef|Aşpaz müavini|Су-шеф|
+hospitality|Executive Chef|Baş aşpaz|Шеф-повар|
+hospitality|Pastry Chef|Qənnadı ustası|Кондитер|
+hospitality|Kitchen Assistant|Aşpaz köməkçisi|Помощник повара|
+hospitality|Dishwasher|Qabyuyan|Посудомойщик|
+hospitality|Food and Beverage Manager|Yemək və içki meneceri|Менеджер по питанию и напиткам|
+hospitality|Tour Guide|Turist bələdçisi|Гид|
+hospitality|Tour Operator|Tur operatoru|Туроператор|
+hospitality|Travel Agent|Səyahət agenti|Турагент|
+hospitality|Flight Attendant|Bort stüardessası|Бортпроводник|stüardessa
+hospitality|Ticketing Agent|Biletləşdirmə agenti|Агент по продаже билетов|
+hospitality|Fitness Trainer|Fitnes məşqçisi|Фитнес-тренер|
+hospitality|Personal Trainer|Fərdi məşqçi|Персональный тренер|
+hospitality|Sports Coach|İdman məşqçisi|Тренер|
+hospitality|Hairdresser|Bərbər / saç ustası|Парикмахер|
+hospitality|Makeup Artist|Makiyaj ustası|Визажист|
+hospitality|Beautician|Kosmetoloq|Косметолог|
+hospitality|Massage Therapist|Masajçı|Массажист|
+health|General Practitioner|Ailə həkimi|Терапевт|
+health|Physician|Həkim|Врач|
+health|Surgeon|Cərrah|Хирург|
+health|Pediatrician|Pediatr|Педиатр|
+health|Cardiologist|Kardioloq|Кардиолог|
+health|Neurologist|Nevroloq|Невролог|
+health|Dentist|Diş həkimi|Стоматолог|
+health|Gynecologist|Ginekoloq|Гинеколог|
+health|Ophthalmologist|Oftalmoloq|Офтальмолог|
+health|Dermatologist|Dermatoloq|Дерматолог|
+health|Psychiatrist|Psixiatr|Психиатр|
+health|Anesthesiologist|Anestezioloq|Анестезиолог|
+health|Radiologist|Radioloq|Рентгенолог|
+health|Nurse|Tibb bacısı|Медсестра|
+health|Head Nurse|Baş tibb bacısı|Старшая медсестра|
+health|Midwife|Mama|Акушерка|
+health|Paramedic|Feldşer|Фельдшер|
+health|Pharmacist|Əczaçı|Фармацевт|
+health|Pharmacy Technician|Əczaçı köməkçisi|Помощник фармацевта|
+health|Laboratory Technician|Laborant (tibb)|Лаборант-диагност|
+health|Medical Laboratory Scientist|Tibbi laborator mütəxəssisi|Специалист клинической лаборатории|
+health|Physiotherapist|Fizioterapevt|Физиотерапевт|
+health|Psychologist|Psixoloq|Психолог|
+health|Clinical Psychologist|Klinik psixoloq|Клинический психолог|
+health|Dietitian|Dietoloq|Диетолог|
+health|Veterinarian|Baytar|Ветеринар|
+health|Medical Representative|Tibbi nümayəndə|Медицинский представитель|
+health|Hospital Administrator|Xəstəxana administratoru|Администратор больницы|
+health|Chief Physician|Baş həkim|Главный врач|
+health|Medical Director|Tibbi direktor|Медицинский директор|
+health|Medical Secretary|Tibbi katib|Медицинский секретарь|
+health|Caregiver|Qulluqçu (xəstə baxıcısı)|Сиделка|
+health|Clinical Research Associate|Klinik tədqiqatlar üzrə mütəxəssis|Специалист по клиническим исследованиям|CRA
+health|Regulatory Affairs Specialist|Normativ işlər üzrə mütəxəssis|Специалист по регистрации лекарственных средств|
+admin|Office Manager|Ofis meneceri|Офис-менеджер|
+admin|Administrative Assistant|İnzibati köməkçi|Административный помощник|
+admin|Administrator|Administrator|Администратор|
+admin|Executive Assistant|Rəhbərin köməkçisi|Ассистент руководителя|
+admin|Personal Assistant|Şəxsi köməkçi|Персональный ассистент|
+admin|Secretary|Katib|Секретарь|katibə
+admin|Receptionist (Office)|Ofis resepsionisti|Секретарь-ресепшионист|
+admin|Data Entry Operator|Məlumat daxiletmə operatoru|Оператор ввода данных|
+admin|Document Controller|Sənəd nəzarətçisi|Контролёр документации|
+admin|Records Manager|Arxiv meneceri|Менеджер по документообороту|
+admin|Clerk|Kargüzar|Делопроизводитель|
+admin|Archivist|Arxivçi|Архивист|
+admin|Facility Manager|Obyekt meneceri|Менеджер по эксплуатации|
+admin|Procurement Assistant|Satınalma köməkçisi|Помощник по закупкам|
+admin|Project Coordinator|Layihə koordinatoru|Координатор проекта|
+admin|Project Assistant|Layihə köməkçisi|Ассистент проекта|
+admin|Operations Manager|Əməliyyat meneceri|Операционный менеджер|
+admin|Operations Coordinator|Əməliyyat koordinatoru|Координатор операций|
+admin|General Manager|Baş menecer|Генеральный менеджер|
+admin|Chief Executive Officer|İcraçı direktor (CEO)|Генеральный директор (CEO)|CEO;direktor
+admin|Chief Operating Officer|Əməliyyat direktoru (COO)|Операционный директор|COO
+admin|Deputy Director|Direktor müavini|Заместитель директора|
+admin|Department Head|Şöbə müdiri|Начальник отдела|
+admin|Team Leader|Komanda lideri|Руководитель группы|
+admin|Supervisor|Supervayzer|Супервайзер|
+admin|Business Analyst|Biznes analitik|Бизнес-аналитик|
+admin|Strategy Manager|Strategiya meneceri|Менеджер по стратегии|
+admin|Process Improvement Specialist|Proseslərin təkmilləşdirilməsi mütəxəssisi|Специалист по оптимизации процессов|
+admin|Translator|Tərcüməçi|Переводчик|
+admin|Interpreter|Şifahi tərcüməçi|Устный переводчик|
+admin|Office Clerk|Ofis işçisi|Офисный сотрудник|
+security|Security Guard|Mühafizəçi|Охранник|
+security|Security Supervisor|Mühafizə supervayzeri|Старший охраны|
+security|Security Manager|Təhlükəsizlik meneceri|Менеджер по безопасности|
+security|CCTV Operator|Video müşahidə operatoru|Оператор видеонаблюдения|
+security|Fire Safety Officer|Yanğın təhlükəsizliyi üzrə mütəxəssis|Специалист по пожарной безопасности|
+security|Lifeguard|Xilasedici|Спасатель|
+security|Bodyguard|Şəxsi mühafizəçi|Телохранитель|
+security|Customs Officer|Gömrük əməkdaşı|Сотрудник таможни|
+transport|Truck Driver|Yük maşını sürücüsü|Водитель грузового автомобиля|
+transport|Bus Driver|Avtobus sürücüsü|Водитель автобуса|
+transport|Taxi Driver|Taksi sürücüsü|Водитель такси|
+transport|Personal Driver|Şəxsi sürücü|Персональный водитель|
+transport|Excavator Operator|Ekskavator operatoru|Машинист экскаватора|
+transport|Forklift Operator|Yükləyici operatoru|Водитель погрузчика|
+transport|Pilot|Pilot|Пилот|
+transport|Air Traffic Controller|Hava hərəkəti dispetçeri|Авиадиспетчер|
+transport|Ship Captain|Gəmi kapitanı|Капитан судна|
+transport|Marine Engineer|Gəmi mühəndisi|Судовой инженер|
+transport|Sailor|Dənizçi|Моряк|
+transport|Train Driver|Qatar maşinisti|Машинист поезда|
+transport|Auto Mechanic|Avtomobil mexaniki|Автомеханик|
+transport|Car Electrician|Avtoelektrik|Автоэлектрик|
+transport|Tire Fitter|Şin ustası|Шиномонтажник|
+transport|Fleet Manager|Avtopark meneceri|Менеджер автопарка|
+transport|Transport Manager|Nəqliyyat meneceri|Менеджер по транспорту|
+agriculture|Agronomist|Aqronom|Агроном|
+agriculture|Farm Manager|Ferma meneceri|Управляющий фермой|
+agriculture|Farmer|Fermer|Фермер|
+agriculture|Livestock Specialist|Heyvandarlıq üzrə mütəxəssis|Зоотехник|zootexnik
+agriculture|Veterinary Technician|Baytarlıq texniki|Ветеринарный техник|
+agriculture|Gardener|Bağban|Садовник|
+agriculture|Greenhouse Specialist|İstixana mütəxəssisi|Специалист по теплицам|
+agriculture|Beekeeper|Arıçı|Пчеловод|
+agriculture|Tractor Driver|Traktorçu|Тракторист|
+agriculture|Irrigation Specialist|Suvarma üzrə mütəxəssis|Специалист по орошению|
+agriculture|Forest Ranger|Meşə mühafizəçisi|Лесничий|
+agriculture|Food Technologist|Qida texnoloqu|Технолог пищевого производства|
+agriculture|Agricultural Economist|Aqrar iqtisadçı|Аграрный экономист|
+trades|Plumber|Santexnik|Сантехник|
+trades|Carpenter|Dülgər|Плотник|
+trades|Painter|Boyaqçı|Маляр|
+trades|Plasterer|Suvaqçı|Штукатур|
+trades|Tiler|Kaşı ustası|Плиточник|
+trades|Bricklayer|Hörgü ustası|Каменщик|
+trades|Mason|Daşyonan|Каменотёс|
+trades|Roofer|Dam örtüyü ustası|Кровельщик|
+trades|Glazier|Şüşəçi|Стекольщик|
+trades|HVAC Technician|HVAC texniki|Техник по вентиляции и кондиционированию|kondisioner ustası
+trades|Locksmith|Çilingər (açar)|Слесарь по замкам|
+trades|Tailor|Dərzi|Портной|
+trades|Seamstress|Tikişçi|Швея|
+trades|Upholsterer|Mebel üzlüyü ustası|Обивщик мебели|
+trades|Furniture Maker|Mebel ustası|Мебельщик|
+trades|Cabinet Maker|Dülgər-mebelçi|Столяр|
+trades|Jeweler|Zərgər|Ювелир|
+trades|Watch Repairer|Saat ustası|Часовщик|
+trades|Appliance Repair Technician|Məişət texnikası ustası|Мастер по ремонту бытовой техники|
+trades|Mobile Phone Repair Technician|Telefon təmiri ustası|Мастер по ремонту телефонов|
+trades|Cleaner|Təmizlikçi|Уборщик|
+trades|Janitor|Xadimə|Дворник|
+trades|Laundry Worker|Camaşırxana işçisi|Работник прачечной|
+trades|Handyman|Universal usta|Мастер на все руки|
+trades|Loader|Yükləyici|Грузчик|
+trades|General Worker|Fəhlə|Разнорабочий|
+trades|Baker|Çörəkçi|Пекарь|
+trades|Butcher|Qəssab|Мясник|
+science|Research Scientist|Elmi işçi|Научный сотрудник|
+science|Laboratory Manager|Laboratoriya müdiri|Заведующий лабораторией|
+science|Chemist|Kimyaçı|Химик|
+science|Biologist|Bioloq|Биолог|
+science|Physicist|Fizik|Физик|
+science|Mathematician|Riyaziyyatçı|Математик|
+science|Statistician|Statistik|Статистик|
+science|Microbiologist|Mikrobioloq|Микробиолог|
+science|Environmental Scientist|Ekoloq|Эколог|
+science|Meteorologist|Meteoroloq|Метеоролог|
+science|Lab Analyst|Laboratoriya analitiki|Лаборант-аналитик|
+science|Quality Control Chemist|Keyfiyyət nəzarəti kimyaçısı|Химик контроля качества|
+social|Social Worker|Sosial işçi|Социальный работник|
+social|Case Manager|Hal meneceri|Менеджер по ведению случаев|
+social|NGO Program Manager|QHT proqram meneceri|Менеджер программ НКО|
+social|Project Officer|Layihə üzrə mütəxəssis|Менеджер проектов|
+social|Monitoring and Evaluation Specialist|Monitorinq və qiymətləndirmə mütəxəssisi|Специалист по мониторингу и оценке|M&E mütəxəssisi
+social|Fundraising Manager|Vəsait cəlbi meneceri|Менеджер по привлечению средств|
+social|Grants Manager|Qrantlar meneceri|Менеджер грантов|
+social|Community Organizer|İcma təşkilatçısı|Организатор сообщества|
+social|Humanitarian Officer|Humanitar məmur|Гуманитарный сотрудник|
+social|Volunteer Coordinator|Könüllülər koordinatoru|Координатор волонтёров|
+social|Youth Worker|Gənclərlə iş üzrə mütəxəssis|Специалист по работе с молодёжью|
+personal|Nanny|Dayə|Няня|
+personal|Babysitter|Uşaq baxıcısı|Приходящая няня|
+personal|Housekeeper (Home)|Ev işçisi|Домработница|
+personal|Home Cook|Evdə aşpaz|Домашний повар|
+personal|Private Driver|Şəxsi sürücü (ev)|Личный водитель|
+personal|Elderly Caregiver|Yaşlı baxıcısı|Сиделка для пожилых|
+personal|Pet Groomer|Ev heyvanı bərbəri|Грумер|
+personal|Nail Technician|Manikür ustası|Мастер маникюра|
+personal|Barber|Bərbər|Барбер|
+public|Civil Servant|Dövlət qulluqçusu|Государственный служащий|
+public|Municipal Officer|Bələdiyyə əməkdaşı|Муниципальный служащий|
+public|Public Relations Officer (Government)|Dövlət qurumunda İƏ üzrə mütəxəssis|Специалист по связям с общественностью (госорган)|
+public|Policy Analyst|Siyasət analitiki|Аналитик политики|
+public|Tax Inspector|Vergi inspektoru|Налоговый инспектор|
+public|Customs Inspector|Gömrük müfəttişi|Таможенный инспектор|
+public|Police Officer|Polis əməkdaşı|Сотрудник полиции|
+public|Firefighter|Yanğınsöndürən|Пожарный|
+public|Rescuer|Xilasedici|Спасатель МЧС|
+public|Military Officer|Hərbi qulluqçu|Военнослужащий|
+public|Diplomat|Diplomat|Дипломат|
+public|Consul|Konsul|Консул|
+public|Parliamentary Assistant|Parlament köməkçisi|Помощник парламентария|
+public|Election Officer|Seçki komissiyası əməkdaşı|Сотрудник избирательной комиссии|

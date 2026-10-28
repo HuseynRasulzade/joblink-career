@@ -1,0 +1,78 @@
+Marketinq|Digital Marketing|Rəqəmsal marketinq|online marketing;digital marketing strategy;цифровой маркетинг
+Marketinq|SEO|SEO|search engine optimization;seo optimization;seo specialist
+Marketinq|SEM|SEM|search engine marketing;paid search
+Marketinq|Google Ads|Google Ads|adwords;google reklam;контекстная реклама
+Marketinq|Meta Ads|Meta Ads|facebook ads;instagram ads;facebook reklamı;таргетированная реклама
+Marketinq|Targeting|Hədəfli reklam|targeted advertising;таргет
+Marketinq|TikTok Ads|TikTok Ads|tiktok marketing;tiktok reklamı
+Marketinq|Email Marketing|E-poçt marketinqi|newsletter;mailchimp;email campaigns
+Marketinq|Content Marketing|Kontent marketinqi|content strategy;kontent strategiyası;контент-маркетинг
+Marketinq|Content Creation|Kontent yaradılması|content writing;kontent hazırlamaq;создание контента
+Marketinq|Copywriting|Copywriting|copywriter;mətn yazıçılığı;копирайтинг
+Marketinq|Storytelling|Hekayə danışma|brand storytelling
+Marketinq|Brand Management|Brend idarəetməsi|branding;brand strategy;брендинг
+Marketinq|Brand Positioning|Brendin mövqeləndirilməsi|brand identity
+Marketinq|Product Marketing|Məhsul marketinqi|product launch;go-to-market;gtm
+Marketinq|Marketing Strategy|Marketinq strategiyası|marketing planning;маркетинговая стратегия
+Marketinq|Marketing Analytics|Marketinq analitikası|marketing metrics;marketing reporting
+Marketinq|Performance Marketing|Performans marketinqi|ppc;performance campaigns
+Marketinq|Conversion Optimization|Konversiyanın optimallaşdırılması|cro;conversion rate optimization
+Marketinq|Influencer Marketing|İnfluenser marketinqi|influencer collaboration;blogger marketing
+Marketinq|Public Relations|İctimaiyyətlə əlaqələr|press relations;пиар
+Marketinq|Media Relations|Media ilə əlaqələr|press office;mətbuat xidməti
+Marketinq|Event Management|Tədbirlərin təşkili|event planning;event organization;организация мероприятий
+Marketinq|Trade Marketing|Trade marketinq|trade marketing activities
+Marketinq|BTL Activations|BTL fəaliyyətlər|btl;activation campaigns
+Marketinq|Advertising|Reklam|advertising campaigns;reklam kampaniyaları;реклама
+Marketinq|Media Planning|Media planlaşdırma|media buying;media planı
+Marketinq|Outdoor Advertising|Xarici reklam|billboard;out of home;ooh
+Marketinq|CRM Marketing|CRM marketinqi|customer lifecycle marketing;crm campaigns
+Marketinq|Marketing Automation|Marketinq avtomatlaşdırması|hubspot;marketing automation tools
+Marketinq|Loyalty Programs|Loyallıq proqramları|loyalty program;bonus program
+Marketinq|Customer Segmentation|Müştəri seqmentasiyası|market segmentation;segmentation
+Marketinq|Customer Journey|Müştəri yolu|cx mapping;customer experience;customer journey mapping
+Marketinq|Social Media Marketing|Sosial media marketinqi|instagram marketing;facebook marketing;smm marketing
+Marketinq|Instagram|Instagram|instagram management
+Marketinq|LinkedIn|LinkedIn|linkedin marketing;linkedin recruiter
+Marketinq|YouTube|YouTube|youtube channel;youtube management
+Marketinq|Telegram Marketing|Telegram marketinqi|telegram channel
+Marketinq|Community Management|Komyuniti idarəetməsi|community manager
+Marketinq|Website Analytics|Veb analitika|web analytics;yandex metrica;hotjar
+Marketinq|Market Positioning|Bazar mövqeyi|positioning strategy
+Marketinq|Sponsorship|Sponsorluq|sponsorship management
+Dizayn|Graphic Design|Qrafik dizayn|graphic designer;qrafik dizayner;графический дизайн
+Dizayn|UI Design|UI dizayn|user interface design;interfeys dizaynı
+Dizayn|UX Design|UX dizayn|user experience design;ux research;ux/ui
+Dizayn|Figma|Figma|figma design
+Dizayn|Adobe Photoshop|Adobe Photoshop|photoshop;фотошоп
+Dizayn|Adobe Illustrator|Adobe Illustrator|illustrator
+Dizayn|Adobe InDesign|Adobe InDesign|indesign
+Dizayn|Adobe XD|Adobe XD|xd design
+Dizayn|Adobe Premiere Pro|Adobe Premiere Pro|premiere;premiere pro
+Dizayn|After Effects|Adobe After Effects|after effects
+Dizayn|DaVinci Resolve|DaVinci Resolve|davinci
+Dizayn|Canva|Canva|canva design
+Dizayn|CorelDRAW|CorelDRAW|corel draw;corel
+Dizayn|Sketch|Sketch|sketch app
+Dizayn|Video Editing|Video montaj|video editor;video montajı;видеомонтаж
+Dizayn|Motion Graphics|Motion dizayn|motion design;animation graphics;моушн-дизайн
+Dizayn|Animation|Animasiya|2d animation;3d animation;анимация
+Dizayn|3D Modeling|3D modelləşdirmə|3d modelling;3d design;3d моделирование
+Dizayn|Photography|Fotoqrafiya|photographer;foto çəkiliş;фотография
+Dizayn|Photo Editing|Foto redaktə|retouching;photo retouching;ретушь
+Dizayn|Videography|Video çəkiliş|video production;videoqraf;видеосъемка
+Dizayn|Typography|Tipoqrafiya|font design;типографика
+Dizayn|Logo Design|Loqo dizaynı|logo design;logo yaradılması
+Dizayn|Packaging Design|Qablaşdırma dizaynı|package design;дизайн упаковки
+Dizayn|Web Design|Veb dizayn|website design;sayt dizaynı;веб-дизайн
+Dizayn|Interior Design|Interyer dizaynı|interior designer;дизайн интерьера
+Dizayn|Fashion Design|Geyim dizaynı|fashion;modelyer
+Dizayn|Prototyping|Prototipləşdirmə|wireframing;wireframes;прототипирование
+Dizayn|Design Thinking|Dizayn düşüncəsi|human centered design
+Dizayn|Illustration|İllüstrasiya|digital illustration;иллюстрация
+Dizayn|Art Direction|Art direktorluq|creative direction;креативный директор
+Dizayn|Audio Editing|Səs montajı|sound editing;audio production;звукорежиссура
+Dizayn|Podcasting|Podkast hazırlanması|podcast production
+Dizayn|Journalism|Jurnalistika|journalist;news writing;журналистика
+Dizayn|Scriptwriting|Ssenari yazıçılığı|screenwriting;ssenari
+Dizayn|Presenting and Hosting|Aparıcılıq|moderator;emcee;ведущий мероприятий

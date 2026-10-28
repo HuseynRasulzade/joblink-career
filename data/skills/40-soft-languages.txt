@@ -1,0 +1,53 @@
+Şəxsi bacarıqlar|Communication Skills|Kommunikasiya bacarıqları|ünsiyyət bacarığı;коммуникабельность
+Şəxsi bacarıqlar|Teamwork|Komanda işi|team player;командная работа;komandada işləmək
+Şəxsi bacarıqlar|Problem Solving|Problemlərin həlli|problem-solving;analytical problem solving;решение проблем
+Şəxsi bacarıqlar|Critical Thinking|Tənqidi təfəkkür|critical analysis;kritik düşüncə
+Şəxsi bacarıqlar|Analytical Thinking|Analitik təfəkkür|analytical skills;analitik düşüncə;аналитическое мышление
+Şəxsi bacarıqlar|Time Management|Vaxtın idarə edilməsi|time-management;tайм-менеджмент;vaxt menecmenti
+Şəxsi bacarıqlar|Multitasking|Çoxlu işi eyni anda yerinə yetirmə|multi-tasking;multitask
+Şəxsi bacarıqlar|Attention to Detail|Detallara diqqət|detail oriented;detail-oriented;внимательность к деталям
+Şəxsi bacarıqlar|Adaptability|Uyğunlaşma bacarığı|adaptive;адаптивность
+Şəxsi bacarıqlar|Creativity|Yaradıcılıq|creative thinking;креативность
+Şəxsi bacarıqlar|Initiative|Təşəbbüskarlıq|proactivity;инициативность
+Şəxsi bacarıqlar|Responsibility|Məsuliyyətlilik|ответственность
+Şəxsi bacarıqlar|Stress Resistance|Stressə davamlılıq|stress tolerance;work under pressure;стрессоустойчивость
+Şəxsi bacarıqlar|Self-Motivation|Özünütəşkil|self-organization;self motivated;самоорганизация
+Şəxsi bacarıqlar|Self-Learning|Öz-özünə öyrənmə|fast learner;quick learner;быстрая обучаемость
+Şəxsi bacarıqlar|Emotional Intelligence|Emosional intellekt|eq;emotional awareness
+Şəxsi bacarıqlar|Interpersonal Skills|Şəxslərarası münasibətlər|people skills;relationship building
+Şəxsi bacarıqlar|Active Listening|Aktiv dinləmə|listening skills
+Şəxsi bacarıqlar|Public Speaking|İctimai çıxış|public speech;speaking skills;публичные выступления
+Şəxsi bacarıqlar|Persuasion|İnandırma bacarığı|influencing skills
+Şəxsi bacarıqlar|Mentoring|Mentorluq|coaching;mentoring staff;наставничество
+Şəxsi bacarıqlar|Coaching|Koçinq|business coaching;koç;коучинг
+Şəxsi bacarıqlar|Customer Orientation|Müştəri yönümlülük|customer focus;customer oriented;клиентоориентированность
+Şəxsi bacarıqlar|Result Orientation|Nəticəyönümlülük|results driven;result-oriented;ориентация на результат
+Şəxsi bacarıqlar|Discipline|İntizam|self-discipline;дисциплинированность
+Şəxsi bacarıqlar|Strategic Thinking|Strateji düşüncə|strategic mindset;стратегическое мышление
+Şəxsi bacarıqlar|Negotiation Skills|Danışıq bacarıqları|negotiating skills
+Şəxsi bacarıqlar|Cross-cultural Communication|Mədəniyyətlərarası ünsiyyət|intercultural communication
+Şəxsi bacarıqlar|Volunteering|Könüllülük|volunteer work;könüllü fəaliyyət
+Şəxsi bacarıqlar|Teaching Skills|Öyrətmə bacarığı|training delivery
+Dillər|Azerbaijani Language|Azərbaycan dili|azerbaijani;azərbaycanca;азербайджанский язык
+Dillər|English Language|İngilis dili|english;english proficiency;ingiliscə;английский язык
+Dillər|Russian Language|Rus dili|russian;rusca;русский язык
+Dillər|Turkish Language|Türk dili|turkish;türkcə;турецкий язык
+Dillər|German Language|Alman dili|german;almanca;немецкий язык
+Dillər|French Language|Fransız dili|french;fransızca;французский язык
+Dillər|Spanish Language|İspan dili|spanish;ispanca;испанский язык
+Dillər|Italian Language|İtalyan dili|italian;italyanca;итальянский язык
+Dillər|Arabic Language|Ərəb dili|arabic;ərəbcə;арабский язык
+Dillər|Persian Language|Fars dili|persian;farsi;farsca;персидский язык
+Dillər|Chinese Language|Çin dili|chinese;mandarin;çincə;китайский язык
+Dillər|Japanese Language|Yapon dili|japanese;japonca;японский язык
+Dillər|Korean Language|Koreya dili|korean;koreyaca
+Dillər|Georgian Language|Gürcü dili|georgian;gürcücə
+Dillər|Ukrainian Language|Ukrayna dili|ukrainian;ukraynaca
+Dillər|Portuguese Language|Portuqal dili|portuguese
+Dillər|Polish Language|Polyak dili|polish language
+Dillər|Hindi Language|Hind dili|hindi
+Dillər|Kazakh Language|Qazax dili|kazakh
+Dillər|Uzbek Language|Özbək dili|uzbek
+Dillər|IELTS|IELTS|ielts academic;ielts general
+Dillər|TOEFL|TOEFL|toefl ibt
+Dillər|Business English|İşgüzar ingilis dili|business english communication

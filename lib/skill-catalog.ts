@@ -1,3 +1,4 @@
+import { EXTRA_SKILLS } from "./skill-catalog-data.ts";
 export type SkillDefinition = {
   id: string;
   label: string;
@@ -7,7 +8,7 @@ export type SkillDefinition = {
   aliases: string[];
 };
 
-const ENGLISH_CATEGORIES: Record<string, string> = {
+export const ENGLISH_CATEGORIES: Record<string, string> = {
   Maliyyə: "Finance",
   Bank: "Banking",
   Sığorta: "Insurance",
@@ -27,6 +28,12 @@ const ENGLISH_CATEGORIES: Record<string, string> = {
   Səhiyyə: "Healthcare",
   Mühəndislik: "Engineering",
   Təhlükəsizlik: "Safety",
+  "Şəxsi bacarıqlar": "Personal Skills",
+  Dillər: "Languages",
+  "Neft və enerji": "Oil, Gas and Energy",
+  Tikinti: "Construction and Real Estate",
+  "Nəqliyyat və logistika": "Transport and Driving",
+  "Kənd təsərrüfatı": "Agriculture",
 };
 
 // Overrides retain the standard English product/acronym spelling and make
@@ -128,7 +135,7 @@ const skill = (
 // One shared taxonomy for candidate CVs, vacancy requirements and matching.
 // Labels are intentionally concise and searchable; aliases absorb language,
 // spelling, version and phrasing differences without creating duplicate tags.
-export const SKILL_CATALOG: SkillDefinition[] = [
+export const BASE_SKILL_CATALOG: SkillDefinition[] = [
   skill("finance", "Maliyyə", "Maliyyə", [
     "finance",
     "financial",
@@ -1089,6 +1096,8 @@ export const SKILL_CATALOG: SkillDefinition[] = [
     "safety procedures",
   ]),
 ];
+
+export const SKILL_CATALOG: SkillDefinition[] = [...BASE_SKILL_CATALOG, ...EXTRA_SKILLS];
 
 // The same sentences and names are normalized again and again (each CV is read
 // against every certification and skill), so short results are remembered.
