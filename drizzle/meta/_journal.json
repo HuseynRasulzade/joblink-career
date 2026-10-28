@@ -463,6 +463,13 @@
       "when": 1796583600000,
       "tag": "0065_order_flow",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "6",
+      "when": 1796670000000,
+      "tag": "0066_employee_doc_types",
+      "breakpoints": true
     }
   ]
 }

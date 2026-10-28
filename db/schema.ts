@@ -866,6 +866,10 @@ export const employeeDocuments = sqliteTable(
     companyId: text("company_id").notNull(),
     employeeId: text("employee_id").notNull(),
     category: text("category").notNull().default("other"),
+    // Which contract, order or certificate it is, its number and date.
+    subtype: text("subtype").notNull().default(""),
+    docNumber: text("doc_number").notNull().default(""),
+    docDate: text("doc_date").notNull().default(""),
     name: text("name").notNull(),
     type: text("type").notNull(),
     data: text("data").notNull(),

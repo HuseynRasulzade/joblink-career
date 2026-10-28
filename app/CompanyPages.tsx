@@ -32,6 +32,7 @@ import { formatDate } from "@/lib/dates";
 import { VACANCY_REASONS } from "@/lib/recruitment";
 import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
+import { DOC_KINDS, OTHER_TYPE, docLabel } from "@/lib/employee-docs";
 import { EmployeePayPanel, OrderMaker, SheetImport, StaffTable } from "./StaffPages";
 
 export type CompanyMe = {
@@ -3678,17 +3679,12 @@ export function WorkforcePage({
 }
 
 // ---------- Employee document folder ----------
-const DOC_CATEGORY: Record<string, string> = {
-  contract: "Əmək müqaviləsi",
-  order: "Əmr",
-  id: "Şəxsiyyət vəsiqəsi",
-  diploma: "Diplom / sertifikat",
-  medical: "Tibbi arayış",
-  other: "Digər",
-};
 type EmployeeDoc = {
   id: string;
   category: string;
+  subtype: string;
+  docNumber: string;
+  docDate: string;
   name: string;
   type: string;
   size: number;
@@ -3824,7 +3820,14 @@ function EmployeeDocuments({
 }) {
   const [docs, setDocs] = useState<EmployeeDoc[] | null>(null);
   const [category, setCategory] = useState("contract");
+  // Which document it is: a listed type, or "Digər" with the person's own words.
+  const [subtype, setSubtype] = useState("");
+  const [customType, setCustomType] = useState("");
+  const [docNumber, setDocNumber] = useState("");
+  const [docDate, setDocDate] = useState("");
   const [busy, setBusy] = useState(false);
+  const kind = DOC_KINDS[category] || DOC_KINDS.other;
+  const chosenType = category === "other" || subtype === OTHER_TYPE ? customType.trim() : subtype;
   const load = useCallback(
     () =>
       request<{ documents: EmployeeDoc[] }>(
@@ -3852,7 +3855,7 @@ function EmployeeDocuments({
             </a>
             <small className="skill-description">
               {" "}
-              {DOC_CATEGORY[d.category] || d.category} ·{" "}
+              {docLabel(d)} ·{" "}
               {Math.max(1, Math.round(d.size / 1024))} KB · {day(d.created)}
             </small>
             <button
@@ -3874,22 +3877,53 @@ function EmployeeDocuments({
         ))}
         {docs && !docs.length && <li className="muted">Sənəd yoxdur.</li>}
       </ul>
+      <div className="form-grid">
+        <Field label="Sənədin qrupu">
+          <select
+            value={category}
+            aria-label="Sənəd qrupu"
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setSubtype("");
+              setCustomType("");
+            }}
+          >
+            {Object.entries(DOC_KINDS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {category !== "other" && (
+          <Field label={`Hansı ${kind.label.toLocaleLowerCase("az")}? *`}>
+            <select value={subtype} aria-label="Sənədin növü" onChange={(e) => setSubtype(e.target.value)}>
+              <option value="">Seçin</option>
+              {kind.types.map((type) => (
+                <option key={type}>{type}</option>
+              ))}
+              <option>{OTHER_TYPE}</option>
+            </select>
+          </Field>
+        )}
+        {(category === "other" || subtype === OTHER_TYPE) && (
+          <Field label="Sənədin adı *">
+            <input value={customType} maxLength={80} placeholder="Məsələn, işçinin ərizəsi" onChange={(e) => setCustomType(e.target.value)} />
+          </Field>
+        )}
+        <Field label="Sənədin nömrəsi">
+          <input value={docNumber} maxLength={40} onChange={(e) => setDocNumber(e.target.value)} />
+        </Field>
+        <Field label="Sənədin tarixi">
+          <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} />
+        </Field>
+      </div>
       <div className="admin-actions">
-        <select
-          value={category}
-          aria-label="Sənəd növü"
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          {Object.entries(DOC_CATEGORY).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
         <input
           type="file"
           accept="application/pdf,image/png,image/jpeg,image/webp"
-          disabled={busy}
+          disabled={busy || !chosenType}
+          title={chosenType ? "" : "Əvvəlcə sənədin hansı sənəd olduğunu seçin"}
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";
@@ -3903,11 +3937,18 @@ function EmployeeDocuments({
                 await request("company/employee-docs/upload", {
                   employeeId,
                   category,
+                  subtype: chosenType,
+                  docNumber,
+                  docDate,
                   name: file.name,
                   type: file.type,
                   data: String(reader.result).split(",")[1] || "",
                 });
                 notify("Sənəd əlavə edildi.");
+                setSubtype("");
+                setCustomType("");
+                setDocNumber("");
+                setDocDate("");
                 await load();
               } catch (error) {
                 notify((error as Error).message);

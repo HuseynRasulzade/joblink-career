@@ -356,6 +356,7 @@ import { compareInterviews, type FeedbackRow } from "@/lib/interview-compare";
 import { WORLD_SKILLS } from "@/lib/world-skills-data";
 import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
 import { pickSigners, sameName } from "@/lib/order-signers";
+import { normalizeDocType } from "@/lib/employee-docs";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
@@ -7433,7 +7434,7 @@ async function route(request: Request) {
     requirePermission("salaries", employeeDocsDenied);
     const rows = await db
       .prepare(
-        "SELECT id,category,name,type,size,created FROM employee_documents WHERE company_id=? AND employee_id=? ORDER BY created DESC",
+        "SELECT id,category,subtype,doc_number AS docNumber,doc_date AS docDate,name,type,size,created FROM employee_documents WHERE company_id=? AND employee_id=? ORDER BY created DESC",
       )
       .bind(id, str(requestUrl.searchParams.get("employeeId"), 100))
       .all();
@@ -7476,18 +7477,24 @@ async function route(request: Request) {
     if ((Number(count?.n) || 0) >= 30)
       throw new HttpError(409, "Bir işçi üçün ən çoxu 30 sənəd saxlamaq olar.");
     const name = str(b.name, 160) || "sənəd";
-    const category = EMPLOYEE_DOC_CATEGORIES.includes(str(b.category, 20))
-      ? str(b.category, 20)
-      : "other";
+    const docType = normalizeDocType(str(b.category, 20), str(b.subtype, 80));
+    if (!docType.ok) throw new HttpError(400, "Sənədin hansı sənəd olduğunu seçin (məsələn, hansı müqavilə).");
+    const category = EMPLOYEE_DOC_CATEGORIES.includes(docType.category) ? docType.category : "other";
+    const docNumber = str(b.docNumber, 40);
+    const docDateRaw = str(b.docDate, 10);
+    const docDate = /^\d{4}-\d{2}-\d{2}$/.test(docDateRaw) ? docDateRaw : "";
     await db
       .prepare(
-        "INSERT INTO employee_documents(id,company_id,employee_id,category,name,type,data,size,uploaded_by,created) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO employee_documents(id,company_id,employee_id,category,subtype,doc_number,doc_date,name,type,data,size,uploaded_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
       )
       .bind(
         crypto.randomUUID(),
         id,
         employee.id,
         category,
+        docType.subtype,
+        docNumber,
+        docDate,
         name,
         type,
         data,
