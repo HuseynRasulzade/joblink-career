@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileSpreadsheet, Plus, Printer, Trash2, Upload } from "lucide-react";
-import { buildEmployeeOffer, buildOrder, leaveDays, orderNumber, ORDER_KINDS, type OrderInput, type OrderKind } from "@/lib/orders";
+import { buildEmployeeOffer, buildOrder, leaveDays, orderNumber, ORDER_KINDS, type OrderField, type OrderInput, type OrderKind } from "@/lib/orders";
 import { employeePay, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 import { readSheetRows } from "@/lib/question-file";
 import {
@@ -382,6 +382,67 @@ export function OrderSignerBox({ order, onChange, notify }: { order: SavedOrder;
   );
 }
 
+const FIELD_TEXT: Record<OrderField, (kind: OrderKind, salaryType: SalaryType) => string> = {
+  from: (kind) =>
+    ({ recall: "Çağırış (işə başlama) tarixi", termination: "Xitam tarixi", reduction: "Xitam tarixi", probation: "Qərarın qüvvəyə minmə tarixi", extend: "Yeni müddətin başlanğıcı", transfer: "Keçirilmə tarixi", salary: "Dəyişikliyin tarixi", schedule: "Qüvvəyə minmə tarixi", name: "Dəyişikliyin tarixi", suspension: "Kənarlaşdırma tarixi" } as Record<string, string>)[kind] ||
+    "Başlanğıc tarixi",
+  to: (kind) => ({ extend: "Müqavilənin yeni bitmə tarixi", suspension: "Bitmə tarixi (boşdursa sonrakı əmrə qədər)" } as Record<string, string>)[kind] || "Bitmə tarixi",
+  vacationKind: () => "Məzuniyyətin növü",
+  salary: (kind, type) => (kind === "bonus" ? "Mükafatın məbləği (AZN)" : kind === "substitute" ? "Əlavə haqq (AZN)" : `Yeni əmək haqqı (AZN, ${type})`),
+  newPosition: (kind) => (kind === "substitute" ? "İcra ediləcək vəzifə" : "Yeni vəzifə"),
+  newDepartment: () => "Yeni departament / şöbə",
+  basis: (kind) =>
+    ({ termination: "Xitamın əsası (maddə və səbəb)", reduction: "İxtisarın əsası (təşkilati qərar, nömrə)", maternity: "Əsas (tibbi rəy və ya xəstəlik vərəqəsinin nömrəsi)", study: "Əsas (təhsil müəssisəsinin çağırış arayışı)", childcare: "Əsas (ərizə, uşağın doğum şəhadətnaməsi)", paternity: "Əsas (ərizə, doğum şəhadətnaməsi)", unpaid: "Əsas (işçinin ərizəsi)", recall: "Çağırışın səbəbi", trip: "Ezamiyyətin məqsədi", training: "Təlimin məqsədi", bonus: "Mükafatın səbəbi (nəticə, layihə)", discipline: "Pozuntunun mahiyyəti, izahat və ya imtina aktının nömrəsi", suspension: "Kənarlaşdırmanın əsası", probation: "Əsas (rəhbərin rəyi)", name: "Əsas (sənəd)" } as Record<string, string>)[kind] || "Əsas",
+  place: (kind) => (kind === "training" ? "Təlimin yeri və ya təşkilatı" : "Ezam olunan yer"),
+  penalty: () => "İntizam tənbehinin növü",
+  newName: () => "Yeni ad və ya soyad",
+  result: () => "Sınaq müddətinin nəticəsi",
+  schedule: () => "Yeni iş rejimi (məsələn, həftədə 3 gün, 10:00–15:00)",
+};
+
+type FormValues = { date: string; from: string; to: string; newPosition: string; newDepartment: string; salary: string; basis: string; vacationKind: string; place: string; penalty: string; newName: string; result: string; schedule: string };
+function OrderFormField({ field, kind, form, salaryType, set }: { field: OrderField; kind: OrderKind; form: FormValues; salaryType: SalaryType; set: (key: keyof FormValues, value: string) => void }) {
+  const label = FIELD_TEXT[field](kind, salaryType);
+  if (field === "from" || field === "to")
+    return (
+      <Field label={label}>
+        <input type="date" value={form[field]} onChange={(e) => set(field, e.target.value)} />
+      </Field>
+    );
+  if (field === "salary")
+    return (
+      <Field label={label}>
+        <input type="number" min={0} value={form.salary} onChange={(e) => set("salary", e.target.value)} />
+      </Field>
+    );
+  if (field === "result")
+    return (
+      <Field label={label}>
+        <select value={form.result} onChange={(e) => set("result", e.target.value)}>
+          {["Sınaqdan uğurla keçdi", "Sınaqdan keçmədi (əmək müqaviləsinə xitam veriləcək)", "Sınaq müddəti uzadılsın"].map((v) => (
+            <option key={v}>{v}</option>
+          ))}
+        </select>
+      </Field>
+    );
+  if (field === "penalty")
+    return (
+      <Field label={label}>
+        <input list="penalty-kinds" value={form.penalty} onChange={(e) => set("penalty", e.target.value)} />
+        <datalist id="penalty-kinds">
+          {["Töhmət", "Ciddi töhmət", "Xəbərdarlıq"].map((v) => (
+            <option key={v} value={v} />
+          ))}
+        </datalist>
+      </Field>
+    );
+  return (
+    <Field label={label}>
+      <input value={form[field]} onChange={(e) => set(field, e.target.value)} />
+    </Field>
+  );
+}
+
 type OrderEmployee = { id: string; name: string; position: string; department: string; section: string; startDate: string; salary: number | null; salaryType: SalaryType; probationEnd: string; endDate: string };
 
 // Draws an order up, or (with `editing`) changes one that was sent back.
@@ -399,6 +460,11 @@ export function OrderMaker({ employee, notify, editing, onSaved }: { employee: O
     salary: prior?.salary && editing?.kind !== "hire" ? String(prior.salary) : "",
     basis: prior?.basis || "",
     vacationKind: prior?.vacationKind || "illik əmək məzuniyyəti",
+    place: prior?.place || "",
+    penalty: prior?.penalty || "Töhmət",
+    newName: prior?.newName || "",
+    result: prior?.result || "Sınaqdan uğurla keçdi",
+    schedule: prior?.schedule || "",
   });
   const [number, setNumber] = useState(editing?.number || "");
   // The section head and the director are picked from the staff list; the names can be changed.
@@ -457,6 +523,11 @@ export function OrderMaker({ employee, notify, editing, onSaved }: { employee: O
     newPosition: form.newPosition,
     newDepartment: form.newDepartment,
     basis: form.basis,
+    place: form.place,
+    penalty: form.penalty,
+    newName: form.newName,
+    result: form.result,
+    schedule: form.schedule,
     signers: signerList,
   };
   const order = buildOrder(input);
@@ -500,10 +571,14 @@ export function OrderMaker({ employee, notify, editing, onSaved }: { employee: O
       <div className="form-grid">
         <Field label="Əmrin növü">
           <select value={kind} onChange={(e) => setKind(e.target.value as OrderKind)}>
-            {ORDER_KINDS.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
+            {[...new Set(ORDER_KINDS.map((item) => item.group))].map((group) => (
+              <optgroup key={group} label={group}>
+                {ORDER_KINDS.filter((item) => item.group === group).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </Field>
@@ -513,41 +588,9 @@ export function OrderMaker({ employee, notify, editing, onSaved }: { employee: O
         <Field label="Əmrin tarixi">
           <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
         </Field>
-        {kind !== "hire" && (
-          <Field label={kind === "vacation" ? "Məzuniyyətin başlanğıcı" : kind === "termination" ? "Xitam tarixi" : "Qüvvəyə minmə tarixi"}>
-            <input type="date" value={form.from} onChange={(e) => set("from", e.target.value)} />
-          </Field>
-        )}
-        {kind === "vacation" && (
-          <>
-            <Field label="Məzuniyyətin sonu">
-              <input type="date" value={form.to} onChange={(e) => set("to", e.target.value)} />
-            </Field>
-            <Field label="Məzuniyyətin növü">
-              <input value={form.vacationKind} onChange={(e) => set("vacationKind", e.target.value)} />
-            </Field>
-          </>
-        )}
-        {(kind === "salary" || kind === "transfer") && (
-          <Field label={`Yeni əmək haqqı (AZN, ${employee.salaryType})`}>
-            <input type="number" min={0} value={form.salary} onChange={(e) => set("salary", e.target.value)} />
-          </Field>
-        )}
-        {kind === "transfer" && (
-          <>
-            <Field label="Yeni vəzifə">
-              <input value={form.newPosition} onChange={(e) => set("newPosition", e.target.value)} />
-            </Field>
-            <Field label="Yeni departament / şöbə">
-              <input value={form.newDepartment} onChange={(e) => set("newDepartment", e.target.value)} />
-            </Field>
-          </>
-        )}
-        {(kind === "salary" || kind === "transfer" || kind === "termination") && (
-          <Field label={kind === "termination" ? "Xitamın əsası (maddə və səbəb)" : "Əsas"}>
-            <input value={form.basis} onChange={(e) => set("basis", e.target.value)} />
-          </Field>
-        )}
+        {(ORDER_KINDS.find((item) => item.id === kind)?.fields || []).map((field) => (
+          <OrderFormField key={field} field={field} kind={kind} form={form} salaryType={employee.salaryType} set={set} />
+        ))}
       </div>
       <h4>İmzalayanlar (növbə ilə: əvvəl şöbə rəhbəri, sonra direktor)</h4>
       <div className="form-grid">

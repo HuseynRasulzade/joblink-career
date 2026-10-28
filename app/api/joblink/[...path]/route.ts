@@ -357,6 +357,7 @@ import { WORLD_SKILLS } from "@/lib/world-skills-data";
 import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
 import { pickSigners, sameName } from "@/lib/order-signers";
 import { normalizeDocType } from "@/lib/employee-docs";
+import { ORDER_KINDS } from "@/lib/orders";
 import { ATTENDANCE_CODES, RELIGIOUS_YEARS, attendanceCode, daysOff, monthDays, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
@@ -7144,6 +7145,31 @@ async function route(request: Request) {
     requirePermission("salaries", "Davamiyyəti yalnız HR, direktor və hesab sahibi görə bilər.");
     return ok({ ...(await attendanceData()), codes: ATTENDANCE_CODES, years: RELIGIOUS_YEARS });
   }
+  // Marks the days from..to of an employee with a code (or clears them), counting annual leave without holidays.
+  const markAttendance = async (employeeId: string, from: string, to: string, code: string, note: string) => {
+    const length = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+    const now = new Date().toISOString();
+    const overrides = await db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, from, to).all<CalendarOverride>();
+    const own = new Map(overrides.results.map((o) => [o.day, o.kind]));
+    const statements: D1PreparedStatement[] = [];
+    let marked = 0;
+    for (let i = 0; i < length; i++) {
+      const date = new Date(Date.parse(`${from}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
+      if (!code) {
+        statements.push(db.prepare("DELETE FROM attendance_marks WHERE company_id=? AND employee_id=? AND day=?").bind(id, employeeId, date));
+        continue;
+      }
+      if (code === "annual" && (daysOff(Number(date.slice(0, 4))).has(date) || own.get(date) === "off")) continue;
+      statements.push(
+        db
+          .prepare("INSERT INTO attendance_marks(company_id,employee_id,day,code,note,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(company_id,employee_id,day) DO UPDATE SET code=excluded.code,note=excluded.note,updated=excluded.updated")
+          .bind(id, employeeId, date, code, note, now),
+      );
+      marked++;
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    return marked;
+  };
   if (request.method === "POST" && path === "company/attendance/set") {
     requirePermission("salaries", "Davamiyyəti yalnız HR, direktor və hesab sahibi dəyişə bilər.");
     const b = await jsonBody(request);
@@ -7159,28 +7185,7 @@ async function route(request: Request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) throw new HttpError(400, "Tarixləri düzgün yazın.");
     const length = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
     if (length > 366) throw new HttpError(400, "Bir dəfəyə ən çox 366 gün qeyd etmək olar.");
-    const note = str(b.note, 200);
-    const now = new Date().toISOString();
-    const overrides = await db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, from, to).all<CalendarOverride>();
-    const own = new Map(overrides.results.map((o) => [o.day, o.kind]));
-    const statements: D1PreparedStatement[] = [];
-    let marked = 0;
-    for (let i = 0; i < length; i++) {
-      const date = new Date(Date.parse(`${from}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
-      if (!code) {
-        statements.push(db.prepare("DELETE FROM attendance_marks WHERE company_id=? AND employee_id=? AND day=?").bind(id, employee.id, date));
-        continue;
-      }
-      // Annual leave is counted in calendar days without the holidays.
-      if (code === "annual" && (daysOff(Number(date.slice(0, 4))).has(date) || own.get(date) === "off")) continue;
-      statements.push(
-        db
-          .prepare("INSERT INTO attendance_marks(company_id,employee_id,day,code,note,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(company_id,employee_id,day) DO UPDATE SET code=excluded.code,note=excluded.note,updated=excluded.updated")
-          .bind(id, employee.id, date, code, note, now),
-      );
-      marked++;
-    }
-    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    const marked = await markAttendance(employee.id, from, to, code, str(b.note, 200));
     await companyAudit(db, id, userId, "attendance-set", employee.id, `${employee.name}: ${code || "silindi"} ${from}–${to}`);
     return ok({ ok: true, marked });
   }
@@ -7259,7 +7264,7 @@ async function route(request: Request) {
       .map((x: { role?: unknown; title?: unknown; name?: unknown }): FlowSigner => ({ role: x.role === "director" ? "director" : "head", title: str(x.title, 60), name: str(x.name, 120) }))
       .filter((x) => x.name)
       .sort((x, y) => (x.role === y.role ? 0 : x.role === "head" ? -1 : 1));
-  const orderKinds = ["hire", "vacation", "salary", "transfer", "termination"];
+  const orderKinds: string[] = ORDER_KINDS.map((k) => k.id);
   const flowFail = <T,>(run: () => T): T => {
     try {
       return run();
@@ -7368,7 +7373,13 @@ async function route(request: Request) {
     const flow = flowFail(() => approveStep(order, signer.role, who, now));
     await saveFlow(order.id, flow, now);
     await companyAudit(db, id, userId, "order-approved", order.employeeId, `${signer.title}: ${signer.name} (${who})`);
-    return ok({ ok: true, signed: flow.status === "signed" });
+    // A signed leave or trip order marks those days in the attendance sheet.
+    let marked = 0;
+    const leaveCode = ORDER_KINDS.find((k) => k.id === order.kind)?.leaveCode;
+    const range = order.input as { from?: string; to?: string; number?: string };
+    if (flow.status === "signed" && leaveCode && /^\d{4}-\d{2}-\d{2}$/.test(range.from || "") && /^\d{4}-\d{2}-\d{2}$/.test(range.to || "") && (range.to as string) >= (range.from as string))
+      marked = await markAttendance(order.employeeId, range.from as string, range.to as string, leaveCode, `Əmr № ${order.number}`);
+    return ok({ ok: true, signed: flow.status === "signed", marked });
   }
   // A signer who wants a change sends the order back, with the reason, to the person before them.
   if (request.method === "POST" && path === "company/orders/return") {
@@ -8661,7 +8672,7 @@ async function route(request: Request) {
       ]);
     } else if (kind === "orders") {
       const list = await registryRows();
-      const KIND_LABEL: Record<string, string> = { hire: "İşə qəbul", vacation: "Məzuniyyət", salary: "Əmək haqqı dəyişikliyi", transfer: "Köçürmə", termination: "Xitam" };
+      const KIND_LABEL: Record<string, string> = Object.fromEntries(ORDER_KINDS.map((k) => [k.id, k.label.replace(/ haqqında əmr$/, "")]));
       const STATUS_LABEL: Record<string, string> = { pending: "İmza gözləyir", returned: "Geri qaytarılıb", signed: "İmzalanıb" };
       const approval = (o: (typeof list)[number], role: string) => {
         const signer = o.signers.find((x) => x.role === role);

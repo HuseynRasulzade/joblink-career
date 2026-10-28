@@ -15,16 +15,30 @@ test("leave days count both ends", () => {
   assert.equal(leaveDays("2026-06-14", "2026-06-01"), 0);
 });
 
-test("every order names the company, the employee, the dates and a signature line", () => {
-  for (const { id } of ORDER_KINDS) {
-    const order = buildOrder({ ...base, kind: id, from: "2026-06-01", to: "2026-06-14", salary: 2800, salaryBefore: 2500, salaryType: "gross", newPosition: "Maliyyə meneceri", basis: "tərəflərin razılığı" });
-    assert.match(order.text, /Sirket Test MMC/);
-    assert.match(order.text, /Aysel Məmmədova/);
-    assert.match(order.text, /01\.06\.2026/);
-    assert.ok(order.signature.includes("Əli Əliyev"));
-    assert.match(order.signature, /Aysel Məmmədova/);
-    assert.ok(!/undefined|NaN/.test(order.text), id);
+test("every kind of order names the company, the employee and a signature line; kinds with a start date show it", () => {
+  assert.ok(ORDER_KINDS.length >= 20);
+  assert.equal(new Set(ORDER_KINDS.map((k) => k.id)).size, ORDER_KINDS.length);
+  for (const { id, fields } of ORDER_KINDS) {
+    const order = buildOrder({ ...base, kind: id, from: "2026-06-01", to: "2026-06-14", salary: 2800, salaryBefore: 2500, salaryType: "gross", newPosition: "Maliyyə meneceri", basis: "tərəflərin razılığı", place: "Tbilisi", penalty: "Töhmət", newName: "Aysel Əliyeva", result: "Sınaqdan uğurla keçdi", schedule: "həftədə 3 gün" });
+    assert.match(order.text, /Sirket Test MMC/, id);
+    assert.match(order.text, /Aysel Məmmədova/, id);
+    assert.ok(order.signature.includes("Əli Əliyev"), id);
+    if (fields.includes("from")) assert.match(order.text, /01\.06\.2026/, id);
+    if (fields.includes("to") && id !== "extend") assert.match(order.text, /14\.06\.2026/, id);
+    assert.ok(!/undefined|NaN|\[daxil edilməlidir\]/.test(order.text), `${id}: ${order.text}`);
   }
+});
+
+test("trips, training, discipline, name changes and bonuses carry their own values", () => {
+  const text = (kind, extra) => buildOrder({ ...base, kind, from: "2026-06-01", to: "2026-06-03", ...extra }).text;
+  assert.match(text("trip", { place: "Tbilisi", basis: "müştəri ilə görüş" }), /Tbilisi ezam edilsin/);
+  assert.match(text("discipline", { penalty: "Ciddi töhmət", basis: "gecikmə" }), /“Ciddi töhmət” intizam tənbehi/);
+  assert.match(text("name", { newName: "Aysel Əliyeva" }), /“Aysel Əliyeva”/);
+  assert.match(text("bonus", { salary: 500, basis: "layihənin vaxtında bitməsi" }), /500 AZN/);
+  assert.match(text("maternity", { basis: "xəstəlik vərəqəsi № 5" }), /hamiləlik və doğuş məzuniyyəti/);
+  assert.equal(ORDER_KINDS.find((k) => k.id === "maternity").leaveCode, "maternity");
+  assert.equal(ORDER_KINDS.find((k) => k.id === "vacation").leaveCode, "annual");
+  assert.equal(ORDER_KINDS.find((k) => k.id === "salary").leaveCode, undefined);
 });
 
 test("vacation order states the days and a missing value is shown as such", () => {
