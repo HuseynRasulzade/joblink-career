@@ -184,6 +184,21 @@ export default function HrPanel({
   const [tab, setTab] = useState("Uyğun namizədlər");
   const [candidate, setCandidate] = useState<Profile | null>(null);
   const [prompt, setPrompt] = useState("");
+  // A free place chosen in the staff table: the vacancy draft gets its department and section.
+  const staffPlace = useRef<{ position: string; department: string; section: string } | null>(null);
+  useEffect(() => {
+    if (page !== "hr-ai") return;
+    try {
+      const raw = window.sessionStorage.getItem("joblink-staff-vacancy");
+      if (!raw) return;
+      window.sessionStorage.removeItem("joblink-staff-vacancy");
+      const place = JSON.parse(raw) as { position: string; department: string; section: string };
+      staffPlace.current = place;
+      setPrompt(`${place.position || "Yeni"} vakansiyası yarat${place.department ? ` (${place.department}${place.section ? ` / ${place.section}` : ""})` : ""}`);
+    } catch {
+      // Without storage the draft is made as usual.
+    }
+  }, [page]);
   const [messages, setMessages] = useState<{ role: string; text: string }[]>(
     [],
   );
@@ -368,7 +383,11 @@ export default function HrPanel({
               : ""),
         },
       ]);
-      if (b.draft) setDraft(b.draft);
+      if (b.draft) {
+        const place = staffPlace.current;
+        staffPlace.current = null;
+        setDraft(place ? { ...b.draft, department: b.draft.department || place.department, section: b.draft.section || place.section } : b.draft);
+      }
     } catch (e) {
       setMessages((v) => [
         ...v,
@@ -434,7 +453,18 @@ export default function HrPanel({
     if (!draft) return;
     setBusy(true);
     try {
-      const published = await api("publish", { draftId: draft.id, job: draft, confirmed: true });
+      let published;
+      try {
+        published = await api("publish", { draftId: draft.id, job: draft, confirmed: true });
+      } catch (error) {
+        // The staff table has no free place: publish anyway only when the person says so.
+        if (!/ştatda boş yer yoxdur/.test((error as Error).message)) throw error;
+        if (!window.confirm(`${(error as Error).message}\n\nYenə də vakansiyanı yayımlamaq istəyirsiniz?`)) {
+          setConfirm(false);
+          return;
+        }
+        published = await api("publish", { draftId: draft.id, job: draft, confirmed: true, ignoreStaff: true });
+      }
       setConfirm(false);
       setDraft(null);
       setDemo(false);

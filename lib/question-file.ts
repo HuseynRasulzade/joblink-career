@@ -33,6 +33,16 @@ function csvRows(text: string): string[][] {
   return text.split(/\r?\n/).map((line) => line.split(delimiter).map((c) => c.trim().replace(/^"|"$/g, "")));
 }
 
+// Rows of an Excel (.xlsx) or CSV file, read in the browser: for the employee and staff imports.
+export async function readSheetRows(file: File): Promise<string[][]> {
+  if (file.size > MAX_FILE_BYTES) throw new Error("Fayl 5 MB-dan kiçik olmalıdır.");
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (ext === "xlsx") return xlsxRows(bytes);
+  if (ext === "csv") return csvRows(new TextDecoder().decode(bytes));
+  throw new Error("Excel (.xlsx) və ya CSV faylı seçin.");
+}
+
 // Questions from a Word, Excel, PDF, RTF, CSV or text file, read in the browser.
 export async function readQuestionFile(file: File): Promise<ImportResult> {
   if (file.size > MAX_FILE_BYTES) throw new Error("Fayl 5 MB-dan kiçik olmalıdır.");

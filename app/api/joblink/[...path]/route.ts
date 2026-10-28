@@ -354,6 +354,8 @@ import {
 import { seedOnboardingTasks, taskSummary } from "@/lib/onboarding";
 import { compareInterviews, type FeedbackRow } from "@/lib/interview-compare";
 import { WORLD_SKILLS } from "@/lib/world-skills-data";
+import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
+import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
 function ok(data: unknown, status = 200) {
@@ -415,6 +417,58 @@ function parsedStringArray(value: string) {
   } catch {
     return [];
   }
+}
+async function saveStaffUnit(
+  db: D1Database,
+  companyId: string,
+  unitId: string,
+  unit: { department: string; section: string; position: string; planned: number; salaryCents: number; note: string },
+) {
+  const now = new Date().toISOString();
+  if (unitId) {
+    const result = await db
+      .prepare("UPDATE staff_units SET department=?,section=?,position=?,planned=?,salary_cents=?,note=?,updated=? WHERE id=? AND company_id=?")
+      .bind(unit.department, unit.section, unit.position, unit.planned, unit.salaryCents, unit.note, now, unitId, companyId)
+      .run();
+    if (!result.meta.changes) throw new HttpError(404, "Ştat sətri tapılmadı.");
+    return unitId;
+  }
+  const count = await db.prepare("SELECT COUNT(*) AS n FROM staff_units WHERE company_id=?").bind(companyId).first<{ n: number }>();
+  if (Number(count?.n) >= 1000) throw new HttpError(409, "Ştat cədvəlində ən çox 1000 sətir ola bilər.");
+  const created = crypto.randomUUID();
+  await db
+    .prepare("INSERT INTO staff_units(id,company_id,department,section,position,planned,salary_cents,note,updated) VALUES(?,?,?,?,?,?,?,?,?)")
+    .bind(created, companyId, unit.department, unit.section, unit.position, unit.planned, unit.salaryCents, unit.note, now)
+    .run();
+  return created;
+}
+// Free places of a department in the staff table, counting open vacancies of the company for it.
+async function staffPlaces(db: D1Database, companyId: string, department: string) {
+  const [units, people, open] = await Promise.all([
+    db
+      .prepare("SELECT id,department,section,position,planned FROM staff_units WHERE company_id=?")
+      .bind(companyId)
+      .all<{ id: string; department: string; section: string; position: string; planned: number }>(),
+    db
+      .prepare("SELECT department,section,position,status FROM company_employees WHERE company_id=? AND status IN ('active','leave')")
+      .bind(companyId)
+      .all<{ department: string; section: string; position: string; status: string }>(),
+    db
+      .prepare("SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND status IN ('published','pending_approval') AND lower(COALESCE(json_extract(data,'$.department'),''))=lower(?)")
+      .bind(companyId, department)
+      .first<{ n: number }>(),
+  ]);
+  return freeStaffPlaces(units.results, people.results, Number(open?.n) || 0, department);
+}
+// A vacancy for a department whose staff table has no free place waits for a confirmation.
+async function assertStaffPlace(db: D1Database, companyId: string, department: string | undefined, ignore: boolean) {
+  if (!department || ignore) return;
+  const places = await staffPlaces(db, companyId, department);
+  if (places && places.free <= 0)
+    throw new HttpError(
+      409,
+      `“${department}” üçün ştatda boş yer yoxdur (plan ${places.planned}, işləyir ${places.filled}, açıq vakansiya ${places.openVacancies}).`,
+    );
 }
 function escoSkillDefinition(row: EscoSkillRow) {
   return {
@@ -6790,6 +6844,11 @@ async function route(request: Request) {
         exit_reason?: string;
         exit_note?: string;
         probation_end?: string;
+        section?: string;
+        salary_type?: string;
+        sector?: string;
+        vacation_days?: number;
+        vacation_used?: number;
       }>();
     const taskRows = await db
       .prepare("SELECT employee_id,done,due FROM employee_tasks WHERE company_id=?")
@@ -6816,6 +6875,21 @@ async function route(request: Request) {
         source: r.source,
         endDate: r.end_date || "",
         probationEnd: r.probation_end || "",
+        section: r.section || "",
+        salaryType: r.salary_type === "net" ? "net" : "gross",
+        sector: r.sector === "public" ? "public" : "private",
+        vacationDays: r.vacation_days ?? 21,
+        vacationUsed: r.vacation_used ?? 0,
+        // Time worked and leave left (leave counts as earned a twelfth per month).
+        tenure: tenure(r.start_date, r.status === "left" ? r.end_date || "" : "", todayIso)?.text || "",
+        vacation: vacationBalance(
+          { start: r.start_date, end: r.status === "left" ? r.end_date || "" : "", entitlement: r.vacation_days ?? 21, used: r.vacation_used ?? 0 },
+          todayIso,
+        ),
+        // Net, gross, super-gross (the employer's total cost), income tax and insurance, from the stored pay.
+        pay: showSalary && r.salary_cents > 0
+          ? employeePay(r.salary_cents / 100, r.salary_type === "net" ? "net" : "gross", r.sector === "public" ? "public" : "private")
+          : null,
         onboarding: taskSummary(tasksBy.get(r.id) || [], todayIso),
         // Salaries and the way and reason people left stay with HR, the director and the owner.
         exitType: showSalary ? r.exit_type || "" : "",
@@ -6971,6 +7045,167 @@ async function route(request: Request) {
       String(b.planned ?? "silindi"),
     );
     return ok({ ok: true });
+  }
+  // ---- Bulk add of employees from a spreadsheet read in the browser ----
+  if (request.method === "POST" && path === "company/employees/import") {
+    requirePermission("salaries", "İşçiləri yalnız HR, direktor və hesab sahibi əlavə edə bilər.");
+    const b = await jsonBody(request);
+    const incoming = parseEmployeeRows(
+      (Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])),
+    );
+    if (!incoming.rows.length)
+      throw new HttpError(400, incoming.issues[0]?.reason || "Faylda işçi tapılmadı.");
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const existing = await db
+      .prepare("SELECT id,name,email,start_date FROM company_employees WHERE company_id=? AND status<>'removed'")
+      .bind(id)
+      .all<{ id: string; name: string; email: string; start_date: string }>();
+    const lower = (value: string) => value.toLocaleLowerCase("az").trim();
+    const byEmail = new Map(existing.results.filter((e) => e.email).map((e) => [lower(e.email), e.id]));
+    const byName = new Map(existing.results.map((e) => [`${lower(e.name)}|${e.start_date}`, e.id]));
+    const statements: D1PreparedStatement[] = [];
+    let created = 0;
+    let updated = 0;
+    for (const row of incoming.rows) {
+      const found = (row.email && byEmail.get(lower(row.email))) || byName.get(`${lower(row.name)}|${row.startDate}`);
+      if (found) {
+        statements.push(
+          db
+            .prepare(
+              "UPDATE company_employees SET name=?,position=?,department=?,section=?,phone=?,start_date=?,salary_cents=?,salary_type=?,sector=?,vacation_days=?,vacation_used=?,updated=? WHERE id=? AND company_id=?",
+            )
+            .bind(row.name, row.position, row.department, row.section, row.phone, row.startDate, Math.round(row.salary * 100), row.salaryType, row.sector, row.vacationDays, row.vacationUsed, now, found, id),
+        );
+        updated++;
+        continue;
+      }
+      const newId = crypto.randomUUID();
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO company_employees(id,company_id,name,position,department,section,email,phone,start_date,salary_cents,salary_type,sector,vacation_days,vacation_used,status,source,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active','import',?,?)",
+          )
+          .bind(newId, id, row.name, row.position, row.department, row.section, row.email, row.phone, row.startDate, Math.round(row.salary * 100), row.salaryType, row.sector, row.vacationDays, row.vacationUsed, now, now),
+        db
+          .prepare(
+            "INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)",
+          )
+          .bind(crypto.randomUUID(), id, newId, "hired", "", "", "import", userId, row.startDate || today, now),
+      );
+      created++;
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "employees-imported", "", `${created} yeni, ${updated} yenilənən`);
+    return ok({ created, updated, issues: incoming.issues });
+  }
+  // ---- Staff table: places per department, section and position ----
+  const staffOverview = async () => {
+    const [units, people, open] = await Promise.all([
+      db
+        .prepare("SELECT id,department,section,position,planned,salary_cents,note FROM staff_units WHERE company_id=? ORDER BY department,section,position")
+        .bind(id)
+        .all<{ id: string; department: string; section: string; position: string; planned: number; salary_cents: number; note: string }>(),
+      db
+        .prepare("SELECT id,name,department,section,position,status FROM company_employees WHERE company_id=? AND status IN ('active','leave')")
+        .bind(id)
+        .all<{ id: string; name: string; department: string; section: string; position: string; status: string }>(),
+      db
+        .prepare("SELECT lower(COALESCE(json_extract(data,'$.department'),'')) AS department, COUNT(*) AS n FROM jobs WHERE owner=? AND status IN ('published','pending_approval') GROUP BY 1")
+        .bind(id)
+        .all<{ department: string; n: number }>(),
+    ]);
+    const openBy = new Map(open.results.map((row) => [row.department, Number(row.n)]));
+    const rows = units.results.map((unit) => {
+      const filled = staffFill(unit, people.results);
+      return {
+        id: unit.id,
+        department: unit.department,
+        section: unit.section,
+        position: unit.position,
+        planned: unit.planned,
+        salary: unit.salary_cents / 100,
+        note: unit.note,
+        filled,
+        free: unit.planned - filled,
+      };
+    });
+    const departments = [...new Set(rows.map((row) => row.department))].map((department) => {
+      const mine = rows.filter((row) => row.department === department);
+      const places = freeStaffPlaces(units.results, people.results, openBy.get(department.toLocaleLowerCase("az")) || 0, department)!;
+      return { department, planned: places.planned, filled: places.filled, openVacancies: places.openVacancies, free: places.free, units: mine.length };
+    });
+    // People whose department/position is in no staff row.
+    const placed = people.results.filter((person) => units.results.some((unit) => staffFill(unit, [person]) > 0)).length;
+    return { rows, departments, unplaced: people.results.length - placed };
+  };
+  if (request.method === "GET" && path === "company/staff") {
+    requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi görə bilər.");
+    return ok(await staffOverview());
+  }
+  if (request.method === "GET" && path === "company/staff/places") {
+    // The vacancy form asks how many places a department has left.
+    requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi görə bilər.");
+    const department = str(requestUrl.searchParams.get("department"), 120);
+    return ok({ places: department ? await staffPlaces(db, id, department) : null });
+  }
+  const unitInput = (b: Record<string, unknown>) => ({
+    department: str(b.department, 120),
+    section: str(b.section, 120),
+    position: str(b.position, 120),
+    planned: Math.max(0, Math.min(10000, Math.round(Number(b.planned ?? 1)))),
+    salaryCents: Math.max(0, Math.round((Number(b.salary) || 0) * 100)),
+    note: str(b.note, 300),
+  });
+  if (request.method === "POST" && path === "company/staff/save") {
+    requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const unit = unitInput(b);
+    if (!unit.department && !unit.position) throw new HttpError(400, "Departamenti və ya vəzifəni yazın.");
+    if (!Number.isFinite(unit.planned)) throw new HttpError(400, "Ştat sayı düzgün deyil.");
+    const unitId = str(b.id, 100);
+    if (needsDirector(await approvalRules(), "headcount", canAct("approve-director"))) {
+      await queueApproval("headcount", `${unit.department || "—"} / ${unit.position || "—"}: ${unit.planned} ştat`, { unit: { ...unit, id: unitId } });
+      return ok({ ok: true, pending: true });
+    }
+    await saveStaffUnit(db, id, unitId, unit);
+    await companyAudit(db, id, userId, "staff-unit", unitId, `${unit.department} / ${unit.section} / ${unit.position}: ${unit.planned}`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/staff/delete") {
+    requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const unitId = str(b.id, 100);
+    if (needsDirector(await approvalRules(), "headcount", canAct("approve-director"))) {
+      await queueApproval("headcount", `Ştat sətri silinir`, { unitDelete: unitId });
+      return ok({ ok: true, pending: true });
+    }
+    await db.prepare("DELETE FROM staff_units WHERE id=? AND company_id=?").bind(unitId, id).run();
+    await companyAudit(db, id, userId, "staff-unit-removed", unitId);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/staff/import") {
+    requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const incoming = parseStaffRows(
+      (Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])),
+    );
+    if (!incoming.rows.length) throw new HttpError(400, incoming.issues[0]?.reason || "Faylda ştat sətri tapılmadı.");
+    if (needsDirector(await approvalRules(), "headcount", canAct("approve-director")))
+      throw new HttpError(409, "Ştat planı dəyişiklikləri direktorun təsdiqini tələb edir. Sətirləri tək-tək əlavə edin və ya direktor faylı yükləsin.");
+    let created = 0;
+    let updated = 0;
+    for (const row of incoming.rows) {
+      const existingUnit = await db
+        .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(department)=lower(?) AND lower(section)=lower(?) AND lower(position)=lower(?)")
+        .bind(id, row.department, row.section, row.position)
+        .first<{ id: string }>();
+      await saveStaffUnit(db, id, existingUnit?.id || "", { department: row.department, section: row.section, position: row.position, planned: row.planned, salaryCents: Math.round(row.salary * 100), note: row.note });
+      if (existingUnit) updated++;
+      else created++;
+    }
+    await companyAudit(db, id, userId, "staff-imported", "", `${created} yeni, ${updated} yenilənən`);
+    return ok({ created, updated, issues: incoming.issues });
   }
   // ---- Employee document folder (contracts, orders, IDs): HR, director and owner only ----
   const EMPLOYEE_DOC_CATEGORIES = [
@@ -7220,6 +7455,20 @@ async function route(request: Request) {
     );
     if (exit.error) throw new HttpError(400, exit.error);
     const existingId = str(b.id, 100);
+    // Section, whether the pay is gross or net, the tax sector and the leave figures.
+    const saveEmployeeExtras = (employeeId: string) =>
+      db
+        .prepare("UPDATE company_employees SET section=?,salary_type=?,sector=?,vacation_days=?,vacation_used=? WHERE id=? AND company_id=?")
+        .bind(
+          str(b.section, 120),
+          b.salaryType === "net" ? "net" : "gross",
+          b.sector === "public" ? "public" : "private",
+          Math.max(0, Math.min(365, Math.round(Number(b.vacationDays ?? 21)))),
+          Math.max(0, Math.min(3650, Math.round(Number(b.vacationUsed ?? 0)))),
+          employeeId,
+          id,
+        )
+        .run();
     const event = (
       employeeId: string,
       type: string,
@@ -7386,6 +7635,7 @@ async function route(request: Request) {
           existingId,
           `${name}: ${exitTypeLabel(exit.exitType)}`,
         );
+      await saveEmployeeExtras(existingId);
       return ok({
         ok: true,
         id: existingId,
@@ -7434,6 +7684,7 @@ async function route(request: Request) {
         ),
       ...events,
     ]);
+    await saveEmployeeExtras(newId);
     await companyAudit(db, id, userId, "employee-added", newId, name);
     return ok({ ok: true, id: newId }, 201);
   }
@@ -7948,6 +8199,7 @@ async function route(request: Request) {
       scope.ownOnly &&
       [
         "employees",
+        "staff",
         "workforce",
         "exits",
         "invoices",
@@ -8053,6 +8305,10 @@ async function route(request: Request) {
           Number(r.hired),
         ];
       });
+    } else if (kind === "staff") {
+      const overview = await staffOverview();
+      headers = ["Departament", "Şöbə", "Vəzifə", "Ştat sayı", "İşləyir", "Boş yer", "Əmək haqqı (AZN)", "Qeyd"];
+      rows = overview.rows.map((r) => [r.department, r.section, r.position, r.planned, r.filled, r.free, r.salary || "", r.note]);
     } else if (kind === "employees") {
       const showSalary = can(memberRole, "salaries");
       const result = await db
@@ -8064,31 +8320,83 @@ async function route(request: Request) {
           name: string;
           position: string;
           department: string;
+          section: string;
           email: string;
           phone: string;
           start_date: string;
+          end_date: string;
           salary_cents: number;
+          salary_type: string;
+          sector: string;
+          vacation_days: number;
+          vacation_used: number;
           status: string;
         }>();
+      const today = new Date().toISOString().slice(0, 10);
       // Contacts and pay are personal data: only roles with the salaries permission get them.
       headers = [
         "Ad Soyad",
         "Vəzifə",
+        "Departament",
         "Şöbə",
         ...(showSalary ? ["E-poçt", "Telefon"] : []),
         "İşə başlama",
+        "İşləyib",
         "Status",
-        ...(showSalary ? ["Maaş (AZN)"] : []),
+        ...(showSalary
+          ? [
+              "Maaş növü",
+              "Net (AZN)",
+              "Gross / əmək haqqı (AZN)",
+              "Super-gross (AZN)",
+              "Gəlir vergisi",
+              "DSMF (işçi)",
+              "İşsizlik sığortası (işçi)",
+              "İcbari tibbi sığorta (işçi)",
+              "DSMF (işəgötürən)",
+              "İşsizlik sığortası (işəgötürən)",
+              "İcbari tibbi sığorta (işəgötürən)",
+              "Məzuniyyət (il üçün)",
+              "Qazanılmış məzuniyyət",
+              "İstifadə olunmuş",
+              "Qalan məzuniyyət",
+            ]
+          : []),
       ];
-      rows = result.results.map((r) => [
-        r.name,
-        r.position,
-        r.department,
-        ...(showSalary ? [r.email, r.phone] : []),
-        r.start_date,
-        r.status,
-        ...(showSalary ? [r.salary_cents / 100] : []),
-      ]);
+      rows = result.results.map((r) => {
+        const worked = tenure(r.start_date, r.status === "left" ? r.end_date : "", today)?.text || "";
+        const pay = showSalary && r.salary_cents > 0 ? employeePay(r.salary_cents / 100, r.salary_type === "net" ? "net" : "gross", r.sector === "public" ? "public" : "private") : null;
+        const leave = vacationBalance({ start: r.start_date, end: r.status === "left" ? r.end_date : "", entitlement: r.vacation_days, used: r.vacation_used }, today);
+        return [
+          r.name,
+          r.position,
+          r.department,
+          r.section,
+          ...(showSalary ? [r.email, r.phone] : []),
+          r.start_date,
+          worked,
+          r.status,
+          ...(showSalary
+            ? [
+                r.salary_type === "net" ? "net" : "gross",
+                pay?.net ?? "",
+                pay?.gross ?? "",
+                pay?.superGross ?? "",
+                pay?.incomeTax ?? "",
+                pay?.employeeSocial ?? "",
+                pay?.employeeUnemployment ?? "",
+                pay?.employeeMedical ?? "",
+                pay?.employerSocial ?? "",
+                pay?.employerUnemployment ?? "",
+                pay?.employerMedical ?? "",
+                leave.entitlement,
+                leave.accrued,
+                leave.used,
+                leave.remaining,
+              ]
+            : []),
+        ];
+      });
     } else if (kind === "invoices") {
       requirePermission(
         "billing",
@@ -11306,6 +11614,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       status: "published",
       createdBy: userId,
     };
+    await assertStaffPlace(db, id, j.department, b.ignoreStaff === true);
     if (j.deadline && j.deadline < new Date().toISOString().slice(0, 10))
       throw new HttpError(
         400,
@@ -12411,6 +12720,14 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
             ),
         ]);
         await companyAudit(db, id, userId, "employee-left", String(payload.employeeId), `${emp.name} (təsdiqləndi)`);
+      } else if (req.kind === "headcount" && (payload.unit || payload.unitDelete)) {
+        if (payload.unitDelete) {
+          await db.prepare("DELETE FROM staff_units WHERE id=? AND company_id=?").bind(String(payload.unitDelete), id).run();
+        } else {
+          const unit = payload.unit as { id: string; department: string; section: string; position: string; planned: number; salaryCents: number; note: string };
+          await saveStaffUnit(db, id, String(unit.id || ""), unit);
+        }
+        await companyAudit(db, id, userId, "staff-unit", "", "təsdiqləndi");
       } else if (req.kind === "headcount") {
         const now = new Date().toISOString();
         const department = String(payload.department);

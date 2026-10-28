@@ -205,6 +205,9 @@ export type Job = {
   companyVerified?: boolean;
   // A vacancy listed from another site: candidates apply there, not here.
   external?: { source: string; url: string };
+  // The department and section of the employer's staff table that the place belongs to.
+  department?: string;
+  section?: string;
 };
 export const JOB_CATEGORIES = [
   "Satış və müştəri xidməti",

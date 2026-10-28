@@ -775,10 +775,32 @@ export const companyEmployees = sqliteTable(
     jobId: text("job_id").notNull().default(""),
     probationEnd: text("probation_end").notNull().default(""),
     probationReminded: integer("probation_reminded").notNull().default(0),
+    // Department > section > employee. The salary is in `salaryType` terms (gross or net).
+    section: text("section").notNull().default(""),
+    salaryType: text("salary_type").notNull().default("gross"),
+    sector: text("sector").notNull().default("private"),
+    vacationDays: integer("vacation_days").notNull().default(21),
+    vacationUsed: integer("vacation_used").notNull().default(0),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
   },
   (t) => [index("company_employees_company").on(t.companyId, t.status)],
+);
+// Staff table: places per department, section and position.
+export const staffUnits = sqliteTable(
+  "staff_units",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    department: text("department").notNull().default(""),
+    section: text("section").notNull().default(""),
+    position: text("position").notNull().default(""),
+    planned: integer("planned").notNull().default(1),
+    salaryCents: integer("salary_cents").notNull().default(0),
+    note: text("note").notNull().default(""),
+    updated: text("updated").notNull(),
+  },
+  (t) => [index("staff_units_company").on(t.companyId, t.department)],
 );
 export const interviewTemplates = sqliteTable(
   "interview_templates",

@@ -2090,6 +2090,45 @@ export function ProfileEditor({
     </>,
   );
 }
+// Department and section of the staff table the vacancy belongs to, with the free places left.
+function StaffPlaceFields({
+  department,
+  section,
+  onChange,
+}: {
+  department: string;
+  section: string;
+  onChange: (department: string, section: string) => void;
+}) {
+  const [departments, setDepartments] = useState<{ department: string; free: number }[]>([]);
+  useEffect(() => {
+    fetch("/api/joblink/company/staff", { credentials: "same-origin", cache: "no-store" })
+      .then((response) => (response.ok ? (response.json() as Promise<{ departments?: { department: string; free: number }[] }>) : { departments: [] }))
+      .then((data) => setDepartments(data.departments || []))
+      .catch(() => undefined);
+  }, []);
+  if (!departments.length && !department) return null;
+  const known = departments.find((d) => d.department.toLocaleLowerCase("az") === department.toLocaleLowerCase("az"));
+  return (
+    <>
+      <Field label="Departament (ştat)">
+        <input list="staff-departments" value={department} placeholder="Ştat cədvəlindəki departament" onChange={(e) => onChange(e.target.value, section)} />
+        <datalist id="staff-departments">
+          {departments.map((d) => (
+            <option key={d.department} value={d.department}>
+              {d.free > 0 ? `${d.free} boş yer` : "boş yer yoxdur"}
+            </option>
+          ))}
+        </datalist>
+        {known && <small className="skill-picker-help">{known.free > 0 ? `${known.free} boş ştat yeri var.` : "Bu departamentdə boş ştat yeri yoxdur (yayımlayanda xəbərdarlıq çıxacaq)."}</small>}
+      </Field>
+      <Field label="Şöbə">
+        <input value={section} onChange={(e) => onChange(department, e.target.value)} />
+      </Field>
+    </>
+  );
+}
+
 export function JobForm({
   job,
   onChange,
@@ -2122,6 +2161,11 @@ export function JobForm({
             onChange={(e) => set("company", e.target.value)}
           />
         </Field>
+        <StaffPlaceFields
+          department={job.department || ""}
+          section={job.section || ""}
+          onChange={(department, section) => onChange({ ...job, department, section })}
+        />
         <Field label="Şəhər">
           <input
             value={job.city}

@@ -32,6 +32,7 @@ import { formatDate } from "@/lib/dates";
 import { VACANCY_REASONS } from "@/lib/recruitment";
 import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
+import { EmployeePayPanel, OrderMaker, SheetImport, StaffTable } from "./StaffPages";
 
 export type CompanyMe = {
   company: { id: string; name: string } | null;
@@ -2350,6 +2351,14 @@ type Employee = {
   exitNote?: string;
   probationEnd?: string;
   onboarding?: { total: number; done: number; overdue: number };
+  section?: string;
+  salaryType?: "gross" | "net";
+  sector?: "private" | "public";
+  vacationDays?: number;
+  vacationUsed?: number;
+  tenure?: string;
+  vacation?: { entitlement: number; accrued: number; used: number; remaining: number };
+  pay?: { net: number; gross: number; superGross: number; incomeTax: number; employeeSocial: number; employeeUnemployment: number; employeeMedical: number } | null;
 };
 type Option = { id: string; label: string };
 const EVENT_LABEL: Record<string, string> = {
@@ -2376,6 +2385,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
     exitReasons: Option[];
   }>("company/employees", notify);
   const [editing, setEditing] = useState<Partial<Employee> | null>(null);
+  const [importing, setImporting] = useState(false);
   const [history, setHistory] = useState<
     {
       type: string;
@@ -2418,30 +2428,34 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   }
   if (!data) return <p className="muted">Yüklənir…</p>;
   const list = data.employees.filter((e) =>
-    `${e.name} ${e.position} ${e.department}`
+    `${e.name} ${e.position} ${e.department} ${e.section || ""}`
       .toLocaleLowerCase("az")
       .includes(query.toLocaleLowerCase("az")),
   );
-  const payroll = data.showSalary
-    ? data.employees
-        .filter((e) => e.status !== "left")
-        .reduce((sum, e) => sum + (e.salary || 0), 0)
-    : 0;
+  const active = data.employees.filter((e) => e.status !== "left");
+  const payroll = data.showSalary ? active.reduce((sum, e) => sum + (e.pay?.gross || 0), 0) : 0;
+  const payrollNet = data.showSalary ? active.reduce((sum, e) => sum + (e.pay?.net || 0), 0) : 0;
+  const payrollCost = data.showSalary ? active.reduce((sum, e) => sum + (e.pay?.superGross || 0), 0) : 0;
   return (
     <div className="company-page">
       <div className="section-heading">
         <input
           className="search-input"
-          placeholder="Ad, vəzifə və ya şöbə"
+          placeholder="Ad, vəzifə, departament və ya şöbə"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <div className="admin-actions">
           <ReportButton kind="employees" label="XLSX" />
           {data.canEdit && (
+            <button className="secondary" onClick={() => setImporting(true)}>
+              <Download size={14} style={{ transform: "rotate(180deg)" }} /> Excel-dən əlavə et
+            </button>
+          )}
+          {data.canEdit && (
             <button
               className="primary"
-              onClick={() => setEditing({ status: "active" })}
+              onClick={() => setEditing({ status: "active", salaryType: "gross", sector: "private", vacationDays: 21, vacationUsed: 0 })}
             >
               <Plus size={14} /> İşçi əlavə et
             </button>
@@ -2450,7 +2464,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
       </div>
       {data.showSalary && (
         <p className="muted">
-          Aylıq əmək haqqı fondu: <b>{azn(payroll)}</b>. Maaşlar yalnız HR,
+          Aylıq fond: gross <b>{azn(payroll)}</b>, net <b>{azn(payrollNet)}</b>, super-gross (işəgötürənin ümumi xərci) <b>{azn(payrollCost)}</b>. Maaşlar yalnız HR,
           direktor və hesab sahibinə görünür.
         </p>
       )}
@@ -2460,10 +2474,13 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
             <tr>
               <th>Ad Soyad</th>
               <th>Vəzifə</th>
-              <th>Şöbə</th>
+              <th>Departament / Şöbə</th>
               <th>İşə başlama</th>
               <th>Status</th>
-              {data.showSalary && <th>Maaş</th>}
+              {data.showSalary && <th>Net</th>}
+              {data.showSalary && <th>Gross</th>}
+              {data.showSalary && <th>Super-gross</th>}
+              <th>Qalan məzuniyyət</th>
               {data.canEdit && <th></th>}
             </tr>
           </thead>
@@ -2478,9 +2495,13 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   </small>
                 </td>
                 <td>{e.position || "—"}</td>
-                <td>{e.department || "—"}</td>
+                <td>
+                  {e.department || "—"}
+                  {e.section && <small className="skill-description">{e.section}</small>}
+                </td>
                 <td>
                   {day(e.startDate)}
+                  {e.tenure && <small className="skill-description">İşləyib: {e.tenure}</small>}
                   {e.status === "active" && e.probationEnd && (
                     <small
                       className="skill-description"
@@ -2518,7 +2539,21 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                     </small>
                   ) : null}
                 </td>
-                {data.showSalary && <td>{e.salary ? azn(e.salary) : "—"}</td>}
+                {data.showSalary && <td>{e.pay ? azn(e.pay.net) : "—"}</td>}
+                {data.showSalary && <td>{e.pay ? azn(e.pay.gross) : "—"}</td>}
+                {data.showSalary && <td>{e.pay ? azn(e.pay.superGross) : "—"}</td>}
+                <td>
+                  {e.vacation ? (
+                    <span style={{ color: e.vacation.remaining < 0 ? "#b45309" : undefined }}>{e.vacation.remaining} gün</span>
+                  ) : (
+                    "—"
+                  )}
+                  {e.vacation && (
+                    <small className="skill-description">
+                      {e.vacation.used} / {e.vacation.accrued} istifadə
+                    </small>
+                  )}
+                </td>
                 {data.canEdit && (
                   <td className="admin-actions">
                     <button onClick={() => setEditing(e)}>Düzəlt</button>
@@ -2545,7 +2580,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
             ))}
             {!list.length && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={10}>
                   <p className="admin-empty">
                     İşçi yoxdur. Joblink ilə işə qəbul etdiyiniz namizədlər bura
                     avtomatik əlavə olunur.
@@ -2556,7 +2591,9 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           </tbody>
         </table>
       </div>
+      {data.canEdit && <StaffTable notify={notify} />}
       {data.canEdit && <HeadcountPlan notify={notify} />}
+      {importing && <SheetImport kind="employees" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {editing && (
         <Modal
           title={editing.id ? "İşçini düzəlt" : "Yeni işçi"}
@@ -2580,12 +2617,18 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   }
                 />
               </Field>
-              <Field label="Şöbə">
+              <Field label="Departament">
                 <input
                   value={editing.department || ""}
                   onChange={(e) =>
                     setEditing({ ...editing, department: e.target.value })
                   }
+                />
+              </Field>
+              <Field label="Şöbə">
+                <input
+                  value={editing.section || ""}
+                  onChange={(e) => setEditing({ ...editing, section: e.target.value })}
                 />
               </Field>
               <Field label="İşə başlama">
@@ -2630,6 +2673,35 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   onChange={(e) =>
                     setEditing({ ...editing, salary: Number(e.target.value) })
                   }
+                />
+              </Field>
+              <Field label="Maaş növü">
+                <select value={editing.salaryType || "gross"} onChange={(e) => setEditing({ ...editing, salaryType: e.target.value as "gross" | "net" })}>
+                  <option value="gross">Gross (vergilərdən əvvəl)</option>
+                  <option value="net">Net (əlinə verilən)</option>
+                </select>
+              </Field>
+              <Field label="Vergi sektoru">
+                <select value={editing.sector || "private"} onChange={(e) => setEditing({ ...editing, sector: e.target.value as "private" | "public" })}>
+                  <option value="private">Özəl, qeyri-neft sektoru</option>
+                  <option value="public">Dövlət, neft-qaz sektoru</option>
+                </select>
+              </Field>
+              <Field label="Məzuniyyət (il üçün gün)">
+                <input
+                  type="number"
+                  min={0}
+                  max={365}
+                  value={editing.vacationDays ?? 21}
+                  onChange={(e) => setEditing({ ...editing, vacationDays: Number(e.target.value) })}
+                />
+              </Field>
+              <Field label="İndiyə qədər istifadə olunmuş məzuniyyət (gün)">
+                <input
+                  type="number"
+                  min={0}
+                  value={editing.vacationUsed ?? 0}
+                  onChange={(e) => setEditing({ ...editing, vacationUsed: Number(e.target.value) })}
                 />
               </Field>
               <Field label="Status">
@@ -2698,6 +2770,32 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                 </>
               )}
             </div>
+            <EmployeePayPanel
+              salary={editing.salary || 0}
+              salaryType={editing.salaryType || "gross"}
+              sector={editing.sector || "private"}
+              startDate={editing.startDate || ""}
+              endDate={editing.endDate || ""}
+              status={editing.status || "active"}
+              vacationDays={editing.vacationDays ?? 21}
+              vacationUsed={editing.vacationUsed ?? 0}
+            />
+            {editing.id && (
+              <OrderMaker
+                employee={{
+                  id: editing.id,
+                  name: editing.name || "",
+                  position: editing.position || "",
+                  department: editing.department || "",
+                  section: editing.section || "",
+                  startDate: editing.startDate || "",
+                  salary: editing.salary ?? null,
+                  salaryType: editing.salaryType || "gross",
+                  probationEnd: editing.probationEnd || "",
+                  endDate: editing.endDate || "",
+                }}
+              />
+            )}
             {editing.id && (
               <EmployeeDocuments employeeId={editing.id} notify={notify} />
             )}
