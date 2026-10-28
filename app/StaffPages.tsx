@@ -278,30 +278,140 @@ function downloadOrderWord(order: ReturnType<typeof buildOrder>) {
 }
 
 type SignerState = { role: "head" | "director"; title: string; name: string; approvedAt?: string; approvedBy?: string };
-type SavedOrder = { id: string; kind: OrderKind; number: string; date: string; status: string; created: string; input: Omit<OrderInput, "signers">; signers: SignerState[] };
+type HistoryEvent = { type: string; by: string; at: string; role?: string; to?: string; note?: string };
+export type SavedOrder = {
+  id: string;
+  employeeId?: string;
+  kind: OrderKind;
+  number: string;
+  date: string;
+  status: "pending" | "returned" | "signed";
+  holder: "creator" | "head" | "director" | "";
+  history: HistoryEvent[];
+  created: string;
+  input: Omit<OrderInput, "signers">;
+  signers: SignerState[];
+};
+const HOLDER = { creator: "Əmri hazırlayan (HR)", head: "Şöbə rəhbəri", director: "Direktor", "": "" } as const;
+const EVENT = { created: "Əmr yaradıldı", approved: "Təsdiqlədi", returned: "Geri göndərdi", edited: "Əmri dəyişdi", signed: "Tam imzalandı" } as Record<string, string>;
+const STATUS_TEXT = (order: SavedOrder) =>
+  order.status === "signed" ? "İmzalanıb" : order.status === "returned" ? `Geri qaytarılıb: ${HOLDER[order.holder]}` : `İmza gözləyir: ${HOLDER[order.holder]}`;
+const rebuildOrder = (item: SavedOrder) => buildOrder({ ...item.input, signers: item.signers });
+const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 
-export function OrderMaker({
-  employee,
-  notify,
-}: {
-  employee: { id: string; name: string; position: string; department: string; section: string; startDate: string; salary: number | null; salaryType: SalaryType; probationEnd: string; endDate: string };
-  notify: Notify;
-}) {
+// Who has the order, the signatures, the approve and send-back buttons and what happened to it.
+export function OrderSignerBox({ order, onChange, notify }: { order: SavedOrder; onChange: () => void; notify: Notify }) {
+  const [reason, setReason] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const turn = order.signers.find((signer) => signer.role === order.holder);
+  async function approve() {
+    if (!turn) return;
+    try {
+      const result = await request<{ signed: boolean }>("company/orders/approve", { id: order.id, role: turn.role });
+      notify(result.signed ? "Əmr bütün imzalarla təsdiqləndi." : "İmza təsdiqləndi. Növbə növbəti şəxsdədir.");
+      onChange();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function sendBack() {
+    if (!turn) return;
+    try {
+      const result = await request<{ holder: string }>("company/orders/return", { id: order.id, role: turn.role, reason: reason || "" });
+      notify(`Əmr geri göndərildi: ${HOLDER[result.holder as keyof typeof HOLDER] || ""}.`);
+      setReason(null);
+      onChange();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  const lastReturn = [...order.history].reverse().find((event) => event.type === "returned");
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <b>{STATUS_TEXT(order)}</b>
+      {order.signers.map((signer) => (
+        <div key={signer.role}>
+          {signer.title}: <b>{signer.name}</b>{" "}
+          {signer.approvedAt ? <small className="skill-description">təsdiqləyib: {signer.approvedBy} · {when(signer.approvedAt)}</small> : signer.role === order.holder ? <small className="skill-description">növbə bundadır</small> : <small className="skill-description">gözləyir</small>}
+        </div>
+      ))}
+      {order.status === "returned" && lastReturn && (
+        <div className="notice">
+          Geri qaytarma səbəbi ({lastReturn.by}): {lastReturn.note}
+        </div>
+      )}
+      {turn && order.status !== "signed" && reason === null && (
+        <div className="admin-actions">
+          <button type="button" className="primary" onClick={() => void approve()}>
+            Təsdiq et ({turn.title})
+          </button>
+          <button type="button" onClick={() => setReason("")}>
+            Geri göndər
+          </button>
+        </div>
+      )}
+      {order.status !== "signed" && order.holder === "creator" && <small className="muted">Əmri hazırlayan düzəliş edib yenidən imzaya göndərməlidir.</small>}
+      {reason !== null && (
+        <div style={{ display: "grid", gap: 6 }}>
+          <textarea value={reason} placeholder="Səbəbi yazın: əmr özündən əvvəlki şəxsə qayıdacaq (direktordan şöbə rəhbərinə, şöbə rəhbərindən əmri hazırlayana)." onChange={(e) => setReason(e.target.value)} />
+          <div className="admin-actions">
+            <button type="button" className="primary" disabled={reason.trim().length < 3} onClick={() => void sendBack()}>
+              Geri göndər
+            </button>
+            <button type="button" onClick={() => setReason(null)}>
+              Ləğv et
+            </button>
+          </div>
+        </div>
+      )}
+      <button type="button" className="text-button" onClick={() => setShowHistory(!showHistory)}>
+        {showHistory ? "Tarixçəni gizlət" : `Tarixçə (${order.history.length})`}
+      </button>
+      {showHistory && (
+        <ul className="muted">
+          {order.history.map((event, i) => (
+            <li key={i}>
+              {when(event.at)} — {EVENT[event.type] || event.type}: {event.by}
+              {event.note ? ` — “${event.note}”` : ""}
+              {event.to ? ` → ${HOLDER[event.to as keyof typeof HOLDER] || event.to}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+type OrderEmployee = { id: string; name: string; position: string; department: string; section: string; startDate: string; salary: number | null; salaryType: SalaryType; probationEnd: string; endDate: string };
+
+// Draws an order up, or (with `editing`) changes one that was sent back.
+export function OrderMaker({ employee, notify, editing, onSaved }: { employee: OrderEmployee; notify: Notify; editing?: SavedOrder; onSaved?: () => void }) {
   const [facts, setFacts] = useState<CompanyFacts>({ name: "", voen: "", director: "" });
   const today = new Date().toISOString().slice(0, 10);
-  const [kind, setKind] = useState<OrderKind>("vacation");
-  const [form, setForm] = useState({ date: today, from: today, to: "", newPosition: "", newDepartment: "", salary: "", basis: "", vacationKind: "illik əmək məzuniyyəti" });
-  const [number, setNumber] = useState("");
+  const prior = editing?.input;
+  const [kind, setKind] = useState<OrderKind>(editing?.kind || "vacation");
+  const [form, setForm] = useState({
+    date: editing?.date || today,
+    from: prior?.from || today,
+    to: prior?.to || "",
+    newPosition: prior?.newPosition || "",
+    newDepartment: prior?.newDepartment || "",
+    salary: prior?.salary && editing?.kind !== "hire" ? String(prior.salary) : "",
+    basis: prior?.basis || "",
+    vacationKind: prior?.vacationKind || "illik əmək məzuniyyəti",
+  });
+  const [number, setNumber] = useState(editing?.number || "");
   // The section head and the director are picked from the staff list; the names can be changed.
   const [head, setHead] = useState({ use: true, name: "", note: "" });
   const [director, setDirector] = useState({ name: "", note: "" });
   const [saved, setSaved] = useState<SavedOrder[]>([]);
   const [busy, setBusy] = useState(false);
   const loadSaved = useCallback(() => {
+    if (editing) return;
     request<{ orders: SavedOrder[] }>(`company/orders?employeeId=${employee.id}`)
       .then((r) => setSaved(r.orders))
       .catch(() => undefined);
-  }, [employee.id]);
+  }, [employee.id, editing]);
   useEffect(() => {
     void Promise.all([
       request<{ company: { name: string } | null }>("company/me"),
@@ -309,13 +419,22 @@ export function OrderMaker({
       request<{ head: { name: string; position: string } | null; director: { name: string; position: string; source: string } | null }>(`company/order-signers?employeeId=${employee.id}`),
     ])
       .then(([me, profile, signers]) => {
+        const oldHead = editing?.signers.find((x) => x.role === "head");
+        const oldDirector = editing?.signers.find((x) => x.role === "director");
         setFacts({ name: profile.details.legalName || me.company?.name || "", voen: profile.details.voen, director: signers.director?.name || profile.details.director });
-        setHead({ use: !!signers.head, name: signers.head?.name || "", note: signers.head ? `${signers.head.position} (ştat cədvəlindən)` : "Departamentdə şöbə rəhbəri tapılmadı: adı yazın və ya imzanı götürün." });
-        setDirector({ name: signers.director?.name || "", note: signers.director ? (signers.director.source === "staff" ? `${signers.director.position} (ştat cədvəlindən)` : "Şirkət məlumatlarındakı direktor") : "Direktor tapılmadı: adı yazın." });
+        setHead({
+          use: editing ? !!oldHead : !!signers.head,
+          name: oldHead?.name || signers.head?.name || "",
+          note: signers.head ? `${signers.head.position} (ştat cədvəlindən)` : "Departamentdə şöbə rəhbəri tapılmadı: adı yazın və ya imzanı götürün.",
+        });
+        setDirector({
+          name: oldDirector?.name || signers.director?.name || "",
+          note: signers.director ? (signers.director.source === "staff" ? `${signers.director.position} (ştat cədvəlindən)` : "Şirkət məlumatlarındakı direktor") : "Direktor tapılmadı: adı yazın.",
+        });
       })
       .catch(() => undefined);
     loadSaved();
-  }, [employee.id, loadSaved]);
+  }, [employee.id, loadSaved, editing]);
   const signerList: SignerState[] = [
     ...(head.use && head.name.trim() ? [{ role: "head" as const, title: "Şöbə rəhbəri", name: head.name.trim() }] : []),
     ...(director.name.trim() ? [{ role: "director" as const, title: "Direktor", name: director.name.trim() }] : []),
@@ -347,35 +466,32 @@ export function OrderMaker({
     try {
       const { signers, ...rest } = input;
       void signers;
+      if (editing) {
+        await request("company/orders/update", { id: editing.id, kind, number: input.number, date: form.date, input: rest, signers: signerList });
+        notify("Əmr dəyişdirildi və yenidən imzaya göndərildi.");
+        onSaved?.();
+        return;
+      }
       await request("company/orders/save", { employeeId: employee.id, kind, number: input.number, date: form.date, input: rest, signers: signerList });
-      notify("Əmr yaradıldı və imzaya göndərildi. İmzalayanlar aşağıdan təsdiq edə bilər.");
+      notify("Əmr yaradıldı və imzaya göndərildi. İmzalayanlar növbə ilə təsdiq edir.");
       setNumber("");
       loadSaved();
+      onSaved?.();
     } catch (error) {
       notify((error as Error).message);
     } finally {
       setBusy(false);
     }
   }
-  async function approve(order: SavedOrder, role: string) {
+  async function remove(item: SavedOrder) {
+    if (!window.confirm(`№ ${item.number} əmri silinsin?`)) return;
     try {
-      const result = await request<{ signed: boolean }>("company/orders/approve", { id: order.id, role });
-      notify(result.signed ? "Əmr bütün imzalarla təsdiqləndi." : "İmza təsdiqləndi.");
+      await request("company/orders/delete", { id: item.id });
       loadSaved();
     } catch (error) {
       notify((error as Error).message);
     }
   }
-  async function remove(order: SavedOrder) {
-    if (!window.confirm(`№ ${order.number} əmri silinsin?`)) return;
-    try {
-      await request("company/orders/delete", { id: order.id });
-      loadSaved();
-    } catch (error) {
-      notify((error as Error).message);
-    }
-  }
-  const rebuild = (item: SavedOrder) => buildOrder({ ...item.input, signers: item.signers });
   return (
     <div className="panel" style={{ marginTop: 12 }}>
       <p className="muted">
@@ -433,7 +549,7 @@ export function OrderMaker({
           </Field>
         )}
       </div>
-      <h4>İmzalayanlar</h4>
+      <h4>İmzalayanlar (növbə ilə: əvvəl şöbə rəhbəri, sonra direktor)</h4>
       <div className="form-grid">
         <Field label="Şöbə rəhbəri">
           <input value={head.name} disabled={!head.use} onChange={(e) => setHead({ ...head, name: e.target.value })} />
@@ -452,7 +568,7 @@ export function OrderMaker({
       </pre>
       <div className="admin-actions">
         <button type="button" className="primary" disabled={busy || !signerList.length} onClick={create}>
-          Əmri yarat və imzaya göndər
+          {editing ? "Dəyişdir və yenidən imzaya göndər" : "Əmri yarat və imzaya göndər"}
         </button>
         <button type="button" className="secondary" onClick={() => printOrder(order)}>
           <Printer size={14} /> Çap et / PDF
@@ -461,7 +577,7 @@ export function OrderMaker({
           <Download size={14} /> Word (.doc)
         </button>
       </div>
-      {!!saved.length && (
+      {!editing && !!saved.length && (
         <>
           <h4>Yaradılmış əmrlər</h4>
           <div className="admin-table-wrap">
@@ -469,8 +585,7 @@ export function OrderMaker({
               <thead>
                 <tr>
                   <th>Əmr</th>
-                  <th>İmzalar</th>
-                  <th>Status</th>
+                  <th>İmza və növbə</th>
                   <th></th>
                 </tr>
               </thead>
@@ -484,30 +599,16 @@ export function OrderMaker({
                       </small>
                     </td>
                     <td>
-                      {item.signers.map((signer) => (
-                        <div key={signer.role} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                          <span>
-                            {signer.title}: <b>{signer.name}</b>
-                          </span>
-                          {signer.approvedAt ? (
-                            <small className="skill-description">təsdiqləyib: {signer.approvedBy} · {signer.approvedAt.slice(0, 10)}</small>
-                          ) : (
-                            <button type="button" onClick={() => void approve(item, signer.role)}>
-                              Təsdiq et
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                      <OrderSignerBox order={item} onChange={loadSaved} notify={notify} />
                     </td>
-                    <td>{item.status === "signed" ? "İmzalanıb" : "İmza gözləyir"}</td>
                     <td className="admin-actions">
-                      <button type="button" onClick={() => printOrder(rebuild(item))}>
+                      <button type="button" onClick={() => printOrder(rebuildOrder(item))}>
                         Çap et
                       </button>
-                      <button type="button" onClick={() => downloadOrderWord(rebuild(item))}>
+                      <button type="button" onClick={() => downloadOrderWord(rebuildOrder(item))}>
                         Word
                       </button>
-                      {item.status === "pending" && (
+                      {item.status !== "signed" && (
                         <button type="button" aria-label="Sil" onClick={() => void remove(item)}>
                           <Trash2 size={14} />
                         </button>
@@ -521,6 +622,163 @@ export function OrderMaker({
         </>
       )}
       <small className="muted">İmzalanmış əmri çap edib əl ilə də imzalaya və “Sənəd qovluğu”na yükləyə bilərsiniz.</small>
+    </div>
+  );
+}
+
+// ---------- The register of all orders ----------
+export function OrdersRegistry({ notify }: { notify: Notify }) {
+  type Row = SavedOrder & { employee: OrderEmployee };
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [filters, setFilters] = useState({ q: "", status: "", orderKind: "", from: "", to: "" });
+  const [open, setOpen] = useState<Row | null>(null);
+  const [editing, setEditing] = useState<Row | null>(null);
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString();
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  });
+  const load = useCallback(() => {
+    request<{ orders: Row[] }>(`company/orders/registry${query ? `?${query}` : ""}`)
+      .then((r) => {
+        setRows(r.orders);
+        setOpen((current) => (current ? r.orders.find((o) => o.id === current.id) || null : null));
+      })
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, [query]);
+  useEffect(load, [load]);
+  const set = (key: keyof typeof filters, value: string) => setFilters({ ...filters, [key]: value });
+  const waiting = rows?.filter((r) => r.status !== "signed").length || 0;
+  return (
+    <div className="company-page">
+      <div className="section-heading">
+        <div>
+          <p className="muted">
+            Bütün əmrlər bir yerdə: kim hazırlayıb, kimdə növbədir, kim təsdiqləyib və ya geri göndərib. Gözləyən: <b>{waiting}</b>.
+          </p>
+        </div>
+        <div className="admin-actions">
+          <a className="secondary report-button" href={`/api/joblink/company/report?kind=orders${query ? `&${query}` : ""}`} download>
+            <Download size={14} /> Excel hesabatı
+          </a>
+        </div>
+      </div>
+      <div className="form-grid">
+        <Field label="Axtarış (nömrə, işçi, departament)">
+          <input value={filters.q} onChange={(e) => set("q", e.target.value)} />
+        </Field>
+        <Field label="Status">
+          <select value={filters.status} onChange={(e) => set("status", e.target.value)}>
+            <option value="">Hamısı</option>
+            <option value="open">İmza gözləyənlər</option>
+            <option value="pending">İmza gözləyir</option>
+            <option value="returned">Geri qaytarılıb</option>
+            <option value="signed">İmzalanıb</option>
+          </select>
+        </Field>
+        <Field label="Əmrin növü">
+          <select value={filters.orderKind} onChange={(e) => set("orderKind", e.target.value)}>
+            <option value="">Hamısı</option>
+            {ORDER_KINDS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Tarixdən">
+          <input type="date" value={filters.from} onChange={(e) => set("from", e.target.value)} />
+        </Field>
+        <Field label="Tarixədək">
+          <input type="date" value={filters.to} onChange={(e) => set("to", e.target.value)} />
+        </Field>
+      </div>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>№</th>
+              <th>Tarix</th>
+              <th>Növ</th>
+              <th>İşçi</th>
+              <th>Departament / Şöbə</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {(rows || []).map((row) => (
+              <tr key={row.id}>
+                <td>
+                  <b>{row.number}</b>
+                </td>
+                <td>{row.date}</td>
+                <td>{ORDER_KINDS.find((k) => k.id === row.kind)?.label.replace(" haqqında əmr", "")}</td>
+                <td>{row.employee.name}</td>
+                <td>
+                  {row.employee.department || "—"}
+                  {row.employee.section && <small className="skill-description">{row.employee.section}</small>}
+                </td>
+                <td>{STATUS_TEXT(row)}</td>
+                <td className="admin-actions">
+                  <button type="button" onClick={() => setOpen(row)}>
+                    Aç
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {rows && !rows.length && (
+              <tr>
+                <td colSpan={7}>
+                  <p className="admin-empty">Əmr yoxdur. Əmri işçi kartından yaradın (İşçilər → Düzəlt → Əmr sənədləri).</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {open && !editing && (
+        <Modal title={`Əmr № ${open.number}: ${open.employee.name}`} onClose={() => setOpen(null)}>
+          <div className="offer-composer">
+            <pre className="muted" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
+              {rebuildOrder(open).text}
+            </pre>
+            <OrderSignerBox order={open} onChange={load} notify={notify} />
+            <div className="admin-actions">
+              {open.status !== "signed" && (
+                <button type="button" className="secondary" onClick={() => setEditing(open)}>
+                  Əmri düzəlt
+                </button>
+              )}
+              <button type="button" className="secondary" onClick={() => printOrder(rebuildOrder(open))}>
+                <Printer size={14} /> Çap et / PDF
+              </button>
+              <button type="button" className="secondary" onClick={() => downloadOrderWord(rebuildOrder(open))}>
+                <Download size={14} /> Word (.doc)
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {editing && (
+        <Modal
+          title={`Əmri düzəlt: № ${editing.number}`}
+          onClose={() => {
+            setEditing(null);
+          }}
+        >
+          <OrderMaker
+            employee={editing.employee}
+            notify={notify}
+            editing={editing}
+            onSaved={() => {
+              setEditing(null);
+              setOpen(null);
+              load();
+            }}
+          />
+        </Modal>
+      )}
     </div>
   );
 }

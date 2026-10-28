@@ -66,6 +66,7 @@ import HrPanel from "./HrPanel";
 import AccountLogin from "./AccountLogin";
 import AdminPanel from "./AdminPanel";
 import AccountSettings from "./AccountSettings";
+import { OrdersRegistry } from "./StaffPages";
 import { JobAlerts } from "./JobAlerts";
 import { AdminAiUsage, AdminOps, AdminReviews } from "./CompanyReviews";
 import AdminCatalogCheck from "./AdminCatalogCheck";
@@ -140,6 +141,7 @@ const hrNav = [
   { id: "hr-approvals", label: "Təsdiqlər", icon: ListChecks },
   { id: "hr-reports", label: "Hesabatlar", icon: BarChart3 },
   { id: "hr-employees", label: "İşçilər", icon: Contact },
+  { id: "hr-orders", label: "Əmrlər reyestri", icon: FileCheck2 },
   { id: "hr-workforce", label: "İşçi axını", icon: TrendingUp },
   { id: "hr-team", label: "Komanda və rollar", icon: UserCog },
   { id: "hr-company", label: "Şirkət məlumatları", icon: Building2 },
@@ -2704,6 +2706,7 @@ export default function Joblink() {
               "hr-approvals",
               "hr-reports",
               "hr-employees",
+              "hr-orders",
               "hr-workforce",
               "hr-team",
               "hr-company",
@@ -2735,6 +2738,7 @@ export default function Joblink() {
                 <CompanyDashboard me={companyMe} notify={notify} />
               )}
               {page === "hr-employees" && <EmployeesPage notify={notify} />}
+              {page === "hr-orders" && <OrdersRegistry notify={notify} />}
               {page === "hr-workforce" && (
                 <WorkforcePage me={companyMe} notify={notify} />
               )}

@@ -356,6 +356,7 @@ import { compareInterviews, type FeedbackRow } from "@/lib/interview-compare";
 import { WORLD_SKILLS } from "@/lib/world-skills-data";
 import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
 import { pickSigners, sameName } from "@/lib/order-signers";
+import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
@@ -7085,7 +7086,6 @@ async function route(request: Request) {
     return ok({ created, updated, issues: incoming.issues });
   }
   // ---- Orders about an employee: who signs, and each signer's approval ----
-  type OrderSigner = { role: string; title: string; name: string; approvedAt?: string; approvedBy?: string };
   if (request.method === "GET" && path === "company/order-signers") {
     requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi hazırlaya bilər.");
     const employee = await db
@@ -7105,23 +7105,96 @@ async function route(request: Request) {
       ...pickSigners(employee, people.results, details.director),
     });
   }
-  const orderRow = (r: { id: string; kind: string; number: string; order_date: string; input: string; signers: string; status: string; created: string }) => ({
-    id: r.id,
-    kind: r.kind,
-    number: r.number,
-    date: r.order_date,
-    status: r.status,
-    created: r.created,
-    input: JSON.parse(r.input || "{}"),
-    signers: JSON.parse(r.signers || "[]") as OrderSigner[],
-  });
+  type OrderDbRow = { id: string; employee_id?: string; kind: string; number: string; order_date: string; input: string; signers: string; status: string; holder: string; history: string; created_by: string; created: string };
+  const orderRow = (r: OrderDbRow) => {
+    const flow = normalizeFlow({
+      signers: JSON.parse(r.signers || "[]") as FlowSigner[],
+      status: r.status as FlowState["status"],
+      holder: (r.holder || "") as FlowHolder,
+      history: JSON.parse(r.history || "[]") as FlowEvent[],
+    });
+    return { id: r.id, employeeId: r.employee_id || "", kind: r.kind, number: r.number, date: r.order_date, created: r.created, input: JSON.parse(r.input || "{}"), ...flow };
+  };
+  const ORDER_COLUMNS = "o.id,o.employee_id,o.kind,o.number,o.order_date,o.input,o.signers,o.status,o.holder,o.history,o.created_by,o.created";
+  const saveFlow = (orderId: string, flow: FlowState, at: string) =>
+    db
+      .prepare("UPDATE employee_orders SET signers=?,status=?,holder=?,history=?,updated=? WHERE id=? AND company_id=?")
+      .bind(JSON.stringify(flow.signers), flow.status, flow.holder, JSON.stringify(flow.history), at, orderId, id)
+      .run();
+  const loadOrder = async (orderId: string) => {
+    const row = await db
+      .prepare(`SELECT ${ORDER_COLUMNS} FROM employee_orders o WHERE o.id=? AND o.company_id=?`)
+      .bind(orderId, id)
+      .first<OrderDbRow>();
+    if (!row) throw new HttpError(404, "Əmr tapılmadı.");
+    return orderRow(row);
+  };
+  // Who may act for the holder: the named person, or HR/director/owner (the director's step needs a director).
+  const mayActFor = async (role: string, name: string) => {
+    const who = await requesterName();
+    const allowed = sameName(who, name) || (role === "director" ? canAct("approve-director") : canAct("approve-hr") || canAct("approve-director"));
+    if (!allowed)
+      throw new HttpError(403, role === "director" ? "Direktorun addan əməliyyatı yalnız direktor və ya hesab sahibi edə bilər." : "Şöbə rəhbərinin addan əməliyyatı yalnız o, HR, direktor və ya hesab sahibi edə bilər.");
+    return who;
+  };
+  const cleanSigners = (value: unknown): FlowSigner[] =>
+    (Array.isArray(value) ? value : [])
+      .slice(0, 2)
+      .map((x: { role?: unknown; title?: unknown; name?: unknown }): FlowSigner => ({ role: x.role === "director" ? "director" : "head", title: str(x.title, 60), name: str(x.name, 120) }))
+      .filter((x) => x.name)
+      .sort((x, y) => (x.role === y.role ? 0 : x.role === "head" ? -1 : 1));
+  const orderKinds = ["hire", "vacation", "salary", "transfer", "termination"];
+  const flowFail = <T,>(run: () => T): T => {
+    try {
+      return run();
+    } catch (error) {
+      throw new HttpError(409, error instanceof Error ? error.message : "Əməliyyat alınmadı.");
+    }
+  };
   if (request.method === "GET" && path === "company/orders") {
     requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi görə bilər.");
     const rows = await db
-      .prepare("SELECT id,kind,number,order_date,input,signers,status,created FROM employee_orders WHERE company_id=? AND employee_id=? ORDER BY created DESC LIMIT 100")
+      .prepare(`SELECT ${ORDER_COLUMNS} FROM employee_orders o WHERE o.company_id=? AND o.employee_id=? ORDER BY o.created DESC LIMIT 100`)
       .bind(id, str(requestUrl.searchParams.get("employeeId"), 100))
-      .all<{ id: string; kind: string; number: string; order_date: string; input: string; signers: string; status: string; created: string }>();
+      .all<OrderDbRow>();
     return ok({ orders: rows.results.map(orderRow) });
+  }
+  // The register of all orders, with the filters of the page and of the Excel report.
+  const registryRows = async () => {
+    const status = str(requestUrl.searchParams.get("status"), 20);
+    const orderKind = str(requestUrl.searchParams.get("orderKind"), 20);
+    const from = str(requestUrl.searchParams.get("from"), 10);
+    const to = str(requestUrl.searchParams.get("to"), 10);
+    const query = str(requestUrl.searchParams.get("q"), 80).toLocaleLowerCase("az");
+    const rows = await db
+      .prepare(
+        `SELECT ${ORDER_COLUMNS},e.name AS employee_name,e.position AS employee_position,e.department AS employee_department,e.section AS employee_section,e.start_date AS employee_start,e.end_date AS employee_end,e.salary_cents AS employee_salary,e.salary_type AS employee_salary_type,e.probation_end AS employee_probation
+        FROM employee_orders o JOIN company_employees e ON e.id=o.employee_id WHERE o.company_id=? ORDER BY o.order_date DESC,o.created DESC LIMIT 1000`,
+      )
+      .bind(id)
+      .all<OrderDbRow & { employee_name: string; employee_position: string; employee_department: string; employee_section: string; employee_start: string; employee_end: string; employee_salary: number; employee_salary_type: string; employee_probation: string }>();
+    return rows.results
+      .map((r) => ({
+        ...orderRow(r),
+        employee: {
+          id: r.employee_id || "",
+          name: r.employee_name,
+          position: r.employee_position,
+          department: r.employee_department,
+          section: r.employee_section,
+          startDate: r.employee_start,
+          endDate: r.employee_end,
+          salary: r.employee_salary / 100,
+          salaryType: r.employee_salary_type === "net" ? "net" : "gross",
+          probationEnd: r.employee_probation,
+        },
+      }))
+      .filter((r) => (!status || (status === "signed" ? r.status === "signed" : status === "open" ? r.status !== "signed" : r.status === status)) && (!orderKind || r.kind === orderKind) && (!from || r.date >= from) && (!to || r.date <= to))
+      .filter((r) => !query || `${r.number} ${r.employee.name} ${r.employee.department} ${r.employee.section} ${r.employee.position}`.toLocaleLowerCase("az").includes(query));
+  };
+  if (request.method === "GET" && path === "company/orders/registry") {
+    requirePermission("salaries", "Əmrlər reyestrini yalnız HR, direktor və hesab sahibi görə bilər.");
+    return ok({ orders: await registryRows() });
   }
   if (request.method === "POST" && path === "company/orders/save") {
     requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi hazırlaya bilər.");
@@ -7132,57 +7205,73 @@ async function route(request: Request) {
       .first<{ id: string; name: string }>();
     if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
     const kind = str(b.kind, 20);
-    if (!["hire", "vacation", "salary", "transfer", "termination"].includes(kind)) throw new HttpError(400, "Əmrin növü düzgün deyil.");
+    if (!orderKinds.includes(kind)) throw new HttpError(400, "Əmrin növü düzgün deyil.");
     const date = str(b.date, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, "Əmrin tarixini yazın.");
-    const signers: OrderSigner[] = (Array.isArray(b.signers) ? b.signers : [])
-      .slice(0, 4)
-      .map((x: { role?: unknown; title?: unknown; name?: unknown }) => ({ role: x.role === "director" ? "director" : "head", title: str(x.title, 60), name: str(x.name, 120) }))
-      .filter((x: OrderSigner) => x.name);
     const count = await db.prepare("SELECT COUNT(*) AS n FROM employee_orders WHERE company_id=? AND employee_id=?").bind(id, employee.id).first<{ n: number }>();
     if (Number(count?.n) >= 100) throw new HttpError(409, "Bir işçi üçün ən çox 100 əmr saxlamaq olar.");
     const input = JSON.stringify(b.input && typeof b.input === "object" ? b.input : {}).slice(0, 8000);
     const now = new Date().toISOString();
+    const flow = startFlow(cleanSigners(b.signers), await requesterName(), now);
     const orderId = crypto.randomUUID();
     await db
-      .prepare("INSERT INTO employee_orders(id,company_id,employee_id,kind,number,order_date,input,signers,status,created_by,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
-      .bind(orderId, id, employee.id, kind, str(b.number, 40), date, input, JSON.stringify(signers), signers.length ? "pending" : "signed", userId, now, now)
+      .prepare("INSERT INTO employee_orders(id,company_id,employee_id,kind,number,order_date,input,signers,status,holder,history,created_by,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(orderId, id, employee.id, kind, str(b.number, 40), date, input, JSON.stringify(flow.signers), flow.status, flow.holder, JSON.stringify(flow.history), userId, now, now)
       .run();
     await companyAudit(db, id, userId, "order-created", employee.id, `${employee.name}: ${kind}`);
     return ok({ ok: true, id: orderId }, 201);
   }
+  // The person who drew the order up changes it (after it was sent back, or before it is signed); every approval is cleared.
+  if (request.method === "POST" && path === "company/orders/update") {
+    requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const order = await loadOrder(str(b.id, 100));
+    const kind = str(b.kind, 20) || order.kind;
+    if (!orderKinds.includes(kind)) throw new HttpError(400, "Əmrin növü düzgün deyil.");
+    const date = str(b.date, 10) || order.date;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, "Əmrin tarixini yazın.");
+    const now = new Date().toISOString();
+    const editor = await requesterName();
+    const flow = flowFail(() => editStep(order, cleanSigners(b.signers), editor, now));
+    await db
+      .prepare("UPDATE employee_orders SET kind=?,number=?,order_date=?,input=? WHERE id=? AND company_id=?")
+      .bind(kind, str(b.number, 40) || order.number, date, JSON.stringify(b.input && typeof b.input === "object" ? b.input : order.input).slice(0, 8000), order.id, id)
+      .run();
+    await saveFlow(order.id, flow, now);
+    await companyAudit(db, id, userId, "order-edited", order.employeeId, `№ ${order.number}`);
+    return ok({ ok: true });
+  }
   if (request.method === "POST" && path === "company/orders/approve") {
     const b = await jsonBody(request);
-    const order = await db
-      .prepare("SELECT id,employee_id,signers,status FROM employee_orders WHERE id=? AND company_id=?")
-      .bind(str(b.id, 100), id)
-      .first<{ id: string; employee_id: string; signers: string; status: string }>();
-    if (!order) throw new HttpError(404, "Əmr tapılmadı.");
-    const signers = JSON.parse(order.signers || "[]") as OrderSigner[];
-    const signer = signers.find((x) => x.role === str(b.role, 20));
+    const order = await loadOrder(str(b.id, 100));
+    const signer = order.signers.find((x) => x.role === str(b.role, 20));
     if (!signer) throw new HttpError(404, "İmzalayan tapılmadı.");
     if (signer.approvedAt) throw new HttpError(409, "Bu imza artıq təsdiqlənib.");
-    const who = await requesterName();
-    // The director's signature: a director (or the owner) or the named person; the head's: HR, a director or the named person.
-    const allowed =
-      sameName(who, signer.name) || (signer.role === "director" ? canAct("approve-director") : canAct("approve-hr") || canAct("approve-director"));
-    if (!allowed)
-      throw new HttpError(403, signer.role === "director" ? "Direktorun imzasını yalnız direktor və ya hesab sahibi təsdiqləyə bilər." : "Şöbə rəhbərinin imzasını yalnız o, HR, direktor və ya hesab sahibi təsdiqləyə bilər.");
-    signer.approvedAt = new Date().toISOString();
-    signer.approvedBy = who;
-    const done = signers.every((x) => x.approvedAt);
-    await db
-      .prepare("UPDATE employee_orders SET signers=?,status=?,updated=? WHERE id=? AND company_id=?")
-      .bind(JSON.stringify(signers), done ? "signed" : "pending", signer.approvedAt, order.id, id)
-      .run();
-    await companyAudit(db, id, userId, "order-approved", order.employee_id, `${signer.title}: ${signer.name} (${who})`);
-    return ok({ ok: true, signed: done });
+    const who = await mayActFor(signer.role, signer.name);
+    const now = new Date().toISOString();
+    const flow = flowFail(() => approveStep(order, signer.role, who, now));
+    await saveFlow(order.id, flow, now);
+    await companyAudit(db, id, userId, "order-approved", order.employeeId, `${signer.title}: ${signer.name} (${who})`);
+    return ok({ ok: true, signed: flow.status === "signed" });
+  }
+  // A signer who wants a change sends the order back, with the reason, to the person before them.
+  if (request.method === "POST" && path === "company/orders/return") {
+    const b = await jsonBody(request);
+    const order = await loadOrder(str(b.id, 100));
+    const signer = order.signers.find((x) => x.role === str(b.role, 20));
+    if (!signer) throw new HttpError(404, "İmzalayan tapılmadı.");
+    const who = await mayActFor(signer.role, signer.name);
+    const now = new Date().toISOString();
+    const flow = flowFail(() => returnStep(order, signer.role, who, now, str(b.reason, 500)));
+    await saveFlow(order.id, flow, now);
+    await companyAudit(db, id, userId, "order-returned", order.employeeId, `${signer.title}: ${str(b.reason, 200)}`);
+    return ok({ ok: true, holder: flow.holder });
   }
   if (request.method === "POST" && path === "company/orders/delete") {
     requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi silə bilər.");
     const b = await jsonBody(request);
-    const result = await db.prepare("DELETE FROM employee_orders WHERE id=? AND company_id=? AND status='pending'").bind(str(b.id, 100), id).run();
-    if (!result.meta.changes) throw new HttpError(409, "Yalnız imzası gözləyən əmr silinə bilər.");
+    const result = await db.prepare("DELETE FROM employee_orders WHERE id=? AND company_id=? AND status<>'signed'").bind(str(b.id, 100), id).run();
+    if (!result.meta.changes) throw new HttpError(409, "İmzalanmış əmr silinə bilməz.");
     return ok({ ok: true });
   }
   // ---- A job offer letter to a current employee, sent by e-mail ----
@@ -8323,6 +8412,7 @@ async function route(request: Request) {
       [
         "employees",
         "staff",
+        "orders",
         "workforce",
         "exits",
         "invoices",
@@ -8428,6 +8518,30 @@ async function route(request: Request) {
           Number(r.hired),
         ];
       });
+    } else if (kind === "orders") {
+      const list = await registryRows();
+      const KIND_LABEL: Record<string, string> = { hire: "İşə qəbul", vacation: "Məzuniyyət", salary: "Əmək haqqı dəyişikliyi", transfer: "Köçürmə", termination: "Xitam" };
+      const STATUS_LABEL: Record<string, string> = { pending: "İmza gözləyir", returned: "Geri qaytarılıb", signed: "İmzalanıb" };
+      const approval = (o: (typeof list)[number], role: string) => {
+        const signer = o.signers.find((x) => x.role === role);
+        return signer ? `${signer.name}${signer.approvedAt ? ` (${signer.approvedAt.slice(0, 10)})` : " (gözləyir)"}` : "";
+      };
+      headers = ["№", "Tarix", "Növ", "İşçi", "Vəzifə", "Departament", "Şöbə", "Status", "İndi kimdədir", "Şöbə rəhbəri", "Direktor", "Son geri göndərmə səbəbi", "Yaradılma"];
+      rows = list.map((o) => [
+        o.number,
+        o.date,
+        KIND_LABEL[o.kind] || o.kind,
+        o.employee.name,
+        o.employee.position,
+        o.employee.department,
+        o.employee.section,
+        STATUS_LABEL[o.status] || o.status,
+        HOLDER_LABEL[o.holder] || "",
+        approval(o, "head"),
+        approval(o, "director"),
+        [...o.history].reverse().find((e) => e.type === "returned")?.note || "",
+        o.created.slice(0, 10),
+      ]);
     } else if (kind === "staff") {
       const overview = await staffOverview();
       headers = ["Departament", "Şöbə", "Vəzifə", "Ştat sayı", "İşləyir", "Boş yer", "Əmək haqqı (AZN)", "Qeyd"];

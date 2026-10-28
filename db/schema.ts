@@ -1148,6 +1148,9 @@ export const employeeOrders = sqliteTable(
     input: text("input").notNull().default("{}"),
     signers: text("signers").notNull().default("[]"),
     status: text("status").notNull().default("pending"),
+    // Who has to act now (creator, head or director) and what has happened to the order.
+    holder: text("holder").notNull().default(""),
+    history: text("history").notNull().default("[]"),
     createdBy: text("created_by").notNull().default(""),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
