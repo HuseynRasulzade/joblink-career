@@ -579,6 +579,7 @@ Rədd et|Reject
 Vəzifəni yazın və siyahıdan seçin|Type a job title and pick from the list
 Kataloqda|In catalog
 Bu vəzifə siyahıda yoxdur.|This title is not in the list.
+Beynəlxalq (ESCO)|International (ESCO)
 AI ilə yoxla|Check with AI
 Yoxlanılır…|Checking…
 Bunu nəzərdə tuturdunuz:|Did you mean:

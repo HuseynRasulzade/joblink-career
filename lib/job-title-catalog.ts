@@ -482,3 +482,46 @@ export function fullJobTitleCatalog() {
 export function jobTitleFamily(value: string, extra: JobTitleDefinition[] = customRegistry) {
   return canonicalJobTitle(value, extra)?.family || "";
 }
+
+// ---- International occupations -----------------------------------------
+// ESCO occupations (English names) that the curated catalog does not have.
+// Served as a static file and loaded in the browser on demand; they are
+// suggestions for the title field, not matching data.
+export type WorldJobTitle = string;
+
+const worldTitleKeys = new WeakMap<WorldJobTitle[], string[]>();
+const worldKeysOf = (list: WorldJobTitle[]) => {
+  let keys = worldTitleKeys.get(list);
+  if (!keys) {
+    keys = list.map(normalizeJobTitleKey);
+    worldTitleKeys.set(list, keys);
+  }
+  return keys;
+};
+
+export function searchWorldJobTitles(list: WorldJobTitle[], query: string, limit = 8) {
+  const needle = normalizeJobTitleKey(query);
+  if (needle.length < 2) return [] as WorldJobTitle[];
+  const keys = worldKeysOf(list);
+  const ranked: { i: number; rank: number }[] = [];
+  for (let i = 0; i < list.length; i++) {
+    const key = keys[i];
+    let rank = 9;
+    if (key === needle) rank = 0;
+    else if (key.startsWith(needle)) rank = 1;
+    else if (key.split(" ").some((w) => w.startsWith(needle))) rank = 2;
+    else if (needle.length >= 3 && key.includes(needle)) rank = 3;
+    if (rank < 9) ranked.push({ i, rank });
+  }
+  return ranked
+    .sort((a, b) => a.rank - b.rank || list[a.i].length - list[b.i].length)
+    .slice(0, limit)
+    .map((r) => list[r.i]);
+}
+
+export function worldJobTitleKnown(list: WorldJobTitle[], value: string) {
+  const key = normalizeJobTitleKey(value);
+  if (!key) return null;
+  const index = worldKeysOf(list).indexOf(key);
+  return index >= 0 ? list[index] : null;
+}

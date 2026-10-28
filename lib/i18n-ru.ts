@@ -699,6 +699,7 @@ export const RU_UI: Record<string, string> = {
   "Vəzifəni yazın və siyahıdan seçin": "Введите должность и выберите из списка",
   Kataloqda: "В каталоге",
   "Bu vəzifə siyahıda yoxdur.": "Этой должности нет в списке.",
+  "Beynəlxalq (ESCO)": "Международный (ESCO)",
   "AI ilə yoxla": "Проверить с помощью ИИ",
   "Yoxlanılır…": "Проверяется…",
   "Bunu nəzərdə tuturdunuz:": "Вы имели в виду:",

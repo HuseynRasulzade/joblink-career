@@ -1,15 +1,30 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Send, Sparkles } from "lucide-react";
 import {
   canonicalJobTitle,
   searchJobTitles,
+  searchWorldJobTitles,
+  worldJobTitleKnown,
   type JobTitleDefinition,
+  type WorldJobTitle,
 } from "@/lib/job-title-catalog";
 import { siteLanguage, translate } from "./i18n";
 
 const t = (text: string) => translate(text, siteLanguage());
 const display = (title: JobTitleDefinition) => (siteLanguage() === "en" ? title.labelEn : title.label);
+
+// The international list is fetched once, only when someone starts typing.
+let worldList: Promise<WorldJobTitle[]> | null = null;
+function loadWorldList() {
+  worldList ||= fetch("/data/world-job-titles.json")
+    .then((response) => (response.ok ? (response.json() as Promise<WorldJobTitle[]>) : []))
+    .catch(() => {
+      worldList = null;
+      return [] as WorldJobTitle[];
+    });
+  return worldList;
+}
 
 type Resolution =
   | { state: "idle" }
@@ -39,8 +54,14 @@ export default function JobTitleInput({
 }) {
   const [open, setOpen] = useState(false);
   const [resolution, setResolution] = useState<Resolution>({ state: "idle" });
+  const [world, setWorld] = useState<WorldJobTitle[]>([]);
+  useEffect(() => {
+    if (open && value.trim().length >= 2 && !world.length) void loadWorldList().then(setWorld);
+  }, [open, value, world.length]);
   const known = canonicalJobTitle(value);
+  const worldKnown = !known && world.length ? worldJobTitleKnown(world, value) : null;
   const suggestions = open && value.trim() && !known ? searchJobTitles(value, 8) : [];
+  const wider = open && value.trim() && !known && !worldKnown && suggestions.length < 8 ? searchWorldJobTitles(world, value, 8 - suggestions.length) : [];
 
   async function check() {
     setResolution({ state: "checking" });
@@ -114,18 +135,22 @@ export default function JobTitleInput({
             setOpen(true);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && suggestions[0]) {
+            if (event.key === "Enter" && (suggestions[0] || wider[0])) {
               event.preventDefault();
-              pick(suggestions[0]);
+              if (suggestions[0]) pick(suggestions[0]);
+              else {
+                onChange(wider[0]);
+                setOpen(false);
+              }
             }
           }}
         />
-        {known && (
-          <span className="job-title-known" title={known.labelEn}>
+        {(known || worldKnown) && (
+          <span className="job-title-known" title={known?.labelEn || worldKnown || undefined}>
             <Check size={14} /> {t("Kataloqda")}
           </span>
         )}
-        {suggestions.length > 0 && (
+        {suggestions.length + wider.length > 0 && (
           <div className="skill-suggestions" role="listbox">
             {suggestions.map((title) => (
               <button
@@ -140,10 +165,26 @@ export default function JobTitleInput({
                 <small>{siteLanguage() === "en" ? title.label : title.labelEn}</small>
               </button>
             ))}
+            {wider.map((name) => (
+              <button
+                type="button"
+                role="option"
+                aria-selected="false"
+                key={name}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(name);
+                  setOpen(false);
+                }}
+              >
+                <strong>{name}</strong>
+                <small>{t("Beynəlxalq (ESCO)")}</small>
+              </button>
+            ))}
           </div>
         )}
       </div>
-      {!known && value.trim().length >= 2 && !open && (
+      {!known && !worldKnown && value.trim().length >= 2 && !open && (
         <div className="job-title-help">
           {resolution.state === "idle" && (
             <>

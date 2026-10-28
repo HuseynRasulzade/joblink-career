@@ -83,3 +83,16 @@ test("new fields relate titles in the same family", () => {
   assert.equal(roleRelevance("Qazmaçı", job("Neft emalı zavodu operatoru")), 0.7);
   assert.equal(roleRelevance("Dərzi", job("Baş mühasib", "Maliyyə")), 0.1);
 });
+
+test("the international occupation list is searchable and does not repeat the curated catalog", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { searchWorldJobTitles, worldJobTitleKnown, canonicalJobTitle: canonical } = await import("../lib/job-title-catalog.ts");
+  const list = JSON.parse(readFileSync(new URL("../public/data/world-job-titles.json", import.meta.url), "utf8"));
+  assert.ok(list.length >= 1500, `only ${list.length}`);
+  assert.ok(list.every((name) => typeof name === "string" && name));
+  assert.ok(list.every((name) => !canonical(name)));
+  const hit = list[Math.floor(list.length / 2)];
+  assert.ok(worldJobTitleKnown(list, hit));
+  assert.equal(searchWorldJobTitles(list, hit)[0], hit);
+  assert.deepEqual(searchWorldJobTitles(list, "x"), []);
+});
