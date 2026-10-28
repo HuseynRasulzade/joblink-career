@@ -5650,8 +5650,13 @@ a svg {
 }
 .org-add {
   display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   gap: 8px;
   margin-top: 6px;
+}
+.org-add .job-title-input {
+  flex: 1 1 220px;
 }
 .org-add input {
   flex: 1;

@@ -426,7 +426,8 @@ function parsedStringArray(value: string) {
   }
 }
 // Names kept for a company: the catalog plus every name already used in the staff table or by an employee.
-async function orgNameList(db: D1Database, companyId: string, kind: "department" | "section") {
+type OrgKind = "department" | "section" | "position";
+async function orgNameList(db: D1Database, companyId: string, kind: OrgKind) {
   const rows = await db
     .prepare(
       `SELECT name FROM org_names WHERE company_id=?1 AND kind=?2
@@ -438,7 +439,7 @@ async function orgNameList(db: D1Database, companyId: string, kind: "department"
   return uniqueOrgNames(rows.results.map((row) => String(Object.values(row)[0] || "")));
 }
 // The spelling the company already uses for this name; a new name joins the catalog. No duplicates.
-async function canonicalOrg(db: D1Database, companyId: string, kind: "department" | "section", name: string) {
+async function canonicalOrg(db: D1Database, companyId: string, kind: OrgKind, name: string) {
   const cleaned = cleanOrgName(name);
   if (!cleaned) return "";
   const { name: canonical } = canonicalOrgName(await orgNameList(db, companyId, kind), cleaned);
@@ -459,6 +460,7 @@ async function saveStaffUnit(
     ...unit,
     department: await canonicalOrg(db, companyId, "department", unit.department),
     section: await canonicalOrg(db, companyId, "section", unit.section),
+    position: await canonicalOrg(db, companyId, "position", unit.position),
   };
   const now = new Date().toISOString();
   if (unitId) {
@@ -491,11 +493,12 @@ async function applyStaffRows(db: D1Database, companyId: string, rows: StaffInpu
   for (const row of rows) {
     const department = await canonicalOrg(db, companyId, "department", row.department);
     const section = await canonicalOrg(db, companyId, "section", row.section);
+    const position = await canonicalOrg(db, companyId, "position", row.position);
     const found = await db
       .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(department)=lower(?) AND lower(section)=lower(?) AND lower(position)=lower(?)")
-      .bind(companyId, department, section, row.position)
+      .bind(companyId, department, section, position)
       .first<{ id: string }>();
-    await saveStaffUnit(db, companyId, found?.id || "", { ...row, department, section });
+    await saveStaffUnit(db, companyId, found?.id || "", { ...row, department, section, position });
     if (found) updated++;
     else created++;
   }
@@ -7116,6 +7119,7 @@ async function route(request: Request) {
     for (const row of incoming.rows) {
       row.department = await canonicalOrg(db, id, "department", row.department);
       row.section = await canonicalOrg(db, id, "section", row.section);
+      row.position = await canonicalOrg(db, id, "position", row.position);
     }
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
@@ -7606,13 +7610,13 @@ async function route(request: Request) {
   // ---- Names of departments and sections kept in one catalog ----
   if (request.method === "GET" && path === "company/org-names") {
     requirePermission("salaries", "Şöbə adlarını yalnız HR, direktor və hesab sahibi görə bilər.");
-    const [departments, sections] = await Promise.all([orgNameList(db, id, "department"), orgNameList(db, id, "section")]);
-    return ok({ departments, sections });
+    const [departments, sections, positions] = await Promise.all([orgNameList(db, id, "department"), orgNameList(db, id, "section"), orgNameList(db, id, "position")]);
+    return ok({ departments, sections, positions });
   }
   if (request.method === "POST" && path === "company/org-names/add") {
     requirePermission("salaries", "Şöbə adlarını yalnız HR, direktor və hesab sahibi əlavə edə bilər.");
     const b = await jsonBody(request);
-    const kind = b.kind === "section" ? "section" : "department";
+    const kind: OrgKind = b.kind === "section" ? "section" : b.kind === "position" ? "position" : "department";
     const name = cleanOrgName(str(b.name, 120));
     if (name.length < 2) throw new HttpError(400, "Adı yazın.");
     const known = await orgNameList(db, id, kind);
@@ -7891,7 +7895,7 @@ async function route(request: Request) {
     let status = ["active", "leave", "left"].includes(str(b.status, 10))
       ? str(b.status, 10)
       : "active";
-    const position = str(b.position, 120),
+    const position = await canonicalOrg(db, id, "position", str(b.position, 120)),
       department = await canonicalOrg(db, id, "department", str(b.department, 120)),
       email = str(b.email, 160),
       phone = str(b.phone, 40),

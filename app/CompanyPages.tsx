@@ -34,7 +34,6 @@ import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
 import { DOC_KINDS, OTHER_TYPE, docLabel } from "@/lib/employee-docs";
 import { EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
-import JobTitleInput from "./JobTitleInput";
 
 export type CompanyMe = {
   company: { id: string; name: string } | null;
@@ -2618,7 +2617,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   }
                 />
               </Field>
-              <JobTitleInput label="Vəzifə" value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
+              <OrgNameInput label="Vəzifə" kind="position" names={orgNames} onAdded={rememberOrg} value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
               <OrgNameInput label="Departament" kind="department" names={orgNames} onAdded={rememberOrg} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
               <OrgNameInput label="Şöbə" kind="section" names={orgNames} onAdded={rememberOrg} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
               <Field label="İşə başlama">

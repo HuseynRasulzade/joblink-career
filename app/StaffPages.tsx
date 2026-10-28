@@ -1014,17 +1014,19 @@ export function InternalOfferModal({ job, notify, onClose }: { job: OfferJob; no
 type StaffRow = { id: string; department: string; section: string; position: string; planned: number; salary: number; note: string; filled: number; free: number };
 type StaffDepartment = { department: string; planned: number; filled: number; openVacancies: number; free: number; units: number };
 // ---------- Department and section catalog ----------
-type OrgNames = { departments: string[]; sections: string[] };
+type OrgNames = { departments: string[]; sections: string[]; positions: string[] };
+type OrgKind = "department" | "section" | "position";
+const ORG_KEY = { department: "departments", section: "sections", position: "positions" } as const;
 export function useOrgNames() {
-  const [names, setNames] = useState<OrgNames>({ departments: [], sections: [] });
+  const [names, setNames] = useState<OrgNames>({ departments: [], sections: [], positions: [] });
   useEffect(() => {
     request<OrgNames>("company/org-names")
       .then(setNames)
       .catch(() => undefined);
   }, []);
-  const remember = (kind: "department" | "section", name: string) =>
+  const remember = (kind: OrgKind, name: string) =>
     setNames((current) => {
-      const key = kind === "department" ? "departments" : "sections";
+      const key = ORG_KEY[kind];
       return canonicalOrgName(current[key], name).existing || !name.trim() ? current : { ...current, [key]: [...current[key], name.trim()] };
     });
   return { names, remember };
@@ -1033,6 +1035,7 @@ export function useOrgNames() {
 // Name from the company catalog, chosen from a list. A name the catalog lacks is added with "Yeni əlavə et";
 // a name that is already there is not created again, the catalog spelling is chosen instead.
 const NEW_NAME = "__new__";
+const NEW_LABEL: Record<OrgKind, string> = { department: "＋ Yeni ad əlavə et…", section: "＋ Yeni ad əlavə et…", position: "＋ Vəzifə əlavə et…" };
 export function OrgNameInput({
   label,
   kind,
@@ -1042,14 +1045,14 @@ export function OrgNameInput({
   onAdded,
 }: {
   label: string;
-  kind: "department" | "section";
+  kind: OrgKind;
   value: string;
   onChange: (value: string) => void;
   names: OrgNames;
-  onAdded?: (kind: "department" | "section", name: string) => void;
+  onAdded?: (kind: OrgKind, name: string) => void;
   placeholder?: string;
 }) {
-  const list = kind === "department" ? names.departments : names.sections;
+  const list = names[ORG_KEY[kind]];
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [hint, setHint] = useState("");
@@ -1061,7 +1064,7 @@ export function OrgNameInput({
       const result = await request<{ name: string; existing: boolean }>("company/org-names/add", { kind, name });
       onAdded?.(kind, result.name);
       onChange(result.name);
-      setHint(result.existing ? `“${result.name}” kataloqda artıq var — mövcud ad seçildi.` : `“${result.name}” kataloqa əlavə edildi.`);
+      setHint(result.existing ? `“${result.name}” kataloqda artıq var — mövcud ad seçildi.` : `“${result.name}” şirkət kataloquna əlavə edildi.`);
       setAdding(false);
       setDraft("");
     } catch (error) {
@@ -1069,48 +1072,54 @@ export function OrgNameInput({
     }
   }
   return (
-    <Field label={label}>
-      <select
-        value={adding ? NEW_NAME : value}
-        onChange={(e) => {
-          if (e.target.value === NEW_NAME) {
-            setAdding(true);
-            setHint("");
-          } else {
-            setAdding(false);
-            onChange(e.target.value);
-          }
-        }}
-      >
-        <option value="">— seçin —</option>
-        {options.map((name) => (
-          <option key={name} value={name}>
-            {name}
-          </option>
-        ))}
-        <option value={NEW_NAME}>＋ Yeni ad əlavə et…</option>
-      </select>
+    <div className="org-input">
+      <Field label={label}>
+        <select
+          value={adding ? NEW_NAME : value}
+          onChange={(e) => {
+            if (e.target.value === NEW_NAME) {
+              setAdding(true);
+              setHint("");
+            } else {
+              setAdding(false);
+              onChange(e.target.value);
+            }
+          }}
+        >
+          <option value="">— seçin —</option>
+          {options.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+          <option value={NEW_NAME}>{NEW_LABEL[kind]}</option>
+        </select>
+      </Field>
       {adding && (
-        <span className="org-add">
-          <input
-            autoFocus
-            value={draft}
-            placeholder="Yeni adı yazın"
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void add();
-              }
-            }}
-          />
+        <div className="org-add">
+          {kind === "position" ? (
+            <JobTitleInput label="Vəzifə (ümumi kataloqdan seçin və ya yazın)" value={draft} onChange={setDraft} />
+          ) : (
+            <input
+              autoFocus
+              value={draft}
+              placeholder="Yeni adı yazın"
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void add();
+                }
+              }}
+            />
+          )}
           <button type="button" className="secondary" onClick={() => void add()}>
             Əlavə et
           </button>
-        </span>
+        </div>
       )}
       {hint && <small className="skill-picker-help">{hint}</small>}
-    </Field>
+    </div>
   );
 }
 
@@ -1220,6 +1229,7 @@ export function StaffTable({ notify }: { notify: Notify }) {
       notify(result.pending ? "Ştat dəyişikliyi direktorun təsdiqinə göndərildi." : "Ştat sətri yadda saxlanıldı.");
       remember("department", editing.department || "");
       remember("section", editing.section || "");
+      remember("position", editing.position || "");
       setEditing(null);
       load();
     } catch (error) {
@@ -1388,7 +1398,7 @@ export function StaffTable({ notify }: { notify: Notify }) {
             <div className="form-grid">
               <OrgNameInput label="Departament" kind="department" names={names} onAdded={remember} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
               <OrgNameInput label="Şöbə" kind="section" names={names} onAdded={remember} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
-              <JobTitleInput label="Vəzifə" value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
+              <OrgNameInput label="Vəzifə" kind="position" names={names} onAdded={remember} value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
               <Field label="Ştat sayı">
                 <input type="number" min={0} value={editing.planned ?? 1} onChange={(e) => setEditing({ ...editing, planned: Number(e.target.value) })} />
               </Field>
