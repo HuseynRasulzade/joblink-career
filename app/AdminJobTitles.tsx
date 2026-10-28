@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BriefcaseBusiness, Inbox, Plus, Search, Sparkles, X } from "lucide-react";
 import {
   JOB_TITLE_CATALOG,
+  fullJobTitleCatalog,
   JOB_TITLE_FAMILIES,
   normalizeJobTitleKey,
   setCustomJobTitles,
@@ -39,7 +40,15 @@ export default function AdminJobTitles({
   const [requests, setRequests] = useState<Thread[]>([]);
   const [form, setForm] = useState<{ label: string; labelEn: string; family: string; aliases: string; threadId: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const all = useMemo(() => [...JOB_TITLE_CATALOG, ...custom], [custom]);
+  // Every profession followed by its levels (Kiçik, Böyük, Aparıcı, Baş, rəhbər).
+  const catalog = useMemo(() => {
+    const levels = new Map<string, JobTitleDefinition[]>();
+    for (const title of fullJobTitleCatalog())
+      if (title.base) levels.set(title.base, [...(levels.get(title.base) || []), title]);
+    return JOB_TITLE_CATALOG.flatMap((title) => [title, ...(levels.get(title.id) || [])]);
+  }, []);
+  const all = useMemo(() => [...catalog, ...custom], [catalog, custom]);
+  const keys = useMemo(() => new Map(all.map((title) => [title.id, title.aliases.map(normalizeJobTitleKey).join("|")])), [all]);
   async function loadRequests() {
     try {
       const response = await fetch("/api/joblink/support", { credentials: "same-origin", cache: "no-store" });
@@ -58,7 +67,7 @@ export default function AdminJobTitles({
   const needle = normalizeJobTitleKey(query);
   const rows = all
     .filter((title) => !family || title.family === family)
-    .filter((title) => !needle || title.aliases.some((alias) => normalizeJobTitleKey(alias).includes(needle)));
+    .filter((title) => !needle || (keys.get(title.id) || "").includes(needle));
   const number = (value: number) => value.toLocaleString(language === "en" ? "en-GB" : "az-AZ");
 
   async function save(event: React.FormEvent) {
@@ -144,7 +153,7 @@ export default function AdminJobTitles({
               <td>{title.labelEn}</td>
               <td><span className="admin-role">{language === "en" ? JOB_TITLE_FAMILIES[title.family]?.en : JOB_TITLE_FAMILIES[title.family]?.az}</span></td>
               <td><div className="skill-alias-preview">{title.aliases.slice(2, 5).map((alias) => <span key={alias}>{alias}</span>)}{title.aliases.length > 5 && <small>+{title.aliases.length - 5}</small>}</div></td>
-              <td><span className={`skill-source ${title.id.startsWith("admin:") ? "admin" : "system"}`}>{title.id.startsWith("admin:") ? "Admin" : "Sistem"}</span></td>
+              <td><span className={`skill-source ${title.id.startsWith("admin:") ? "admin" : "system"}`}>{title.id.startsWith("admin:") ? "Admin" : title.base ? "Səviyyə" : "Sistem"}</span></td>
             </tr>
           ))}
           {!rows.length && <tr><td colSpan={5}><p className="admin-empty">Uyğun vəzifə tapılmadı.</p></td></tr>}
