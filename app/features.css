@@ -5581,3 +5581,25 @@ a svg {
   color: #8a5a00;
   font-size: 12px;
 }
+
+/* Long forms inside a pop-up window stay inside it (no sideways scroll). */
+.modal .offer-composer,
+.modal .offer-composer > *,
+.modal .form-grid > *,
+.modal .panel {
+  min-width: 0;
+}
+.modal input,
+.modal select,
+.modal textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.modal pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.modal .admin-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}

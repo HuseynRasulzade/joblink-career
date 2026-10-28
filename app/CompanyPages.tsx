@@ -2386,6 +2386,8 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   }>("company/employees", notify);
   const [editing, setEditing] = useState<Partial<Employee> | null>(null);
   const [importing, setImporting] = useState(false);
+  // Extra sections of the employee card open in their own pop-up windows.
+  const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | null>(null);
   const [history, setHistory] = useState<
     {
       type: string;
@@ -2421,6 +2423,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           : "İşçi məlumatı yadda saxlanıldı.",
       );
       setEditing(null);
+      setPanel(null);
       load();
     } catch (error) {
       notify((error as Error).message);
@@ -2596,7 +2599,10 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
       {editing && (
         <Modal
           title={editing.id ? "İşçini düzəlt" : "Yeni işçi"}
-          onClose={() => setEditing(null)}
+          onClose={() => {
+            setEditing(null);
+            setPanel(null);
+          }}
         >
           <div className="offer-composer">
             <div className="form-grid">
@@ -2769,63 +2775,93 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                 </>
               )}
             </div>
-            <EmployeePayPanel
-              salary={editing.salary || 0}
-              salaryType={editing.salaryType || "gross"}
-              sector={editing.sector || "private"}
-              startDate={editing.startDate || ""}
-              endDate={editing.endDate || ""}
-              status={editing.status || "active"}
-              vacationDays={editing.vacationDays ?? 21}
-              vacationUsed={editing.vacationUsed ?? 0}
-            />
-            {editing.id && (
-              <OrderMaker
-                employee={{
-                  id: editing.id,
-                  name: editing.name || "",
-                  position: editing.position || "",
-                  department: editing.department || "",
-                  section: editing.section || "",
-                  startDate: editing.startDate || "",
-                  salary: editing.salary ?? null,
-                  salaryType: editing.salaryType || "gross",
-                  probationEnd: editing.probationEnd || "",
-                  endDate: editing.endDate || "",
-                }}
-              />
+            <div className="admin-actions">
+              <button type="button" className="primary" onClick={save}>
+                Yadda saxla
+              </button>
+            </div>
+            <div className="admin-actions" aria-label="Əlavə bölmələr">
+              <button type="button" className="secondary" onClick={() => setPanel("pay")}>
+                Maaş hesabı və məzuniyyət
+              </button>
+              {editing.id && (
+                <button type="button" className="secondary" onClick={() => setPanel("orders")}>
+                  Əmr sənədləri
+                </button>
+              )}
+              {editing.id && (
+                <button type="button" className="secondary" onClick={() => setPanel("docs")}>
+                  Sənəd qovluğu
+                </button>
+              )}
+              {editing.id && (
+                <button type="button" className="secondary" onClick={() => setPanel("onboarding")}>
+                  Adaptasiya siyahısı
+                </button>
+              )}
+              {!!history.length && (
+                <button type="button" className="secondary" onClick={() => setPanel("history")}>
+                  Hərəkət tarixçəsi
+                </button>
+              )}
+            </div>
+            {panel === "pay" && (
+              <Modal title={`Maaş hesabı və məzuniyyət: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
+                <EmployeePayPanel
+                  salary={editing.salary || 0}
+                  salaryType={editing.salaryType || "gross"}
+                  sector={editing.sector || "private"}
+                  startDate={editing.startDate || ""}
+                  endDate={editing.endDate || ""}
+                  status={editing.status || "active"}
+                  vacationDays={editing.vacationDays ?? 21}
+                  vacationUsed={editing.vacationUsed ?? 0}
+                />
+              </Modal>
             )}
-            {editing.id && (
-              <EmployeeDocuments employeeId={editing.id} notify={notify} />
+            {panel === "orders" && editing.id && (
+              <Modal title={`Əmr sənədləri: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
+                <OrderMaker
+                  employee={{
+                    id: editing.id,
+                    name: editing.name || "",
+                    position: editing.position || "",
+                    department: editing.department || "",
+                    section: editing.section || "",
+                    startDate: editing.startDate || "",
+                    salary: editing.salary ?? null,
+                    salaryType: editing.salaryType || "gross",
+                    probationEnd: editing.probationEnd || "",
+                    endDate: editing.endDate || "",
+                  }}
+                />
+              </Modal>
             )}
-            {editing.id && (
-              <OnboardingChecklist
-                employeeId={editing.id}
-                notify={notify}
-                onChange={load}
-              />
+            {panel === "docs" && editing.id && (
+              <Modal title={`Sənəd qovluğu: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
+                <EmployeeDocuments employeeId={editing.id} notify={notify} />
+              </Modal>
             )}
-            {!!history.length && (
-              <div className="employee-history">
-                <h4>Hərəkət tarixçəsi</h4>
-                <ul>
-                  {history.map((h, i) => (
-                    <li key={i}>
-                      <b>{day(h.event_date)}</b> {EVENT_LABEL[h.type] || h.type}
-                      {h.type === "position" || h.type === "department"
-                        ? `: ${h.from_value || "—"} → ${h.to_value || "—"}`
-                        : ""}
-                      {h.actor ? (
-                        <small className="skill-description"> {h.actor}</small>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            {panel === "onboarding" && editing.id && (
+              <Modal title={`Adaptasiya siyahısı: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
+                <OnboardingChecklist employeeId={editing.id} notify={notify} onChange={load} />
+              </Modal>
             )}
-            <button className="primary" onClick={save}>
-              Yadda saxla
-            </button>
+            {panel === "history" && (
+              <Modal title={`Hərəkət tarixçəsi: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
+                <div className="employee-history">
+                  <ul>
+                    {history.map((h, i) => (
+                      <li key={i}>
+                        <b>{day(h.event_date)}</b> {EVENT_LABEL[h.type] || h.type}
+                        {h.type === "position" || h.type === "department" ? `: ${h.from_value || "—"} → ${h.to_value || "—"}` : ""}
+                        {h.actor ? <small className="skill-description"> {h.actor}</small> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Modal>
+            )}
           </div>
         </Modal>
       )}
