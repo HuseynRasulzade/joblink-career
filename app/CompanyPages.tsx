@@ -2619,7 +2619,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
               </Field>
               <OrgNameInput label="Vəzifə" kind="position" names={orgNames} onAdded={rememberOrg} value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
               <OrgNameInput label="Departament" kind="department" names={orgNames} onAdded={rememberOrg} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
-              <OrgNameInput label="Şöbə" kind="section" names={orgNames} onAdded={rememberOrg} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
+              <OrgNameInput label="Şöbə" kind="section" names={orgNames} onAdded={rememberOrg} department={editing.department || ""} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
               <Field label="İşə başlama">
                 <input
                   type="date"

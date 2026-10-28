@@ -9,9 +9,13 @@ import {
   EMPLOYEE_TEMPLATE_HEADERS,
   STAFF_TEMPLATE_EXAMPLE,
   STAFF_TEMPLATE_HEADERS,
+  STRUCTURE_TEMPLATE_EXAMPLE,
+  STRUCTURE_TEMPLATE_HEADERS,
   parseEmployeeRows,
   parseStaffRows,
+  parseStructureRows,
 } from "@/lib/staff-import";
+import { RATES, RATE_LABEL, type PlanUnit } from "@/lib/staff-plan";
 import { createXlsx } from "@/lib/xlsx";
 import { canonicalOrgName } from "@/lib/org-names";
 import { EMPTY_PROFILE, ageOn, idExpiresSoon, type EmployeeProfile } from "@/lib/employee-profile";
@@ -34,16 +38,43 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 const azn = (value: number) => `${value.toLocaleString("az-AZ", { maximumFractionDigits: 2 })} AZN`;
 
 // ---------- Excel file: template and import ----------
-function downloadTemplate(kind: "employees" | "staff") {
-  const bytes = createXlsx(
-    kind === "employees" ? EMPLOYEE_TEMPLATE_HEADERS : STAFF_TEMPLATE_HEADERS,
-    [kind === "employees" ? EMPLOYEE_TEMPLATE_EXAMPLE : STAFF_TEMPLATE_EXAMPLE],
-    kind === "employees" ? "İşçilər" : "Ştat",
-  );
+type SheetKind = "employees" | "staff" | "structure";
+const SHEET_TEXT: Record<SheetKind, { headers: string[]; example: (string | number)[]; sheet: string; file: string; title: string; columns: string; endpoint: string }> = {
+  employees: {
+    headers: EMPLOYEE_TEMPLATE_HEADERS,
+    example: EMPLOYEE_TEMPLATE_EXAMPLE,
+    sheet: "İşçilər",
+    file: "isciler-numune.xlsx",
+    title: "İşçiləri Excel faylından əlavə et",
+    columns: "Ad Soyad, Vəzifə, Departament, Şöbə, İşə başlama, Əmək haqqı (və ya Net maaş), Maaş növü, E-poçt, Telefon, Məzuniyyət günləri, İstifadə olunmuş məzuniyyət. Eyni işçi (e-poçt və ya ad və başlama tarixi) yenilənir, yenisi əlavə olunur. Ştat cədvəlindəki maaş həddindən kənar maaşlı sətir yüklənmir.",
+    endpoint: "company/employees/import",
+  },
+  staff: {
+    headers: STAFF_TEMPLATE_HEADERS,
+    example: STAFF_TEMPLATE_EXAMPLE,
+    sheet: "Ştat",
+    file: "stat-numune.xlsx",
+    title: "Ştat cədvəlini Excel faylından əlavə et",
+    columns: "Departament, Şöbə, Vəzifə, Ştat sayı, Ştat dərəcəsi (tam / 3/4 / yarım / 1/4), Əmək haqqı (minimum), Maksimum əmək haqqı, Qeyd. Eyni departament, şöbə və vəzifə yenilənir.",
+    endpoint: "company/staff/import",
+  },
+  structure: {
+    headers: STRUCTURE_TEMPLATE_HEADERS,
+    example: STRUCTURE_TEMPLATE_EXAMPLE,
+    sheet: "Struktur",
+    file: "struktur-numune.xlsx",
+    title: "Departament və şöbələri Excel faylından əlavə et",
+    columns: "Departament, Şöbə. Hər sətir bir şöbədir; yalnız departamentin adı olan sətir departamenti yaradır. Kataloqda olan ad təkrar yaradılmır.",
+    endpoint: "company/structure/import",
+  },
+};
+function downloadTemplate(kind: SheetKind) {
+  const text = SHEET_TEXT[kind];
+  const bytes = createXlsx(text.headers, [text.example], text.sheet);
   const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = kind === "employees" ? "isciler-numune.xlsx" : "stat-numune.xlsx";
+  link.download = text.file;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -54,7 +85,7 @@ export function SheetImport({
   onDone,
   notify,
 }: {
-  kind: "employees" | "staff";
+  kind: SheetKind;
   onClose: () => void;
   onDone: () => void;
   notify: Notify;
@@ -64,7 +95,7 @@ export function SheetImport({
   const [busy, setBusy] = useState(false);
   const parsed = useMemo(() => {
     if (!rows) return null;
-    return kind === "employees" ? parseEmployeeRows(rows) : parseStaffRows(rows);
+    return kind === "employees" ? parseEmployeeRows(rows) : kind === "staff" ? parseStaffRows(rows) : parseStructureRows(rows);
   }, [rows, kind]);
   async function pick(file: File | undefined) {
     if (!file) return;
@@ -79,11 +110,12 @@ export function SheetImport({
     if (!rows) return;
     setBusy(true);
     try {
-      const result = await request<{ created: number; updated: number; issues: unknown[] }>(
-        kind === "employees" ? "company/employees/import" : "company/staff/import",
-        { rows },
+      const result = await request<{ created: number; updated?: number; existing?: number; pending?: boolean; issues: { line: number; reason: string }[] }>(SHEET_TEXT[kind].endpoint, { rows });
+      notify(
+        result.pending
+          ? "Ştat cədvəli təsdiq olunub: yükləmə direktorun təsdiqinə göndərildi."
+          : `${result.created} yeni, ${result.updated ?? result.existing ?? 0} ${kind === "structure" ? "mövcud" : "yenilənən"} sətir yadda saxlanıldı.${result.issues?.length ? ` ${result.issues.length} sətir yüklənmədi: ${result.issues[0].reason}` : ""}`,
       );
-      notify(`${result.created} yeni, ${result.updated} yenilənən sətir yadda saxlanıldı.`);
       onDone();
       onClose();
     } catch (error) {
@@ -92,17 +124,10 @@ export function SheetImport({
       setBusy(false);
     }
   }
-  const people = kind === "employees";
   return (
-    <Modal title={people ? "İşçiləri Excel faylından əlavə et" : "Ştat cədvəlini Excel faylından əlavə et"} onClose={onClose}>
+    <Modal title={SHEET_TEXT[kind].title} onClose={onClose}>
       <div className="offer-composer">
-        <p className="muted">
-          Birinci sətirdə sütun adları olmalıdır:{" "}
-          {people
-            ? "Ad Soyad, Vəzifə, Departament, Şöbə, İşə başlama, Əmək haqqı (və ya Net maaş), Maaş növü, E-poçt, Telefon, Məzuniyyət günləri, İstifadə olunmuş məzuniyyət."
-            : "Departament, Şöbə, Vəzifə, Ştat sayı, Əmək haqqı, Qeyd."}{" "}
-          Eyni işçi (e-poçt və ya ad və başlama tarixi) yenilənir, yenisi əlavə olunur.
-        </p>
+        <p className="muted">Birinci sətirdə sütun adları olmalıdır: {SHEET_TEXT[kind].columns}</p>
         <div className="admin-actions">
           <button type="button" className="secondary" onClick={() => downloadTemplate(kind)}>
             <Download size={14} /> Nümunə fayl (.xlsx)
@@ -131,7 +156,7 @@ export function SheetImport({
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      {people ? (
+                      {kind === "employees" && (
                         <>
                           <th>Ad Soyad</th>
                           <th>Vəzifə</th>
@@ -139,37 +164,52 @@ export function SheetImport({
                           <th>Başlama</th>
                           <th>Əmək haqqı</th>
                         </>
-                      ) : (
+                      )}
+                      {kind === "staff" && (
                         <>
                           <th>Departament</th>
                           <th>Şöbə</th>
                           <th>Vəzifə</th>
                           <th>Ştat</th>
+                          <th>Dərəcə</th>
                           <th>Əmək haqqı</th>
+                        </>
+                      )}
+                      {kind === "structure" && (
+                        <>
+                          <th>Departament</th>
+                          <th>Şöbə</th>
                         </>
                       )}
                     </tr>
                   </thead>
                   <tbody>
-                    {parsed.rows.slice(0, 8).map((row) =>
-                      "name" in row ? (
+                    {parsed.rows.slice(0, 8).map((row) => {
+                      const r = row as unknown as Record<string, string | number>;
+                      return kind === "employees" ? (
                         <tr key={row.line}>
-                          <td>{row.name}</td>
-                          <td>{row.position || "—"}</td>
-                          <td>{[row.department, row.section].filter(Boolean).join(" / ") || "—"}</td>
-                          <td>{row.startDate || "—"}</td>
-                          <td>{row.salary ? `${azn(row.salary)} (${row.salaryType})` : "—"}</td>
+                          <td>{r.name}</td>
+                          <td>{r.position || "—"}</td>
+                          <td>{[r.department, r.section].filter(Boolean).join(" / ") || "—"}</td>
+                          <td>{r.startDate || "—"}</td>
+                          <td>{r.salary ? `${azn(Number(r.salary))} (${r.salaryType})` : "—"}</td>
+                        </tr>
+                      ) : kind === "staff" ? (
+                        <tr key={row.line}>
+                          <td>{r.department || "—"}</td>
+                          <td>{r.section || "—"}</td>
+                          <td>{r.position || "—"}</td>
+                          <td>{r.planned}</td>
+                          <td>{RATE_LABEL[Number(r.rate)] || "Tam ştat"}</td>
+                          <td>{r.salary ? (Number(r.salaryMax) > Number(r.salary) ? `${azn(Number(r.salary))} – ${azn(Number(r.salaryMax))}` : azn(Number(r.salary))) : "—"}</td>
                         </tr>
                       ) : (
                         <tr key={row.line}>
-                          <td>{row.department || "—"}</td>
-                          <td>{row.section || "—"}</td>
-                          <td>{row.position || "—"}</td>
-                          <td>{row.planned}</td>
-                          <td>{row.salary ? azn(row.salary) : "—"}</td>
+                          <td>{r.department || "—"}</td>
+                          <td>{r.section || "—"}</td>
                         </tr>
-                      ),
-                    )}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1011,8 +1051,6 @@ export function InternalOfferModal({ job, notify, onClose }: { job: OfferJob; no
 }
 
 // ---------- Staff table ----------
-type StaffRow = { id: string; department: string; section: string; position: string; planned: number; salary: number; note: string; filled: number; free: number };
-type StaffDepartment = { department: string; planned: number; filled: number; openVacancies: number; free: number; units: number };
 // ---------- Department and section catalog ----------
 type OrgNames = { departments: string[]; sections: string[]; positions: string[] };
 type OrgKind = "department" | "section" | "position";
@@ -1043,6 +1081,7 @@ export function OrgNameInput({
   onChange,
   names,
   onAdded,
+  department = "",
 }: {
   label: string;
   kind: OrgKind;
@@ -1051,18 +1090,33 @@ export function OrgNameInput({
   names: OrgNames;
   onAdded?: (kind: OrgKind, name: string) => void;
   placeholder?: string;
+  // For a section: the department it belongs to; only its sections are listed.
+  department?: string;
 }) {
-  const list = names[ORG_KEY[kind]];
+  const [scoped, setScoped] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (kind !== "section" || !department.trim()) return;
+    let live = true;
+    request<OrgNames>(`company/org-names?department=${encodeURIComponent(department)}`)
+      .then((data) => live && setScoped(data.sections))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [kind, department]);
+  const list = kind === "section" ? (department.trim() ? scoped || [] : []) : names[ORG_KEY[kind]];
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [hint, setHint] = useState("");
   const options = value && !canonicalOrgName(list, value).existing ? [...list, value] : list;
+  const blocked = kind === "section" && !department.trim();
   async function add() {
     const name = draft.trim();
     if (name.length < 2) return;
     try {
-      const result = await request<{ name: string; existing: boolean }>("company/org-names/add", { kind, name });
+      const result = await request<{ name: string; existing: boolean }>("company/org-names/add", { kind, name, department });
       onAdded?.(kind, result.name);
+      if (kind === "section") setScoped((current) => (current && !canonicalOrgName(current, result.name).existing ? [...current, result.name] : current));
       onChange(result.name);
       setHint(result.existing ? `“${result.name}” kataloqda artıq var — mövcud ad seçildi.` : `“${result.name}” şirkət kataloquna əlavə edildi.`);
       setAdding(false);
@@ -1076,6 +1130,7 @@ export function OrgNameInput({
       <Field label={label}>
         <select
           value={adding ? NEW_NAME : value}
+          disabled={blocked}
           onChange={(e) => {
             if (e.target.value === NEW_NAME) {
               setAdding(true);
@@ -1086,7 +1141,7 @@ export function OrgNameInput({
             }
           }}
         >
-          <option value="">— seçin —</option>
+          <option value="">{blocked ? "— əvvəl departamenti seçin —" : "— seçin —"}</option>
           {options.map((name) => (
             <option key={name} value={name}>
               {name}
@@ -1204,12 +1259,41 @@ export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notif
   );
 }
 
-type StaffData = { rows: StaffRow[]; departments: StaffDepartment[]; unplaced: number; locked?: boolean; planStatus?: "draft" | "pending" | "approved" };
+
+// ---------- Staff table ----------
+type StaffPerson = { id: string; name: string };
+type StaffRow = PlanUnit & { note: string; filled: number; free: number; fte: number; budget: number; people: StaffPerson[] };
+type StaffDepartment = { department: string; planned: number; filled: number; free: number; fte: number; budget: number; unplaced: number; units: number; openVacancies: number };
+type Unplaced = { id: string; name: string; department: string; section: string; position: string };
+type StaffData = {
+  rows: StaffRow[];
+  departments: StaffDepartment[];
+  unplaced: Unplaced[];
+  total: { planned: number; filled: number; fte: number; budget: number; unplaced: number; payroll: number };
+  pending: { id: string; subject: string; requested_by_name: string; created: string }[];
+  locked?: boolean;
+  planStatus?: "draft" | "pending" | "approved";
+};
+type EditingUnit = Partial<PlanUnit> & { note?: string };
+const num = (value: number) => value.toLocaleString("az-AZ", { maximumFractionDigits: 2 });
+const bandText = (row: { salaryMin: number; salaryMax: number }) =>
+  !row.salaryMin && !row.salaryMax ? "—" : row.salaryMax > row.salaryMin ? `${azn(row.salaryMin)} – ${azn(row.salaryMax)}` : azn(row.salaryMin || row.salaryMax);
+
+function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "good" | "warn" }) {
+  return (
+    <div className={`staff-kpi${tone ? ` staff-kpi-${tone}` : ""}`}>
+      <small>{label}</small>
+      <strong>{value}</strong>
+      {hint && <span>{hint}</span>}
+    </div>
+  );
+}
 
 export function StaffTable({ notify }: { notify: Notify }) {
   const [data, setData] = useState<StaffData | null>(null);
-  const [editing, setEditing] = useState<Partial<StaffRow> | null>(null);
-  const [importing, setImporting] = useState(false);
+  const [editing, setEditing] = useState<EditingUnit | null>(null);
+  const [importing, setImporting] = useState<SheetKind | null>(null);
+  const [tab, setTab] = useState<"table" | "structure" | "history">("table");
   const [query, setQuery] = useState("");
   const { names, remember } = useOrgNames();
   const notifyRef = useRef(notify);
@@ -1237,7 +1321,7 @@ export function StaffTable({ notify }: { notify: Notify }) {
     }
   }
   async function submitPlan() {
-    if (!window.confirm("Plan direktorun təsdiqinə göndərilsin? Təsdiqdən sonra dəyişikliklər də direktorun təsdiqi ilə olacaq.")) return;
+    if (!window.confirm("Plan direktorun təsdiqinə göndərilsin? Təsdiqdən sonra bütün dəyişikliklər direktorun təsdiqi ilə olacaq.")) return;
     try {
       const result = await request<{ status: string }>("company/staff/submit-plan", {});
       notify(result.status === "approved" ? "Ştat planı təsdiqləndi." : "Ştat planı direktorun təsdiqinə göndərildi.");
@@ -1247,7 +1331,7 @@ export function StaffTable({ notify }: { notify: Notify }) {
     }
   }
   async function remove(row: StaffRow) {
-    if (!window.confirm(`“${row.department} / ${row.position}” ştat sətri silinsin?`)) return;
+    if (!window.confirm(`“${row.department} / ${row.position || "vəzifəsiz"}” ştat sətri silinsin?${row.filled ? ` Bu sətirdə ${row.filled} işçi işləyir — onlar ştatsız qalacaq.` : ""}`)) return;
     try {
       const result = await request<{ pending?: boolean }>("company/staff/delete", { id: row.id });
       if (result.pending) notify("Silinmə direktorun təsdiqinə göndərildi.");
@@ -1267,155 +1351,377 @@ export function StaffTable({ notify }: { notify: Notify }) {
   }
   if (!data) return null;
   const needle = query.toLocaleLowerCase("az").trim();
-  const rows = data.rows.filter((row) => !needle || `${row.department} ${row.section} ${row.position}`.toLocaleLowerCase("az").includes(needle));
-  const planned = data.rows.reduce((sum, row) => sum + row.planned, 0);
-  const filled = data.rows.reduce((sum, row) => sum + row.filled, 0);
+  const match = (row: { department: string; section: string; position: string }) => !needle || `${row.department} ${row.section} ${row.position}`.toLocaleLowerCase("az").includes(needle);
+  const total = data.total;
+  const free = Math.max(0, total.planned - total.filled);
+  const state = data.planStatus || "draft";
+  const departments = data.departments;
+  const planned = editing ? (editing.planned ?? 1) : 1;
+  const band = editing ? { salaryMin: editing.salaryMin || 0, salaryMax: editing.salaryMax || 0 } : null;
+  const checkPeople = editing?.id ? data.rows.find((r) => r.id === editing.id)?.people.length || 0 : 0;
   return (
-    <section className="panel">
+    <section className="panel staff-panel">
       <div className="section-heading">
         <div>
-          <h3>Ştat planı və ştat cədvəli</h3>
-          <p className="muted">
-            Departament → şöbə → vəzifə üzrə ştat yerləri. Departamentin planı onun sətirlərinin cəmidir. Planlaşdırılan: <b>{planned}</b> · işləyir: <b>{filled}</b> · boş: <b>{Math.max(0, planned - filled)}</b>
-            {data.unplaced > 0 && ` · ştatda yeri olmayan işçi: ${data.unplaced}`}
-          </p>
+          <h3>Ştat cədvəli</h3>
+          <p className="muted">Departament → şöbə → vəzifə üzrə ştat yerləri, ştat dərəcəsi və maaş həddi. Departament göstəriciləri sətirlərin cəmidir.</p>
         </div>
         <div className="admin-actions">
-          {data.planStatus !== "approved" && !!data.rows.length && (
-            <button type="button" className="primary" onClick={submitPlan} disabled={data.planStatus === "pending"}>
-              {data.planStatus === "pending" ? "Təsdiq gözləyir" : "Planı təsdiqə göndər"}
+          {state !== "approved" && !!data.rows.length && (
+            <button type="button" className="primary" onClick={submitPlan} disabled={state === "pending"}>
+              {state === "pending" ? "Təsdiq gözləyir" : "Planı təsdiqə göndər"}
             </button>
           )}
-          <input className="search-input" placeholder="Departament, şöbə və ya vəzifə" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <a className="secondary report-button" href="/api/joblink/company/report?kind=staff" download>
-            <Download size={14} /> XLSX
-          </a>
-          <button type="button" className="secondary" onClick={() => setImporting(true)}>
-            <FileSpreadsheet size={14} /> Excel-dən əlavə et
-          </button>
-          <button type="button" className="primary" onClick={() => setEditing({ planned: 1 })}>
-            <Plus size={14} /> Ştat sətri
-          </button>
         </div>
       </div>
-      <p className={`plan-state plan-${data.planStatus || "draft"}`}>
-        {data.planStatus === "approved"
+      <div className="staff-kpis">
+        <Kpi label="Planlaşdırılan ştat" value={String(total.planned)} hint={`${num(total.fte)} tam ştat vahidi`} />
+        <Kpi label="Dolu" value={String(total.filled)} hint="ştatda yeri olan işçi" />
+        <Kpi label="Boş yer" value={String(free)} tone={free ? "good" : undefined} />
+        <Kpi label="Ştatda yeri olmayan" value={String(total.unplaced)} tone={total.unplaced ? "warn" : undefined} hint={total.unplaced ? "aşağıda siyahıdadır" : "hamı yerləşib"} />
+        <Kpi label="Aylıq maaş fondu" value={azn(total.payroll)} hint={total.budget ? `plan həddi ${azn(total.budget)}` : "ştatda maaş həddi yoxdur"} tone={total.budget && total.payroll > total.budget ? "warn" : undefined} />
+      </div>
+      <p className={`plan-state plan-${state}`}>
+        {state === "approved"
           ? data.locked
-            ? "Plan direktor tərəfindən təsdiqlənib. Dəyişikliklər, yeni sətirlər və silinmə direktorun təsdiqinə göndərilir."
-            : "Plan təsdiqlənib. Direktor və hesab sahibi dəyişiklikləri birbaşa edə bilər."
-          : data.planStatus === "pending"
+            ? "Plan direktor tərəfindən təsdiqlənib. Dəyişikliklər, yeni sətirlər və silinmə direktorun təsdiqinə göndərilir (aylıq yeniləmə də belə edilir)."
+            : "Plan təsdiqlənib. Direktor və hesab sahibi dəyişiklikləri birbaşa edə bilər; digərlərinin dəyişikliyi onların təsdiqinə düşür."
+          : state === "pending"
             ? "Plan direktorun təsdiqini gözləyir. Təsdiqə qədər sətirləri düzəltmək olar."
-            : "Plan layihə mərhələsindədir: sətirləri əlavə edin, Excel yükləyin, sonra “Planı təsdiqə göndər” düyməsini basın. Təsdiqdən sonra direktor təsdiqləməsə dəyişmək olmaz."}
+            : "Plan layihə mərhələsindədir: departament və şöbələri yaradın, sətirləri əlavə edin və ya Excel yükləyin, sonra “Planı təsdiqə göndər” düyməsini basın. Təsdiqdən sonra direktor təsdiqləməsə dəyişmək olmaz."}
       </p>
-      {!!data.departments.length && (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Departament</th>
-                <th>Plan (ştat)</th>
-                <th>İşləyir</th>
-                <th>Açıq vakansiya</th>
-                <th>Boş yer</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.departments.map((d) => (
-                <tr key={d.department}>
-                  <td>
-                    <b>{d.department || "—"}</b>
-                  </td>
-                  <td>
-                    <span title="Plan ştat sətirlərinin cəmidir: dəyişmək üçün aşağıdakı cədvəldə “Düzəlt” düyməsini istifadə edin">{d.planned}</span>
-                  </td>
-                  <td>{d.filled}</td>
-                  <td>{d.openVacancies}</td>
-                  <td>{d.free > 0 ? <b>{d.free} boş</b> : d.free === 0 ? "Dolu" : <span className="danger-text">{-d.free} artıq</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {!!data.pending.length && (
+        <div className="staff-pending">
+          <b>Direktorun təsdiqini gözləyən dəyişikliklər ({data.pending.length})</b>
+          <ul>
+            {data.pending.map((p) => (
+              <li key={p.id}>
+                {p.subject} <small className="muted">— {p.requested_by_name || "—"}, {p.created.slice(0, 10)}</small>
+              </li>
+            ))}
+          </ul>
+          <a href="#hr-approvals">Təsdiqlər səhifəsinə keç</a>
         </div>
       )}
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Departament</th>
-              <th>Şöbə</th>
-              <th>Vəzifə</th>
-              <th>Ştat</th>
-              <th>İşləyir</th>
-              <th>Boş</th>
-              <th>Əmək haqqı</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td>{row.department || "—"}</td>
-                <td>{row.section || "—"}</td>
-                <td>
-                  {row.position || "—"}
-                  {row.note && <small className="skill-description">{row.note}</small>}
-                </td>
-                <td>{row.planned}</td>
-                <td>{row.filled}</td>
-                <td>{row.free > 0 ? <b>{row.free}</b> : row.free === 0 ? "—" : <span className="danger-text">{row.free}</span>}</td>
-                <td>{row.salary ? azn(row.salary) : "—"}</td>
-                <td className="admin-actions">
-                  {row.free > 0 && (
-                    <button type="button" onClick={() => createVacancy(row)}>
-                      Vakansiya yarat
-                    </button>
-                  )}
-                  <button type="button" onClick={() => setEditing(row)}>
-                    Düzəlt
-                  </button>
-                  <button type="button" aria-label="Sil" onClick={() => void remove(row)}>
-                    <Trash2 size={14} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {!rows.length && (
-              <tr>
-                <td colSpan={8}>
-                  <p className="admin-empty">Ştat sətri yoxdur. “Ştat sətri” ilə əlavə edin və ya Excel faylı yükləyin.</p>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="calc-tabs" role="tablist">
+        {([["table", "Ştat cədvəli"], ["structure", "Departament və şöbələr"], ["history", "Dəyişiklik tarixçəsi"]] as const).map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "primary" : "ghost"} onClick={() => setTab(id)}>
+            {label}
+          </button>
+        ))}
       </div>
-      <small className="skill-picker-help">
-        “İşləyir” məzuniyyətdəkiləri də sayır. İşçi ştat sətrinə departament və vəzifəsinə görə düşür. Vakansiya yaradanda həmin departamentdə boş yer yoxdursa xəbərdarlıq çıxır. Dəyişikliklər şirkət jurnalına yazılır.
-      </small>
+      {tab === "structure" && <StructurePanel notify={notify} onChanged={load} onImport={() => setImporting("structure")} />}
+      {tab === "history" && <StaffHistory />}
+      {tab === "table" && (
+        <>
+          <div className="admin-actions staff-toolbar">
+            <input className="search-input" placeholder="Departament, şöbə və ya vəzifə" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <a className="secondary report-button" href="/api/joblink/company/report?kind=staff" download>
+              <Download size={14} /> XLSX
+            </a>
+            <button type="button" className="secondary" onClick={() => setImporting("staff")}>
+              <FileSpreadsheet size={14} /> Excel-dən əlavə et
+            </button>
+            <button type="button" className="primary" onClick={() => setEditing({ planned: 1, rate: 1 })}>
+              <Plus size={14} /> Ştat sətri
+            </button>
+          </div>
+          {!!data.unplaced.length && (
+            <div className="staff-unplaced">
+              <b>Ştatda yeri olmayan işçilər ({data.unplaced.length})</b>
+              <p className="muted">Bu işçilərin departament və vəzifəsinə uyğun ştat sətri yoxdur; ona görə sətirlərdə sayılmırlar. Sətir əlavə edin və ya işçinin vəzifəsini düzəldin.</p>
+              <ul>
+                {data.unplaced.map((p) => (
+                  <li key={p.id}>
+                    <span>
+                      {p.name} — {p.position || "vəzifəsiz"} <small className="muted">({[p.department, p.section].filter(Boolean).join(" / ") || "departamentsiz"})</small>
+                    </span>
+                    <button type="button" className="secondary" onClick={() => setEditing({ department: p.department, section: p.section, position: p.position, planned: 1, rate: 1 })}>
+                      Ştata əlavə et
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="admin-table-wrap">
+            <table className="admin-table staff-table">
+              <thead>
+                <tr>
+                  <th>Şöbə</th>
+                  <th>Vəzifə</th>
+                  <th>Ştat</th>
+                  <th>Dərəcə</th>
+                  <th>Maaş həddi (gross)</th>
+                  <th>İşləyir</th>
+                  <th>Boş</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {departments.map((d) => {
+                  const rows = data.rows.filter((r) => r.department === d.department && match(r));
+                  if (needle && !rows.length) return null;
+                  return [
+                    <tr key={`d-${d.department}`} className="staff-department">
+                      <td colSpan={2}>
+                        <b>{d.department || "Departamentsiz"}</b>
+                      </td>
+                      <td>
+                        <b>{d.planned}</b>
+                      </td>
+                      <td>{num(d.fte)} vahid</td>
+                      <td>{d.budget ? <>plan həddi <b>{azn(d.budget)}</b></> : "—"}</td>
+                      <td>
+                        <b>{d.filled}</b>
+                        {d.unplaced > 0 && <small className="danger-text"> +{d.unplaced} ştatsız</small>}
+                      </td>
+                      <td>{d.free > 0 ? <b>{d.free}</b> : d.free === 0 ? "—" : <span className="danger-text">{d.free}</span>}</td>
+                      <td>{d.openVacancies ? <small className="muted">{d.openVacancies} açıq vakansiya</small> : null}</td>
+                    </tr>,
+                    ...rows.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.section || "—"}</td>
+                        <td>
+                          {row.position || "—"}
+                          {!!row.people.length && <small className="skill-description">{row.people.map((p) => p.name).join(", ")}</small>}
+                          {row.note && <small className="skill-description">{row.note}</small>}
+                        </td>
+                        <td>{row.planned}</td>
+                        <td>{RATE_LABEL[row.rate] || "Tam ştat"}</td>
+                        <td>{bandText(row)}</td>
+                        <td>{row.filled}</td>
+                        <td>{row.free > 0 ? <b>{row.free}</b> : row.free === 0 ? "—" : <span className="danger-text">{row.free}</span>}</td>
+                        <td className="admin-actions">
+                          {row.free > 0 && (
+                            <button type="button" onClick={() => createVacancy(row)}>
+                              Vakansiya yarat
+                            </button>
+                          )}
+                          <button type="button" onClick={() => setEditing(row)}>
+                            Düzəlt
+                          </button>
+                          <button type="button" aria-label="Sil" onClick={() => void remove(row)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    )),
+                  ];
+                })}
+                {!data.rows.length && (
+                  <tr>
+                    <td colSpan={8}>
+                      <p className="admin-empty">Ştat sətri yoxdur. Əvvəl “Departament və şöbələr” bölməsində strukturu yaradın, sonra “Ştat sətri” ilə əlavə edin və ya Excel faylı yükləyin.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <small className="skill-picker-help">
+            Hər işçi yalnız bir sətirdə sayılır: departament, şöbə və vəzifəsinə ən uyğun sətirdə. “İşləyir” məzuniyyətdəkiləri də sayır. İşçiyə ştat sətrindəki maaş həddindən yuxarı və ya aşağı əmək haqqı təyin etmək olmaz. Bütün dəyişikliklər tarixçədə saxlanılır.
+          </small>
+        </>
+      )}
       {editing && (
         <Modal title={editing.id ? "Ştat sətrini düzəlt" : "Yeni ştat sətri"} onClose={() => setEditing(null)}>
           <div className="offer-composer">
             <div className="form-grid">
-              <OrgNameInput label="Departament" kind="department" names={names} onAdded={remember} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
-              <OrgNameInput label="Şöbə" kind="section" names={names} onAdded={remember} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
+              <OrgNameInput label="Departament" kind="department" names={names} onAdded={remember} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department, section: "" })} />
+              <OrgNameInput label="Şöbə" kind="section" names={names} onAdded={remember} department={editing.department || ""} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
               <OrgNameInput label="Vəzifə" kind="position" names={names} onAdded={remember} value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
-              <Field label="Ştat sayı">
-                <input type="number" min={0} value={editing.planned ?? 1} onChange={(e) => setEditing({ ...editing, planned: Number(e.target.value) })} />
+              <Field label="Ştat sayı (neçə nəfər)">
+                <input type="number" min={0} value={planned} onChange={(e) => setEditing({ ...editing, planned: Number(e.target.value) })} />
               </Field>
-              <Field label="Əmək haqqı (AZN)">
-                <input type="number" min={0} value={editing.salary ?? ""} onChange={(e) => setEditing({ ...editing, salary: Number(e.target.value) })} />
+              <Field label="Ştat dərəcəsi">
+                <select value={editing.rate ?? 1} onChange={(e) => setEditing({ ...editing, rate: Number(e.target.value) })}>
+                  {RATES.map((rate) => (
+                    <option key={rate} value={rate}>
+                      {RATE_LABEL[rate]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Əmək haqqı — minimum (AZN, gross)">
+                <input type="number" min={0} value={editing.salaryMin ?? ""} onChange={(e) => setEditing({ ...editing, salaryMin: Number(e.target.value) })} />
+              </Field>
+              <Field label="Əmək haqqı — maksimum (AZN, gross)">
+                <input type="number" min={0} value={editing.salaryMax ?? ""} placeholder="boşdursa minimumla eyni" onChange={(e) => setEditing({ ...editing, salaryMax: Number(e.target.value) })} />
               </Field>
               <Field label="Qeyd">
                 <input value={editing.note || ""} onChange={(e) => setEditing({ ...editing, note: e.target.value })} />
               </Field>
             </div>
+            <p className="muted">
+              Bu sətrə düşən işçiyə {band && (band.salaryMin || band.salaryMax) ? <b>{bandText({ salaryMin: band.salaryMin, salaryMax: Math.max(band.salaryMin, band.salaryMax) })}</b> : "ştatda göstərilən"} hüdudundan yuxarı və ya aşağı əmək haqqı təyin etmək olmaz.
+              {planned > 0 && editing.rate && editing.rate < 1 ? ` ${planned} ${RATE_LABEL[editing.rate].toLocaleLowerCase("az")} = ${num(planned * editing.rate)} tam ştat vahididir.` : ""}
+              {checkPeople ? ` Sətirdə ${checkPeople} işçi var: maaşları yeni hüdudlara uyğun deyilsə, növbəti dəyişiklikdə xəbərdarlıq çıxacaq.` : ""}
+            </p>
             <button type="button" className="primary" onClick={save}>
               Yadda saxla
             </button>
           </div>
         </Modal>
       )}
-      {importing && <SheetImport kind="staff" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
+      {importing && <SheetImport kind={importing} notify={notify} onClose={() => setImporting(null)} onDone={load} />}
     </section>
+  );
+}
+
+// ---------- Departments and their sections ----------
+type StructureData = { departments: { name: string; sections: { name: string; units: number; people: number }[]; units: number; people: number }[]; looseSections: { name: string }[] };
+
+function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onChanged: () => void; onImport: () => void }) {
+  const [data, setData] = useState<StructureData | null>(null);
+  const [department, setDepartment] = useState("");
+  const [section, setSection] = useState<Record<string, string>>({});
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  });
+  const load = useCallback(() => {
+    request<StructureData>("company/structure")
+      .then(setData)
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, []);
+  useEffect(load, [load]);
+  async function act(path: string, body: Record<string, unknown>, done: string) {
+    try {
+      await request(path, body);
+      notify(done);
+      load();
+      onChanged();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  function rename(department: string, sectionName = "") {
+    const to = window.prompt(sectionName ? `“${sectionName}” şöbəsinin yeni adı:` : `“${department}” departamentinin yeni adı:`, sectionName || department);
+    if (to && to.trim() && to.trim() !== (sectionName || department)) void act("company/structure/rename", { department, section: sectionName, to }, "Ad dəyişdirildi: ştat sətirləri və işçilər də yeni adla görünür.");
+  }
+  function drop(department: string, sectionName = "") {
+    if (window.confirm(sectionName ? `“${department} / ${sectionName}” şöbəsi silinsin?` : `“${department}” departamenti və şöbələri silinsin?`))
+      void act("company/structure/delete", { department, section: sectionName }, "Silindi.");
+  }
+  if (!data) return null;
+  return (
+    <div className="structure-panel">
+      <div className="admin-actions staff-toolbar">
+        <input
+          className="search-input"
+          placeholder="Yeni departamentin adı"
+          value={department}
+          onChange={(e) => setDepartment(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && department.trim() && void act("company/structure/add", { department }, "Departament əlavə edildi.").then(() => setDepartment(""))}
+        />
+        <button type="button" className="primary" disabled={department.trim().length < 2} onClick={() => void act("company/structure/add", { department }, "Departament əlavə edildi (varsa mövcud ad saxlanıldı).").then(() => setDepartment(""))}>
+          <Plus size={14} /> Departament
+        </button>
+        <button type="button" className="secondary" onClick={onImport}>
+          <FileSpreadsheet size={14} /> Excel-dən əlavə et
+        </button>
+        <a className="secondary report-button" href="/api/joblink/company/report?kind=structure" download>
+          <Download size={14} /> XLSX
+        </a>
+      </div>
+      <p className="muted">
+        Departament və şöbələr bir dəfə burada yaradılır, ştat cədvəli və işçi kartında siyahıdan seçilir. Eyni ad iki dəfə yaradılmır (böyük-kiçik hərf fərqi nəzərə alınmır). İstifadədə olan departament və ya şöbəni silmək olmaz; adını dəyişsəniz ştat sətirləri, işçilər və vakansiyalar da yeni adla görünür.
+      </p>
+      {!data.departments.length && <p className="admin-empty">Hələ departament yoxdur. Yuxarıdan əlavə edin və ya Excel faylı yükləyin.</p>}
+      <div className="structure-grid">
+        {data.departments.map((d) => (
+          <div key={d.name} className="structure-card">
+            <div className="structure-head">
+              <div>
+                <b>{d.name}</b>
+                <small className="muted">
+                  {" "}
+                  {d.sections.length} şöbə · {d.units} ştat sətri · {d.people} işçi
+                </small>
+              </div>
+              <div className="admin-actions">
+                <button type="button" onClick={() => rename(d.name)}>
+                  Adını dəyiş
+                </button>
+                <button type="button" aria-label="Sil" onClick={() => drop(d.name)}>
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+            <ul>
+              {d.sections.map((x) => (
+                <li key={x.name}>
+                  <span>
+                    {x.name} <small className="muted">· {x.units} sətir · {x.people} işçi</small>
+                  </span>
+                  <span className="admin-actions">
+                    <button type="button" onClick={() => rename(d.name, x.name)}>
+                      Adını dəyiş
+                    </button>
+                    <button type="button" aria-label="Sil" onClick={() => drop(d.name, x.name)}>
+                      <Trash2 size={14} />
+                    </button>
+                  </span>
+                </li>
+              ))}
+              {!d.sections.length && <li className="muted">Şöbə yoxdur</li>}
+            </ul>
+            <div className="org-add">
+              <input
+                value={section[d.name] || ""}
+                placeholder="Yeni şöbənin adı"
+                onChange={(e) => setSection({ ...section, [d.name]: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && (section[d.name] || "").trim() && void act("company/structure/add", { department: d.name, section: section[d.name] }, "Şöbə əlavə edildi.").then(() => setSection({ ...section, [d.name]: "" }))}
+              />
+              <button type="button" className="secondary" disabled={(section[d.name] || "").trim().length < 2} onClick={() => void act("company/structure/add", { department: d.name, section: section[d.name] }, "Şöbə əlavə edildi (varsa mövcud ad saxlanıldı).").then(() => setSection({ ...section, [d.name]: "" }))}>
+                Şöbə əlavə et
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {!!data.looseSections.length && (
+        <p className="muted">
+          Departamentə bağlanmamış şöbə adları: {data.looseSections.map((s) => s.name).join(", ")}. Bunlar ştat sətri və ya işçi kartında istifadə olunanda departamentə bağlanır.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ---------- Who changed the staff table, and when ----------
+function StaffHistory() {
+  const [entries, setEntries] = useState<{ id: string; action: string; target: string; detail: string; created: string; actor: string }[] | null>(null);
+  useEffect(() => {
+    request<{ entries: { id: string; action: string; target: string; detail: string; created: string; actor: string }[] }>("company/staff/history")
+      .then((data) => setEntries(data.entries))
+      .catch(() => setEntries([]));
+  }, []);
+  if (!entries) return null;
+  if (!entries.length) return <p className="admin-empty">Hələ dəyişiklik yoxdur.</p>;
+  return (
+    <div className="admin-table-wrap">
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>Tarix</th>
+            <th>Dəyişiklik</th>
+            <th>Təfərrüat</th>
+            <th>Kim</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((e) => (
+            <tr key={e.id}>
+              <td>{e.created.slice(0, 16).replace("T", " ")}</td>
+              <td>{e.action}</td>
+              <td>{[e.target, e.detail].filter(Boolean).join(" · ") || "—"}</td>
+              <td>{e.actor || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

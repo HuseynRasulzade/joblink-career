@@ -16,7 +16,8 @@ export type EmployeeRow = {
   vacationDays: number;
   vacationUsed: number;
 };
-export type StaffRow = { line: number; department: string; section: string; position: string; planned: number; salary: number; note: string };
+export type StaffRow = { line: number; department: string; section: string; position: string; planned: number; rate: number; salary: number; salaryMax: number; note: string };
+export type StructureRow = { line: number; department: string; section: string };
 export type RowIssue = { line: number; reason: string };
 
 const fold = (value: string) =>
@@ -63,14 +64,14 @@ export function parseNumberCell(value: string): number {
   return Number.isFinite(number) ? number : 0;
 }
 
-type Field = "name" | "position" | "department" | "section" | "startDate" | "salary" | "salaryType" | "sector" | "email" | "phone" | "vacationDays" | "vacationUsed" | "planned" | "note";
+type Field = "name" | "position" | "department" | "section" | "startDate" | "salary" | "salaryType" | "sector" | "email" | "phone" | "vacationDays" | "vacationUsed" | "planned" | "note" | "rate" | "salaryMax";
 const ALIASES: Record<Field, string[]> = {
   name: ["ad soyad", "ad soyad ata adi", "soyad ad", "isci", "isci adi", "ad", "fio", "ф и о", "фио", "full name", "name", "employee"],
   position: ["vezife", "ixtisas", "position", "title", "job title", "должность"],
   department: ["departament", "department", "idare", "департамент"],
   section: ["sobe", "section", "sektor bolme", "bolme", "otdel", "отдел"],
   startDate: ["ise baslama", "ise baslama tarixi", "ise qebul tarixi", "ise qebul", "baslama tarixi", "start date", "hire date", "дата приема"],
-  salary: ["emek haqqi", "emek haqqi azn", "maas", "maas azn", "salary", "gross", "net", "оклад", "зарплата"],
+  salary: ["emek haqqi", "emek haqqi azn", "minimum emek haqqi", "minimum maas", "min emek haqqi", "min maas", "emek haqqi min", "maas", "maas azn", "salary", "gross", "net", "оклад", "зарплата"],
   salaryType: ["maas novu", "emek haqqi novu", "gross net", "salary type", "tip zarplaty"],
   sector: ["sektor", "vergi sektoru", "sector", "tax sector"],
   email: ["e poct", "email", "e mail", "poct", "почта"],
@@ -79,6 +80,8 @@ const ALIASES: Record<Field, string[]> = {
   vacationUsed: ["istifade olunmus mezuniyyet", "istifade edilen mezuniyyet", "istifade olunan mezuniyyet", "istifade olunmus", "used vacation", "used leave", "использовано"],
   planned: ["say", "stat sayi", "stat vahidi", "stat vahidlerinin sayi", "planned", "count", "количество", "штат"],
   note: ["qeyd", "note", "comment", "примечание"],
+  rate: ["stat derecesi", "stat nisbeti", "stat novu", "nisbet", "derece", "rate", "fte", "ставка"],
+  salaryMax: ["maksimum emek haqqi", "maksimum maas", "maks emek haqqi", "maks maas", "max maas", "max emek haqqi", "salary max", "maximum salary", "максимальный оклад"],
 };
 
 function columnMap(header: string[], fields: Field[]) {
@@ -161,8 +164,21 @@ export function parseEmployeeRows(rows: string[][], limit = 500): { rows: Employ
   return { rows: out, issues };
 }
 
+// "tam", "yarım", "1/2", "0,25", "50%" -> a share of a full place (1, 0.75, 0.5 or 0.25).
+export function parseRateCell(value: string): number {
+  const text = fold(value);
+  if (!text) return 1;
+  if (/^tam|full|полн/.test(text)) return 1;
+  if (/yarim|half|пол/.test(text)) return 0.5;
+  const fraction = /^(\d+)\s*\/\s*(\d+)$/.exec(String(value).trim());
+  let n = fraction ? Number(fraction[1]) / Number(fraction[2]) : parseNumberCell(String(value));
+  if (!fraction && String(value).includes("%")) n /= 100;
+  else if (!fraction && n > 1) n /= 100;
+  return [1, 0.75, 0.5, 0.25].find((r) => Math.abs(r - n) < 0.001) ?? 0;
+}
+
 export function parseStaffRows(rows: string[][], limit = 500): { rows: StaffRow[]; issues: RowIssue[] } {
-  const fields: Field[] = ["department", "section", "position", "planned", "salary", "note"];
+  const fields: Field[] = ["department", "section", "position", "planned", "rate", "salaryMax", "salary", "note"];
   const header = findHeader(rows, fields, "department") || findHeader(rows, fields, "position");
   if (!header) return { rows: [], issues: [{ line: 1, reason: "“Departament” və ya “Vəzifə” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
   const get = (row: string[], field: Field) => String(row[header.map.get(field) ?? -1] ?? "").trim();
@@ -188,12 +204,46 @@ export function parseStaffRows(rows: string[][], limit = 500): { rows: StaffRow[
       issues.push({ line, reason: `Ştat sayı düzgün deyil: “${plannedText}”.` });
       continue;
     }
-    out.push({ line, department, section: get(row, "section").slice(0, 120), position, planned, salary: Math.max(0, parseNumberCell(get(row, "salary"))), note: get(row, "note").slice(0, 300) });
+    const rate = parseRateCell(get(row, "rate"));
+    if (!rate) {
+      issues.push({ line, reason: `Ştat dərəcəsi tam, 3/4, yarım və ya 1/4 olmalıdır: “${get(row, "rate")}”.` });
+      continue;
+    }
+    const salary = Math.max(0, parseNumberCell(get(row, "salary")));
+    const salaryMax = Math.max(salary, parseNumberCell(get(row, "salaryMax")));
+    out.push({ line, department, section: get(row, "section").slice(0, 120), position, planned, rate, salary, salaryMax, note: get(row, "note").slice(0, 300) });
+  }
+  return { rows: out, issues };
+}
+
+// Departments and their sections: one pair per line; a department alone is a line with no section.
+export function parseStructureRows(rows: string[][], limit = 500): { rows: StructureRow[]; issues: RowIssue[] } {
+  const fields: Field[] = ["department", "section"];
+  const header = findHeader(rows, fields, "department");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Departament” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  const out: StructureRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (!row.some((cell) => String(cell ?? "").trim())) continue;
+    const department = String(row[header.map.get("department") ?? -1] ?? "").trim().slice(0, 120);
+    const section = String(row[header.map.get("section") ?? -1] ?? "").trim().slice(0, 120);
+    if (!department) {
+      issues.push({ line: i + 1, reason: "Departament boşdur." });
+      continue;
+    }
+    if (out.length >= limit) {
+      issues.push({ line: i + 1, reason: `Bir dəfəyə ən çox ${limit} sətir əlavə olunur.` });
+      break;
+    }
+    out.push({ line: i + 1, department, section });
   }
   return { rows: out, issues };
 }
 
 export const EMPLOYEE_TEMPLATE_HEADERS = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "İşə başlama", "Əmək haqqı", "Maaş növü (gross/net)", "Sektor (özəl/dövlət)", "E-poçt", "Telefon", "Məzuniyyət günləri (il üçün)", "İstifadə olunmuş məzuniyyət"];
 export const EMPLOYEE_TEMPLATE_EXAMPLE = ["Aysel Məmmədova", "Baş mühasib", "Maliyyə", "Mühasibat", "2026-04-09", 2800, "gross", "özəl", "aysel@example.az", "+994501234567", 21, 5];
-export const STAFF_TEMPLATE_HEADERS = ["Departament", "Şöbə", "Vəzifə", "Ştat sayı", "Əmək haqqı", "Qeyd"];
-export const STAFF_TEMPLATE_EXAMPLE = ["Maliyyə", "Mühasibat", "Baş mühasib", 1, 2800, ""];
+export const STAFF_TEMPLATE_HEADERS = ["Departament", "Şöbə", "Vəzifə", "Ştat sayı", "Ştat dərəcəsi", "Əmək haqqı", "Maksimum əmək haqqı", "Qeyd"];
+export const STAFF_TEMPLATE_EXAMPLE = ["Maliyyə", "Mühasibat", "Baş mühasib", 1, "tam", 2500, 3000, ""];
+export const STRUCTURE_TEMPLATE_HEADERS = ["Departament", "Şöbə"];
+export const STRUCTURE_TEMPLATE_EXAMPLE = ["Maliyyə", "Mühasibat"];

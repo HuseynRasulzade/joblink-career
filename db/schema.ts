@@ -2,6 +2,7 @@ import {
   sqliteTable,
   text,
   integer,
+  real,
   index,
   uniqueIndex,
   primaryKey,
@@ -796,6 +797,8 @@ export const orgNames = sqliteTable(
     kind: text("kind").notNull(),
     key: text("key").notNull(),
     name: text("name").notNull(),
+    // A section belongs to a department; empty for departments, positions and older sections.
+    parent: text("parent").notNull().default(""),
     created: text("created").notNull(),
   },
   (t) => [primaryKey({ columns: [t.companyId, t.kind, t.key] })],
@@ -816,7 +819,10 @@ export const staffUnits = sqliteTable(
     section: text("section").notNull().default(""),
     position: text("position").notNull().default(""),
     planned: integer("planned").notNull().default(1),
+    // Share of a full place (1, 0.75, 0.5, 0.25) and the pay band in gross cents; max 0 = same as the minimum.
+    rate: real("rate").notNull().default(1),
     salaryCents: integer("salary_cents").notNull().default(0),
+    salaryMaxCents: integer("salary_max_cents").notNull().default(0),
     note: text("note").notNull().default(""),
     updated: text("updated").notNull(),
   },

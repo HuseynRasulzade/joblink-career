@@ -360,7 +360,10 @@ import { normalizeDocType } from "@/lib/employee-docs";
 import { ORDER_KINDS } from "@/lib/orders";
 import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
-import { canonicalOrgName, cleanOrgName, uniqueOrgNames } from "@/lib/org-names";
+import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
+import { addStructure, canonicalOrg, deleteStructure, loadStaffHistory, loadStructure, orgNameList, renameStructure, type OrgKind } from "@/lib/staff-db";
+import { assignPeople, checkSalary, normalizeRate, RATE_LABEL, summarize, type PlanPerson, type PlanUnit } from "@/lib/staff-plan";
+import { parseStructureRows } from "@/lib/staff-import";
 import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
@@ -425,48 +428,27 @@ function parsedStringArray(value: string) {
     return [];
   }
 }
-// Names kept for a company: the catalog plus every name already used in the staff table or by an employee.
-type OrgKind = "department" | "section" | "position";
-async function orgNameList(db: D1Database, companyId: string, kind: OrgKind) {
-  const rows = await db
-    .prepare(
-      `SELECT name FROM org_names WHERE company_id=?1 AND kind=?2
-       UNION SELECT ${kind} FROM staff_units WHERE company_id=?1
-       UNION SELECT ${kind} FROM company_employees WHERE company_id=?1 AND status<>'removed'`,
-    )
-    .bind(companyId, kind)
-    .all<Record<string, string>>();
-  return uniqueOrgNames(rows.results.map((row) => String(Object.values(row)[0] || "")));
-}
-// The spelling the company already uses for this name; a new name joins the catalog. No duplicates.
-async function canonicalOrg(db: D1Database, companyId: string, kind: OrgKind, name: string) {
-  const cleaned = cleanOrgName(name);
-  if (!cleaned) return "";
-  const { name: canonical } = canonicalOrgName(await orgNameList(db, companyId, kind), cleaned);
-  await db
-    .prepare("INSERT OR IGNORE INTO org_names(company_id,kind,key,name,created) VALUES(?,?,?,?,?)")
-    .bind(companyId, kind, canonical.trim().replace(/\s+/g, " ").toLocaleLowerCase("az"), canonical, new Date().toISOString())
-    .run();
-  return canonical;
-}
-type StaffInput = { department: string; section: string; position: string; planned: number; salaryCents: number; note: string };
+type StaffInput = { department: string; section: string; position: string; planned: number; salaryCents: number; note: string; rate?: number; salaryMaxCents?: number };
 async function saveStaffUnit(
   db: D1Database,
   companyId: string,
   unitId: string,
   unit: StaffInput,
 ) {
+  const department = await canonicalOrg(db, companyId, "department", unit.department);
   unit = {
     ...unit,
-    department: await canonicalOrg(db, companyId, "department", unit.department),
-    section: await canonicalOrg(db, companyId, "section", unit.section),
+    department,
+    section: await canonicalOrg(db, companyId, "section", unit.section, department),
     position: await canonicalOrg(db, companyId, "position", unit.position),
   };
+  const rate = normalizeRate(unit.rate ?? 1);
+  const salaryMaxCents = Math.max(unit.salaryCents, Math.round(Number(unit.salaryMaxCents) || 0));
   const now = new Date().toISOString();
   if (unitId) {
     const result = await db
-      .prepare("UPDATE staff_units SET department=?,section=?,position=?,planned=?,salary_cents=?,note=?,updated=? WHERE id=? AND company_id=?")
-      .bind(unit.department, unit.section, unit.position, unit.planned, unit.salaryCents, unit.note, now, unitId, companyId)
+      .prepare("UPDATE staff_units SET department=?,section=?,position=?,planned=?,rate=?,salary_cents=?,salary_max_cents=?,note=?,updated=? WHERE id=? AND company_id=?")
+      .bind(unit.department, unit.section, unit.position, unit.planned, rate, unit.salaryCents, salaryMaxCents, unit.note, now, unitId, companyId)
       .run();
     if (!result.meta.changes) throw new HttpError(404, "Ştat sətri tapılmadı.");
     return unitId;
@@ -475,10 +457,44 @@ async function saveStaffUnit(
   if (Number(count?.n) >= 1000) throw new HttpError(409, "Ştat cədvəlində ən çox 1000 sətir ola bilər.");
   const created = crypto.randomUUID();
   await db
-    .prepare("INSERT INTO staff_units(id,company_id,department,section,position,planned,salary_cents,note,updated) VALUES(?,?,?,?,?,?,?,?,?)")
-    .bind(created, companyId, unit.department, unit.section, unit.position, unit.planned, unit.salaryCents, unit.note, now)
+    .prepare("INSERT INTO staff_units(id,company_id,department,section,position,planned,rate,salary_cents,salary_max_cents,note,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(created, companyId, unit.department, unit.section, unit.position, unit.planned, rate, unit.salaryCents, salaryMaxCents, unit.note, now)
     .run();
   return created;
+}
+// The staff table rows and the people who work, with their gross pay, for the counts and the pay check.
+async function loadPlanData(db: D1Database, companyId: string) {
+  const [units, people] = await Promise.all([
+    db
+      .prepare("SELECT id,department,section,position,planned,rate,salary_cents,salary_max_cents,note FROM staff_units WHERE company_id=? ORDER BY department,section,position")
+      .bind(companyId)
+      .all<{ id: string; department: string; section: string; position: string; planned: number; rate: number; salary_cents: number; salary_max_cents: number; note: string }>(),
+    db
+      .prepare("SELECT id,name,department,section,position,status,salary_cents,salary_type,sector FROM company_employees WHERE company_id=? AND status IN ('active','leave')")
+      .bind(companyId)
+      .all<{ id: string; name: string; department: string; section: string; position: string; status: string; salary_cents: number; salary_type: string; sector: string }>(),
+  ]);
+  const planUnits: (PlanUnit & { note: string })[] = units.results.map((u) => ({
+    id: u.id,
+    department: u.department,
+    section: u.section,
+    position: u.position,
+    planned: u.planned,
+    rate: normalizeRate(u.rate),
+    salaryMin: u.salary_cents / 100,
+    salaryMax: Math.max(u.salary_cents, u.salary_max_cents || 0) / 100,
+    note: u.note,
+  }));
+  const planPeople: (PlanPerson & { name: string })[] = people.results.map((p) => ({
+    id: p.id,
+    name: p.name,
+    department: p.department,
+    section: p.section,
+    position: p.position,
+    status: p.status,
+    gross: p.salary_cents > 0 ? employeePay(p.salary_cents / 100, p.salary_type === "net" ? "net" : "gross", p.sector === "public" ? "public" : "private").gross : 0,
+  }));
+  return { units: planUnits, people: planPeople };
 }
 async function setPlanStatus(db: D1Database, companyId: string, status: "draft" | "pending" | "approved") {
   await db
@@ -492,7 +508,7 @@ async function applyStaffRows(db: D1Database, companyId: string, rows: StaffInpu
   let updated = 0;
   for (const row of rows) {
     const department = await canonicalOrg(db, companyId, "department", row.department);
-    const section = await canonicalOrg(db, companyId, "section", row.section);
+    const section = await canonicalOrg(db, companyId, "section", row.section, department);
     const position = await canonicalOrg(db, companyId, "position", row.position);
     const found = await db
       .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(department)=lower(?) AND lower(section)=lower(?) AND lower(position)=lower(?)")
@@ -7118,7 +7134,7 @@ async function route(request: Request) {
       throw new HttpError(400, incoming.issues[0]?.reason || "Faylda işçi tapılmadı.");
     for (const row of incoming.rows) {
       row.department = await canonicalOrg(db, id, "department", row.department);
-      row.section = await canonicalOrg(db, id, "section", row.section);
+      row.section = await canonicalOrg(db, id, "section", row.section, row.department);
       row.position = await canonicalOrg(db, id, "position", row.position);
     }
     const now = new Date().toISOString();
@@ -7133,7 +7149,15 @@ async function route(request: Request) {
     const statements: D1PreparedStatement[] = [];
     let created = 0;
     let updated = 0;
+    const plan = await loadPlanData(db, id);
     for (const row of incoming.rows) {
+      // A row paid above or below the band of the staff table is left out and reported.
+      const gross = row.salary > 0 ? employeePay(row.salary, row.salaryType, row.sector).gross : 0;
+      const problem = checkSalary(plan.units, { id: "", department: row.department, section: row.section, position: row.position }, gross);
+      if (problem) {
+        incoming.issues.push({ line: row.line, reason: `${row.name}: ${problem}` });
+        continue;
+      }
       const found = (row.email && byEmail.get(lower(row.email))) || byName.get(`${lower(row.name)}|${row.startDate}`);
       if (found) {
         statements.push(
@@ -7524,43 +7548,35 @@ async function route(request: Request) {
   // ---- Staff table: places per department, section and position ----
   const staffOverview = async () => {
     await absorbLegacyHeadcount(db, id);
-    const [units, people, open] = await Promise.all([
-      db
-        .prepare("SELECT id,department,section,position,planned,salary_cents,note FROM staff_units WHERE company_id=? ORDER BY department,section,position")
-        .bind(id)
-        .all<{ id: string; department: string; section: string; position: string; planned: number; salary_cents: number; note: string }>(),
-      db
-        .prepare("SELECT id,name,department,section,position,status FROM company_employees WHERE company_id=? AND status IN ('active','leave')")
-        .bind(id)
-        .all<{ id: string; name: string; department: string; section: string; position: string; status: string }>(),
+    const [plan, open, pending] = await Promise.all([
+      loadPlanData(db, id),
       db
         .prepare("SELECT lower(COALESCE(json_extract(data,'$.department'),'')) AS department, COUNT(*) AS n FROM jobs WHERE owner=? AND status IN ('published','pending_approval') GROUP BY 1")
         .bind(id)
         .all<{ department: string; n: number }>(),
+      db
+        .prepare("SELECT id,subject,requested_by_name,created FROM approval_requests WHERE company_id=? AND kind='headcount' AND status='pending' ORDER BY created DESC LIMIT 20")
+        .bind(id)
+        .all<{ id: string; subject: string; requested_by_name: string; created: string }>(),
     ]);
     const openBy = new Map(open.results.map((row) => [row.department, Number(row.n)]));
-    const rows = units.results.map((unit) => {
-      const filled = staffFill(unit, people.results);
-      return {
-        id: unit.id,
-        department: unit.department,
-        section: unit.section,
-        position: unit.position,
-        planned: unit.planned,
-        salary: unit.salary_cents / 100,
-        note: unit.note,
-        filled,
-        free: unit.planned - filled,
-      };
-    });
-    const departments = [...new Set(rows.map((row) => row.department))].map((department) => {
-      const mine = rows.filter((row) => row.department === department);
-      const places = freeStaffPlaces(units.results, people.results, openBy.get(department.toLocaleLowerCase("az")) || 0, department)!;
-      return { department, planned: places.planned, filled: places.filled, openVacancies: places.openVacancies, free: places.free, units: mine.length };
-    });
-    // People whose department/position is in no staff row.
-    const placed = people.results.filter((person) => units.results.some((unit) => staffFill(unit, [person]) > 0)).length;
-    return { rows, departments, unplaced: people.results.length - placed, locked: await planLocked(), planStatus: await planStatus() };
+    const summary = summarize(plan.units, plan.people);
+    const placedBy = new Map<string, { id: string; name: string }[]>();
+    const assigned = assignPeople(plan.units, plan.people);
+    for (const [unitId, list] of assigned.byUnit) placedBy.set(unitId, list.map((p) => ({ id: p.id, name: (p as PlanPerson & { name: string }).name })));
+    const noteBy = new Map(plan.units.map((u) => [u.id, u.note]));
+    const rows = summary.rows.map((row) => ({ ...row, note: noteBy.get(row.id) || "", people: placedBy.get(row.id) || [] }));
+    const departments = summary.departments.map((d) => ({ ...d, openVacancies: openBy.get(d.department.toLocaleLowerCase("az")) || 0 }));
+    const payroll = plan.people.reduce((sum, p) => sum + (p.gross || 0), 0);
+    return {
+      rows,
+      departments,
+      unplaced: summary.unplaced.map((p) => ({ id: p.id, name: (p as PlanPerson & { name: string }).name, department: p.department, section: p.section, position: p.position })),
+      total: { ...summary.total, payroll: Math.round(payroll * 100) / 100 },
+      pending: pending.results,
+      locked: await planLocked(),
+      planStatus: await planStatus(),
+    };
   };
   if (request.method === "GET" && path === "company/staff") {
     requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi görə bilər.");
@@ -7577,7 +7593,9 @@ async function route(request: Request) {
     section: str(b.section, 120),
     position: str(b.position, 120),
     planned: Math.max(0, Math.min(10000, Math.round(Number(b.planned ?? 1)))),
-    salaryCents: Math.max(0, Math.round((Number(b.salary) || 0) * 100)),
+    rate: normalizeRate(b.rate),
+    salaryCents: Math.max(0, Math.round((Number(b.salaryMin ?? b.salary) || 0) * 100)),
+    salaryMaxCents: Math.max(0, Math.round((Number(b.salaryMax) || 0) * 100)),
     note: str(b.note, 300),
   });
   if (request.method === "POST" && path === "company/staff/save") {
@@ -7610,7 +7628,8 @@ async function route(request: Request) {
   // ---- Names of departments and sections kept in one catalog ----
   if (request.method === "GET" && path === "company/org-names") {
     requirePermission("salaries", "Şöbə adlarını yalnız HR, direktor və hesab sahibi görə bilər.");
-    const [departments, sections, positions] = await Promise.all([orgNameList(db, id, "department"), orgNameList(db, id, "section"), orgNameList(db, id, "position")]);
+    const department = str(requestUrl.searchParams.get("department"), 120);
+    const [departments, sections, positions] = await Promise.all([orgNameList(db, id, "department"), orgNameList(db, id, "section", department), orgNameList(db, id, "position")]);
     return ok({ departments, sections, positions });
   }
   if (request.method === "POST" && path === "company/org-names/add") {
@@ -7619,12 +7638,80 @@ async function route(request: Request) {
     const kind: OrgKind = b.kind === "section" ? "section" : b.kind === "position" ? "position" : "department";
     const name = cleanOrgName(str(b.name, 120));
     if (name.length < 2) throw new HttpError(400, "Adı yazın.");
-    const known = await orgNameList(db, id, kind);
+    const parent = kind === "section" ? await canonicalOrg(db, id, "department", str(b.department, 120)) : "";
+    const known = await orgNameList(db, id, kind, parent);
     const match = canonicalOrgName(known, name);
     if (match.existing) return ok({ name: match.name, existing: true });
-    await canonicalOrg(db, id, kind, name);
+    await canonicalOrg(db, id, kind, name, parent);
     await companyAudit(db, id, userId, "org-name-added", kind, name);
     return ok({ name, existing: false });
+  }
+  // ---- Company structure: departments and their sections ----
+  const structureDb = async <T,>(run: () => Promise<T>) => {
+    try {
+      return await run();
+    } catch (error) {
+      const status = (error as { status?: number }).status;
+      if (status) throw new HttpError(status, (error as Error).message);
+      throw error;
+    }
+  };
+  if (request.method === "GET" && path === "company/structure") {
+    requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi görə bilər.");
+    return ok(await loadStructure(db, id));
+  }
+  if (request.method === "POST" && path === "company/structure/add") {
+    requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const department = cleanOrgName(str(b.department, 120));
+    if (department.length < 2) throw new HttpError(400, "Departamentin adını yazın.");
+    const result = await addStructure(db, id, department, str(b.section, 120));
+    await companyAudit(db, id, userId, "structure-added", result.department, result.section || "departament");
+    return ok({ ok: true, ...result });
+  }
+  if (request.method === "POST" && path === "company/structure/rename") {
+    requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const department = str(b.department, 120);
+    const section = str(b.section, 120);
+    const name = await structureDb(() => renameStructure(db, id, department, str(b.to, 120), section));
+    await companyAudit(db, id, userId, "structure-renamed", department, `${section || department} → ${name}`);
+    return ok({ ok: true, name });
+  }
+  if (request.method === "POST" && path === "company/structure/delete") {
+    requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const department = str(b.department, 120);
+    const section = str(b.section, 120);
+    await structureDb(() => deleteStructure(db, id, department, section));
+    await companyAudit(db, id, userId, "structure-removed", department, section || "departament");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/structure/import") {
+    requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const incoming = parseStructureRows(
+      (Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])),
+    );
+    if (!incoming.rows.length) throw new HttpError(400, incoming.issues[0]?.reason || "Faylda departament tapılmadı.");
+    const before = await loadStructure(db, id);
+    const known = new Set(before.departments.flatMap((d) => [d.name.toLocaleLowerCase("az"), ...d.sections.map((x) => `${d.name}|${x.name}`.toLocaleLowerCase("az"))]));
+    let created = 0;
+    let existing = 0;
+    for (const row of incoming.rows) {
+      const result = await addStructure(db, id, row.department, row.section);
+      const keys = [result.department.toLocaleLowerCase("az"), ...(result.section ? [`${result.department}|${result.section}`.toLocaleLowerCase("az")] : [])];
+      const fresh = keys.filter((k) => !known.has(k));
+      fresh.forEach((k) => known.add(k));
+      if (fresh.length) created += fresh.length;
+      else existing += 1;
+    }
+    await companyAudit(db, id, userId, "structure-imported", "", `${created} yeni, ${existing} mövcud`);
+    return ok({ created, existing, issues: incoming.issues });
+  }
+  if (request.method === "GET" && path === "company/staff/history") {
+    requirePermission("salaries", "Ştat tarixçəsini yalnız HR, direktor və hesab sahibi görə bilər.");
+    return ok({ entries: await loadStaffHistory(db, id) });
   }
   // ---- Personal data of an employee (identity card, address, family, bank) ----
   if (request.method === "POST" && path === "company/employees/profile") {
@@ -7660,7 +7747,7 @@ async function route(request: Request) {
       (Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])),
     );
     if (!incoming.rows.length) throw new HttpError(400, incoming.issues[0]?.reason || "Faylda ştat sətri tapılmadı.");
-    const rows = incoming.rows.map((row) => ({ department: row.department, section: row.section, position: row.position, planned: row.planned, salaryCents: Math.round(row.salary * 100), note: row.note }));
+    const rows = incoming.rows.map((row) => ({ department: row.department, section: row.section, position: row.position, planned: row.planned, rate: row.rate, salaryCents: Math.round(row.salary * 100), salaryMaxCents: Math.round(row.salaryMax * 100), note: row.note }));
     if (await planLocked()) {
       await queueApproval("headcount", `Excel idxalı: ${rows.length} ştat sətri`, { units: rows });
       return ok({ created: 0, updated: 0, pending: true, issues: incoming.issues });
@@ -7923,7 +8010,14 @@ async function route(request: Request) {
     );
     if (exit.error) throw new HttpError(400, exit.error);
     const existingId = str(b.id, 100);
-    const sectionName = await canonicalOrg(db, id, "section", str(b.section, 120));
+    // Nobody is paid above or below the band the staff table names for their position.
+    if (status !== "left" && salary > 0) {
+      const gross = employeePay(salary, b.salaryType === "net" ? "net" : "gross", b.sector === "public" ? "public" : "private").gross;
+      const plan = await loadPlanData(db, id);
+      const problem = checkSalary(plan.units, { id: existingId, department, section: str(b.section, 120), position }, gross);
+      if (problem) throw new HttpError(409, problem);
+    }
+    const sectionName = await canonicalOrg(db, id, "section", str(b.section, 120), department);
     // Section, whether the pay is gross or net, the tax sector and the leave figures.
     const saveEmployeeExtras = (employeeId: string) =>
       db
@@ -8845,8 +8939,16 @@ async function route(request: Request) {
       ]);
     } else if (kind === "staff") {
       const overview = await staffOverview();
-      headers = ["Departament", "Şöbə", "Vəzifə", "Ştat sayı", "İşləyir", "Boş yer", "Əmək haqqı (AZN)", "Qeyd"];
-      rows = overview.rows.map((r) => [r.department, r.section, r.position, r.planned, r.filled, r.free, r.salary || "", r.note]);
+      // The first columns are those of the import template, so the file can be edited and loaded back.
+      headers = ["Departament", "Şöbə", "Vəzifə", "Ştat sayı", "Ştat dərəcəsi", "Əmək haqqı", "Maksimum əmək haqqı", "Qeyd", "İşləyir", "Boş yer", "Ştat vahidi (FTE)"];
+      const rateWord: Record<number, string> = { 1: "tam", 0.75: "3/4", 0.5: "yarım", 0.25: "1/4" };
+      rows = overview.rows.map((r) => [r.department, r.section, r.position, r.planned, rateWord[r.rate] || "tam", r.salaryMin || "", r.salaryMax > r.salaryMin ? r.salaryMax : "", r.note, r.filled, r.free, r.fte]);
+    } else if (kind === "structure") {
+      headers = ["Departament", "Şöbə", "Ştat sətri", "İşçi"];
+      const structure = await loadStructure(db, id);
+      rows = structure.departments.flatMap((d) =>
+        d.sections.length ? d.sections.map((sec) => [d.name, sec.name, sec.units, sec.people]) : [[d.name, "", d.units, d.people]],
+      );
     } else if (kind === "employees") {
       const showSalary = can(memberRole, "salaries");
       const result = await db
