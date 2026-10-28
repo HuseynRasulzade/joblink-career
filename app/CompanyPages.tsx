@@ -1967,7 +1967,7 @@ export function TeamPage({
           </table>
         </div>
       </section>
-      {team?.canManage && (
+      {(team?.canManage || me?.permissions?.includes("audit")) && (
         <section className="panel">
           <div className="section-heading">
             <h3>Fəaliyyət jurnalı</h3>

@@ -59,7 +59,7 @@ export type CompanyPermission =
   | "audit"; // the company journal
 
 // What owner, director and HR do every day; a role below them gets each only as a grant.
-const HR_WORK: CompanyPermission[] = ["employees", "staff", "orders", "attendance", "documents", "personal-data", "audit"];
+const HR_WORK: CompanyPermission[] = ["employees", "staff", "orders", "attendance", "documents", "personal-data"];
 const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
   owner: [
     "team",
@@ -72,6 +72,7 @@ const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
     "offers",
     "reports",
     "tests",
+    "audit",
     ...HR_WORK,
   ],
   director: [
@@ -84,6 +85,7 @@ const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
     "offers",
     "reports",
     "tests",
+    "audit",
     ...HR_WORK,
   ],
   hr: [

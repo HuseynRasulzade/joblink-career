@@ -9451,7 +9451,7 @@ async function route(request: Request) {
   }
   // How active each member was: number of logged actions per person in the last days.
   if (request.method === "GET" && path === "company/audit-summary") {
-    requirePermission("team");
+    requirePermission("audit");
     const days = Math.max(
       1,
       Math.min(
@@ -9476,7 +9476,7 @@ async function route(request: Request) {
     return ok({ days, members: rows.results });
   }
   if (request.method === "GET" && path === "company/audit") {
-    requirePermission("team");
+    requirePermission("audit");
     const rows = await db
       .prepare(
         `SELECT c.action,c.target,c.detail,c.created,COALESCE(a.name,'') AS actor FROM company_audit c LEFT JOIN accounts a ON a.id=c.actor_id

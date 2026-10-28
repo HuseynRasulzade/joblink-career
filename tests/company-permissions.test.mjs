@@ -2,12 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { can, permissionsOf, permissionForPath, GRANTABLE, ROLE_PRESETS, normalizeGrants, PERMISSION_INFO, PERMISSION_GROUPS } from "../lib/company.ts";
 
-const NEW = ["employees", "staff", "orders", "attendance", "documents", "personal-data", "audit"];
+const NEW = ["employees", "staff", "orders", "attendance", "documents", "personal-data"];
 
 test("owner, director and HR keep everything they did; lower roles get nothing new by themselves", () => {
   for (const role of ["owner", "director", "hr"]) for (const p of NEW) assert.equal(can(role, p), true, `${role} ${p}`);
   for (const role of ["manager", "recruiter"]) for (const p of NEW) assert.equal(can(role, p), false, `${role} ${p}`);
   assert.deepEqual(permissionsOf("manager"), ["reports"]);
+});
+
+test("the journal stays with owner and director, others get it as a grant", () => {
+  assert.equal(can("owner", "audit"), true);
+  assert.equal(can("director", "audit"), true);
+  assert.equal(can("hr", "audit"), false);
+  assert.equal(can("hr", "audit", ["audit"]), true);
 });
 
 test("a grant opens one permission only", () => {
