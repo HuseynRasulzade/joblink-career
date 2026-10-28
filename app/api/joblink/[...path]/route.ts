@@ -364,6 +364,7 @@ import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
 import { addStructure, canonicalOrg, deleteStructure, loadStaffHistory, loadStructure, orgNameList, renameStructure, type OrgKind } from "@/lib/staff-db";
 import { assignPeople, checkSalary, normalizeRate, RATE_LABEL, summarize, type PlanPerson, type PlanUnit } from "@/lib/staff-plan";
 import { parseStructureRows } from "@/lib/staff-import";
+import { splitNames } from "@/lib/section-suggestions";
 import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
@@ -7668,6 +7669,31 @@ async function route(request: Request) {
     const result = await addStructure(db, id, department, str(b.section, 120));
     await companyAudit(db, id, userId, "structure-added", result.department, result.section || "departament");
     return ok({ ok: true, ...result });
+  }
+  // Several sections of one department at once: typed as a list, or read from a file.
+  if (request.method === "POST" && path === "company/structure/add-many") {
+    requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const department = cleanOrgName(str(b.department, 120));
+    if (department.length < 2) throw new HttpError(400, "Departamentin adını yazın.");
+    const names = splitNames((Array.isArray(b.sections) ? b.sections : []).slice(0, 300).map((x: unknown) => String(x ?? "")).join("\n"), 200);
+    if (!names.length) throw new HttpError(400, "Şöbə adı tapılmadı.");
+    const before = await loadStructure(db, id);
+    const have = new Set((before.departments.find((d) => d.name.toLocaleLowerCase("az") === department.toLocaleLowerCase("az"))?.sections || []).map((x) => x.name.toLocaleLowerCase("az")));
+    let created = 0;
+    let existing = 0;
+    let owner = department;
+    for (const name of names) {
+      const result = await addStructure(db, id, department, name);
+      owner = result.department;
+      if (have.has(result.section.toLocaleLowerCase("az"))) existing += 1;
+      else {
+        have.add(result.section.toLocaleLowerCase("az"));
+        created += 1;
+      }
+    }
+    await companyAudit(db, id, userId, "structure-added", owner, `${created} şöbə əlavə edildi, ${existing} mövcud`);
+    return ok({ ok: true, created, existing, department: owner });
   }
   if (request.method === "POST" && path === "company/structure/rename") {
     requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");

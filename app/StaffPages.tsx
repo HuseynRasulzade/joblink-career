@@ -18,6 +18,7 @@ import {
 import { RATES, RATE_LABEL, type PlanUnit } from "@/lib/staff-plan";
 import { createXlsx } from "@/lib/xlsx";
 import { canonicalOrgName } from "@/lib/org-names";
+import { splitNames, suggestSections } from "@/lib/section-suggestions";
 import { EMPTY_PROFILE, ageOn, idExpiresSoon, type EmployeeProfile } from "@/lib/employee-profile";
 import { Field, Modal } from "./components";
 import JobTitleInput from "./JobTitleInput";
@@ -1570,12 +1571,204 @@ export function StaffTable({ notify }: { notify: Notify }) {
 }
 
 // ---------- Departments and their sections ----------
-type StructureData = { departments: { name: string; sections: { name: string; units: number; people: number }[]; units: number; people: number }[]; looseSections: { name: string }[] };
+type StructureSectionRow = { name: string; units: number; people: number };
+type StructureDepartmentRow = { name: string; sections: StructureSectionRow[]; units: number; people: number };
+type StructureData = { departments: StructureDepartmentRow[]; looseSections: { name: string }[] };
+
+const foldName = (value: string) => value.toLocaleLowerCase("az").replace(/ə/g, "e").replace(/ı/g, "i").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g").replace(/[^a-z0-9]+/g, " ").trim();
+
+// Section names from a file: the "Şöbə" column when the first row names it, otherwise the first column.
+async function sectionNamesFromFile(file: File) {
+  const rows = await readSheetRows(file);
+  const head = (rows[0] || []).map((cell) => foldName(String(cell ?? "")));
+  const column = head.findIndex((cell) => ["sobe", "bolme", "section", "sobe adi"].includes(cell));
+  const start = column >= 0 || ["sobe", "ad", "name", "adi"].includes(head[0] || "") ? 1 : 0;
+  return rows
+    .slice(start)
+    .map((row) => String(row[column >= 0 ? column : 0] ?? "").trim())
+    .filter(Boolean);
+}
+
+// The sections of one department: add one, add a list, add from Excel, rename, delete.
+function DepartmentSections({ department, notify, onClose, onChanged }: { department: string; notify: Notify; onClose: () => void; onChanged: () => void }) {
+  const [data, setData] = useState<StructureDepartmentRow | null>(null);
+  const [one, setOne] = useState("");
+  const [many, setMany] = useState("");
+  const [busy, setBusy] = useState(false);
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  });
+  const load = useCallback(() => {
+    request<StructureData>("company/structure")
+      .then((all) => setData(all.departments.find((d) => foldName(d.name) === foldName(department)) || { name: department, sections: [], units: 0, people: 0 }))
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, [department]);
+  useEffect(load, [load]);
+  async function addMany(sections: string[], from: string) {
+    if (!sections.length) return;
+    setBusy(true);
+    try {
+      const result = await request<{ created: number; existing: number }>("company/structure/add-many", { department, sections });
+      notify(`${from}: ${result.created} şöbə əlavə edildi${result.existing ? `, ${result.existing} artıq var idi` : ""}.`);
+      load();
+      onChanged();
+      return true;
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function pickFile(file: File | undefined) {
+    if (!file) return;
+    try {
+      const names = await sectionNamesFromFile(file);
+      if (!names.length) return notify("Faylda şöbə adı tapılmadı. “Şöbə” sütunu və ya birinci sütun olmalıdır.");
+      await addMany(names, file.name);
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  function rename(name: string) {
+    const to = window.prompt(`“${name}” şöbəsinin yeni adı:`, name);
+    if (to && to.trim() && to.trim() !== name)
+      void request("company/structure/rename", { department, section: name, to })
+        .then(() => {
+          notify("Ad dəyişdirildi: ştat sətirləri və işçilər də yeni adla görünür.");
+          load();
+          onChanged();
+        })
+        .catch((error) => notify((error as Error).message));
+  }
+  function drop(name: string) {
+    if (!window.confirm(`“${department} / ${name}” şöbəsi silinsin?`)) return;
+    void request("company/structure/delete", { department, section: name })
+      .then(() => {
+        notify("Silindi.");
+        load();
+        onChanged();
+      })
+      .catch((error) => notify((error as Error).message));
+  }
+  if (!data) return null;
+  const suggestions = suggestSections(department, data.sections.map((x) => x.name));
+  const listed = splitNames(many);
+  return (
+    <Modal title={`${department} — şöbələr`} onClose={onClose}>
+      <div className="offer-composer dept-sections">
+        <div className="staff-kpis">
+          <Kpi label="Şöbə" value={String(data.sections.length)} />
+          <Kpi label="Ştat sətri" value={String(data.units)} />
+          <Kpi label="İşçi" value={String(data.people)} />
+        </div>
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Şöbə</th>
+                <th>Ştat sətri</th>
+                <th>İşçi</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.sections.map((x) => (
+                <tr key={x.name}>
+                  <td>{x.name}</td>
+                  <td>{x.units}</td>
+                  <td>{x.people}</td>
+                  <td className="admin-actions">
+                    <button type="button" onClick={() => rename(x.name)}>
+                      Adını dəyiş
+                    </button>
+                    <button type="button" aria-label="Sil" onClick={() => drop(x.name)}>
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!data.sections.length && (
+                <tr>
+                  <td colSpan={4}>
+                    <p className="admin-empty">Bu departamentdə hələ şöbə yoxdur. Aşağıdan əlavə edin.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <h4>Şöbə əlavə et</h4>
+        <div className="org-add structure-add">
+          <input
+            className="search-input"
+            value={one}
+            placeholder="Şöbənin adı"
+            onChange={(e) => setOne(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && one.trim().length >= 2) void addMany([one], "Əlavə edildi").then((done) => done && setOne(""));
+            }}
+          />
+          <button type="button" className="primary" disabled={busy || one.trim().length < 2} onClick={() => void addMany([one], "Əlavə edildi").then((done) => done && setOne(""))}>
+            Əlavə et
+          </button>
+        </div>
+        {!!suggestions.length && (
+          <>
+            <h4>Tövsiyə olunan şöbələr</h4>
+            <p className="muted">Bu departament üçün adətən olan şöbələr. Seçib əlavə edin və ya hamısını birdən əlavə edin.</p>
+            <div className="suggest-chips">
+              {suggestions.map((name) => (
+                <button key={name} type="button" className="chip-button" disabled={busy} onClick={() => void addMany([name], "Əlavə edildi")}>
+                  ＋ {name}
+                </button>
+              ))}
+              <button type="button" className="secondary" disabled={busy} onClick={() => void addMany(suggestions, "Tövsiyə olunanlar")}>
+                Hamısını əlavə et ({suggestions.length})
+              </button>
+            </div>
+          </>
+        )}
+        <h4>Siyahı ilə əlavə et</h4>
+        <p className="muted">Hər sətrə bir şöbə yazın (və ya vergüllə ayırın). Kataloqda olan ad təkrar yaradılmır.</p>
+        <textarea rows={4} value={many} placeholder={"Mühasibat\nBüdcə və planlaşdırma\nXəzinə"} onChange={(e) => setMany(e.target.value)} />
+        <div className="admin-actions">
+          <button type="button" className="primary" disabled={busy || !listed.length} onClick={() => void addMany(listed, "Siyahı").then((done) => done && setMany(""))}>
+            {listed.length ? `${listed.length} şöbəni əlavə et` : "Şöbələri əlavə et"}
+          </button>
+        </div>
+        <h4>Excel-dən əlavə et</h4>
+        <div className="admin-actions">
+          <label className="secondary report-button" style={{ cursor: "pointer" }}>
+            <Upload size={14} /> Excel və ya CSV seçin
+            <input type="file" accept=".xlsx,.csv" hidden onChange={(event) => void pickFile(event.target.files?.[0])} />
+          </label>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              const bytes = createXlsx(["Şöbə"], [["Mühasibat"], ["Xəzinə"]], "Şöbələr");
+              const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = "sobeler-numune.xlsx";
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            <Download size={14} /> Nümunə fayl
+          </button>
+        </div>
+        <small className="skill-picker-help">Faylda “Şöbə” sütunu olmalıdır (yoxdursa birinci sütun götürülür). Şöbələr yalnız “{department}” departamentinə əlavə olunur.</small>
+      </div>
+    </Modal>
+  );
+}
 
 function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onChanged: () => void; onImport: () => void }) {
   const [data, setData] = useState<StructureData | null>(null);
   const [department, setDepartment] = useState("");
-  const [section, setSection] = useState<Record<string, string>>({});
+  const [open, setOpen] = useState<string | null>(null);
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -1586,36 +1779,47 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
       .catch((error) => notifyRef.current((error as Error).message));
   }, []);
   useEffect(load, [load]);
-  async function act(path: string, body: Record<string, unknown>, done: string) {
+  async function add() {
+    const name = department.trim();
+    if (name.length < 2) return;
     try {
-      await request(path, body);
-      notify(done);
+      const result = await request<{ department: string }>("company/structure/add", { department: name });
+      notify("Departament əlavə edildi (varsa mövcud ad saxlanıldı).");
+      setDepartment("");
       load();
       onChanged();
+      setOpen(result.department);
     } catch (error) {
       notify((error as Error).message);
     }
   }
-  function rename(department: string, sectionName = "") {
-    const to = window.prompt(sectionName ? `“${sectionName}” şöbəsinin yeni adı:` : `“${department}” departamentinin yeni adı:`, sectionName || department);
-    if (to && to.trim() && to.trim() !== (sectionName || department)) void act("company/structure/rename", { department, section: sectionName, to }, "Ad dəyişdirildi: ştat sətirləri və işçilər də yeni adla görünür.");
+  function rename(name: string) {
+    const to = window.prompt(`“${name}” departamentinin yeni adı:`, name);
+    if (to && to.trim() && to.trim() !== name)
+      void request("company/structure/rename", { department: name, to })
+        .then(() => {
+          notify("Ad dəyişdirildi: ştat sətirləri, işçilər və vakansiyalar da yeni adla görünür.");
+          load();
+          onChanged();
+        })
+        .catch((error) => notify((error as Error).message));
   }
-  function drop(department: string, sectionName = "") {
-    if (window.confirm(sectionName ? `“${department} / ${sectionName}” şöbəsi silinsin?` : `“${department}” departamenti və şöbələri silinsin?`))
-      void act("company/structure/delete", { department, section: sectionName }, "Silindi.");
+  function drop(name: string) {
+    if (!window.confirm(`“${name}” departamenti və şöbələri silinsin?`)) return;
+    void request("company/structure/delete", { department: name })
+      .then(() => {
+        notify("Silindi.");
+        load();
+        onChanged();
+      })
+      .catch((error) => notify((error as Error).message));
   }
   if (!data) return null;
   return (
     <div className="structure-panel">
       <div className="admin-actions staff-toolbar">
-        <input
-          className="search-input"
-          placeholder="Yeni departamentin adı"
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && department.trim() && void act("company/structure/add", { department }, "Departament əlavə edildi.").then(() => setDepartment(""))}
-        />
-        <button type="button" className="primary" disabled={department.trim().length < 2} onClick={() => void act("company/structure/add", { department }, "Departament əlavə edildi (varsa mövcud ad saxlanıldı).").then(() => setDepartment(""))}>
+        <input className="search-input" placeholder="Yeni departamentin adı" value={department} onChange={(e) => setDepartment(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void add()} />
+        <button type="button" className="primary" disabled={department.trim().length < 2} onClick={() => void add()}>
           <Plus size={14} /> Departament
         </button>
         <button type="button" className="secondary" onClick={onImport}>
@@ -1626,70 +1830,60 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
         </a>
       </div>
       <p className="muted">
-        Departament və şöbələr bir dəfə burada yaradılır, ştat cədvəli və işçi kartında siyahıdan seçilir. Eyni ad iki dəfə yaradılmır (böyük-kiçik hərf fərqi nəzərə alınmır). İstifadədə olan departament və ya şöbəni silmək olmaz; adını dəyişsəniz ştat sətirləri, işçilər və vakansiyalar da yeni adla görünür.
+        Departament yaradandan sonra “Şöbələr” düyməsi ilə onun şöbələrini əlavə edin: tək-tək, siyahı ilə, tövsiyə olunanlardan və ya Excel-dən. Eyni ad iki dəfə yaradılmır. İstifadədə olan departament və ya şöbəni silmək olmaz; adını dəyişsəniz ştat sətirləri, işçilər və vakansiyalar da yeni adla görünür.
       </p>
-      {!data.departments.length && <p className="admin-empty">Hələ departament yoxdur. Yuxarıdan əlavə edin və ya Excel faylı yükləyin.</p>}
-      <div className="structure-grid">
-        {data.departments.map((d) => (
-          <div key={d.name} className="structure-card">
-            <div className="structure-head">
-              <div className="structure-title">
-                <b>{d.name}</b>
-                <span className="structure-meta">
-                  <span>{d.sections.length} şöbə</span>
-                  <span>{d.units} ştat sətri</span>
-                  <span>{d.people} işçi</span>
-                </span>
-              </div>
-              <div className="admin-actions">
-                <button type="button" onClick={() => rename(d.name)}>
-                  Adını dəyiş
-                </button>
-                <button type="button" aria-label="Sil" onClick={() => drop(d.name)}>
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-            <ul>
-              {d.sections.map((x) => (
-                <li key={x.name}>
-                  <span className="structure-name">{x.name}</span>
-                  <span className="structure-meta">
-                    <span>{x.units} sətir</span>
-                    <span>{x.people} işçi</span>
-                  </span>
-                  <span className="admin-actions">
-                    <button type="button" onClick={() => rename(d.name, x.name)}>
-                      Adını dəyiş
-                    </button>
-                    <button type="button" aria-label="Sil" onClick={() => drop(d.name, x.name)}>
-                      <Trash2 size={14} />
-                    </button>
-                  </span>
-                </li>
-              ))}
-              {!d.sections.length && <li className="structure-empty muted">Şöbə yoxdur</li>}
-            </ul>
-            <div className="org-add structure-add">
-              <input
-                className="search-input"
-                value={section[d.name] || ""}
-                placeholder="Yeni şöbənin adı"
-                onChange={(e) => setSection({ ...section, [d.name]: e.target.value })}
-                onKeyDown={(e) => e.key === "Enter" && (section[d.name] || "").trim() && void act("company/structure/add", { department: d.name, section: section[d.name] }, "Şöbə əlavə edildi.").then(() => setSection({ ...section, [d.name]: "" }))}
-              />
-              <button type="button" className="secondary" disabled={(section[d.name] || "").trim().length < 2} onClick={() => void act("company/structure/add", { department: d.name, section: section[d.name] }, "Şöbə əlavə edildi (varsa mövcud ad saxlanıldı).").then(() => setSection({ ...section, [d.name]: "" }))}>
-                Şöbə əlavə et
-              </button>
-            </div>
-          </div>
-        ))}
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Departament</th>
+              <th>Şöbələr</th>
+              <th>Ştat sətri</th>
+              <th>İşçi</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.departments.map((d) => (
+              <tr key={d.name}>
+                <td>
+                  <b>{d.name}</b>
+                </td>
+                <td>
+                  <span className="structure-names">{d.sections.length ? d.sections.map((s) => s.name).join(", ") : <span className="muted">Şöbə yoxdur</span>}</span>
+                  <small className="muted"> {d.sections.length ? `(${d.sections.length})` : ""}</small>
+                </td>
+                <td>{d.units}</td>
+                <td>{d.people}</td>
+                <td className="admin-actions">
+                  <button type="button" className="secondary" onClick={() => setOpen(d.name)}>
+                    Şöbələr
+                  </button>
+                  <button type="button" onClick={() => rename(d.name)}>
+                    Adını dəyiş
+                  </button>
+                  <button type="button" aria-label="Sil" onClick={() => drop(d.name)}>
+                    <Trash2 size={14} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {!data.departments.length && (
+              <tr>
+                <td colSpan={5}>
+                  <p className="admin-empty">Hələ departament yoxdur. Yuxarıdan əlavə edin və ya Excel faylı yükləyin.</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
       {!!data.looseSections.length && (
         <p className="muted">
           Departamentə bağlanmamış şöbə adları: {data.looseSections.map((s) => s.name).join(", ")}. Bunlar ştat sətri və ya işçi kartında istifadə olunanda departamentə bağlanır.
         </p>
       )}
+      {open && <DepartmentSections department={open} notify={notify} onClose={() => setOpen(null)} onChanged={() => { load(); onChanged(); }} />}
     </div>
   );
 }

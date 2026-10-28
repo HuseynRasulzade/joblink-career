@@ -5860,3 +5860,35 @@ a svg {
 .emp-chosen {
   margin: 8px 0 0;
 }
+.structure-names {
+  display: inline-block;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.dept-sections h4 {
+  margin: 14px 0 4px;
+}
+.dept-sections textarea {
+  width: 100%;
+}
+.suggest-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.chip-button {
+  border: 1px solid #cfe0d8;
+  background: #f3f9f6;
+  color: #17332b;
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.chip-button:hover:not(:disabled) {
+  background: #e3f1ea;
+}

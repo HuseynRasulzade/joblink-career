@@ -41,3 +41,16 @@ test("age and card expiry", () => {
   assert.equal(idExpiresSoon(p, "2026-06-01"), true);
   assert.equal(idExpiresSoon(p, "2026-01-01"), false);
 });
+
+import { suggestSections, splitNames } from "../lib/section-suggestions.ts";
+test("sections suggested for a department", () => {
+  assert.ok(suggestSections("Maliyyə departamenti", []).includes("Mühasibat"));
+  assert.ok(!suggestSections("Maliyyə", ["mühasibat"]).includes("Mühasibat"));
+  assert.ok(suggestSections("IT", []).includes("Proqram təminatı"));
+  assert.ok(suggestSections("HR və kadr", []).includes("İşə qəbul"));
+  assert.deepEqual(suggestSections("Qonaqpərvərlik", []), []);
+  assert.ok(!suggestSections("Hesabat", []).includes("Proqram təminatı")); // "it" is not inside other words
+});
+test("names split from a pasted list", () => {
+  assert.deepEqual(splitNames("Mühasibat\n büdcə ;Xəzinə, mühasibat,\n\n a"), ["Mühasibat", "büdcə", "Xəzinə"]);
+});
