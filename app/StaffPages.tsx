@@ -4,19 +4,12 @@ import { Download, FileSpreadsheet, Plus, Printer, Trash2, Upload } from "lucide
 import { buildEmployeeOffer, buildOrder, leaveDays, orderNumber, ORDER_KINDS, type OrderField, type OrderInput, type OrderKind } from "@/lib/orders";
 import { employeePay, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 import { readSheetRows } from "@/lib/question-file";
-import {
-  EMPLOYEE_TEMPLATE_EXAMPLE,
-  EMPLOYEE_TEMPLATE_HEADERS,
-  STAFF_TEMPLATE_EXAMPLE,
-  STAFF_TEMPLATE_HEADERS,
-  STRUCTURE_TEMPLATE_EXAMPLE,
-  STRUCTURE_TEMPLATE_HEADERS,
-  parseEmployeeRows,
-  parseStaffRows,
-  parseStructureRows,
-} from "@/lib/staff-import";
+import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "@/lib/staff-import";
+import { parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
+import { SHEET_TEMPLATES, templateSheets } from "@/lib/sheet-templates";
+import { ATTENDANCE_CODES } from "@/lib/calendar-az";
 import { RATES, RATE_LABEL, type PlanUnit } from "@/lib/staff-plan";
-import { createXlsx } from "@/lib/xlsx";
+import { createXlsxBook } from "@/lib/xlsx";
 import { canonicalOrgName } from "@/lib/org-names";
 import { splitNames, suggestSections } from "@/lib/section-suggestions";
 import { EMPTY_PROFILE, ageOn, idExpiresSoon, type EmployeeProfile } from "@/lib/employee-profile";
@@ -39,45 +32,46 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 const azn = (value: number) => `${value.toLocaleString("az-AZ", { maximumFractionDigits: 2 })} AZN`;
 
 // ---------- Excel file: template and import ----------
-type SheetKind = "employees" | "staff" | "structure";
-const SHEET_TEXT: Record<SheetKind, { headers: string[]; example: (string | number)[]; sheet: string; file: string; title: string; columns: string; endpoint: string }> = {
-  employees: {
-    headers: EMPLOYEE_TEMPLATE_HEADERS,
-    example: EMPLOYEE_TEMPLATE_EXAMPLE,
-    sheet: "İşçilər",
-    file: "isciler-numune.xlsx",
-    title: "İşçiləri Excel faylından əlavə et",
-    columns: "Ad Soyad, Vəzifə, Departament, Şöbə, İşə başlama, Əmək haqqı (və ya Net maaş), Maaş növü, E-poçt, Telefon, Məzuniyyət günləri, İstifadə olunmuş məzuniyyət. Eyni işçi (e-poçt və ya ad və başlama tarixi) yenilənir, yenisi əlavə olunur. Ştat cədvəlindəki maaş həddindən kənar maaşlı sətir yüklənmir.",
-    endpoint: "company/employees/import",
-  },
-  staff: {
-    headers: STAFF_TEMPLATE_HEADERS,
-    example: STAFF_TEMPLATE_EXAMPLE,
-    sheet: "Ştat",
-    file: "stat-numune.xlsx",
-    title: "Ştat cədvəlini Excel faylından əlavə et",
-    columns: "Departament, Şöbə, Vəzifə, Ştat sayı, Ştat dərəcəsi (tam / 3/4 / yarım / 1/4), Əmək haqqı (minimum), Maksimum əmək haqqı, Qeyd. Eyni departament, şöbə və vəzifə yenilənir.",
-    endpoint: "company/staff/import",
-  },
-  structure: {
-    headers: STRUCTURE_TEMPLATE_HEADERS,
-    example: STRUCTURE_TEMPLATE_EXAMPLE,
-    sheet: "Struktur",
-    file: "struktur-numune.xlsx",
-    title: "Departament və şöbələri Excel faylından əlavə et",
-    columns: "Departament, Şöbə. Hər sətir bir şöbədir; yalnız departamentin adı olan sətir departamenti yaradır. Kataloqda olan ad təkrar yaradılmır.",
-    endpoint: "company/structure/import",
-  },
+export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles";
+const SHEET_META: Record<SheetKind, { title: string; endpoint: string; done: (r: SheetResult) => string }> = {
+  employees: { title: "İşçiləri Excel faylından əlavə et", endpoint: "company/employees/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən işçi yadda saxlanıldı.` },
+  staff: { title: "Ştat cədvəlini Excel faylından əlavə et", endpoint: "company/staff/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən ştat sətri yadda saxlanıldı.` },
+  structure: { title: "Departament və şöbələri Excel faylından əlavə et", endpoint: "company/structure/import", done: (r) => `${r.created} yeni ad yaradıldı, ${r.existing ?? 0} artıq var idi.` },
+  attendance: { title: "Davamiyyət qeydlərini Excel faylından yüklə", endpoint: "company/attendance/import", done: (r) => `${r.applied ?? 0} sətir tətbiq olundu (${r.days ?? 0} gün qeyd edildi).` },
+  calendar: { title: "Şirkət təqvimini Excel faylından yüklə", endpoint: "company/calendar/import", done: (r) => `${r.applied ?? 0} gün təqvimdə yeniləndi.` },
+  profiles: { title: "Şəxsi məlumatları Excel faylından yüklə", endpoint: "company/employees/profile-import", done: (r) => `${r.applied ?? 0} işçinin şəxsi məlumatı yeniləndi.` },
 };
-function downloadTemplate(kind: SheetKind) {
-  const text = SHEET_TEXT[kind];
-  const bytes = createXlsx(text.headers, [text.example], text.sheet);
+type SheetResult = { created: number; updated?: number; existing?: number; applied?: number; days?: number; pending?: boolean; issues?: { line: number; reason: string }[] };
+
+function downloadBlob(bytes: Uint8Array, name: string) {
   const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = text.file;
+  link.download = name;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+// The sample file with a guide sheet: what each column holds, whether it is required, its format and its values.
+export function downloadTemplate(kind: SheetKind | "sections") {
+  downloadBlob(createXlsxBook(templateSheets(kind)), SHEET_TEMPLATES[kind].file);
+}
+
+const codeName = (id: string) => ATTENDANCE_CODES.find((c) => c.id === id)?.label.replace(/\s*\(.*\)\s*/, "") || "Qeydi sil";
+const KIND_NAME: Record<string, string> = { off: "Qeyri-iş günü", work: "İş günü", short: "Qısaldılmış gün", "": "Sil (standarta qayıt)" };
+// The columns of the preview and what each parsed row shows in them.
+function previewOf(kind: SheetKind, rows: unknown[]): { head: string[]; body: string[][] } {
+  const list = rows as Record<string, string | number | boolean | Record<string, unknown>>[];
+  const str = (v: unknown) => String(v ?? "") || "—";
+  if (kind === "employees")
+    return { head: ["Ad Soyad", "Vəzifə", "Departament / Şöbə", "Başlama", "Əmək haqqı"], body: list.map((r) => [str(r.name), str(r.position), [r.department, r.section].filter(Boolean).join(" / ") || "—", str(r.startDate), r.salary ? `${azn(Number(r.salary))} (${r.salaryType})` : "—"]) };
+  if (kind === "staff")
+    return { head: ["Departament", "Şöbə", "Vəzifə", "Ştat", "Dərəcə", "Əmək haqqı"], body: list.map((r) => [str(r.department), str(r.section), str(r.position), str(r.planned), RATE_LABEL[Number(r.rate)] || "Tam ştat", r.salary ? (Number(r.salaryMax) > Number(r.salary) ? `${azn(Number(r.salary))} – ${azn(Number(r.salaryMax))}` : azn(Number(r.salary))) : "—"]) };
+  if (kind === "structure") return { head: ["Departament", "Şöbə"], body: list.map((r) => [str(r.department), str(r.section)]) };
+  if (kind === "attendance") return { head: ["Ad Soyad", "Başlama", "Bitmə", "Səbəb", "Qeyd"], body: list.map((r) => [str(r.name), str(r.from), str(r.to), codeName(String(r.code)), str(r.note)]) };
+  if (kind === "calendar") return { head: ["Tarix", "Növ", "Ad"], body: list.map((r) => [str(r.day), KIND_NAME[String(r.kind)] || str(r.kind), str(r.label)]) };
+  return { head: ["Ad Soyad", "E-poçt", "Doldurulan sahə sayı"], body: list.map((r) => [str(r.name), str(r.email), String(Object.keys((r.profile as object) || {}).length)]) };
 }
 
 export function SheetImport({
@@ -94,9 +88,11 @@ export function SheetImport({
   const [rows, setRows] = useState<string[][] | null>(null);
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
+  const template = SHEET_TEMPLATES[kind];
   const parsed = useMemo(() => {
     if (!rows) return null;
-    return kind === "employees" ? parseEmployeeRows(rows) : kind === "staff" ? parseStaffRows(rows) : parseStructureRows(rows);
+    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows }[kind];
+    return parse(rows) as { rows: unknown[]; issues: { line: number; reason: string }[] };
   }, [rows, kind]);
   async function pick(file: File | undefined) {
     if (!file) return;
@@ -111,12 +107,9 @@ export function SheetImport({
     if (!rows) return;
     setBusy(true);
     try {
-      const result = await request<{ created: number; updated?: number; existing?: number; pending?: boolean; issues: { line: number; reason: string }[] }>(SHEET_TEXT[kind].endpoint, { rows });
-      notify(
-        result.pending
-          ? "Ştat cədvəli təsdiq olunub: yükləmə direktorun təsdiqinə göndərildi."
-          : `${result.created} yeni, ${result.updated ?? result.existing ?? 0} ${kind === "structure" ? "mövcud" : "yenilənən"} sətir yadda saxlanıldı.${result.issues?.length ? ` ${result.issues.length} sətir yüklənmədi: ${result.issues[0].reason}` : ""}`,
-      );
+      const result = await request<SheetResult>(SHEET_META[kind].endpoint, { rows });
+      const problems = result.issues?.length ? ` ${result.issues.length} sətir yüklənmədi: ${result.issues[0].reason}` : "";
+      notify(result.pending ? "Ştat cədvəli təsdiq olunub: yükləmə direktorun təsdiqinə göndərildi." : `${SHEET_META[kind].done(result)}${problems}`);
       onDone();
       onClose();
     } catch (error) {
@@ -125,19 +118,57 @@ export function SheetImport({
       setBusy(false);
     }
   }
+  const preview = parsed?.rows.length ? previewOf(kind, parsed.rows.slice(0, 8)) : null;
   return (
-    <Modal title={SHEET_TEXT[kind].title} onClose={onClose}>
-      <div className="offer-composer">
-        <p className="muted">Birinci sətirdə sütun adları olmalıdır: {SHEET_TEXT[kind].columns}</p>
+    <Modal title={SHEET_META[kind].title} onClose={onClose}>
+      <div className="offer-composer sheet-import">
         <div className="admin-actions">
-          <button type="button" className="secondary" onClick={() => downloadTemplate(kind)}>
+          <button type="button" className="primary" onClick={() => downloadTemplate(kind)}>
             <Download size={14} /> Nümunə fayl (.xlsx)
           </button>
           <label className="secondary report-button" style={{ cursor: "pointer" }}>
-            <Upload size={14} /> {fileName || "Excel və ya CSV seçin"}
+            <Upload size={14} /> {fileName || "Doldurulmuş Excel və ya CSV seçin"}
             <input type="file" accept=".xlsx,.csv" hidden onChange={(event) => void pick(event.target.files?.[0])} />
           </label>
         </div>
+        <details className="sheet-guide" open={!parsed}>
+          <summary>
+            <b>Faylı necə hazırlamalı</b> <small className="muted">— sütunlar, format və icazə verilən dəyərlər</small>
+          </summary>
+          <p className="muted">Nümunə faylda iki vərəq var: “Nümunə” (doldurulan vərəq, birinci olmalıdır) və “Təlimat”. Birinci sətirdə sütun adları durur, onları dəyişməyin; sütunların sırası vacib deyil.</p>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Sütun</th>
+                  <th>Məcburi</th>
+                  <th>Format</th>
+                  <th>İzah</th>
+                </tr>
+              </thead>
+              <tbody>
+                {template.columns.map((c) => (
+                  <tr key={c.header}>
+                    <td>
+                      <b>{c.header}</b>
+                    </td>
+                    <td>{c.required ? "Bəli" : "—"}</td>
+                    <td>{c.format}</td>
+                    <td>
+                      {c.description}
+                      {c.values && <small className="skill-description">Dəyərlər: {c.values}</small>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ul className="muted">
+            {template.rules.map((rule) => (
+              <li key={rule}>{rule}</li>
+            ))}
+          </ul>
+        </details>
         {parsed && (
           <>
             <p>
@@ -152,65 +183,24 @@ export function SheetImport({
                 ))}
               </ul>
             )}
-            {!!parsed.rows.length && (
+            {preview && (
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      {kind === "employees" && (
-                        <>
-                          <th>Ad Soyad</th>
-                          <th>Vəzifə</th>
-                          <th>Departament / Şöbə</th>
-                          <th>Başlama</th>
-                          <th>Əmək haqqı</th>
-                        </>
-                      )}
-                      {kind === "staff" && (
-                        <>
-                          <th>Departament</th>
-                          <th>Şöbə</th>
-                          <th>Vəzifə</th>
-                          <th>Ştat</th>
-                          <th>Dərəcə</th>
-                          <th>Əmək haqqı</th>
-                        </>
-                      )}
-                      {kind === "structure" && (
-                        <>
-                          <th>Departament</th>
-                          <th>Şöbə</th>
-                        </>
-                      )}
+                      {preview.head.map((h) => (
+                        <th key={h}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {parsed.rows.slice(0, 8).map((row) => {
-                      const r = row as unknown as Record<string, string | number>;
-                      return kind === "employees" ? (
-                        <tr key={row.line}>
-                          <td>{r.name}</td>
-                          <td>{r.position || "—"}</td>
-                          <td>{[r.department, r.section].filter(Boolean).join(" / ") || "—"}</td>
-                          <td>{r.startDate || "—"}</td>
-                          <td>{r.salary ? `${azn(Number(r.salary))} (${r.salaryType})` : "—"}</td>
-                        </tr>
-                      ) : kind === "staff" ? (
-                        <tr key={row.line}>
-                          <td>{r.department || "—"}</td>
-                          <td>{r.section || "—"}</td>
-                          <td>{r.position || "—"}</td>
-                          <td>{r.planned}</td>
-                          <td>{RATE_LABEL[Number(r.rate)] || "Tam ştat"}</td>
-                          <td>{r.salary ? (Number(r.salaryMax) > Number(r.salary) ? `${azn(Number(r.salary))} – ${azn(Number(r.salaryMax))}` : azn(Number(r.salary))) : "—"}</td>
-                        </tr>
-                      ) : (
-                        <tr key={row.line}>
-                          <td>{r.department || "—"}</td>
-                          <td>{r.section || "—"}</td>
-                        </tr>
-                      );
-                    })}
+                    {preview.body.map((cells, i) => (
+                      <tr key={i}>
+                        {cells.map((c, j) => (
+                          <td key={j}>{c}</td>
+                        ))}
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -1755,20 +1745,8 @@ function DepartmentSections({ department, notify, onClose, onChanged }: { depart
             <Upload size={14} /> Excel və ya CSV seçin
             <input type="file" accept=".xlsx,.csv" hidden onChange={(event) => void pickFile(event.target.files?.[0])} />
           </label>
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => {
-              const bytes = createXlsx(["Şöbə"], [["Mühasibat"], ["Xəzinə"]], "Şöbələr");
-              const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-              const link = document.createElement("a");
-              link.href = url;
-              link.download = "sobeler-numune.xlsx";
-              link.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            <Download size={14} /> Nümunə fayl
+          <button type="button" className="secondary" onClick={() => downloadTemplate("sections")}>
+            <Download size={14} /> Nümunə fayl (təlimatla)
           </button>
         </div>
         <small className="skill-picker-help">Faylda “Şöbə” sütunu olmalıdır (yoxdursa birinci sütun götürülür). Şöbələr yalnız “{department}” departamentinə əlavə olunur.</small>

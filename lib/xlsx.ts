@@ -40,8 +40,9 @@ function cellXml(value: XlsxCell, row: number, column: number, style = 0) {
   return `<c r="${reference}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
 }
 
-export function createXlsx(headers: string[], rows: XlsxCell[][], sheetName = "Skills") {
-  const safeSheetName = sheetName.replace(/[\\/*?:\[\]]/g, " ").slice(0, 31) || "Skills";
+export type XlsxSheet = { name: string; headers: string[]; rows: XlsxCell[][] };
+
+function sheetXml(headers: string[], rows: XlsxCell[][]) {
   const allRows = [headers, ...rows];
   const worksheetRows = allRows.map((row, rowIndex) => {
     const cells = row.map((value, columnIndex) => cellXml(value, rowIndex + 1, columnIndex, rowIndex === 0 ? 1 : 0)).join("");
@@ -52,7 +53,7 @@ export function createXlsx(headers: string[], rows: XlsxCell[][], sheetName = "S
     const longest = Math.min(55, Math.max(header.length + 3, ...rows.slice(0, 500).map((row) => String(row[index] ?? "").length + 2)));
     return `<col min="${index + 1}" max="${index + 1}" width="${Math.max(12, longest)}" customWidth="1"/>`;
   }).join("");
-  const worksheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <dimension ref="A1:${lastColumn}${allRows.length}"/>
   <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
@@ -60,13 +61,19 @@ export function createXlsx(headers: string[], rows: XlsxCell[][], sheetName = "S
   <sheetData>${worksheetRows}</sheetData>
   <autoFilter ref="A1:${lastColumn}${allRows.length}"/>
 </worksheet>`;
+}
+
+// One workbook with several sheets. The file readers take the first sheet, so the sheet with the data comes first.
+export function createXlsxBook(sheets: XlsxSheet[]) {
+  const list = sheets.length ? sheets : [{ name: "Sheet1", headers: [], rows: [] }];
+  const names = list.map((sheet, i) => sheet.name.replace(/[\\/*?:\[\]]/g, " ").slice(0, 31) || `Sheet${i + 1}`);
   const files: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+${list.map((_, i) => `  <Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("\n")}
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
   <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
@@ -79,12 +86,12 @@ export function createXlsx(headers: string[], rows: XlsxCell[][], sheetName = "S
 </Relationships>`),
     "xl/workbook.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="${escapeXml(safeSheetName)}" sheetId="1" r:id="rId1"/></sheets>
+  <sheets>${names.map((name, i) => `<sheet name="${escapeXml(name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets>
 </workbook>`),
     "xl/_rels/workbook.xml.rels": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+${list.map((_, i) => `  <Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("\n")}
+  <Relationship Id="rId${list.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`),
     "xl/styles.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -96,13 +103,19 @@ export function createXlsx(headers: string[], rows: XlsxCell[][], sheetName = "S
   <cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`),
-    "xl/worksheets/sheet1.xml": strToU8(worksheet),
     "docProps/core.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:title>Joblink Skills Catalog</dc:title><dc:creator>Joblink</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
+  <dc:title>Joblink</dc:title><dc:creator>Joblink</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
 </cp:coreProperties>`),
     "docProps/app.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Joblink</Application></Properties>`),
   };
+  list.forEach((sheet, i) => {
+    files[`xl/worksheets/sheet${i + 1}.xml`] = strToU8(sheetXml(sheet.headers, sheet.rows));
+  });
   return zipSync(files, { level: 6 });
+}
+
+export function createXlsx(headers: string[], rows: XlsxCell[][], sheetName = "Skills") {
+  return createXlsxBook([{ name: sheetName.replace(/[\\/*?:\[\]]/g, " ").slice(0, 31) || "Skills", headers, rows }]);
 }

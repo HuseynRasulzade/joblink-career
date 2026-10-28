@@ -369,6 +369,7 @@ import { assignPeople, checkSalary, normalizeRate, RATE_LABEL, summarize, type P
 import { parseStructureRows } from "@/lib/staff-import";
 import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
+import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
 import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
@@ -7368,6 +7369,81 @@ async function route(request: Request) {
         .run();
     }
     return ok({ ok: true });
+  }
+  // ---- Excel: attendance marks, calendar days, personal data ----
+  const sheetRows = (value: unknown) =>
+    (Array.isArray(value) ? value : []).slice(0, 1001).map((row: unknown) => (Array.isArray(row) ? row.map((c) => String(c ?? "")) : []));
+  const employeeRefs = async () =>
+    (
+      await db
+        .prepare("SELECT id,name,email FROM company_employees WHERE company_id=? AND status<>'removed'")
+        .bind(id)
+        .all<{ id: string; name: string; email: string }>()
+    ).results;
+  if (request.method === "POST" && path === "company/attendance/import") {
+    requirePermission("salaries", "Davamiyyəti yalnız davamiyyət icazəsi olan şəxs yükləyə bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseAttendanceRows(sheetRows(b.rows));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda davamiyyət sətri tapılmadı.");
+    const people = await employeeRefs();
+    const issues = [...parsed.issues];
+    let applied = 0;
+    let days = 0;
+    for (const row of parsed.rows) {
+      const found = matchEmployee(people, row);
+      if ("error" in found) {
+        issues.push({ line: row.line, reason: found.error });
+        continue;
+      }
+      days += await markAttendance(found.id, row.from, row.to, row.code, row.note);
+      applied += 1;
+    }
+    await companyAudit(db, id, userId, "attendance-imported", "", `${applied} sətir, ${days} gün`);
+    return ok({ applied, days, issues });
+  }
+  if (request.method === "POST" && path === "company/calendar/import") {
+    requirePermission("salaries", "Təqvimi yalnız davamiyyət icazəsi olan şəxs yükləyə bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseCalendarRows(sheetRows(b.rows));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda təqvim günü tapılmadı.");
+    const statements = parsed.rows.map((row) =>
+      row.kind
+        ? db
+            .prepare("INSERT INTO company_calendar(company_id,day,kind,label) VALUES(?,?,?,?) ON CONFLICT(company_id,day) DO UPDATE SET kind=excluded.kind,label=excluded.label")
+            .bind(id, row.day, row.kind, row.label)
+        : db.prepare("DELETE FROM company_calendar WHERE company_id=? AND day=?").bind(id, row.day),
+    );
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "calendar-imported", "", `${parsed.rows.length} gün`);
+    return ok({ applied: parsed.rows.length, issues: parsed.issues });
+  }
+  if (request.method === "POST" && path === "company/employees/profile-import") {
+    requirePermission("salaries", "Şəxsi məlumatları yalnız şəxsi məlumat icazəsi olan şəxs yükləyə bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseProfileRows(sheetRows(b.rows));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda işçi tapılmadı.");
+    const people = await employeeRefs();
+    const issues = [...parsed.issues];
+    const statements: D1PreparedStatement[] = [];
+    let applied = 0;
+    for (const row of parsed.rows) {
+      const found = matchEmployee(people, row);
+      if ("error" in found) {
+        issues.push({ line: row.line, reason: found.error });
+        continue;
+      }
+      const current = await db.prepare("SELECT profile FROM company_employees WHERE id=? AND company_id=?").bind(found.id, id).first<{ profile: string }>();
+      const merged = normalizeProfile({ ...parseProfile(current?.profile), ...row.profile });
+      if (merged.issues.length) {
+        issues.push({ line: row.line, reason: `${row.name}: ${merged.issues[0]}` });
+        continue;
+      }
+      statements.push(db.prepare("UPDATE company_employees SET profile=?,updated=? WHERE id=? AND company_id=?").bind(JSON.stringify(merged.profile), new Date().toISOString(), found.id, id));
+      applied += 1;
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "employee-profile-imported", "", `${applied} işçi`);
+    return ok({ applied, issues });
   }
   // ---- Orders about an employee: who signs, and each signer's approval ----
   if (request.method === "GET" && path === "company/order-signers") {

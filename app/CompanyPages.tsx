@@ -2494,6 +2494,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   }>("company/employees", notify);
   const [editing, setEditing] = useState<Partial<Employee> | null>(null);
   const [importing, setImporting] = useState(false);
+  const [importingProfiles, setImportingProfiles] = useState(false);
   // The employee list and the staff table are two views of one page, shown one at a time.
   const [view, setView] = useState<"people" | "staff">("people");
   // Extra sections of the employee card open in their own pop-up windows.
@@ -2573,6 +2574,11 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
         />
         <div className="admin-actions">
           <ReportButton kind="employees" label="XLSX" />
+          {data.canPersonal && (
+            <button className="secondary" onClick={() => setImportingProfiles(true)}>
+              <Download size={14} style={{ transform: "rotate(180deg)" }} /> Şəxsi məlumatları Excel-dən
+            </button>
+          )}
           {data.canEdit && (
             <button className="secondary" onClick={() => setImporting(true)}>
               <Download size={14} style={{ transform: "rotate(180deg)" }} /> Excel-dən əlavə et
@@ -2721,6 +2727,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
       )}
       {data.canStaff && view === "staff" && <StaffTable notify={notify} />}
       {importing && <SheetImport kind="employees" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
+      {importingProfiles && <SheetImport kind="profiles" notify={notify} onClose={() => setImportingProfiles(false)} onDone={load} />}
       {editing && (
         <Modal
           title={editing.id ? "İşçini düzəlt" : "Yeni işçi"}

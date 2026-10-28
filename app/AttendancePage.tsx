@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, Plus, Trash2 } from "lucide-react";
 import { ATTENDANCE_CODES, attendanceCode, type CalendarDay, type CalendarOverride, type AttendanceSummary, type MonthSummary } from "@/lib/calendar-az";
 import { Field, Modal } from "./components";
+import { SheetImport } from "./StaffPages";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -53,6 +54,7 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
   const [department, setDepartment] = useState("");
   const [cell, setCell] = useState<{ employee: SheetEmployee; date: string } | null>(null);
   const [bulk, setBulk] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [calendarForm, setCalendarForm] = useState({ day: "", kind: "off", label: "" });
   const notifyRef = useRef(notify);
   useEffect(() => {
@@ -102,6 +104,9 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
           <a className="secondary report-button" href={`/api/joblink/company/report?kind=attendance&month=${month}`} download>
             <Download size={14} /> Excel hesabatı
           </a>
+          <button type="button" className="secondary" onClick={() => setImporting(true)}>
+            <FileSpreadsheet size={14} /> Excel-dən yüklə
+          </button>
           <button type="button" className="primary" onClick={() => setBulk(true)}>
             <Plus size={14} /> Toplu qeyd (məzuniyyət, xəstəlik…)
           </button>
@@ -246,6 +251,7 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
         )}
       </section>
       {cell && <MarkModal employee={cell.employee} date={cell.date} employees={sheet.employees} notify={notify} onClose={() => setCell(null)} onDone={load} />}
+      {importing && <SheetImport kind="attendance" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {bulk && <MarkModal employees={sheet.employees} date={`${month}-01`} notify={notify} onClose={() => setBulk(false)} onDone={load} />}
     </div>
   );
@@ -346,6 +352,7 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState<{ months: MonthSummary[]; overrides: CalendarOverride[]; religiousYears: number[]; hoursPerDay: number } | null>(null);
   const [pick, setPick] = useState<CalendarDay | null>(null);
+  const [importing, setImporting] = useState(false);
   const [label, setLabel] = useState("");
   const notifyRef = useRef(notify);
   useEffect(() => {
@@ -382,10 +389,16 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
             <ChevronRight size={16} />
           </button>
         </div>
-        <a className="secondary report-button" href={`/api/joblink/company/report?kind=calendar&year=${year}`} download>
-          <Download size={14} /> Excel
-        </a>
+        <div className="admin-actions">
+          <button type="button" className="secondary" onClick={() => setImporting(true)}>
+            <FileSpreadsheet size={14} /> Excel-dən yüklə
+          </button>
+          <a className="secondary report-button" href={`/api/joblink/company/report?kind=calendar&year=${year}`} download>
+            <Download size={14} /> Excel
+          </a>
+        </div>
       </div>
+      {importing && <SheetImport kind="calendar" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {!data.religiousYears.includes(year) && (
         <div className="notice" role="status">
           {year}-ci il üçün Ramazan və Qurban bayramı günləri Nazirlər Kabinetinin qərarı ilə müəyyən edilir və hələ daxil edilməyib. Qərar çıxandan sonra həmin günləri xanaya basıb “Qeyri-iş günü” kimi əlavə edin.
