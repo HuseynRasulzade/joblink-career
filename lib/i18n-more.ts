@@ -62,6 +62,8 @@ export const EN_MORE: Record<string, string> = {
   "Kataloqda yoxdur: uyğunluq hesabında nəzərə alınmır": "Not in the catalog: not counted in the match",
   "Kataloqda olmayan bacarıqlar uyğunluq hesabında nəzərə alınmır:": "Skills outside the catalog are not counted in the match:",
   "Oxşar kataloq bacarığını seçin və ya yazıb “Yeni bacarıq kimi yoxla və əlavə et” düyməsini basın.": "Pick a similar catalog skill, or type it and press “Check and add as a new skill”.",
+  "Kataloqda tapılmadı, saxlanılmayacaq və uyğunluq hesabında nəzərə alınmayacaq:": "Not found in the catalog, will not be saved and will not count in the match:",
+  "Birinə basın, sonra “Yeni bacarıq kimi yoxla və əlavə et” düyməsi ilə yoxlayın və ya oxşar kataloq bacarığını seçin.": "Click one, then check it with “Check and add as a new skill”, or pick a similar catalog skill.",
 };
 export const RU_MORE: Record<string, string> = {
   "Vəzifə səviyyəsi:": "Уровень должности:",
@@ -129,4 +131,6 @@ export const RU_MORE: Record<string, string> = {
   "Kataloqda yoxdur: uyğunluq hesabında nəzərə alınmır": "Нет в каталоге: не учитывается при подборе",
   "Kataloqda olmayan bacarıqlar uyğunluq hesabında nəzərə alınmır:": "Навыки вне каталога не учитываются при подборе:",
   "Oxşar kataloq bacarığını seçin və ya yazıb “Yeni bacarıq kimi yoxla və əlavə et” düyməsini basın.": "Выберите похожий навык из каталога или введите его и нажмите «Проверить и добавить как новый навык».",
+  "Kataloqda tapılmadı, saxlanılmayacaq və uyğunluq hesabında nəzərə alınmayacaq:": "Не найдено в каталоге, не будет сохранено и не учитывается при подборе:",
+  "Birinə basın, sonra “Yeni bacarıq kimi yoxla və əlavə et” düyməsi ilə yoxlayın və ya oxşar kataloq bacarığını seçin.": "Нажмите на навык, затем проверьте его кнопкой «Проверить и добавить как новый навык» или выберите похожий из каталога.",
 };

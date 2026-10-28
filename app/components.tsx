@@ -226,7 +226,13 @@ export function SkillPicker({
   const isKnown = (item: string) =>
     runtimeByLabel.has(normalizeSkillKey(item)) ||
     normalizeSkills([item], { max: 1 }).length > 0;
-  const unknown = selected.filter((item) => !isKnown(item));
+  // Skills in the list that the catalog does not know are not saved (for example
+  // ones read from a CV): say so, and let the person check them as new skills.
+  const unknown = value.filter(
+    (item) =>
+      item.trim() &&
+      normalizeSkills([item], { allowCustom: true, max: 1 }).length === 0,
+  );
   const add = (candidate: string) => {
     const next = normalizeSkills([...selected, candidate], {
       allowCustom: true,
@@ -389,9 +395,14 @@ export function SkillPicker({
       )}
       {!!unknown.length && (
         <small className="skill-unknown-note" role="note">
-          {translate("Kataloqda olmayan bacarıqlar uyğunluq hesabında nəzərə alınmır:", language)}{" "}
-          <b>{unknown.slice(0, 5).join(", ")}{unknown.length > 5 ? "…" : ""}</b>.{" "}
-          {translate("Oxşar kataloq bacarığını seçin və ya yazıb “Yeni bacarıq kimi yoxla və əlavə et” düyməsini basın.", language)}
+          {translate("Kataloqda tapılmadı, saxlanılmayacaq və uyğunluq hesabında nəzərə alınmayacaq:", language)}{" "}
+          {unknown.slice(0, 5).map((item) => (
+            <button type="button" key={item} className="text-button" onClick={() => setQuery(item)}>
+              {item}
+            </button>
+          ))}
+          {unknown.length > 5 ? "…" : ""}{" "}
+          {translate("Birinə basın, sonra “Yeni bacarıq kimi yoxla və əlavə et” düyməsi ilə yoxlayın və ya oxşar kataloq bacarığını seçin.", language)}
         </small>
       )}
       <small className="skill-picker-help">
