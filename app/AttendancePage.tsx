@@ -35,7 +35,7 @@ type Sheet = {
   month: string;
   days: CalendarDay[];
   employees: SheetEmployee[];
-  overrides: { day: string; kind: "off" | "work"; label: string }[];
+  overrides: { day: string; kind: "off" | "work" | "short"; label: string }[];
   years: number[];
 };
 
@@ -118,14 +118,15 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
             <tr>
               <th style={{ position: "sticky", left: 0, background: "#fff", minWidth: 170 }}>İşçi</th>
               {sheet.days.map((d) => (
-                <th key={d.date} title={d.label} style={{ textAlign: "center", padding: "4px 2px", background: d.off ? "#f2f2f2" : undefined, minWidth: 26 }}>
+                <th key={d.date} title={d.label} style={{ textAlign: "center", padding: "4px 2px", background: d.off ? "#f2f2f2" : d.short ? "#fff6cc" : undefined, minWidth: 26 }}>
                   {Number(d.date.slice(8))}
                   <br />
-                  <small>{WEEKDAY[d.weekday]}</small>
+                  <small>{d.short ? "7s" : WEEKDAY[d.weekday]}</small>
                 </th>
               ))}
               <th>Norma</th>
-              <th>İşlənib</th>
+              <th>İşlənib (gün)</th>
+              <th>Saat: faktiki / ödənilən</th>
               <th>Məzuniyyət və s.</th>
             </tr>
           </thead>
@@ -164,6 +165,9 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
                   <b>{e.summary.worked}</b>
                 </td>
                 <td>
+                  {e.summary.hours} / {e.summary.paidHours}
+                </td>
+                <td>
                   {ATTENDANCE_CODES.filter((c) => c.id !== "work" && e.summary.byCode[c.id]).map((c) => (
                     <div key={c.id}>
                       {c.short}: {e.summary.byCode[c.id]}
@@ -174,7 +178,7 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={sheet.days.length + 4}>
+                <td colSpan={sheet.days.length + 5}>
                   <p className="admin-empty">Bu ayda işləyən işçi yoxdur. İşçiləri “İşçilər” səhifəsindən əlavə edin.</p>
                 </td>
               </tr>
@@ -183,7 +187,7 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
         </table>
       </div>
       <p className="muted">
-        Qeyd olunmayan iş günü “işlənib” sayılır. <b>B</b> — bayram və ya köçürülmüş istirahət günü, boz sütun — istirahət. Xanaya basıb həmin günü qeyd edin.{" "}
+        Qeyd olunmayan iş günü “işlənib” sayılır. Sarı <b>7s</b> sütunu bayram ərəfəsidir: qısaldılmış gündə 1 saat az işlənir, haqq isə 8 saat üçün tam ödənilir. <b>B</b> — bayram və ya köçürülmüş istirahət günü, boz sütun — istirahət. Xanaya basıb həmin günü qeyd edin.{" "}
         {ATTENDANCE_CODES.map((c) => `${c.short} — ${c.label}`).join(" · ")}.
       </p>
       <section className="panel">
@@ -209,6 +213,7 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
             <select value={calendarForm.kind} onChange={(e) => setCalendarForm({ ...calendarForm, kind: e.target.value })}>
               <option value="off">Qeyri-iş günü</option>
               <option value="work">İş günü (məsələn, işlək şənbə)</option>
+              <option value="short">Qısaldılmış gün (7 saat, haqq tam)</option>
             </select>
           </Field>
           <Field label="Qeyd">
@@ -224,7 +229,7 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
           <ul>
             {sheet.overrides.map((o) => (
               <li key={o.day}>
-                {o.day} — {o.kind === "off" ? "qeyri-iş günü" : "iş günü"} {o.label && `(${o.label})`}{" "}
+                {o.day} — {o.kind === "off" ? "qeyri-iş günü" : o.kind === "short" ? "qısaldılmış gün" : "iş günü"} {o.label && `(${o.label})`}{" "}
                 <button
                   type="button"
                   aria-label="Sil"
@@ -330,7 +335,7 @@ function MarkModal({
 }
 
 // ---------- Production calendar of the year ----------
-const DAY_COLOR: Record<string, string> = { weekend: "#eceff1", holiday: "#ffd9d4", transfer: "#ffe9c2", company: "#e0d4ff" };
+const DAY_COLOR: Record<string, string> = { weekend: "#eceff1", holiday: "#ffd9d4", transfer: "#ffe9c2", company: "#e0d4ff", short: "#fff6cc" };
 const MONTH_HEAD = ["B.e", "Ç.a", "Ç", "C.a", "C", "Ş", "B"];
 
 function ProductionCalendar({ notify }: { notify: Notify }) {
@@ -348,7 +353,7 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
       .catch((error) => notifyRef.current((error as Error).message));
   }, [year]);
   useEffect(load, [load]);
-  async function change(day: string, kind: "off" | "work" | "") {
+  async function change(day: string, kind: "off" | "work" | "short" | "") {
     try {
       await request("company/attendance/calendar", { day, kind, label });
       setPick(null);
@@ -359,7 +364,7 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
     }
   }
   if (!data) return <p className="muted">Yüklənir…</p>;
-  const total = (key: "calendarDays" | "workDays" | "restDays" | "holidayDays" | "hours") => data.months.reduce((sum, m) => sum + m[key], 0);
+  const total = (key: "calendarDays" | "workDays" | "restDays" | "holidayDays" | "shortDays" | "hours" | "paidHours") => data.months.reduce((sum, m) => sum + m[key], 0);
   const holidays = data.months.flatMap((m) => m.days.filter((d) => d.off && d.off !== "weekend" && d.label));
   return (
     <div className="company-page">
@@ -391,7 +396,9 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
               <th>İş günü</th>
               <th>İstirahət günü</th>
               <th>Bayram və köçürülmüş gün</th>
-              <th>İş saatı ({data.hoursPerDay} saat/gün)</th>
+              <th>Qısaldılmış gün (ərəfə)</th>
+              <th>İş saatı (faktiki)</th>
+              <th>Ödənilən saat</th>
             </tr>
           </thead>
           <tbody>
@@ -404,7 +411,9 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
                 <td>{m.workDays}</td>
                 <td>{m.restDays}</td>
                 <td>{m.holidayDays}</td>
+                <td>{m.shortDays}</td>
                 <td>{m.hours}</td>
+                <td>{m.paidHours}</td>
               </tr>
             ))}
             <tr>
@@ -424,7 +433,13 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
                 <b>{total("holidayDays")}</b>
               </td>
               <td>
+                <b>{total("shortDays")}</b>
+              </td>
+              <td>
                 <b>{total("hours")}</b>
+              </td>
+              <td>
+                <b>{total("paidHours")}</b>
               </td>
             </tr>
           </tbody>
@@ -434,14 +449,14 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
         <span style={{ background: DAY_COLOR.weekend, padding: "0 6px" }}>istirahət</span>{" "}
         <span style={{ background: DAY_COLOR.holiday, padding: "0 6px" }}>bayram</span>{" "}
         <span style={{ background: DAY_COLOR.transfer, padding: "0 6px" }}>köçürülmüş istirahət günü</span>{" "}
-        <span style={{ background: DAY_COLOR.company, padding: "0 6px" }}>şirkətin qeyri-iş günü</span>. İş saatı həftədə 40 saatla (gündə {data.hoursPerDay} saat) hesablanıb. Günə basıb şirkətiniz üçün qeyri-iş günü və ya işlək gün (məsələn, Kabinetin elan etdiyi işlək şənbə) təyin edin.
+        <span style={{ background: DAY_COLOR.company, padding: "0 6px" }}>şirkətin qeyri-iş günü</span> <span style={{ background: DAY_COLOR.short, padding: "0 6px" }}>qısaldılmış gün (bayram ərəfəsi)</span>. İş saatı həftədə 40 saatla (gündə {data.hoursPerDay} saat) hesablanıb; qısaldılmış gündə 1 saat az işlənir (faktiki saat), amma tam gün üçün ödənilir (ödənilən saat). Günə basıb şirkətiniz üçün qeyri-iş günü və ya işlək gün (məsələn, Kabinetin elan etdiyi işlək şənbə) təyin edin.
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 14 }}>
         {data.months.map((m) => {
           const lead = (m.days[0].weekday + 6) % 7;
           return (
             <section key={m.month} className="panel" style={{ padding: 10 }}>
-              <b>{MONTHS[m.month - 1]}</b> <small className="muted">· {m.workDays} iş günü, {m.hours} saat</small>
+              <b>{MONTHS[m.month - 1]}</b> <small className="muted">· {m.workDays} iş günü, {m.hours} saat (ödənilən {m.paidHours})</small>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginTop: 6, textAlign: "center", fontSize: 12 }}>
                 {MONTH_HEAD.map((h) => (
                   <small key={h} className="muted">
@@ -460,7 +475,7 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
                       setPick(d);
                       setLabel(data.overrides.find((o) => o.day === d.date)?.label || "");
                     }}
-                    style={{ padding: "4px 0", border: "none", borderRadius: 4, cursor: "pointer", background: d.off ? DAY_COLOR[d.off] : "#f7fbf7", fontWeight: d.off === "holiday" || d.off === "transfer" ? 700 : 400 }}
+                    style={{ padding: "4px 0", border: "none", borderRadius: 4, cursor: "pointer", background: d.off ? DAY_COLOR[d.off] : d.short ? DAY_COLOR.short : "#f7fbf7", fontWeight: d.off === "holiday" || d.off === "transfer" ? 700 : 400 }}
                   >
                     {Number(d.date.slice(8))}
                   </button>
@@ -488,7 +503,7 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
         <Modal title={`${pick.date.slice(8)}.${pick.date.slice(5, 7)}.${pick.date.slice(0, 4)}`} onClose={() => setPick(null)}>
           <div className="offer-composer">
             <p>
-              Hazırda: <b>{pick.off === "" ? "iş günü" : pick.off === "weekend" ? "istirahət günü" : pick.off === "company" ? "şirkətin qeyri-iş günü" : "bayram / köçürülmüş gün"}</b>
+              Hazırda: <b>{pick.off === "" ? (pick.short ? "qısaldılmış iş günü (7 saat, 8 saatlıq haqq)" : "iş günü") : pick.off === "weekend" ? "istirahət günü" : pick.off === "company" ? "şirkətin qeyri-iş günü" : "bayram / köçürülmüş gün"}</b>
               {pick.label ? ` — ${pick.label}` : ""}
             </p>
             <Field label="Qeyd (ad)">
@@ -499,7 +514,10 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
                 Şirkət üçün qeyri-iş günü
               </button>
               <button type="button" className="secondary" onClick={() => void change(pick.date, "work")}>
-                İş günü et
+                Tam iş günü et
+              </button>
+              <button type="button" className="secondary" onClick={() => void change(pick.date, "short")}>
+                Qısaldılmış gün (7 saat, haqq tam)
               </button>
               {data.overrides.some((o) => o.day === pick.date) && (
                 <button type="button" onClick={() => void change(pick.date, "")}>

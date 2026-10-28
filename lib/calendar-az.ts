@@ -31,6 +31,8 @@ const RELIGIOUS: Record<number, [string, string][]> = {
 };
 export const RELIGIOUS_YEARS = Object.keys(RELIGIOUS).map(Number);
 
+export const HOURS_PER_DAY = 8; // a five-day, 40-hour week
+
 const iso = (date: Date) => date.toISOString().slice(0, 10);
 const utc = (year: number, month: number, day: number) => new Date(Date.UTC(year, month - 1, day));
 export const weekdayOf = (date: string) => new Date(`${date}T00:00:00Z`).getUTCDay(); // 0 = Sunday
@@ -68,12 +70,20 @@ export function daysOff(year: number): Map<string, DayOff> {
   return off;
 }
 
-export type CalendarOverride = { day: string; kind: "off" | "work"; label: string };
-export type CalendarDay = { date: string; weekday: number; off: "" | "weekend" | "holiday" | "transfer" | "company"; label: string };
+export type CalendarOverride = { day: string; kind: "off" | "work" | "short"; label: string };
+export type CalendarDay = {
+  date: string;
+  weekday: number;
+  off: "" | "weekend" | "holiday" | "transfer" | "company";
+  label: string;
+  // The eve of a holiday is a shortened day: one hour less at work, but a full day's pay.
+  short: boolean;
+};
 
 // The days of a month with what is off on each: weekends, holidays, moved days and the company's own changes.
 export function monthDays(year: number, month: number, overrides: CalendarOverride[] = []): CalendarDay[] {
   const off = daysOff(year);
+  const nextYearOff = month === 12 ? daysOff(year + 1) : off;
   const own = new Map(overrides.map((o) => [o.day, o]));
   const last = utc(year, month + 1, 0).getUTCDate();
   const days: CalendarDay[] = [];
@@ -84,14 +94,24 @@ export function monthDays(year: number, month: number, overrides: CalendarOverri
     const custom = own.get(date);
     let state: CalendarDay["off"] = holiday ? holiday.kind : weekday === 0 || weekday === 6 ? "weekend" : "";
     let label = holiday?.label || "";
+    // The working day right before a holiday that falls on a weekday is shortened by an hour.
+    const next = new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    const nextOff = (next.startsWith(`${year}-`) ? off : nextYearOff).get(next);
+    let short = state === "" && !!nextOff && !isWeekend(next);
     if (custom?.kind === "off") {
       state = "company";
       label = custom.label || "Şirkətin qeyri-iş günü";
+      short = false;
     } else if (custom?.kind === "work") {
       state = "";
       label = custom.label || "İş günü (şirkət təqvimi)";
+      short = false;
+    } else if (custom?.kind === "short" && state === "") {
+      short = true;
+      label = custom.label || "Qısaldılmış iş günü";
     }
-    days.push({ date, weekday, off: state, label });
+    if (short && !label) label = "Bayram ərəfəsi: qısaldılmış iş günü (1 saat az, haqq tam)";
+    days.push({ date, weekday, off: state, label, short });
   }
   return days;
 }
@@ -111,7 +131,7 @@ export const ATTENDANCE_CODES: { id: string; short: string; label: string; count
 ];
 export const attendanceCode = (id: string) => ATTENDANCE_CODES.find((c) => c.id === id);
 
-export type AttendanceSummary = { norm: number; worked: number; byCode: Record<string, number> };
+export type AttendanceSummary = { norm: number; worked: number; byCode: Record<string, number>; hours: number; paidHours: number; shortDays: number };
 
 // Working days an employee should have in the month (employed days that are not off), the days worked
 // (those less the days marked as leave or absence) and the marked days by code.
@@ -123,6 +143,8 @@ export function summarize(
   const byCode: Record<string, number> = {};
   let norm = 0;
   let worked = 0;
+  let hours = 0;
+  let shortDays = 0;
   for (const day of days) {
     if ((employed.start && day.date < employed.start) || (employed.end && day.date > employed.end)) continue;
     const code = marks[day.date] || "";
@@ -130,18 +152,24 @@ export function summarize(
     if (code && code !== "work") byCode[code] = (byCode[code] || 0) + 1;
     if (day.off) {
       // A rest day marked as work (a trip or working on a day off) counts as worked.
-      if (kind?.counts === "work") worked += 1;
+      if (kind?.counts === "work") {
+        worked += 1;
+        hours += HOURS_PER_DAY;
+      }
       continue;
     }
     norm += 1;
-    if (!kind || kind.counts === "work") worked += 1;
+    if (!kind || kind.counts === "work") {
+      worked += 1;
+      hours += day.short ? HOURS_PER_DAY - 1 : HOURS_PER_DAY;
+      if (day.short) shortDays += 1;
+    }
   }
-  return { norm, worked, byCode };
+  // A shortened day is worked an hour less but paid in full.
+  return { norm, worked, byCode, hours, paidHours: worked * HOURS_PER_DAY, shortDays };
 }
 
 // ---- Production calendar of a year: the working days, rest and holiday days and the hours of each month ----
-export const HOURS_PER_DAY = 8; // a five-day, 40-hour week
-
 export type MonthSummary = {
   month: number;
   days: CalendarDay[];
@@ -149,7 +177,9 @@ export type MonthSummary = {
   workDays: number;
   restDays: number; // weekends
   holidayDays: number; // holidays, moved days and the company's own days off that fall on a weekday
-  hours: number;
+  shortDays: number; // eves of holidays: an hour less at work
+  hours: number; // hours actually to be worked
+  paidHours: number; // hours paid: a shortened day is paid in full
 };
 
 export function yearCalendar(year: number, overrides: CalendarOverride[] = []): MonthSummary[] {
@@ -158,6 +188,7 @@ export function yearCalendar(year: number, overrides: CalendarOverride[] = []): 
     const prefix = `${year}-${String(month).padStart(2, "0")}-`;
     const days = monthDays(year, month, overrides.filter((o) => o.day.startsWith(prefix)));
     const workDays = days.filter((d) => !d.off).length;
+    const shortDays = days.filter((d) => !d.off && d.short).length;
     // A holiday on a weekend is a weekend; the day moved in its place counts as a holiday.
     const holidayDays = days.filter((d) => d.off && d.off !== "weekend" && d.weekday !== 0 && d.weekday !== 6).length;
     return {
@@ -167,7 +198,9 @@ export function yearCalendar(year: number, overrides: CalendarOverride[] = []): 
       workDays,
       restDays: days.length - workDays - holidayDays,
       holidayDays,
-      hours: workDays * HOURS_PER_DAY,
+      shortDays,
+      hours: workDays * HOURS_PER_DAY - shortDays,
+      paidHours: workDays * HOURS_PER_DAY,
     };
   });
 }

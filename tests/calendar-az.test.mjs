@@ -54,9 +54,34 @@ test("production calendar: days, hours and the year's total", async () => {
   assert.equal(march.workDays, 14);
   assert.equal(march.holidayDays, 8);
   assert.equal(march.restDays, 9);
-  assert.equal(march.hours, 14 * HOURS_PER_DAY);
+  // 19 March is the eve of the 20 March holiday: shortened by an hour, paid in full
+  assert.equal(march.shortDays, 1);
+  assert.equal(march.hours, 14 * HOURS_PER_DAY - 1);
+  assert.equal(march.paidHours, 14 * HOURS_PER_DAY);
   assert.equal(year.reduce((sum, m) => sum + m.calendarDays, 0), 365);
   assert.ok(year.every((m) => m.workDays + m.restDays + m.holidayDays === m.calendarDays));
   const withOwn = yearCalendar(2026, [{ day: "2026-03-14", kind: "work", label: "" }]);
   assert.equal(withOwn[2].workDays, 15);
+});
+
+test("the eve of a weekday holiday is a shortened day (7 hours at work, 8 paid); the day before a weekend is not", () => {
+  const short = (year, month) => monthDays(year, month).filter((d) => d.short).map((d) => d.date.slice(5));
+  assert.deepEqual(short(2026, 1), ["01-19"]);
+  assert.deepEqual(short(2026, 3), ["03-19"]);
+  assert.deepEqual(short(2026, 12), ["12-30"]);
+  // 8 May is the Friday before the Saturday holiday: not an eve of a weekday holiday; 26 May is the eve of 27 May
+  assert.ok(!short(2026, 5).includes("05-08"));
+  assert.ok(short(2026, 5).includes("05-26"));
+  const days = monthDays(2026, 3, [{ day: "2026-03-18", kind: "short", label: "" }, { day: "2026-03-19", kind: "work", label: "" }]);
+  assert.equal(days.find((d) => d.date === "2026-03-18").short, true);
+  assert.equal(days.find((d) => d.date === "2026-03-19").short, false);
+});
+
+test("attendance hours: a shortened day is worked 7 hours and paid 8", () => {
+  const days = monthDays(2026, 3);
+  const summary = summarize(days, {}, { start: "2020-01-01", end: "" });
+  assert.equal(summary.worked, 14);
+  assert.equal(summary.hours, 14 * 8 - 1);
+  assert.equal(summary.paidHours, 14 * 8);
+  assert.equal(summary.shortDays, 1);
 });

@@ -7213,7 +7213,7 @@ async function route(request: Request) {
     const kind = str(b.kind, 10);
     if (!kind) await db.prepare("DELETE FROM company_calendar WHERE company_id=? AND day=?").bind(id, day).run();
     else {
-      if (!["off", "work"].includes(kind)) throw new HttpError(400, "Növ düzgün deyil.");
+      if (!["off", "work", "short"].includes(kind)) throw new HttpError(400, "Növ düzgün deyil.");
       await db
         .prepare("INSERT INTO company_calendar(company_id,day,kind,label) VALUES(?,?,?,?) ON CONFLICT(company_id,day) DO UPDATE SET kind=excluded.kind,label=excluded.label")
         .bind(id, day, kind, str(b.label, 100))
@@ -8677,20 +8677,22 @@ async function route(request: Request) {
         .all<CalendarOverride>();
       const months = yearCalendar(year, own.results);
       const names = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun", "İyul", "Avqust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
-      headers = [`${year}-ci il`, "Təqvim günü", "İş günü", "İstirahət günü", "Bayram və köçürülmüş gün", `İş saatı (gündə ${HOURS_PER_DAY} saat)`, "Bayram və qeyri-iş günləri"];
+      headers = [`${year}-ci il`, "Təqvim günü", "İş günü", "İstirahət günü", "Bayram və köçürülmüş gün", "Qısaldılmış gün (bayram ərəfəsi)", `İş saatı (faktiki, gündə ${HOURS_PER_DAY} saat, ərəfədə 1 saat az)`, `Ödənilən saat (qısaldılmış gün tam ödənilir)`, "Bayram və qeyri-iş günləri"];
       rows = months.map((m) => [
         names[m.month - 1],
         m.calendarDays,
         m.workDays,
         m.restDays,
         m.holidayDays,
+        m.shortDays,
         m.hours,
+        m.paidHours,
         m.days.filter((d) => d.off && d.off !== "weekend" && d.label).map((d) => `${d.date.slice(8)} — ${d.label}`).join("; "),
       ]);
-      rows.push(["İl üzrə cəmi", months.reduce((x, m) => x + m.calendarDays, 0), months.reduce((x, m) => x + m.workDays, 0), months.reduce((x, m) => x + m.restDays, 0), months.reduce((x, m) => x + m.holidayDays, 0), months.reduce((x, m) => x + m.hours, 0), ""]);
+      rows.push(["İl üzrə cəmi", months.reduce((x, m) => x + m.calendarDays, 0), months.reduce((x, m) => x + m.workDays, 0), months.reduce((x, m) => x + m.restDays, 0), months.reduce((x, m) => x + m.holidayDays, 0), months.reduce((x, m) => x + m.shortDays, 0), months.reduce((x, m) => x + m.hours, 0), months.reduce((x, m) => x + m.paidHours, 0), ""]);
     } else if (kind === "attendance") {
       const sheet = await attendanceData();
-      headers = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "İş günü norması", "İşlənmiş gün", ...ATTENDANCE_CODES.filter((c) => c.id !== "work").map((c) => `${c.short} (${c.label})`), ...sheet.days.map((d) => d.date.slice(8))];
+      headers = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "İş günü norması", "İşlənmiş gün", "İşlənmiş saat", "Ödənilən saat", ...ATTENDANCE_CODES.filter((c) => c.id !== "work").map((c) => `${c.short} (${c.label})`), ...sheet.days.map((d) => d.date.slice(8))];
       rows = sheet.employees.map((e) => [
         e.name,
         e.position,
@@ -8698,6 +8700,8 @@ async function route(request: Request) {
         e.section,
         e.summary.norm,
         e.summary.worked,
+        e.summary.hours,
+        e.summary.paidHours,
         ...ATTENDANCE_CODES.filter((c) => c.id !== "work").map((c) => e.summary.byCode[c.id] || 0),
         ...sheet.days.map((d) => {
           const code = e.marks[d.date];
