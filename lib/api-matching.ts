@@ -109,11 +109,11 @@ export async function rateJobs(
 export async function addHiredEmployee(db: D1Database, applicationId: string) {
   try {
     const row = await db
-      .prepare(`SELECT a.id,a.job_id,a.data,j.owner,j.data AS job_data,
+      .prepare(`SELECT a.id,a.job_id,a.candidate_id,a.data,j.owner,j.data AS job_data,
           (SELECT data FROM offers WHERE application_id=a.id AND status='accepted' ORDER BY created DESC LIMIT 1) AS offer
         FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=?`)
       .bind(applicationId)
-      .first<{ id: string; job_id: string; data: string; owner: string; job_data: string; offer: string | null }>();
+      .first<{ id: string; job_id: string; candidate_id: string; data: string; owner: string; job_data: string; offer: string | null }>();
     if (!row) return;
     const exists = await db.prepare("SELECT 1 FROM company_employees WHERE application_id=?").bind(applicationId).first();
     if (exists) return;
@@ -127,10 +127,10 @@ export async function addHiredEmployee(db: D1Database, applicationId: string) {
     const probationEnd = probationMonths ? addMonthsIso(startDate, probationMonths) : "";
     try {
       await db.batch([
-      db.prepare(`INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,job_id,created,updated)
-          VALUES(?,?,?,?,?,?,?,?,?,'active','hired',?,?,?,?)`)
+      db.prepare(`INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,job_id,user_id,created,updated)
+          VALUES(?,?,?,?,?,?,?,?,?,'active','hired',?,?,?,?,?)`)
         .bind(employeeId, row.owner, profile.name, offer?.position || job.title, "", profile.email || "", profile.phone || "",
-          startDate, Math.round((offer?.salary || 0) * 100), applicationId, row.job_id, now, now),
+          startDate, Math.round((offer?.salary || 0) * 100), applicationId, row.job_id, row.candidate_id || "", now, now),
       db.prepare("INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)")
         .bind(crypto.randomUUID(), row.owner, employeeId, "hired", "", "", "joblink", "", startDate, now),
       ]);

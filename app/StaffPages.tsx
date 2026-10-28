@@ -7,7 +7,7 @@ import { readSheetRows } from "@/lib/question-file";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "@/lib/staff-import";
 import { parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
 import { SHEET_TEMPLATES, templateSheets } from "@/lib/sheet-templates";
-import { REQUEST_KINDS, orderPrefill, requestKindLabel, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
+import { OTHER_REQUEST, REQUEST_KINDS, orderPrefill, requestKindLabel, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { ATTENDANCE_CODES } from "@/lib/calendar-az";
 import { RATES, RATE_LABEL, type PlanUnit } from "@/lib/staff-plan";
 import { createXlsxBook } from "@/lib/xlsx";
@@ -909,7 +909,8 @@ type RequestRow = {
   id: string;
   kind: string;
   data: RequestData & { basis?: string };
-  status: "new" | "ordered" | "rejected";
+  status: "new" | "ordered" | "rejected" | "answered" | "withdrawn";
+  source: "employee" | "hr";
   orderId: string;
   orderNumber: string;
   orderStatus: string;
@@ -918,7 +919,7 @@ type RequestRow = {
   created: string;
   employee: OrderEmployee;
 };
-const REQUEST_STATUS: Record<string, string> = { new: "Gözləyir", ordered: "Əmr yaradılıb", rejected: "Rədd edilib" };
+const REQUEST_STATUS: Record<string, string> = { new: "Gözləyir", ordered: "Əmr yaradılıb", rejected: "Rədd edilib", answered: "Cavablandırılıb", withdrawn: "İşçi geri götürüb" };
 
 function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount: (n: number) => void; onOrdered: () => void }) {
   const [rows, setRows] = useState<RequestRow[] | null>(null);
@@ -946,6 +947,17 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
     try {
       await request("company/applications/reject", { id: row.id, reason });
       notify("Ərizə rədd edildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function answer(row: RequestRow) {
+    const reply = window.prompt(`“${row.employee.name}” ərizəsinə cavab:`);
+    if (!reply || reply.trim().length < 3) return;
+    try {
+      await request("company/applications/answer", { id: row.id, reply });
+      notify("Cavab yazıldı: işçi öz profilində görəcək.");
       load();
     } catch (error) {
       notify((error as Error).message);
@@ -998,6 +1010,7 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
                 <td>
                   <b>{row.employee.name}</b>
                   <small className="skill-description">{[row.employee.position, row.employee.department].filter(Boolean).join(" · ")}</small>
+                  <small className="skill-description">{row.source === "employee" ? "İşçi öz profilindən yazıb" : `HR qeyd edib${row.by ? `: ${row.by}` : ""}`}</small>
                 </td>
                 <td>{requestKindLabel(row.kind)}</td>
                 <td>
@@ -1010,12 +1023,17 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
                 <td>
                   {REQUEST_STATUS[row.status]}
                   {row.status === "ordered" && <small className="skill-description">№ {row.orderNumber || "—"}</small>}
-                  {row.status === "rejected" && <small className="skill-description">{row.decision}</small>}
+                  {(row.status === "rejected" || row.status === "answered") && <small className="skill-description">{row.decision}</small>}
                 </td>
                 <td className="admin-actions">
-                  {row.status === "new" && (
+                  {row.status === "new" && row.kind !== OTHER_REQUEST.id && (
                     <button type="button" className="primary" onClick={() => setMaking(row)}>
                       Əmr yarat
+                    </button>
+                  )}
+                  {row.status === "new" && row.kind === OTHER_REQUEST.id && (
+                    <button type="button" className="primary" onClick={() => void answer(row)}>
+                      Cavab yaz
                     </button>
                   )}
                   {row.status === "new" && (
@@ -1074,7 +1092,7 @@ function RequestForm({ notify, onClose, onSaved }: { notify: Notify; onClose: ()
       .catch(() => setPeople([]));
   }, []);
   const today = new Date().toISOString().slice(0, 10);
-  const meta = REQUEST_KINDS.find((k) => k.id === kind)!;
+  const meta = [...REQUEST_KINDS, OTHER_REQUEST].find((k) => k.id === kind)!;
   const fields = ORDER_KINDS.find((k) => k.id === kind)?.fields || [];
   const problems = requestProblems(kind, data);
   const warnings = requestWarnings(kind, data, today);
@@ -1124,7 +1142,7 @@ function RequestForm({ notify, onClose, onSaved }: { notify: Notify; onClose: ()
         <div className="form-grid">
           <Field label="Ərizənin növü">
             <select value={kind} onChange={(e) => setKind(e.target.value)}>
-              {REQUEST_KINDS.map((k) => (
+              {[...REQUEST_KINDS, OTHER_REQUEST].map((k) => (
                 <option key={k.id} value={k.id}>
                   {k.label}
                 </option>
@@ -1500,6 +1518,74 @@ export function OrgNameInput({
         </div>
       )}
       {hint && <small className="skill-picker-help">{hint}</small>}
+    </div>
+  );
+}
+
+// ---------- The employee's own profile: link code ----------
+export function EmployeeLinkPanel({ employeeId, name, linked, pending, notify, onChanged }: { employeeId: string; name: string; linked: boolean; pending: boolean; notify: Notify; onChanged: () => void }) {
+  const [code, setCode] = useState<{ code: string; expires: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function make() {
+    setBusy(true);
+    try {
+      setCode(await request<{ code: string; expires: string }>("company/employees/link-code", { id: employeeId }));
+      onChanged();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function unlink() {
+    if (!window.confirm(`“${name}” işçisinin öz profili ilə əlaqəsi ləğv edilsin? İşçi artıq öz profilindən ərizə göndərə bilməyəcək.`)) return;
+    try {
+      await request("company/employees/unlink", { id: employeeId });
+      notify("Qoşulma ləğv edildi.");
+      setCode(null);
+      onChanged();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  return (
+    <div className="offer-composer">
+      <p className="muted">
+        İşçi öz Joblink profilindən “İş yerim” bölməsinə girib şirkətə ərizə yaza bilər: ərizə sizdə “Əmrlər reyestri → İşçi ərizələri” siyahısına düşür, cavabınız isə işçinin yazışmalar reyestrində görünür. Bunun üçün işçinin hesabı bu işçi kartına bir dəfəlik kodla qoşulur (Joblink vasitəsilə işə qəbul olunanlar avtomatik qoşulur).
+      </p>
+      {linked ? (
+        <>
+          <p>
+            <b>Qoşulub:</b> {name} öz profilindən ərizə göndərə bilir.
+          </p>
+          <div className="admin-actions">
+            <button type="button" className="secondary" onClick={() => void unlink()}>
+              Qoşulmanı ləğv et
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>{pending && !code ? "Qüvvədə olan qoşulma kodu var (təhlükəsizlik üçün yenidən göstərilmir). Yeni kod yaratsanız köhnəsi etibarsız olur." : "İşçi hələ profilini qoşmayıb."}</p>
+          <div className="admin-actions">
+            <button type="button" className="primary" disabled={busy} onClick={() => void make()}>
+              {pending ? "Yeni qoşulma kodu yarat" : "Qoşulma kodu yarat"}
+            </button>
+          </div>
+          {code && (
+            <div className="link-code-box">
+              <small className="muted">Bu kodu işçiyə verin (yalnız indi göstərilir):</small>
+              <strong className="link-code">{code.code}</strong>
+              <small className="muted">
+                İşçi Joblink-də hesabına daxil olub “İş yerim” bölməsində kodu yazır. Kod bir dəfə işləyir və {code.expires.slice(0, 10)} tarixinədək qüvvədədir.
+              </small>
+              <button type="button" className="secondary" onClick={() => void navigator.clipboard?.writeText(code.code).then(() => notify("Kod kopyalandı."))}>
+                Kodu kopyala
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

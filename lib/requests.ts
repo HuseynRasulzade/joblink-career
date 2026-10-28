@@ -28,11 +28,15 @@ export const REQUEST_KINDS: { id: RequestKind; label: string; hint: string }[] =
   { id: "name", label: "Ad və ya soyadın dəyişdirilməsi ərizəsi", hint: "Yeni sənədin surəti ilə." },
   { id: "termination", label: "İstefa (əmək müqaviləsinə xitam) ərizəsi", hint: "İşçi bir təqvim ay qabaqcadan xəbərdarlıq edir (69.1)." },
 ];
-export const requestKindLabel = (id: string) => REQUEST_KINDS.find((k) => k.id === id)?.label || id;
+// A letter to the company that no order follows: HR answers it.
+export const OTHER_REQUEST = { id: "other", label: "Digər ərizə və ya müraciət (cavab tələb edir)", hint: "Sərbəst mətnlə yazılan ərizə: əmr yaradılmır, HR cavab yazır." } as const;
+export const requestKindLabel = (id: string) => (id === OTHER_REQUEST.id ? OTHER_REQUEST.label : REQUEST_KINDS.find((k) => k.id === id)?.label || id);
+export const isApplicationKind = (id: string) => isRequestKind(id) || id === OTHER_REQUEST.id;
+
 export const isRequestKind = (id: string): id is RequestKind => REQUEST_KINDS.some((k) => k.id === id);
 
 export type RequestData = { from: string; to: string; quantity: number; reason: string; basis: string };
-export type RequestStatus = "new" | "ordered" | "rejected";
+export type RequestStatus = "new" | "ordered" | "rejected" | "answered" | "withdrawn";
 
 const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "");
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v || "");
@@ -40,6 +44,7 @@ const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v || "");
 // What the application must hold, as a list of problems (empty when it can be recorded).
 export function requestProblems(kind: string, data: Partial<RequestData>): string[] {
   const out: string[] = [];
+  if (kind === OTHER_REQUEST.id) return (data.reason || "").trim().length >= 5 ? [] : ["Ərizənin mətnini yazın (ən azı 5 simvol)."];
   if (!isRequestKind(kind)) return ["Ərizənin növü düzgün deyil."];
   const fields = ORDER_KINDS.find((k) => k.id === kind)?.fields || [];
   if (fields.includes("from") && !isDate(data.from || "")) out.push("Başlanğıc tarixini yazın.");

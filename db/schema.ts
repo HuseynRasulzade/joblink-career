@@ -784,6 +784,10 @@ export const companyEmployees = sqliteTable(
     vacationUsed: integer("vacation_used").notNull().default(0),
     // Identity card, birth, address, family and bank data as JSON (see lib/employee-profile.ts).
     profile: text("profile").notNull().default("{}"),
+    // The employee's own account, once linked with a code the company gave; the code is kept only as a hash.
+    userId: text("user_id").notNull().default(""),
+    linkHash: text("link_hash").notNull().default(""),
+    linkExpires: text("link_expires").notNull().default(""),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
   },
@@ -815,12 +819,20 @@ export const employeeRequests = sqliteTable(
     status: text("status").notNull().default("new"),
     orderId: text("order_id").notNull().default(""),
     decision: text("decision").notNull().default(""),
+    // "hr" when HR recorded it, "employee" when the employee wrote it in their own profile.
+    source: text("source").notNull().default("hr"),
     createdBy: text("created_by").notNull().default(""),
     createdByName: text("created_by_name").notNull().default(""),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
   },
   (t) => [index("employee_requests_company").on(t.companyId, t.status, t.created)],
+);
+// Wrong link codes an account tried, so guessing is slowed down.
+export const employeeLinkAttempts = sqliteTable(
+  "employee_link_attempts",
+  { userId: text("user_id").notNull(), created: text("created").notNull() },
+  (t) => [index("employee_link_attempts_user").on(t.userId, t.created)],
 );
 // Draft until the director approves the staff plan; after that changes need the director.
 export const staffPlanState = sqliteTable("staff_plan_state", {

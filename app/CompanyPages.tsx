@@ -33,7 +33,7 @@ import { VACANCY_REASONS } from "@/lib/recruitment";
 import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
 import { DOC_KINDS, OTHER_TYPE, docLabel } from "@/lib/employee-docs";
-import { EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
+import { EmployeeLinkPanel, EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
 
 export type CompanyMe = {
   company: { id: string; name: string } | null;
@@ -2460,6 +2460,8 @@ type Employee = {
   vacationDays?: number;
   vacationUsed?: number;
   profile?: import("@/lib/employee-profile").EmployeeProfile | null;
+  linked?: boolean;
+  linkPending?: boolean;
   tenure?: string;
   vacation?: { entitlement: number; accrued: number; used: number; remaining: number };
   pay?: { net: number; gross: number; superGross: number; incomeTax: number; employeeSocial: number; employeeUnemployment: number; employeeMedical: number } | null;
@@ -2498,7 +2500,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   // The employee list and the staff table are two views of one page, shown one at a time.
   const [view, setView] = useState<"people" | "staff">("people");
   // Extra sections of the employee card open in their own pop-up windows.
-  const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | null>(null);
+  const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | "link" | null>(null);
   const { names: orgNames, remember: rememberOrg } = useOrgNames();
   const [history, setHistory] = useState<
     {
@@ -2913,6 +2915,11 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   Kalkulyatorlar
                 </button>
               )}
+              {editing.id && data.canEdit && (
+                <button type="button" className="secondary" onClick={() => setPanel("link")}>
+                  İşçi profili{editing.linked ? " ✓" : ""}
+                </button>
+              )}
               {editing.id && data.canPersonal && (
                 <button type="button" className="secondary" onClick={() => setPanel("profile")}>
                   Şəxsi məlumatlar
@@ -2950,6 +2957,21 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   status={editing.status || "active"}
                   vacationDays={editing.vacationDays ?? 21}
                   vacationUsed={editing.vacationUsed ?? 0}
+                />
+              </Modal>
+            )}
+            {panel === "link" && editing.id && (
+              <Modal title={`İşçi profili: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
+                <EmployeeLinkPanel
+                  employeeId={editing.id}
+                  name={editing.name || ""}
+                  linked={Boolean(editing.linked)}
+                  pending={Boolean(editing.linkPending)}
+                  notify={notify}
+                  onChanged={() => {
+                    load();
+                    setEditing({ ...editing, linked: false });
+                  }}
                 />
               </Modal>
             )}

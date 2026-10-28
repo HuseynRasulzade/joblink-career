@@ -89,3 +89,14 @@ test("the order form is filled from the application, with the application as its
   assert.equal(u.vacationKind, UNPAID_REASONS[0].label);
   assert.equal(orderPrefill("compensation", { quantity: 12 }, "2026-03-01").quantity, "12");
 });
+
+import { OTHER_REQUEST, isApplicationKind } from "../lib/requests.ts";
+test("a free-text application needs only its text and is not an order kind", () => {
+  assert.equal(isApplicationKind("other"), true);
+  assert.equal(isApplicationKind("vacation"), true);
+  assert.equal(isApplicationKind("hire"), false);
+  assert.equal(isRequestKind("other"), false);
+  assert.equal(requestKindLabel("other"), OTHER_REQUEST.label);
+  assert.ok(requestProblems("other", { reason: "" }).length === 1);
+  assert.deepEqual(requestProblems("other", { reason: "Maaş arayışı lazımdır" }), []);
+});

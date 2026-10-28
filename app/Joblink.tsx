@@ -114,6 +114,7 @@ import {
   type CompanyInfo,
 } from "./CompaniesPage";
 import { HrCalculators } from "./HrCalculators";
+import WorkplacePage from "./WorkplacePage";
 import { FitReviewPanel } from "./FitReview";
 import PackagesPage from "./PackagesPage";
 import { localizeTree, setSiteLanguage } from "./i18n";
@@ -128,6 +129,7 @@ const candidateNav = [
   { id: "profile", label: "Mənim profilim", icon: UserRound },
   { id: "applications", label: "Müraciətlərim", icon: Send },
   { id: "messages", label: "Mesajlar", icon: MessageCircle },
+  { id: "workplace", label: "İş yerim (işçi profili)", icon: Contact },
   { id: "calculator", label: "Kalkulyatorlar", icon: Calculator },
   { id: "packages", label: "Paketlər", icon: CreditCard },
   { id: "support", label: "Dəstək", icon: LifeBuoy },
@@ -3131,6 +3133,7 @@ export default function Joblink() {
               {page === "companies" && (
                 <CompaniesPage onOpen={openCompany} notify={notify} />
               )}
+              {page === "workplace" && <WorkplacePage notify={notify} />}
               {page === "calculator" && <HrCalculators notify={notify} />}
               {page === "packages" && <PackagesPage notify={notify} />}
               {page === "profile" && (

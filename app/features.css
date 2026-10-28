@@ -5977,3 +5977,40 @@ a svg {
 .requests-panel .section-heading {
   align-items: flex-start;
 }
+.link-code-box {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  background: #f3f9f6;
+  border: 1px dashed #9cc7b8;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.link-code {
+  font-size: 1.6rem;
+  letter-spacing: 0.12em;
+  font-family: ui-monospace, monospace;
+}
+.workplace-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 12px 0 0;
+}
+.workplace-info div {
+  background: #f6faf8;
+  border: 1px solid #dfe8e3;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.workplace-info dt {
+  font-size: 0.78rem;
+  color: #5b7068;
+}
+.workplace-info dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+}
+.letters textarea {
+  width: 100%;
+}

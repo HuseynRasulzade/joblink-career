@@ -369,7 +369,8 @@ import { assignPeople, checkSalary, normalizeRate, RATE_LABEL, summarize, type P
 import { parseStructureRows } from "@/lib/staff-import";
 import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
-import { isRequestKind, requestProblems, requestWarnings } from "@/lib/requests";
+import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
+import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
 import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
 import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
@@ -1909,6 +1910,11 @@ async function route(request: Request) {
         .bind(userId)
         .first<{ name: string }>()
     )?.name || "";
+  // A notification for the employee's own account, when the employee record is linked to one.
+  const tellEmployee = async (employeeId: string, title: string, body: string) => {
+    const row = await db.prepare("SELECT user_id FROM company_employees WHERE id=? AND company_id=?").bind(employeeId, id).first<{ user_id: string }>().catch(() => null);
+    if (row?.user_id) await notify(db, { userId: row.user_id, type: "application", title, body, link: "workplace" }).catch(() => undefined);
+  };
   // The plan is a draft until the director approves it; after that a change to it needs the director.
   const planStatus = async () =>
     (await db.prepare("SELECT status FROM staff_plan_state WHERE company_id=?").bind(id).first<{ status: string }>())?.status || "draft";
@@ -7054,6 +7060,8 @@ async function route(request: Request) {
         sector: r.sector === "public" ? "public" : "private",
         vacationDays: r.vacation_days ?? 21,
         vacationUsed: r.vacation_used ?? 0,
+        linked: Boolean((r as { user_id?: string }).user_id),
+        linkPending: Boolean((r as { link_hash?: string }).link_hash) && !linkExpired(String((r as { link_expires?: string }).link_expires || ""), new Date()),
         profile: can(memberRole, "personal-data", memberGrants) ? parseProfile((r as { profile?: string }).profile) : null,
         // Time worked and leave left (leave counts as earned a twelfth per month).
         tenure: tenure(r.start_date, r.status === "left" ? r.end_date || "" : "", todayIso)?.text || "",
@@ -7371,6 +7379,160 @@ async function route(request: Request) {
     }
     return ok({ ok: true });
   }
+  // ---- The employee's own profile: link with a code, see the workplace, write applications to the company ----
+  const ownWorkplace = async (employeeId: string) => {
+    if (accountRole === "company") throw new HttpError(403, "İşçi profili yalnız şəxsi hesab üçündür.");
+    const row = await db
+      .prepare("SELECT id,company_id,name,position,department,section,start_date,status,vacation_days,vacation_used FROM company_employees WHERE id=? AND user_id=? AND status IN ('active','leave')")
+      .bind(employeeId, userId)
+      .first<{ id: string; company_id: string; name: string; position: string; department: string; section: string; start_date: string; status: string; vacation_days: number; vacation_used: number }>();
+    if (!row) throw new HttpError(404, "Bu iş yeri profilinizə qoşulmayıb.");
+    return row;
+  };
+  const REQUEST_KINDS_FOR_EMPLOYEE = REQUEST_KINDS.filter((k) => k.id !== "compensation").map((k) => ({ id: k.id, label: k.label, hint: k.hint }));
+  const APPLICATION_STATUS_TEXT: Record<string, string> = { new: "Baxılır", ordered: "Əmr hazırlanıb", rejected: "Rədd edilib", answered: "Cavablandırılıb", withdrawn: "Geri götürülüb" };
+  if (request.method === "GET" && path === "employee/workplaces") {
+    if (accountRole === "company") return ok({ workplaces: [] });
+    const rows = await db
+      .prepare(
+        `SELECT e.id,e.name,e.position,e.department,e.section,e.start_date,e.status,e.vacation_days,e.vacation_used,c.name AS company,
+          (SELECT COUNT(*) FROM attendance_marks m WHERE m.employee_id=e.id AND m.code='annual') AS annual_marks
+         FROM company_employees e JOIN accounts c ON c.id=e.company_id WHERE e.user_id=? AND e.status IN ('active','leave') ORDER BY e.start_date DESC`,
+      )
+      .bind(userId)
+      .all<{ id: string; name: string; position: string; department: string; section: string; start_date: string; status: string; vacation_days: number; vacation_used: number; company: string; annual_marks: number }>();
+    const todayIso = new Date().toISOString().slice(0, 10);
+    return ok({
+      workplaces: rows.results.map((r) => ({
+        id: r.id,
+        company: r.company,
+        name: r.name,
+        position: r.position,
+        department: r.department,
+        section: r.section,
+        startDate: r.start_date,
+        status: r.status,
+        tenure: tenure(r.start_date, "", todayIso)?.text || "",
+        vacation: vacationBalance({ start: r.start_date, end: "", entitlement: r.vacation_days ?? 21, used: (r.vacation_used ?? 0) + Number(r.annual_marks || 0) }, todayIso),
+      })),
+    });
+  }
+  if (request.method === "POST" && path === "employee/link") {
+    if (accountRole === "company") throw new HttpError(403, "İşçi profili yalnız şəxsi hesab üçündür.");
+    const b = await jsonBody(request);
+    const failed = await db
+      .prepare("SELECT COUNT(*) AS n FROM employee_link_attempts WHERE user_id=? AND created>=?")
+      .bind(userId, new Date(Date.now() - 3_600_000).toISOString())
+      .first<{ n: number }>();
+    if (Number(failed?.n) >= LINK_ATTEMPTS_PER_HOUR) throw new HttpError(429, "Çox sayda yanlış kod yazdınız. Bir saatdan sonra yenidən cəhd edin.");
+    const code = normalizeLinkCode(str(b.code, 40));
+    const miss = async () => {
+      await db.prepare("INSERT INTO employee_link_attempts(user_id,created) VALUES(?,?)").bind(userId, new Date().toISOString()).run();
+      throw new HttpError(404, "Kod yanlışdır, istifadə olunub və ya müddəti bitib. Şirkətin HR-dan yeni kod istəyin.");
+    };
+    if (!validLinkCode(code)) return miss();
+    const hash = await hashLinkCode(code);
+    const row = await db
+      .prepare("SELECT id,company_id,name,user_id,link_expires FROM company_employees WHERE link_hash=? AND status IN ('active','leave')")
+      .bind(hash)
+      .first<{ id: string; company_id: string; name: string; user_id: string; link_expires: string }>();
+    if (!row || row.user_id || linkExpired(row.link_expires, new Date())) return miss();
+    const claimed = await db
+      .prepare("UPDATE company_employees SET user_id=?,link_hash='',link_expires='',updated=? WHERE id=? AND link_hash=? AND user_id=''")
+      .bind(userId, new Date().toISOString(), row.id, hash)
+      .run();
+    if (!claimed.meta.changes) return miss();
+    await companyAudit(db, row.company_id, userId, "employee-linked", row.id, `${row.name}: işçi profili qoşuldu`);
+    await notify(db, { userId: row.company_id, type: "employee", title: `${row.name} işçi profilini qoşdu`, body: "İşçi artıq öz profilindən ərizə göndərə bilər.", link: "hr-employees" }).catch(() => undefined);
+    return ok({ ok: true, employeeId: row.id });
+  }
+  if (request.method === "GET" && path === "employee/applications") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const rows = await db
+      .prepare(
+        `SELECT q.id,q.kind,q.data,q.status,q.decision,q.source,q.created,o.number AS order_number,o.status AS order_status
+         FROM employee_requests q LEFT JOIN employee_orders o ON o.id=q.order_id
+         WHERE q.employee_id=? AND q.company_id=? ORDER BY q.created DESC LIMIT 200`,
+      )
+      .bind(employee.id, employee.company_id)
+      .all<{ id: string; kind: string; data: string; status: string; decision: string; source: string; created: string; order_number: string | null; order_status: string | null }>();
+    return ok({
+      applications: rows.results.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        label: requestKindLabel(r.kind),
+        data: (() => {
+          try {
+            return JSON.parse(r.data);
+          } catch {
+            return {};
+          }
+        })(),
+        status: r.status,
+        statusText: APPLICATION_STATUS_TEXT[r.status] || r.status,
+        reply: r.decision,
+        source: r.source === "employee" ? "employee" : "hr",
+        orderNumber: r.order_number || "",
+        orderStatus: r.order_status || "",
+        created: r.created,
+      })),
+      kinds: [...REQUEST_KINDS_FOR_EMPLOYEE, { id: OTHER_REQUEST.id, label: OTHER_REQUEST.label, hint: OTHER_REQUEST.hint }],
+    });
+  }
+  if (request.method === "POST" && path === "employee/applications/save") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const kind = str(b.kind, 20);
+    if (!isApplicationKind(kind)) throw new HttpError(400, "Ərizənin növü düzgün deyil.");
+    if (kind === "compensation") throw new HttpError(400, "İstifadə edilməmiş məzuniyyətin kompensasiyası yalnız əmək müqaviləsinə xitam verilərkən HR tərəfindən hazırlanır.");
+    const raw = (b.data && typeof b.data === "object" ? b.data : {}) as Record<string, unknown>;
+    const data = { from: str(raw.from, 10), to: str(raw.to, 10), quantity: Math.max(0, Math.min(3650, Number(raw.quantity) || 0)), reason: str(raw.reason, 1000), basis: str(raw.basis, 300) };
+    const problems = requestProblems(kind, data);
+    if (problems.length) throw new HttpError(400, problems[0]);
+    const open = await db.prepare("SELECT COUNT(*) AS n FROM employee_requests WHERE employee_id=? AND status='new'").bind(employee.id).first<{ n: number }>();
+    if (Number(open?.n) >= 10) throw new HttpError(409, "Cavab gözləyən 10 ərizəniz var. Cavab gəldikdən sonra yenisini yaza bilərsiniz.");
+    const requestId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await db
+      .prepare("INSERT INTO employee_requests(id,company_id,employee_id,kind,data,status,source,created_by,created_by_name,created,updated) VALUES(?,?,?,?,?,'new','employee',?,?,?,?)")
+      .bind(requestId, employee.company_id, employee.id, kind, JSON.stringify(data), userId, employee.name, now, now)
+      .run();
+    await companyAudit(db, employee.company_id, userId, "application-from-employee", employee.id, `${employee.name}: ${kind}`);
+    await notifyCompanyRoles(db, employee.company_id, "orders", { type: "application", title: `İşçi ərizəsi: ${employee.name}`, body: requestKindLabel(kind), link: "hr-orders" }).catch(() => undefined);
+    return ok({ ok: true, id: requestId, warnings: requestWarnings(kind, data, now.slice(0, 10)) }, 201);
+  }
+  if (request.method === "POST" && path === "employee/applications/withdraw") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const result = await db
+      .prepare("UPDATE employee_requests SET status='withdrawn',updated=? WHERE id=? AND employee_id=? AND source='employee' AND status='new'")
+      .bind(new Date().toISOString(), str(b.id, 100), employee.id)
+      .run();
+    if (!result.meta.changes) throw new HttpError(409, "Yalnız cavab gözləyən öz ərizənizi geri götürə bilərsiniz.");
+    await companyAudit(db, employee.company_id, userId, "application-withdrawn", employee.id, "");
+    return ok({ ok: true });
+  }
+  // ---- The code that links an employee record to the employee's own account ----
+  if (request.method === "POST" && path === "company/employees/link-code") {
+    requirePermission("salaries", "Qoşulma kodunu yalnız işçi kartı icazəsi olan şəxs yarada bilər.");
+    const b = await jsonBody(request);
+    const employee = await db.prepare("SELECT id,name,user_id,status FROM company_employees WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<{ id: string; name: string; user_id: string; status: string }>();
+    if (!employee || employee.status === "removed" || employee.status === "left") throw new HttpError(404, "İşçi tapılmadı.");
+    if (employee.user_id) throw new HttpError(409, "Bu işçi artıq öz profilini qoşub. Yenisini qoşmaq üçün əvvəl qoşulmanı ləğv edin.");
+    const code = generateLinkCode();
+    const expires = linkExpiry(new Date());
+    await db.prepare("UPDATE company_employees SET link_hash=?,link_expires=?,updated=? WHERE id=? AND company_id=?").bind(await hashLinkCode(code), expires, new Date().toISOString(), employee.id, id).run();
+    await companyAudit(db, id, userId, "employee-link-code", employee.id, employee.name);
+    return ok({ code: formatLinkCode(code), expires });
+  }
+  if (request.method === "POST" && path === "company/employees/unlink") {
+    requirePermission("salaries", "Qoşulmanı yalnız işçi kartı icazəsi olan şəxs ləğv edə bilər.");
+    const b = await jsonBody(request);
+    const done = await db.prepare("UPDATE company_employees SET user_id='',link_hash='',link_expires='',updated=? WHERE id=? AND company_id=?").bind(new Date().toISOString(), str(b.id, 100), id).run();
+    if (!done.meta.changes) throw new HttpError(404, "İşçi tapılmadı.");
+    await companyAudit(db, id, userId, "employee-unlinked", str(b.id, 100), "");
+    return ok({ ok: true });
+  }
   // ---- Excel: attendance marks, calendar days, personal data ----
   const sheetRows = (value: unknown) =>
     (Array.isArray(value) ? value : []).slice(0, 1001).map((row: unknown) => (Array.isArray(row) ? row.map((c) => String(c ?? "")) : []));
@@ -7581,11 +7743,13 @@ async function route(request: Request) {
       .run();
     // An order drawn up from an application closes it.
     const requestId = str(b.requestId, 100);
-    if (requestId)
-      await db
+    if (requestId) {
+      const closed = await db
         .prepare("UPDATE employee_requests SET status='ordered',order_id=?,updated=? WHERE id=? AND company_id=? AND employee_id=? AND status='new'")
         .bind(orderId, now, requestId, id, employee.id)
         .run();
+      if (closed.meta.changes) await tellEmployee(employee.id, "Ərizəniz əsasında əmr hazırlanır", `Əmr № ${str(b.number, 40) || "—"}: imza prosesindədir.`);
+    }
     await companyAudit(db, id, userId, "order-created", employee.id, `${employee.name}: ${kind}${requestId ? " (ərizə əsasında)" : ""}`);
     return ok({ ok: true, id: orderId }, 201);
   }
@@ -7651,7 +7815,7 @@ async function route(request: Request) {
     return ok({ ok: true });
   }
   // ---- Employee applications (ərizə): recorded here, the order is drawn up from them ----
-  const requestRow = (r: { id: string; employee_id: string; kind: string; data: string; status: string; order_id: string; decision: string; created_by_name: string; created: string; employee_name: string; employee_position: string; employee_department: string; employee_section: string; employee_start: string; employee_end: string; employee_salary: number; employee_salary_type: string; employee_probation: string; order_number: string | null; order_status: string | null }) => ({
+  const requestRow = (r: { id: string; employee_id: string; kind: string; data: string; status: string; order_id: string; decision: string; source: string; created_by_name: string; created: string; employee_name: string; employee_position: string; employee_department: string; employee_section: string; employee_start: string; employee_end: string; employee_salary: number; employee_salary_type: string; employee_probation: string; order_number: string | null; order_status: string | null }) => ({
     id: r.id,
     kind: r.kind,
     data: (() => {
@@ -7666,6 +7830,7 @@ async function route(request: Request) {
     orderNumber: r.order_number || "",
     orderStatus: r.order_status || "",
     decision: r.decision,
+    source: r.source === "employee" ? "employee" : "hr",
     by: r.created_by_name,
     created: r.created,
     employee: {
@@ -7685,7 +7850,7 @@ async function route(request: Request) {
     requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs görə bilər.");
     const rows = await db
       .prepare(
-        `SELECT q.id,q.employee_id,q.kind,q.data,q.status,q.order_id,q.decision,q.created_by_name,q.created,
+        `SELECT q.id,q.employee_id,q.kind,q.data,q.status,q.order_id,q.decision,q.source,q.created_by_name,q.created,
           e.name AS employee_name,e.position AS employee_position,e.department AS employee_department,e.section AS employee_section,e.start_date AS employee_start,e.end_date AS employee_end,e.salary_cents AS employee_salary,e.salary_type AS employee_salary_type,e.probation_end AS employee_probation,
           o.number AS order_number,o.status AS order_status
          FROM employee_requests q JOIN company_employees e ON e.id=q.employee_id LEFT JOIN employee_orders o ON o.id=q.order_id
@@ -7704,7 +7869,7 @@ async function route(request: Request) {
       .first<{ id: string; name: string }>();
     if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
     const kind = str(b.kind, 20);
-    if (!isRequestKind(kind)) throw new HttpError(400, "Ərizənin növü düzgün deyil.");
+    if (!isApplicationKind(kind)) throw new HttpError(400, "Ərizənin növü düzgün deyil.");
     const raw = (b.data && typeof b.data === "object" ? b.data : {}) as Record<string, unknown>;
     const data = { from: str(raw.from, 10), to: str(raw.to, 10), quantity: Math.max(0, Math.min(3650, Number(raw.quantity) || 0)), reason: str(raw.reason, 500), basis: str(raw.basis, 300) };
     const problems = requestProblems(kind, data);
@@ -7731,6 +7896,21 @@ async function route(request: Request) {
       .run();
     if (!result.meta.changes) throw new HttpError(409, "Ərizə artıq cavablandırılıb və ya tapılmadı.");
     await companyAudit(db, id, userId, "request-rejected", str(b.id, 100), reason);
+    const rejected = await db.prepare("SELECT employee_id FROM employee_requests WHERE id=?").bind(str(b.id, 100)).first<{ employee_id: string }>();
+    if (rejected) await tellEmployee(rejected.employee_id, "Ərizəniz rədd edildi", reason.slice(0, 200));
+    return ok({ ok: true });
+  }
+  // HR answers an application that is a letter, not a request for an order.
+  if (request.method === "POST" && path === "company/applications/answer") {
+    requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs cavablandıra bilər.");
+    const b = await jsonBody(request);
+    const reply = str(b.reply, 1000);
+    if (reply.length < 3) throw new HttpError(400, "Cavabı yazın.");
+    const row = await db.prepare("SELECT id,employee_id,kind FROM employee_requests WHERE id=? AND company_id=? AND status='new'").bind(str(b.id, 100), id).first<{ id: string; employee_id: string; kind: string }>();
+    if (!row) throw new HttpError(409, "Ərizə artıq cavablandırılıb və ya tapılmadı.");
+    await db.prepare("UPDATE employee_requests SET status='answered',decision=?,updated=? WHERE id=?").bind(reply, new Date().toISOString(), row.id).run();
+    await companyAudit(db, id, userId, "application-answered", row.employee_id, reply.slice(0, 200));
+    await tellEmployee(row.employee_id, "Ərizənizə cavab verildi", reply.slice(0, 200));
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/applications/delete") {
