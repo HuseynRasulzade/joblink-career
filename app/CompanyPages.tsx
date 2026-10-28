@@ -2770,6 +2770,22 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                 Maaş hesabı və məzuniyyət
               </button>
               {editing.id && (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => {
+                    try {
+                      window.sessionStorage.setItem("joblink-calc-employee", editing.id!);
+                    } catch {
+                      // The calculators page still opens; the employee is picked there.
+                    }
+                    window.location.hash = "hr-calculator";
+                  }}
+                >
+                  Kalkulyatorlar
+                </button>
+              )}
+              {editing.id && (
                 <button type="button" className="secondary" onClick={() => setPanel("profile")}>
                   Şəxsi məlumatlar
                 </button>

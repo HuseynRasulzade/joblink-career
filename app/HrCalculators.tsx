@@ -659,7 +659,18 @@ export function HrCalculators({
     if (!employer) return;
     fetch("/api/joblink/company/employees", { credentials: "same-origin", cache: "no-store" })
       .then((response) => (response.ok ? (response.json() as Promise<{ employees?: Emp[] }>) : { employees: [] }))
-      .then((data) => setEmployees((data.employees || []).filter((e) => e.status !== "left")))
+      .then((data) => {
+        const list = (data.employees || []).filter((e) => e.status !== "left");
+        setEmployees(list);
+        // The employee card sends the person here with the id kept for one visit.
+        try {
+          const wanted = window.sessionStorage.getItem("joblink-calc-employee");
+          window.sessionStorage.removeItem("joblink-calc-employee");
+          if (wanted && list.some((e) => e.id === wanted)) setEmpId(wanted);
+        } catch {
+          // Without storage the employee is picked by hand.
+        }
+      })
       .catch(() => undefined);
   }, [employer]);
   const emp = employees.find((e) => e.id === empId) || null;
