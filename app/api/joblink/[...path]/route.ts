@@ -353,6 +353,7 @@ import {
 } from "@/lib/api-matching";
 import { seedOnboardingTasks, taskSummary } from "@/lib/onboarding";
 import { compareInterviews, type FeedbackRow } from "@/lib/interview-compare";
+import { WORLD_SKILLS } from "@/lib/world-skills-data";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
 function ok(data: unknown, status = 200) {
@@ -689,7 +690,42 @@ async function searchEscoSkills(db: D1Database, rawQuery: string, limit = 12) {
     )
     .bind(contains, contains, query, prefix, Math.max(1, Math.min(20, limit)))
     .all<EscoSkillRow>();
-  return rows.results.map(escoSkillDefinition);
+  return [
+    ...rows.results.map(escoSkillDefinition),
+    ...searchWorldSkills(query, 6),
+  ].slice(0, Math.max(1, Math.min(20, limit)) + 6);
+}
+// Tools and technologies from O*NET (the LinkedIn-style names). They are shown
+// like ESCO skills and accepted when saved.
+const worldSkillKeys = new Map<string, string>();
+function worldSkillIndex() {
+  if (!worldSkillKeys.size)
+    for (const name of WORLD_SKILLS) worldSkillKeys.set(normalizeSkillKey(name), name);
+  return worldSkillKeys;
+}
+function searchWorldSkills(query: string, limit: number) {
+  if (query.length < 2) return [];
+  const found: { name: string; rank: number }[] = [];
+  for (const [key, name] of worldSkillIndex()) {
+    const rank = key === query ? 0 : key.startsWith(query) ? 1 : key.split(" ").some((w) => w.startsWith(query)) ? 2 : query.length >= 3 && key.includes(query) ? 3 : 9;
+    if (rank < 9) found.push({ name, rank });
+  }
+  return found
+    .sort((a, b) => a.rank - b.rank || a.name.length - b.name.length)
+    .slice(0, limit)
+    .map(({ name }) => ({
+      id: `esco:onet-${normalizeSkillKey(name).replace(/[^a-z0-9]+/g, "-")}`,
+      uri: "",
+      label: name,
+      labelEn: name,
+      category: "O*NET",
+      categoryEn: "O*NET",
+      aliases: [] as string[],
+      description: "",
+      skillType: "",
+      reuseLevel: "",
+      source: "esco" as const,
+    }));
 }
 async function allowedEscoLabels(db: D1Database, values: unknown) {
   const input = (Array.isArray(values) ? values : [])
@@ -704,7 +740,11 @@ async function allowedEscoLabels(db: D1Database, values: unknown) {
     )
     .bind(...keys)
     .all<{ label_en: string }>();
-  return rows.results.map((row) => row.label_en);
+  const world = worldSkillIndex();
+  return [
+    ...rows.results.map((row) => row.label_en),
+    ...keys.flatMap((key) => (world.has(key) ? [world.get(key)!] : [])),
+  ];
 }
 
 type AnySkill =

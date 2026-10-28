@@ -88,11 +88,19 @@ test("the international occupation list is searchable and does not repeat the cu
   const { readFileSync } = await import("node:fs");
   const { searchWorldJobTitles, worldJobTitleKnown, canonicalJobTitle: canonical } = await import("../lib/job-title-catalog.ts");
   const list = JSON.parse(readFileSync(new URL("../public/data/world-job-titles.json", import.meta.url), "utf8"));
-  assert.ok(list.length >= 1500, `only ${list.length}`);
+  assert.ok(list.length >= 20000, `only ${list.length}`);
   assert.ok(list.every((name) => typeof name === "string" && name));
   assert.ok(list.every((name) => !canonical(name)));
   const hit = list[Math.floor(list.length / 2)];
   assert.ok(worldJobTitleKnown(list, hit));
   assert.equal(searchWorldJobTitles(list, hit)[0], hit);
   assert.deepEqual(searchWorldJobTitles(list, "x"), []);
+});
+
+test("the world skill list (O*NET tools) is clean and does not repeat the curated catalog", async () => {
+  const { WORLD_SKILLS } = await import("../lib/world-skills-data.ts");
+  const { canonicalSkill } = await import("../lib/skill-catalog.ts");
+  assert.ok(WORLD_SKILLS.length >= 5000, `only ${WORLD_SKILLS.length}`);
+  assert.ok(WORLD_SKILLS.every((name) => typeof name === "string" && name.length >= 2 && name.length <= 60));
+  assert.ok(WORLD_SKILLS.every((name) => !canonicalSkill(name)));
 });
