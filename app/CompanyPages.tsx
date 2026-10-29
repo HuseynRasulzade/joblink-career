@@ -33,6 +33,7 @@ import { VACANCY_REASONS } from "@/lib/recruitment";
 import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
 import { DOC_KINDS, OTHER_TYPE, docLabel } from "@/lib/employee-docs";
+import HrDocsPanel from "./HrDocsPanel";
 import { BulkLinkCodes, EmployeeLinkPanel, EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
 
 export type CompanyMe = {
@@ -2503,7 +2504,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   // The employee list and the staff table are two views of one page, shown one at a time.
   const [view, setView] = useState<"people" | "staff">("people");
   // Extra sections of the employee card open in their own pop-up windows.
-  const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | "link" | null>(null);
+  const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | "link" | "hrdocs" | null>(null);
   const { names: orgNames, remember: rememberOrg } = useOrgNames();
   const [history, setHistory] = useState<
     {
@@ -2972,6 +2973,11 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   Əmr sənədləri
                 </button>
               )}
+              {editing.id && data.canOrders && (
+                <button type="button" className="secondary" onClick={() => setPanel("hrdocs")}>
+                  Müqavilə və arayış
+                </button>
+              )}
               {editing.id && data.canDocs && (
                 <button type="button" className="secondary" onClick={() => setPanel("docs")}>
                   Sənəd qovluğu
@@ -3044,6 +3050,25 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                     endDate: editing.endDate || "",
                   }}
                   notify={notify}
+                />
+              </Modal>
+            )}
+            {panel === "hrdocs" && editing.id && (
+              <Modal title={`Müqavilə və kadr sənədləri: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
+                <HrDocsPanel
+                  employee={{
+                    id: editing.id,
+                    name: editing.name || "",
+                    position: editing.position || "",
+                    department: editing.department || "",
+                    section: editing.section || "",
+                    startDate: editing.startDate || "",
+                    salary: editing.salary ?? null,
+                    salaryType: editing.salaryType || "gross",
+                    sector: editing.sector || "private",
+                    taxReduction: editing.taxReduction || 0,
+                    profile: editing.profile || null,
+                  }}
                 />
               </Modal>
             )}

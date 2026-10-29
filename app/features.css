@@ -6058,3 +6058,7 @@ a svg {
 .payment-history { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .payment-reversed { opacity: 0.6; text-decoration: line-through; }
 .payment-reversed small { text-decoration: none; display: inline-block; }
+.hr-doc-preview { border: 1px solid var(--line, #dfe8e3); border-radius: 8px; padding: 12px 16px; margin-top: 12px; max-height: 340px; overflow: auto; font-family: "Times New Roman", serif; }
+.hr-doc-preview h4 { text-align: center; text-transform: uppercase; }
+.hr-doc-preview h5 { margin: 10px 0 2px; }
+.hr-doc-preview p { margin: 4px 0; text-align: justify; }
