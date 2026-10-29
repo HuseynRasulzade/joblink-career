@@ -34,6 +34,7 @@ import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
 import { DOC_KINDS, OTHER_TYPE, docLabel } from "@/lib/employee-docs";
 import HrDocsPanel from "./HrDocsPanel";
+import SalaryHistory from "./SalaryHistory";
 import { BulkLinkCodes, EmployeeLinkPanel, EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
 
 export type CompanyMe = {
@@ -2457,6 +2458,7 @@ type Employee = {
   onboarding?: { total: number; done: number; overdue: number };
   section?: string;
   salaryType?: "gross" | "net";
+  salaryFrom?: string;
   sector?: "private" | "public";
   vacationDays?: number;
   vacationUsed?: number;
@@ -2504,7 +2506,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   // The employee list and the staff table are two views of one page, shown one at a time.
   const [view, setView] = useState<"people" | "staff">("people");
   // Extra sections of the employee card open in their own pop-up windows.
-  const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | "link" | "hrdocs" | null>(null);
+  const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | "link" | "hrdocs" | "salaryhist" | null>(null);
   const { names: orgNames, remember: rememberOrg } = useOrgNames();
   const [history, setHistory] = useState<
     {
@@ -2832,6 +2834,11 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   }
                 />
               </Field>
+              {editing.id && (
+                <Field label="Maaş dəyişirsə: qüvvəyə minmə tarixi (boşdursa bu gün)">
+                  <input type="date" value={editing.salaryFrom || ""} onChange={(e) => setEditing({ ...editing, salaryFrom: e.target.value })} />
+                </Field>
+              )}
               {editing.staffBand && (
                 <small className={editing.staffBand.side ? "danger-text" : "skill-picker-help"}>
                   Ştat cədvəlində bu vəzifə üçün maaş həddi (gross): {editing.staffBand.min === editing.staffBand.max ? azn(editing.staffBand.min) : `${azn(editing.staffBand.min)} – ${azn(editing.staffBand.max)}`}.
@@ -2973,6 +2980,11 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   Əmr sənədləri
                 </button>
               )}
+              {editing.id && data.showSalary && (
+                <button type="button" className="secondary" onClick={() => setPanel("salaryhist")}>
+                  Maaş tarixçəsi
+                </button>
+              )}
               {editing.id && data.canOrders && (
                 <button type="button" className="secondary" onClick={() => setPanel("hrdocs")}>
                   Müqavilə və arayış
@@ -3051,6 +3063,11 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   }}
                   notify={notify}
                 />
+              </Modal>
+            )}
+            {panel === "salaryhist" && editing.id && (
+              <Modal title={`Maaş tarixçəsi: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
+                <SalaryHistory employeeId={editing.id} />
               </Modal>
             )}
             {panel === "hrdocs" && editing.id && (

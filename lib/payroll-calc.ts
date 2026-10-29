@@ -104,6 +104,7 @@ export type PayInput = {
   inputs?: Partial<PayInputs>;
   // Vacation days of the month and the average monthly pay of the previous 12 months (art. 140); `mask` marks, per working day, the vacation ones.
   annual?: { mask: boolean[]; calendarDays: number; averageMonthly: number };
+  leaveCompensation?: { days: number; averageMonthly: number }; // unused leave paid when the contract ends (art. 143)
   insured?: { averageMonthly: number; calendarDays: number; percent: number }; // sickness / maternity benefit days of the month (not part of the pay)
   advances?: number; // paid in advance this month
   asOf?: number; // count only the first N working days (the rest are assumed worked, for the advance)
@@ -119,6 +120,7 @@ export type PayResult = {
   hourly: number;
   lines: { id: string; label: string; amount: number; article: string }[];
   vacationDays: number; // vacation calendar days paid from the average (art. 140)
+  leaveCompensationDays: number;
   vacationAverageMonthly: number;
   benefitAmount: number; // sickness / maternity benefit for the month, paid through social insurance, not in the gross pay
   benefitCalendarDays: number;
@@ -174,6 +176,8 @@ export function computePay(input: PayInput): PayResult {
   add("paid-leave", `Digər ödənişli icazə və məzuniyyət günləri (${otherPaid})`, perDay * otherPaid, "Əmək M. 139, 179");
   add("vacation", `Əmək məzuniyyəti: orta aylıq ${vacationAverage.toFixed(2)} ÷ ${MEAN_MONTH_DAYS} × ${vacationDays} təqvim günü`, (vacationAverage / MEAN_MONTH_DAYS) * vacationDays, "Əmək M. 140");
   add("downtime", `Boşdayanma, tarif maaşının 2/3 hissəsi (${downtime})`, perDay * downtime * (2 / 3), "Əmək M. 169");
+  const compDays = pos(input.leaveCompensation?.days);
+  add("leave-compensation", `İstifadə olunmamış məzuniyyətin kompensasiyası: orta aylıq ${r2(pos(input.leaveCompensation?.averageMonthly)).toFixed(2)} ÷ ${MEAN_MONTH_DAYS} × ${compDays} gün`, (pos(input.leaveCompensation?.averageMonthly) / MEAN_MONTH_DAYS) * compDays, "Əmək M. 143–144");
   add("overtime", `İş vaxtından artıq iş (${extra.overtimeHours} saat × 2)`, hourly * 2 * extra.overtimeHours, "Əmək M. 165");
   add("rest-day", `İstirahət və bayram günü işi (${extra.restDayHours} saat × ${extra.restDayWithinNorm ? 1 : 2})`, hourly * (extra.restDayWithinNorm ? 1 : 2) * extra.restDayHours, "Əmək M. 164");
   add("night", `Gecə işinə əlavə (${extra.nightHours} saat × ${extra.nightPercent}%)`, (hourly * extra.nightPercent * extra.nightHours) / 100, "Əmək M. 166");
@@ -209,6 +213,7 @@ export function computePay(input: PayInput): PayResult {
     hourly: r2(hourly),
     lines,
     vacationDays,
+    leaveCompensationDays: compDays,
     vacationAverageMonthly: vacationAverage,
     benefitAmount: input.insured ? r2((pos(input.insured.averageMonthly) / MEAN_MONTH_DAYS) * (pos(input.insured.percent) / 100) * pos(input.insured.calendarDays)) : 0,
     benefitCalendarDays: pos(input.insured?.calendarDays),
@@ -265,4 +270,15 @@ export function scheduleProblem(advanceDay: number, payDay: number): string {
   if (payDay <= advanceDay) return "Əmək haqqı günü avans günündən sonra olmalıdır.";
   if (payDay - advanceDay > 16) return "Avans və əmək haqqının qalan hissəsi arasında fasilə 16 gündən çox ola bilməz (Əmək M. 172.1).";
   return "";
+}
+
+// The minimum monthly wage for full-time work. The figure is set by the state and changes: check it every year.
+export const MINIMUM_WAGE = 400;
+export function payWarnings(input: { gross: number; weekHours: number; workedAll: boolean; hasIban: boolean; cashPay: boolean; advanceExcess: number }): string[] {
+  const out: string[] = [];
+  const share = Math.min(1, Math.max(0.1, (input.weekHours || 40) / 40));
+  if (input.gross > 0 && input.workedAll && input.gross + 0.005 < MINIMUM_WAGE * share) out.push(`Aylıq maaş minimum əmək haqqından (${(MINIMUM_WAGE * share).toFixed(0)} AZN) aşağıdır: yoxlayın.`);
+  if (!input.hasIban && !input.cashPay) out.push("Bank hesabı (IBAN) və ya kart yoxdur: bank sənədinə düşməyəcək.");
+  if (input.advanceExcess > 0) out.push(`Avans hesablanmış məbləğdən ${input.advanceExcess.toFixed(2)} AZN artıqdır.`);
+  return out;
 }

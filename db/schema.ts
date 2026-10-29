@@ -929,6 +929,66 @@ export const payrollBatches = sqliteTable("payroll_batches", {
   paidAt: text("paid_at").notNull().default(""),
   created: text("created").notNull(),
 });
+// Pay of an employee from a date on; the first change also keeps the earlier pay, so past months keep their pay.
+export const employeeSalaryHistory = sqliteTable(
+  "employee_salary_history",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    effectiveFrom: text("effective_from").notNull(),
+    salaryCents: integer("salary_cents").notNull(),
+    salaryType: text("salary_type").notNull().default("gross"),
+    note: text("note").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [uniqueIndex("employee_salary_history_day").on(t.employeeId, t.effectiveFrom), index("employee_salary_history_company").on(t.companyId)],
+);
+// Additions and deductions that repeat every month between two months (a loan, an alimony, a standing allowance).
+export const payrollRecurring = sqliteTable(
+  "payroll_recurring",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    type: text("type").notNull(), // "addition" or "deduction"
+    label: text("label").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    deductionKind: text("deduction_kind").notNull().default("general"),
+    fromMonth: text("from_month").notNull(),
+    toMonth: text("to_month").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [index("payroll_recurring_company").on(t.companyId, t.employeeId)],
+);
+// What a month's deductions could not take because of the legal limit, carried to the next month.
+export const payrollCarry = sqliteTable(
+  "payroll_carry",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    month: text("month").notNull(),
+    label: text("label").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    deductionKind: text("deduction_kind").notNull().default("general"),
+    fromMonth: text("from_month").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [index("payroll_carry_month").on(t.companyId, t.month)],
+);
+// One row per reminder already sent to a company, so the daily job tells it once.
+export const payrollReminders = sqliteTable(
+  "payroll_reminders",
+  {
+    companyId: text("company_id").notNull(),
+    key: text("key").notNull(),
+    created: text("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.key] })],
+);
 // Draft until the director approves the staff plan; after that changes need the director.
 export const staffPlanState = sqliteTable("staff_plan_state", {
   companyId: text("company_id").primaryKey(),

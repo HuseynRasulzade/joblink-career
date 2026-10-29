@@ -375,8 +375,8 @@ import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows
 import { maskCard, normalizeProfile, parseProfile, validIban } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
 import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
-import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, isVacationCode, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
-import { MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave } from "@/lib/hr-calc";
+import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, payWarnings, isVacationCode, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
+import { MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
@@ -1951,6 +1951,18 @@ async function route(request: Request) {
   const tellEmployee = async (employeeId: string, title: string, body: string) => {
     const row = await db.prepare("SELECT user_id FROM company_employees WHERE id=? AND company_id=?").bind(employeeId, id).first<{ user_id: string }>().catch(() => null);
     if (row?.user_id) await notify(db, { userId: row.user_id, type: "application", title, body, link: "workplace" }).catch(() => undefined);
+  };
+  // A pay change is kept with its date, and the first one also keeps the earlier pay, so months already worked keep their pay.
+  const salaryChange = async (employeeId: string, oldCents: number, oldType: string, newCents: number, newType: string, from: string, actor: string) => {
+    if (oldCents === newCents && oldType === newType) return [] as D1PreparedStatement[];
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : new Date().toISOString().slice(0, 10);
+    const now = new Date().toISOString();
+    const has = await db.prepare("SELECT 1 AS n FROM employee_salary_history WHERE employee_id=? AND company_id=? LIMIT 1").bind(employeeId, id).first();
+    const insert = (effective: string, cents: number, type: string, note: string) =>
+      db
+        .prepare("INSERT INTO employee_salary_history(id,company_id,employee_id,effective_from,salary_cents,salary_type,note,created_by,created) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,effective_from) DO UPDATE SET salary_cents=excluded.salary_cents,salary_type=excluded.salary_type,note=excluded.note")
+        .bind(crypto.randomUUID(), id, employeeId, effective, cents, type === "net" ? "net" : "gross", note, actor, now);
+    return [...(has || oldCents <= 0 ? [] : [insert("0000-01-01", oldCents, oldType, "Əvvəlki maaş")]), insert(day, newCents, newType, "")];
   };
   // Tells employees whose record is linked to an account (in the app) and, for the pay slip, those with an e-mail address.
   // The text carries no amounts: the figures are only in the employee's own page.
@@ -7299,9 +7311,9 @@ async function route(request: Request) {
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
     const existing = await db
-      .prepare("SELECT id,name,email,start_date FROM company_employees WHERE company_id=? AND status<>'removed'")
+      .prepare("SELECT id,name,email,start_date,salary_cents,salary_type FROM company_employees WHERE company_id=? AND status<>'removed'")
       .bind(id)
-      .all<{ id: string; name: string; email: string; start_date: string }>();
+      .all<{ id: string; name: string; email: string; start_date: string; salary_cents: number; salary_type: string }>();
     const lower = (value: string) => value.toLocaleLowerCase("az").trim();
     const byEmail = new Map(existing.results.filter((e) => e.email).map((e) => [lower(e.email), e.id]));
     const byName = new Map(existing.results.map((e) => [`${lower(e.name)}|${e.start_date}`, e.id]));
@@ -7319,6 +7331,10 @@ async function route(request: Request) {
       }
       const found = (row.email && byEmail.get(lower(row.email))) || byName.get(`${lower(row.name)}|${row.startDate}`);
       if (found) {
+        if (mayPay) {
+          const before = existing.results.find((e) => e.id === found);
+          if (before) statements.push(...(await salaryChange(found, before.salary_cents, before.salary_type, Math.round(row.salary * 100), row.salaryType, today, userId)));
+        }
         statements.push(
           db
             .prepare(
@@ -7744,10 +7760,10 @@ async function route(request: Request) {
     const [people, overrides, marks, inputs, payments, run, settings] = await Promise.all([
       db
         .prepare(
-          "SELECT id,name,position,department,section,start_date,end_date,status,salary_cents,salary_type,sector,profile FROM company_employees WHERE company_id=? AND status<>'removed' AND (start_date='' OR start_date<=?) AND (status<>'left' OR end_date='' OR end_date>=?) ORDER BY department,section,name",
+          "SELECT id,name,position,department,section,start_date,end_date,status,salary_cents,salary_type,sector,profile,vacation_days,vacation_used FROM company_employees WHERE company_id=? AND status<>'removed' AND (start_date='' OR start_date<=?) AND (status<>'left' OR end_date='' OR end_date>=?) ORDER BY department,section,name",
         )
         .bind(id, last, first)
-        .all<{ id: string; name: string; position: string; department: string; section: string; start_date: string; end_date: string; status: string; salary_cents: number; salary_type: string; sector: string; profile: string }>(),
+        .all<{ id: string; name: string; position: string; department: string; section: string; start_date: string; end_date: string; status: string; salary_cents: number; salary_type: string; sector: string; profile: string; vacation_days: number; vacation_used: number }>(),
       db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<CalendarOverride>(),
       db.prepare("SELECT employee_id,day,code FROM attendance_marks WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<{ employee_id: string; day: string; code: string }>(),
       db.prepare("SELECT employee_id,data FROM payroll_inputs WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ employee_id: string; data: string }>(),
@@ -7757,12 +7773,17 @@ async function route(request: Request) {
     ]);
     const days = monthDays(year, month, overrides.results);
     const working = days.filter((d) => !d.off);
+    // The pay in force on each working day: an employee whose pay changed in the month is paid each part at its own rate.
+    const salaryHistory = new Map<string, { from: string; cents: number; type: string }[]>();
+    for (const h of (await db.prepare("SELECT employee_id,effective_from,salary_cents,salary_type FROM employee_salary_history WHERE company_id=? ORDER BY effective_from").bind(id).all<{ employee_id: string; effective_from: string; salary_cents: number; salary_type: string }>()).results)
+      salaryHistory.set(h.employee_id, [...(salaryHistory.get(h.employee_id) || []), { from: h.effective_from, cents: h.salary_cents, type: h.salary_type }]);
     // Art. 140: vacation pay comes from the 12 months before; approved months give the real gross pay, other months the current salary.
     const priorMonths = Array.from({ length: 12 }, (_, i) => {
       const d = new Date(Date.UTC(year, month - 1 - (12 - i), 1));
       return d.toISOString().slice(0, 7);
     });
-    const wantsHistory = marks.results.some((m) => isVacationCode(m.code) || isInsuredCode(m.code));
+    const leavers = people.results.filter((p) => p.status === "left" && (p.end_date || "").startsWith(monthRaw));
+    const wantsHistory = leavers.length > 0 || marks.results.some((m) => isVacationCode(m.code) || isInsuredCode(m.code));
     const history = new Map<string, Map<string, number>>();
     if (wantsHistory) {
       const past = await db.prepare("SELECT month,snapshot FROM payroll_runs WHERE company_id=? AND status='approved' AND month>=? AND month<?").bind(id, priorMonths[0], monthRaw).all<{ month: string; snapshot: string }>();
@@ -7778,17 +7799,47 @@ async function route(request: Request) {
     const markBy = new Map<string, Map<string, string>>();
     for (const m of marks.results) markBy.set(m.employee_id, (markBy.get(m.employee_id) || new Map()).set(m.day, m.code));
     const inputBy = new Map(inputs.results.map((r) => [r.employee_id, (() => { try { return cleanInputs(JSON.parse(r.data)); } catch { return { ...EMPTY_INPUTS }; } })()]));
+    // Standing additions and deductions of the month, and what the previous month could not deduct.
+    const recurring = (await db.prepare("SELECT id,employee_id,type,label,amount_cents,deduction_kind FROM payroll_recurring WHERE company_id=? AND from_month<=? AND (to_month='' OR to_month>=?)").bind(id, monthRaw, monthRaw).all<{ id: string; employee_id: string; type: string; label: string; amount_cents: number; deduction_kind: string }>()).results;
+    const carries = (await db.prepare("SELECT id,employee_id,label,amount_cents,deduction_kind,from_month FROM payroll_carry WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ id: string; employee_id: string; label: string; amount_cents: number; deduction_kind: string; from_month: string }>()).results;
+    const withStanding = (manual: PayInputs, employeeId: string): PayInputs => {
+      const adds = recurring.filter((r) => r.employee_id === employeeId && r.type === "addition").reduce((t, r) => t + r.amount_cents / 100, 0);
+      const deds = [
+        ...recurring.filter((r) => r.employee_id === employeeId && r.type === "deduction").map((r) => ({ label: r.label, amount: r.amount_cents / 100, kind: (["writ", "alimony"].includes(r.deduction_kind) ? r.deduction_kind : "general") as "general" | "writ" | "alimony" })),
+        ...carries.filter((c) => c.employee_id === employeeId).map((c) => ({ label: `${c.label} (${c.from_month} ayından qalıq)`, amount: c.amount_cents / 100, kind: (["writ", "alimony"].includes(c.deduction_kind) ? c.deduction_kind : "general") as "general" | "writ" | "alimony" })),
+      ];
+      return adds || deds.length ? { ...manual, allowance: Math.round((manual.allowance + adds) * 100) / 100, deductions: [...manual.deductions, ...deds] } : manual;
+    };
     const advanceDay = settings?.advance_day || 0;
     const payDay = settings?.pay_day || 28;
     const advanceDate = advanceDay ? paymentDate(year, month, advanceDay) : "";
     const payDate = paymentDate(year, month, payDay);
     const frozen: { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] } | null = run?.status === "approved" && run.snapshot ? (() => { try { return JSON.parse(run.snapshot); } catch { return null; } })() : null;
     const sectionFor = await staffSections();
+    // Leave days already taken by those whose contract ends this month.
+    const leaverLeave = new Map<string, number>();
+    if (leavers.length) {
+      const counted = await db.prepare("SELECT employee_id,COUNT(*) AS n FROM attendance_marks WHERE company_id=? AND code='annual' GROUP BY employee_id").bind(id).all<{ employee_id: string; n: number }>();
+      for (const r of counted.results) leaverLeave.set(r.employee_id, Number(r.n));
+    }
     const rows = people.results.map((p) => {
       const profile = parseProfile(p.profile);
       const reduction = taxReduction(profile, todayIso);
       const week = weeklyHours(profile, first);
-      const pay = p.salary_cents > 0 ? employeePay(p.salary_cents / 100, p.salary_type === "net" ? "net" : "gross", p.sector === "public" ? "public" : "private", reduction) : null;
+      const payOf = (cents: number, type: string) => (cents > 0 ? employeePay(cents / 100, type === "net" ? "net" : "gross", p.sector === "public" ? "public" : "private", reduction) : null);
+      let pay = payOf(p.salary_cents, p.salary_type);
+      const own = salaryHistory.get(p.id);
+      if (own && own.length && working.length) {
+        // Gross pay on every working day, averaged over the month's working days.
+        const grossOn = (date: string) => {
+          let current = own[0];
+          for (const h of own) if (h.from <= date) current = h;
+          return payOf(current.cents, current.type)?.gross || 0;
+        };
+        const mean = working.reduce((t, d) => t + grossOn(d.date), 0) / working.length;
+        if (mean > 0 && pay) pay = { ...pay, gross: Math.round(mean * 100) / 100 };
+        else if (mean > 0) pay = payOf(Math.round(mean * 100), "gross");
+      }
       const marksOf = markBy.get(p.id) || new Map<string, string>();
       const statuses: DayStatus[] = working.map((d) => ((p.start_date && d.date < p.start_date) || (p.status === "left" && p.end_date && d.date > p.end_date) ? "outside" : dayStatus(marksOf.get(d.date) || "")));
       const mine = payments.results.filter((x) => x.employee_id === p.id);
@@ -7808,7 +7859,9 @@ async function route(request: Request) {
       let annual: { mask: boolean[]; calendarDays: number; averageMonthly: number } | undefined;
       let annualInfo: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null = null;
       let insured: { averageMonthly: number; calendarDays: number; percent: number } | undefined;
-      if (vacation.workingDays > 0 || insuredDays.workingDays > 0) {
+      const leaving = p.status === "left" && (p.end_date || "").startsWith(monthRaw);
+      let leaveCompensation: { days: number; averageMonthly: number } | undefined;
+      if (vacation.workingDays > 0 || insuredDays.workingDays > 0 || leaving) {
         // The 12 months before: real gross pay of approved months, the current salary for the others.
         const mine = history.get(p.id);
         const earnings: number[] = [];
@@ -7825,12 +7878,18 @@ async function route(request: Request) {
           annual = { mask: working.map((d) => vacationOf(d.date)), calendarDays: vacation.calendarDays, averageMonthly: avg };
           annualInfo = { months: earnings.length, estimated, averageMonthly: avg, calendarDays: vacation.calendarDays };
         }
+        if (leaving) {
+          // Art. 143: unused main leave is paid when the contract ends, from the average pay (art. 140).
+          const usedBefore = leaverLeave.get(p.id) || 0;
+          const unused = unusedLeaveCompensation({ hireDate: p.start_date || p.end_date, endDate: p.end_date, mainLeaveDays: p.vacation_days ?? 21, usedDays: (p.vacation_used ?? 0) + usedBefore, monthlyEarnings: earnings.length ? earnings : [pay?.gross || 0] });
+          if (unused && unused.unusedDays > 0) leaveCompensation = { days: unused.unusedDays, averageMonthly: avg };
+        }
         if (insuredDays.workingDays > 0) {
           const maternity = [...marksOf.values()].includes("maternity");
           insured = { averageMonthly: avg, calendarDays: insuredDays.calendarDays, percent: maternity ? MATERNITY_BENEFIT_PERCENT : SICK_BENEFIT_PERCENT };
         }
       }
-      const base = { monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: inputsOf, annual, insured };
+      const base = { monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: withStanding(inputsOf, p.id), annual, insured, leaveCompensation };
       const result = frozen?.rows?.find((r) => r.employeeId === p.id)?.result || computePay({ ...base, advances });
       const upTo = month === Number(todayIso.slice(5, 7)) && year === Number(todayIso.slice(0, 4)) ? behind : todayIso > `${monthRaw}-31` ? statuses.length : 0;
       const available = availableAdvance(base, Math.min(statuses.length, upTo), advances);
@@ -7866,7 +7925,10 @@ async function route(request: Request) {
         benefit: profile.taxBenefit ? taxBenefit(profile.taxBenefit)?.short || taxBenefit(profile.taxBenefit)?.label || "" : "",
         taxReduction: reduction,
         annual: annualInfo,
+        warnings: payWarnings({ gross: pay?.gross || 0, weekHours: week.hours, workedAll: result.workedDays + result.paidLeaveDays >= result.normDays && result.normDays > 0, hasIban: !!profile.iban || !!profile.cardNumber, cashPay: profile.payMethod === "cash", advanceExcess: result.advanceExcess }),
         inputs: inputsOf,
+        recurring: recurring.filter((x) => x.employee_id === p.id).map((x) => ({ id: x.id, type: x.type, label: x.label, amount: x.amount_cents / 100 })),
+        carries: carries.filter((x) => x.employee_id === p.id).map((x) => ({ label: x.label, amount: x.amount_cents / 100, from: x.from_month })),
         result,
         advances,
         salaryPaid,
@@ -8083,8 +8145,10 @@ async function route(request: Request) {
     };
     const by = new Map<string, Acc>();
     const status: { month: string; status: string }[] = [];
-    for (const m of list) {
-      const sheet = await payrollRows(m);
+    // The months are worked out side by side; the report waits for all of them.
+    const sheets = await Promise.all(list.map((m) => payrollRows(m)));
+    for (const [monthIndex, m] of list.entries()) {
+      const sheet = sheets[monthIndex];
       if (approvedOnly && sheet.status !== "approved") continue;
       const isApproved = sheet.status === "approved";
       status.push({ month: m, status: sheet.status });
@@ -8169,9 +8233,9 @@ async function route(request: Request) {
     summary.push(["", "CƏMİ", "", "", "", "", t.gross, t.tax, t.insurance, t.net, t.deductions, t.due, "", "", t.advance, t.salary, t.vacation, t.benefit, t.extra, t.paidTotal, t.companyOwes, t.benefitOwes, t.pendingOwes, t.employeeOwes, t.balance, ""]);
     const payments: (string | number)[][] = report.employees.flatMap((e) => e.payments.map((p): (string | number)[] => [p.paidOn, p.month, e.name, e.fin, p.label, p.title, p.amount, methodText[p.method] || p.method, p.note, p.batchId ? "Bank sənədi" : "Əl ilə", p.reversed ? `Geri çəkilib: ${p.reverseReason} (${p.reversedBy})` : "Qüvvədədir"])).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
     const debts: (string | number)[][] = report.employees.filter((e) => Math.abs(e.balance) > 0.005 || e.employeeOwes > 0 || e.pendingOwes > 0).map((e) => [e.name, e.fin, e.companyOwes, e.benefitOwes, e.pendingOwes, e.employeeOwes, e.balance, e.employeeOwes > 0 ? "Avans hesablanmış məbləğdən artıq verilib: işçidən geri alınmalıdır və ya növbəti ayın əmək haqqından tutulmalıdır." : e.pendingOwes > 0 ? "Təsdiqlənməmiş aylar üzrə gözlənilən məbləğ də var." : ""]);
-    const monthlyHeaders = ["Ay", "Ayın vəziyyəti", "Ad Soyad", "FİN", "Vəzifə", "Departament", "Norma günü", "İşlənmiş gün", "Ödənişli məzuniyyət/icazə günü", "Müavinət günü", "Ödənişsiz gün", "İşlənmiş günlərə görə", "Məzuniyyət haqqı", "Artıq iş", "İstirahət/bayram işi", "Gecə işi", "Əlavələr", "Mükafat", "Hesablanıb (gross)", "Gəlir vergisi", "DSMF (işçi)", "İşsizlik (işçi)", "Tibbi (işçi)", "Net", "Digər tutulmalar", "Ödəniləcək", "Avans", "Əmək haqqı", "Məzuniyyət", "Müavinət (ödənilib)", "Digər ödəniş", "Əmək haqqı qalığı", "Müavinət hesablanıb", "Müavinət qalığı", "İşçinin borcu", "İşəgötürən sığortası", "İşəgötürənin ümumi xərci", "Son ödəniş", "Geri çəkilmiş ödəniş sayı"];
+    const monthlyHeaders = ["Ay", "Ayın vəziyyəti", "Ad Soyad", "FİN", "Vəzifə", "Departament", "Norma günü", "İşlənmiş gün", "Ödənişli məzuniyyət/icazə günü", "Müavinət günü", "Ödənişsiz gün", "İşlənmiş günlərə görə", "Məzuniyyət haqqı", "Məzuniyyət kompensasiyası (çıxış)", "Artıq iş", "İstirahət/bayram işi", "Gecə işi", "Əlavələr", "Mükafat", "Hesablanıb (gross)", "Gəlir vergisi", "DSMF (işçi)", "İşsizlik (işçi)", "Tibbi (işçi)", "Net", "Digər tutulmalar", "Ödəniləcək", "Avans", "Əmək haqqı", "Məzuniyyət", "Müavinət (ödənilib)", "Digər ödəniş", "Əmək haqqı qalığı", "Müavinət hesablanıb", "Müavinət qalığı", "İşçinin borcu", "İşəgötürən sığortası", "İşəgötürənin ümumi xərci", "Son ödəniş", "Geri çəkilmiş ödəniş sayı"];
     const monthly: (string | number)[][] = report.employees.flatMap((e) =>
-      e.months.map((m): (string | number)[] => [m.month, m.status === "approved" ? "Təsdiqlənib" : "Layihə", e.name, e.fin, e.position, e.department, m.normDays, m.workedDays, m.paidLeaveDays, m.benefitDays, m.unpaidDays, m.lines.worked || 0, (m.lines.vacation || 0) + (m.lines["paid-leave"] || 0), m.lines.overtime || 0, m.lines["rest-day"] || 0, m.lines.night || 0, m.lines.allowance || 0, m.lines.bonus || 0, m.gross, m.incomeTax, m.employeeSocial, m.employeeUnemployment, m.employeeMedical, m.net, m.deductions, m.due, m.advance, m.salary, m.vacation, m.benefit, m.extra, m.outstanding, m.benefitDue, m.benefitOutstanding, m.employeeOwes, money(m.employerSocial + m.employerUnemployment + m.employerMedical), m.employerCost, m.lastPaid, m.reversed]),
+      e.months.map((m): (string | number)[] => [m.month, m.status === "approved" ? "Təsdiqlənib" : "Layihə", e.name, e.fin, e.position, e.department, m.normDays, m.workedDays, m.paidLeaveDays, m.benefitDays, m.unpaidDays, m.lines.worked || 0, (m.lines.vacation || 0) + (m.lines["paid-leave"] || 0), m.lines["leave-compensation"] || 0, m.lines.overtime || 0, m.lines["rest-day"] || 0, m.lines.night || 0, m.lines.allowance || 0, m.lines.bonus || 0, m.gross, m.incomeTax, m.employeeSocial, m.employeeUnemployment, m.employeeMedical, m.net, m.deductions, m.due, m.advance, m.salary, m.vacation, m.benefit, m.extra, m.outstanding, m.benefitDue, m.benefitOutstanding, m.employeeOwes, money(m.employerSocial + m.employerUnemployment + m.employerMedical), m.employerCost, m.lastPaid, m.reversed]),
     );
     // Employees down, months across: what is still owed after every month.
     const matrixHeaders = ["Ad Soyad", "FİN", ...report.months.flatMap((m) => [`${m.month} ödəniləcək`, `${m.month} ödənilib`, `${m.month} qalıq`]), "Cəmi ödəniləcək", "Cəmi ödənilib", "Cəmi qalıq (təsdiqlənmiş)"];
@@ -8543,6 +8607,48 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "payroll-input", employee.id, monthRaw);
     return ok({ ok: true, inputs: clean });
   }
+  // Additions and deductions that repeat each month (a loan, an alimony, a standing allowance).
+  if (request.method === "GET" && path === "company/payroll/recurring") {
+    requirePermission("salaries", "Təkrarlanan maddələri yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    const rows = await db
+      .prepare("SELECT id,type,label,amount_cents,deduction_kind,from_month,to_month FROM payroll_recurring WHERE company_id=? AND employee_id=? ORDER BY from_month DESC")
+      .bind(id, str(requestUrl.searchParams.get("employeeId"), 100))
+      .all<{ id: string; type: string; label: string; amount_cents: number; deduction_kind: string; from_month: string; to_month: string }>();
+    return ok({ items: rows.results.map((r) => ({ id: r.id, type: r.type, label: r.label, amount: r.amount_cents / 100, kind: r.deduction_kind, from: r.from_month, to: r.to_month })) });
+  }
+  if (request.method === "POST" && path === "company/payroll/recurring") {
+    requirePermission("salaries", "Təkrarlanan maddələri yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    const monthOk = (v: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
+    const from = str(b.from, 7);
+    const to = str(b.to, 7);
+    const label = str(b.label, 120);
+    const amount = Math.round((Number(b.amount) || 0) * 100);
+    if (label.length < 2) throw new HttpError(400, "Maddənin adını yazın.");
+    if (!(amount > 0) || amount > 100_000_000) throw new HttpError(400, "Məbləği düzgün yazın.");
+    if (!monthOk(from)) throw new HttpError(400, "Başlanğıc ayı seçin.");
+    if (to && (!monthOk(to) || to < from)) throw new HttpError(400, "Son ay başlanğıcdan əvvəl ola bilməz.");
+    const employee = await db.prepare("SELECT id FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(str(b.employeeId, 100), id).first<{ id: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const type = b.type === "deduction" ? "deduction" : "addition";
+    const kind = ["writ", "alimony"].includes(str(b.kind, 10)) ? str(b.kind, 10) : "general";
+    const count = (await db.prepare("SELECT COUNT(*) AS n FROM payroll_recurring WHERE company_id=? AND employee_id=?").bind(id, employee.id).first<{ n: number }>())?.n || 0;
+    if (count >= 20) throw new HttpError(409, "Bir işçi üçün ən çox 20 təkrarlanan maddə saxlanılır.");
+    const itemId = crypto.randomUUID();
+    await db
+      .prepare("INSERT INTO payroll_recurring(id,company_id,employee_id,type,label,amount_cents,deduction_kind,from_month,to_month,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(itemId, id, employee.id, type, label, amount, kind, from, to, userId, new Date().toISOString())
+      .run();
+    await companyAudit(db, id, userId, "payroll-recurring-added", employee.id, `${type}: ${label} ${amount / 100} AZN, ${from}–${to || "…"}`);
+    return ok({ ok: true, id: itemId }, 201);
+  }
+  if (request.method === "POST" && path === "company/payroll/recurring/delete") {
+    requirePermission("salaries", "Təkrarlanan maddələri yalnız əmək haqqı icazəsi olan şəxs silə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM payroll_recurring WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    await companyAudit(db, id, userId, "payroll-recurring-removed", str(b.id, 100), "");
+    return ok({ ok: true });
+  }
   if (request.method === "POST" && path === "company/payroll/settings") {
     requirePermission("salaries", "Əmək haqqı ayarlarını yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
     const b = await jsonBody(request);
@@ -8669,6 +8775,14 @@ async function route(request: Request) {
       .bind(id, monthRaw, JSON.stringify({ rows: sheet.rows.map((r) => ({ employeeId: r.employeeId, result: r.result })) }), userId, me, now, now)
       .run();
     await companyAudit(db, id, userId, "payroll-approved", "", `${monthRaw}: ${sheet.rows.length} işçi, ödəniləcək ${sheet.totals.toPay} AZN`);
+    // Deductions cut down to the legal limit are carried to the next month, so the debt is not lost.
+    const nextMonth = new Date(Date.UTC(Number(monthRaw.slice(0, 4)), Number(monthRaw.slice(5, 7)), 1)).toISOString().slice(0, 7);
+    const carryRows: D1PreparedStatement[] = [db.prepare("DELETE FROM payroll_carry WHERE company_id=? AND from_month=?").bind(id, monthRaw)];
+    for (const r of sheet.rows)
+      for (const d of r.result.otherDeductions)
+        if (d.amount - d.applied > 0.005)
+          carryRows.push(db.prepare("INSERT INTO payroll_carry(id,company_id,employee_id,month,label,amount_cents,deduction_kind,from_month,created) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, r.employeeId, nextMonth, (d.label || "Tutulma").replace(/ \(\d{4}-\d{2} ayından qalıq\)$/, ""), Math.round((d.amount - d.applied) * 100), d.kind, monthRaw, now));
+    for (let i = 0; i < carryRows.length; i += 50) await db.batch(carryRows.slice(i, i + 50));
     await tellPayroll(sheet.rows.map((r) => r.employeeId), `${monthRaw} ayı üçün haqq-hesab vərəqəniz hazırdır`, `${monthRaw} ayının əmək haqqı hesablaması təsdiqləndi. Vərəqəni Joblink hesabınızda “İş yerim” → “Əmək haqqı” bölməsində görə və çap edə bilərsiniz.`, true);
     return ok({ ok: true });
   }
@@ -8680,6 +8794,7 @@ async function route(request: Request) {
     const paid = await db.prepare("SELECT COUNT(*) AS n FROM payroll_payments WHERE company_id=? AND month=? AND kind='salary'").bind(id, monthRaw).first<{ n: number }>();
     if (Number(paid?.n) > 0) throw new HttpError(409, "Bu ay üçün əmək haqqı ödənişi qeyd edilib: əvvəlcə ödənişləri silin.");
     await db.prepare("UPDATE payroll_runs SET status='draft',snapshot='',updated=? WHERE company_id=? AND month=?").bind(new Date().toISOString(), id, monthRaw).run();
+    await db.prepare("DELETE FROM payroll_carry WHERE company_id=? AND from_month=?").bind(id, monthRaw).run();
     await companyAudit(db, id, userId, "payroll-reopened", "", monthRaw);
     return ok({ ok: true });
   }
@@ -9591,6 +9706,15 @@ async function route(request: Request) {
       canSeeReasons: can(memberRole, "salaries"),
     });
   }
+  if (request.method === "GET" && path === "company/employees/salary-history") {
+    requirePermission("salaries", "Maaş tarixçəsini yalnız maaşlara icazəsi olan şəxs görə bilər.");
+    if (!can(memberRole, "salaries", memberGrants)) throw new HttpError(403, "Maaş tarixçəsini yalnız maaşlara icazəsi olan şəxs görə bilər.");
+    const rows = await db
+      .prepare("SELECT effective_from,salary_cents,salary_type,note,created FROM employee_salary_history WHERE company_id=? AND employee_id=? ORDER BY effective_from DESC")
+      .bind(id, str(requestUrl.searchParams.get("id"), 100))
+      .all<{ effective_from: string; salary_cents: number; salary_type: string; note: string; created: string }>();
+    return ok({ history: rows.results.map((r) => ({ from: r.effective_from === "0000-01-01" ? "" : r.effective_from, salary: r.salary_cents / 100, type: r.salary_type, note: r.note, created: r.created })) });
+  }
   if (request.method === "POST" && path === "company/employees/save") {
     requirePermission(
       "salaries",
@@ -9788,6 +9912,8 @@ async function route(request: Request) {
       // The amounts stay in the audit log, which only HR, the director and the owner can read.
       if (old.salary_cents !== Math.round(salary * 100))
         events.push(event(existingId, "salary", "", "", "", today));
+      const salaryStatements = await salaryChange(existingId, old.salary_cents, String((old as { salary_type?: string }).salary_type || "gross"), Math.round(salary * 100), b.salaryType === "net" ? "net" : "gross", str(b.salaryFrom, 10), userId);
+      if (salaryStatements.length) await db.batch(salaryStatements);
       await db.batch([
         db
           .prepare(
@@ -15037,6 +15163,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         if (!emp) throw new HttpError(409, "İşçi artıq siyahıda yoxdur.");
         const cents = Math.round(Number(payload.salary) * 100);
         const now = new Date().toISOString();
+        const typeRow = await db.prepare("SELECT salary_type FROM company_employees WHERE id=? AND company_id=?").bind(String(payload.employeeId), id).first<{ salary_type: string }>();
+        const historyStatements = await salaryChange(String(payload.employeeId), emp.salary_cents, typeRow?.salary_type || "gross", cents, typeRow?.salary_type || "gross", now.slice(0, 10), userId);
+        if (historyStatements.length) await db.batch(historyStatements);
         await db.batch([
           db
             .prepare(

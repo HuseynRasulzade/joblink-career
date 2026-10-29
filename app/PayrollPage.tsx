@@ -33,7 +33,7 @@ type Payment = { id: string; kind: "advance" | "salary" | "vacation" | "benefit"
 const KIND_LABEL: Record<Payment["kind"], string> = { advance: "Avans", salary: "Əmək haqqı", vacation: "Məzuniyyət haqqı", benefit: "Sosial sığorta müavinəti", extra: "Digər ödəniş" };
 type Row = {
   employeeId: string; name: string; position: string; department: string; status: string; monthlySalary: number; weekHours: number; iban: string; bankName: string; card: string; payMethod: string; fin: string; ssn: string; startDate: string; sector: string; benefit: string; section: string; salaryType: string; lastPaid: string;
-  taxReduction: number; annual: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null; inputs: Inputs; result: Result; advances: number; salaryPaid: number; vacationDue: number; vacationPaid: number; vacationOutstanding: number; benefitDue: number; benefitPaid: number; benefitOutstanding: number; extraPaid: number; outstanding: number; availableAdvance: number;
+  taxReduction: number; warnings: string[]; recurring: { id: string; type: string; label: string; amount: number }[]; carries: { label: string; amount: number; from: string }[]; annual: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null; inputs: Inputs; result: Result; advances: number; salaryPaid: number; vacationDue: number; vacationPaid: number; vacationOutstanding: number; benefitDue: number; benefitPaid: number; benefitOutstanding: number; extraPaid: number; outstanding: number; availableAdvance: number;
   earnedToDate: number; payments: Payment[];
 };
 type Sheet = {
@@ -205,6 +205,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
                   <small className="skill-description">{[r.position, r.department, r.section].filter(Boolean).join(" · ")}</small>
                   {r.weekHours < 40 && <small className="week-badge">{r.weekHours} saatlıq həftə</small>}
                   {r.monthlySalary <= 0 && <small className="danger-text">Maaş daxil edilməyib</small>}
+                  {r.monthlySalary > 0 && r.warnings.map((w) => <small key={w} className="danger-text">{w}</small>)}
                 </td>
                 <td>
                   {r.result.workedDays + r.result.paidLeaveDays + r.result.downtimeDays} / {r.result.normDays}
@@ -273,6 +274,70 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   );
 }
 
+// Standing additions and deductions: they are added to every month between the two months without being typed again.
+function Recurring({ employeeId, month, notify, onChanged }: { employeeId: string; month: string; notify: Notify; onChanged: () => void }) {
+  type Item = { id: string; type: string; label: string; amount: number; kind: string; from: string; to: string };
+  const [items, setItems] = useState<Item[] | null>(null);
+  const [form, setForm] = useState({ type: "deduction", label: "", amount: 0, kind: "general", from: month, to: "" });
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  });
+  const load = useCallback(() => {
+    request<{ items: Item[] }>(`company/payroll/recurring?employeeId=${employeeId}`)
+      .then((r) => setItems(r.items))
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, [employeeId]);
+  useEffect(load, [load]);
+  async function add() {
+    try {
+      await request("company/payroll/recurring", { employeeId, ...form });
+      setForm({ ...form, label: "", amount: 0 });
+      load();
+      onChanged();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function remove(id: string) {
+    try {
+      await request("company/payroll/recurring/delete", { id });
+      load();
+      onChanged();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  return (
+    <div className="recurring-box">
+      <h4>Hər ay təkrarlanan maddələr</h4>
+      <p className="muted">Kredit, aliment və ya daimi əlavə burada bir dəfə yazılır; göstərilən aylar üçün cədvələ özü düşür. Təsdiqlənmiş aylar dəyişmir.</p>
+      {items?.map((i) => (
+        <div key={i.id} className="bank-account">
+          <span><b>{i.type === "deduction" ? "Tutulma" : "Əlavə"}:</b> {i.label} — {azn(i.amount)} <small className="skill-description">{i.from} – {i.to || "müddətsiz"}</small></span>
+          <button type="button" className="text-button" onClick={() => void remove(i.id)}>sil</button>
+        </div>
+      ))}
+      <div className="org-add structure-add">
+        <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+          <option value="deduction">Tutulma</option>
+          <option value="addition">Əlavə</option>
+        </select>
+        <input className="search-input" placeholder="Adı (məsələn: bank krediti)" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} />
+        <input className="search-input" type="number" min={0} style={{ maxWidth: 110 }} value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} />
+        {form.type === "deduction" && (
+          <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
+            {Object.entries(KIND_TEXT).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        )}
+        <input type="month" value={form.from} onChange={(e) => setForm({ ...form, from: e.target.value })} aria-label="Başlanğıc ay" />
+        <input type="month" value={form.to} onChange={(e) => setForm({ ...form, to: e.target.value })} aria-label="Son ay (boş — müddətsiz)" />
+        <button type="button" className="secondary" disabled={form.label.trim().length < 2 || !(form.amount > 0)} onClick={() => void add()}>+ Əlavə et</button>
+      </div>
+    </div>
+  );
+}
+
 function InputsModal({ month, row, notify, onClose, onSaved }: { month: string; row: Row; notify: Notify; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<Inputs>(row.inputs);
   const num = (key: keyof Inputs, label: string, step = 1) => (
@@ -325,6 +390,10 @@ function InputsModal({ month, row, notify, onClose, onSaved }: { month: string; 
           <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
         </Field>
         <button type="button" className="primary" onClick={() => void save()}>Yadda saxla</button>
+        {!!row.carries.length && (
+          <p className="muted">Əvvəlki aydan keçən tutulmalar: {row.carries.map((c) => `${c.label} ${azn(c.amount)} (${c.from})`).join("; ")}.</p>
+        )}
+        <Recurring employeeId={row.employeeId} month={month} notify={notify} onChanged={onSaved} />
       </div>
     </Modal>
   );

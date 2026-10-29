@@ -26,7 +26,7 @@ const azn = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFraction
 const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "—");
 const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const METHOD: Record<string, string> = { bank: "bank", card: "kart", cash: "nağd", other: "digər" };
-const LINE_LABEL: Record<string, string> = { worked: "İşlənmiş günlər", vacation: "Əmək məzuniyyəti (md. 140)", "paid-leave": "Digər ödənişli günlər", downtime: "Boşdayanma (2/3)", overtime: "Artıq iş", "rest-day": "İstirahət/bayram işi", night: "Gecə işi", allowance: "Əlavələr", bonus: "Mükafat" };
+const LINE_LABEL: Record<string, string> = { worked: "İşlənmiş günlər", vacation: "Əmək məzuniyyəti (md. 140)", "paid-leave": "Digər ödənişli günlər", "leave-compensation": "Məzuniyyət kompensasiyası (çıxış, md. 143)", downtime: "Boşdayanma (2/3)", overtime: "Artıq iş", "rest-day": "İstirahət/bayram işi", night: "Gecə işi", allowance: "Əlavələr", bonus: "Mükafat" };
 const state = (e: Employee) => (e.balance > 0.005 ? "Şirkət işçiyə borcludur" : e.balance < -0.005 ? "İşçi şirkətə borcludur" : "Hesablaşma bağlıdır");
 
 export default function PayrollReport({ initialMonth, notify }: { initialMonth: string; notify: Notify }) {

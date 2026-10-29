@@ -151,3 +151,11 @@ test("benefit days stay out of the pay and the benefit is shown apart", () => {
   assert.equal(r.benefitAmount, 210);
   assert.equal(r.gross, 750);
 });
+
+test("unused leave is paid when the contract ends, from the average pay", () => {
+  const statuses = Array.from({ length: 10 }, () => "work");
+  const r = computePay({ monthlySalary: 912, statuses, leaveCompensation: { days: 5, averageMonthly: 912 } });
+  assert.equal(r.lines.find((l) => l.id === "leave-compensation").amount, 150);
+  assert.equal(r.leaveCompensationDays, 5);
+  assert.equal(r.gross, 1062);
+});
