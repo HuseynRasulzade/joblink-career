@@ -78,7 +78,7 @@ export function vacationEntitlement(input: VacationEntitlementInput): VacationEn
 
 const parse = (date: string) => new Date(`${date}T00:00:00Z`);
 const fmt = (date: Date) => date.toISOString().slice(0, 10);
-const addDays = (date: string, n: number) => fmt(new Date(parse(date).getTime() + n * 86_400_000));
+export const addDays = (date: string, n: number) => fmt(new Date(parse(date).getTime() + n * 86_400_000));
 
 export type VacationDates = Cited<{
   start: string;
@@ -592,6 +592,34 @@ export function maternityLeave(input: {
 }
 
 export const PATERNITY_LEAVE_DAYS = 14; // art. 125.4
+
+// Social insurance benefits for sickness and for pregnancy and childbirth: a share of the average earnings of the
+// last 12 months (the insured earnings), paid for calendar days. The share is a parameter: 100% is what the State
+// Social Protection Fund states for the temporary disability benefit; check it against the current law before use.
+export const SICK_BENEFIT_PERCENT = 100;
+export const MATERNITY_BENEFIT_PERCENT = 100;
+export type InsuranceBenefit = Cited<{ months: number; averageMonthly: number; dailyRate: number; days: number; percent: number; benefitDaily: number; amount: number }>;
+export function insuranceBenefit(monthlyEarnings: number[], calendarDays: number, percent: number, kind: "sick" | "maternity"): InsuranceBenefit {
+  const avg = averageMonthlyForLeave(monthlyEarnings);
+  const share = Math.max(0, Math.min(100, Number(percent) || 0));
+  const days = Math.max(0, Math.floor(pos(calendarDays)));
+  const daily = r2((avg.dailyRate * share) / 100);
+  return {
+    months: avg.months,
+    averageMonthly: avg.averageMonthly,
+    dailyRate: avg.dailyRate,
+    days,
+    percent: share,
+    benefitDaily: daily,
+    amount: r2(avg.dailyRate * (share / 100) * days),
+    articles: kind === "sick" ? ["Sosial Sığorta Qanunu: müvəqqəti əmək qabiliyyətsizliyi müavinəti"] : ["Əmək M. 125", "Sosial Sığorta Qanunu: hamiləlik və doğuş müavinəti"],
+    notes: [
+      "Müavinət son 12 ayın sığorta haqqı ödənilmiş orta aylıq əmək haqqından (÷ 30,4) təqvim günlərinə görə hesablanır; bayram və istirahət günləri də daxildir.",
+      `Müavinətin faizi (${share}%) və ilk günlərin kim tərəfindən ödənilməsi qanunda dəyişə bilər: cari mətnlə yoxlayın.`,
+      "Müavinət əmək haqqına daxil deyil; sosial sığorta orqanı ilə hesablaşma ayrıca aparılır.",
+    ],
+  };
+}
 
 export type Service = { years: number; months: number; days: number; totalDays: number; text: string };
 

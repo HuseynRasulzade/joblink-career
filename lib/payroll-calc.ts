@@ -30,10 +30,13 @@ export function dayStatus(code: string): Exclude<DayStatus, "outside"> {
 // Leave under articles 139–140 (annual, additional, creative) is paid from the 12-month average, not from the month's salary.
 const VACATION = new Set(["annual", "addleave", "creative"]);
 export const isVacationCode = (code: string) => VACATION.has(code);
+// Absences paid by social insurance from the average earnings: sickness, work injury and pregnancy and childbirth.
+const INSURED = new Set(["sick", "injury", "maternity"]);
+export const isInsuredCode = (code: string) => INSURED.has(code);
 
 // Calendar days of vacation inside a month (art. 114, 138): the marked working days plus the weekends and company days off
 // between two marked working days. Holidays are not counted: the vacation is extended by them.
-export function vacationCalendarDays(days: { date: string; off: "" | "weekend" | "holiday" | "transfer" | "company" }[], isVacation: (date: string) => boolean): { workingDays: number; calendarDays: number } {
+export function vacationCalendarDays(days: { date: string; off: "" | "weekend" | "holiday" | "transfer" | "company" }[], isVacation: (date: string) => boolean, includeHolidays = false): { workingDays: number; calendarDays: number } {
   let working = 0;
   let calendar = 0;
   for (let i = 0; i < days.length; i++) {
@@ -43,7 +46,7 @@ export function vacationCalendarDays(days: { date: string; off: "" | "weekend" |
         working += 1;
         calendar += 1;
       }
-    } else if (d.off === "weekend" || d.off === "company") {
+    } else if (d.off === "weekend" || d.off === "company" || includeHolidays) {
       let before = i - 1;
       while (before >= 0 && days[before].off !== "") before--;
       let after = i + 1;
@@ -101,6 +104,7 @@ export type PayInput = {
   inputs?: Partial<PayInputs>;
   // Vacation days of the month and the average monthly pay of the previous 12 months (art. 140); `mask` marks, per working day, the vacation ones.
   annual?: { mask: boolean[]; calendarDays: number; averageMonthly: number };
+  insured?: { averageMonthly: number; calendarDays: number; percent: number }; // sickness / maternity benefit days of the month (not part of the pay)
   advances?: number; // paid in advance this month
   asOf?: number; // count only the first N working days (the rest are assumed worked, for the advance)
 };
@@ -116,6 +120,8 @@ export type PayResult = {
   lines: { id: string; label: string; amount: number; article: string }[];
   vacationDays: number; // vacation calendar days paid from the average (art. 140)
   vacationAverageMonthly: number;
+  benefitAmount: number; // sickness / maternity benefit for the month, paid through social insurance, not in the gross pay
+  benefitCalendarDays: number;
   gross: number;
   incomeTax: number;
   employeeSocial: number;
@@ -188,7 +194,7 @@ export function computePay(input: PayInput): PayResult {
   const advances = r2(pos(input.advances));
   const afterDeductions = r2(taxed.net - appliedTotal);
   const notes: string[] = [];
-  if (benefit) notes.push(`${benefit} gün müavinətlə ödənilir (Sosial Sığorta): əmək haqqına daxil deyil, müavinəti ayrıca hesablayın.`);
+  if (benefit) notes.push(`${benefit} iş günü müavinətlə ödənilir (Sosial Sığorta): əmək haqqına daxil deyil.${input.insured ? ` Müavinət ${r2((pos(input.insured.averageMonthly) / MEAN_MONTH_DAYS) * (pos(input.insured.percent) / 100) * pos(input.insured.calendarDays)).toFixed(2)} AZN (${input.insured.calendarDays} təqvim günü, orta aylıq ${r2(pos(input.insured.averageMonthly)).toFixed(2)} AZN × ${input.insured.percent}% ÷ 30,4) ayrıca ödənilir.` : " Müavinəti ayrıca hesablayın."}`);
   if (unpaid) notes.push(`${unpaid} gün ödənişsizdir (ödənişsiz məzuniyyət, üzrsüz yoxluq və s.).`);
   if (other.some((d) => d.applied < d.amount)) notes.push("Tutulmalar Əmək Məcəlləsinin 176-cı maddəsindəki həddə endirildi; qalıq növbəti aya keçirilməlidir.");
   if (vacationDays) notes.push("Əmək məzuniyyəti haqqı 140-cı maddə ilə əvvəlki 12 ayın orta aylıq əmək haqqından (÷ 30,4) hesablanıb; bayram günləri məzuniyyətə daxil deyil.");
@@ -204,6 +210,8 @@ export function computePay(input: PayInput): PayResult {
     lines,
     vacationDays,
     vacationAverageMonthly: vacationAverage,
+    benefitAmount: input.insured ? r2((pos(input.insured.averageMonthly) / MEAN_MONTH_DAYS) * (pos(input.insured.percent) / 100) * pos(input.insured.calendarDays)) : 0,
+    benefitCalendarDays: pos(input.insured?.calendarDays),
     gross,
     incomeTax: taxed.incomeTax,
     employeeSocial: taxed.employeeSocial,

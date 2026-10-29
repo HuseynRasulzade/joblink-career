@@ -517,16 +517,19 @@ function Maternity({ emp }: { emp: Emp | null }) {
   const [hard, setHard] = useState(false);
   const [multiple, setMultiple] = useState(false);
   const [agri, setAgri] = useState(false);
+  const [earnings, setEarnings] = useState(String(grossOf(emp) || 1500));
+  const [percent, setPercent] = useState(hr.MATERNITY_BENEFIT_PERCENT);
   const r = hr.maternityLeave({ expectedBirth: expected, actualBirth: actual, hardBirth: hard, multiple, agriculture: agri });
+  const benefit = r ? hr.insuranceBenefit(parseMonths(earnings), r.totalDays, percent, "maternity") : null;
   return (
     <Layout
       employee={emp}
-      title="Hamiləlik və doğuş məzuniyyəti"
+      title="Hamiləlik və doğuş məzuniyyəti və müavinəti"
       result={
-        r ? (
+        r && benefit ? (
           <Result
-            articles={r.articles}
-            notes={r.notes}
+            articles={[...r.articles, ...benefit.articles]}
+            notes={[...r.notes.filter((n) => !n.startsWith("Müavinətin məbləği")), ...benefit.notes]}
             rows={[
               ["Məzuniyyətin başlanğıcı", r.start],
               ["Doğuşdan əvvəl", `${r.beforeDays} gün`],
@@ -535,6 +538,9 @@ function Maternity({ emp }: { emp: Emp | null }) {
               ["Son gün", r.end],
               ["İşə çıxış", r.returnDate, true],
               ["Ata üçün ödənişli məzuniyyət", `${hr.PATERNITY_LEAVE_DAYS} gün`],
+              ["Orta aylıq əmək haqqı", azn(benefit.averageMonthly)],
+              ["Bir günlük müavinət", azn(benefit.benefitDaily)],
+              ["Hamiləlik və doğuş müavinəti", azn(benefit.amount), true],
             ]}
           />
         ) : (
@@ -547,6 +553,42 @@ function Maternity({ emp }: { emp: Emp | null }) {
       <Check label="Çətin doğuş" value={hard} onChange={setHard} />
       <Check label="İki və daha çox uşaq" value={multiple} onChange={setMultiple} />
       <Check label="Kənd təsərrüfatı istehsalında çalışır" value={agri} onChange={setAgri} />
+      <Field label="Son 12 ayın əmək haqqı (vergiyə cəlb olunan, aylıq; vergül/boşluqla ayırın)"><input value={earnings} onChange={(e) => setEarnings(e.target.value)} /></Field>
+      <Field label="Müavinətin faizi (%)"><input type="number" min={0} max={100} value={percent} onChange={(e) => setPercent(Number(e.target.value))} /></Field>
+    </Layout>
+  );
+}
+
+function Sick({ emp }: { emp: Emp | null }) {
+  const [start, setStart] = useState(today());
+  const [days, setDays] = useState(7);
+  const [earnings, setEarnings] = useState(String(grossOf(emp) || 1500));
+  const [percent, setPercent] = useState(hr.SICK_BENEFIT_PERCENT);
+  const b = hr.insuranceBenefit(parseMonths(earnings), days, percent, "sick");
+  const end = days > 0 ? hr.addDays(start, days - 1) : "";
+  return (
+    <Layout
+      employee={emp}
+      title="Xəstəlik (müvəqqəti əmək qabiliyyətsizliyi) müavinəti"
+      result={
+        <Result
+          articles={b.articles}
+          notes={b.notes}
+          rows={[
+            ["Xəstəlik dövrü", end ? `${start} – ${end}` : "—"],
+            ["Təqvim günü", `${b.days} gün`],
+            ["Orta aylıq əmək haqqı", azn(b.averageMonthly)],
+            ["Bir günlük orta (÷ 30,4)", azn(b.dailyRate)],
+            ["Bir günlük müavinət", azn(b.benefitDaily)],
+            ["Müavinət", azn(b.amount), true],
+          ]}
+        />
+      }
+    >
+      <Field label="Xəstəliyin başlanğıcı"><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+      <Field label="Təqvim günü"><input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value))} /></Field>
+      <Field label="Son 12 ayın əmək haqqı (vergiyə cəlb olunan, aylıq; vergül/boşluqla ayırın)"><input value={earnings} onChange={(e) => setEarnings(e.target.value)} /></Field>
+      <Field label="Müavinətin faizi (%)"><input type="number" min={0} max={100} value={percent} onChange={(e) => setPercent(Number(e.target.value))} /></Field>
     </Layout>
   );
 }
@@ -640,6 +682,7 @@ const TABS = [
   { id: "settlement", label: "Son haqq-hesab" },
   { id: "workdays", label: "İş günləri" },
   { id: "maternity", label: "Hamiləlik və doğuş" },
+  { id: "sick", label: "Xəstəlik müavinəti" },
   { id: "service", label: "İş stajı" },
   { id: "extra", label: "Artıq iş, gecə, boşdayanma" },
   { id: "deductions", label: "Tutulmalar" },
@@ -762,6 +805,7 @@ export function HrCalculators({
       {tab === "settlement" && <Settlement key={empId} emp={emp} />}
       {tab === "workdays" && <WorkDays key={empId} emp={emp} />}
       {tab === "maternity" && <Maternity key={empId} emp={emp} />}
+      {tab === "sick" && <Sick key={empId} emp={emp} />}
       {tab === "service" && <Service key={empId} emp={emp} />}
       {tab === "extra" && <ExtraWork key={empId} emp={emp} />}
       {tab === "deductions" && <Deductions key={empId} emp={emp} />}

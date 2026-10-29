@@ -167,3 +167,12 @@ test("a worker under 18 has the leave of article 119, a disabled one 42 days", (
   assert.equal(c.vacationEntitlement({ tenureYears: 6, age: 30 }).byTenure, 2);
   assert.equal(c.vacationEntitlement({ tenureYears: 6, age: 17, harmfulConditionsDays: 6 }).total, 41);
 });
+
+import { insuranceBenefit } from "../lib/hr-calc.ts";
+test("insurance benefit is a share of the 12-month average per calendar day", () => {
+  const b = insuranceBenefit(Array(12).fill(912), 10, 100, "sick");
+  assert.equal(b.averageMonthly, 912);
+  assert.equal(b.dailyRate, 30);
+  assert.equal(b.amount, 300);
+  assert.equal(insuranceBenefit(Array(12).fill(912), 10, 60, "maternity").amount, 180);
+});

@@ -23,7 +23,7 @@ type Inputs = { bonus: number; allowance: number; overtimeHours: number; restDay
 type Line = { id: string; label: string; amount: number; article: string };
 type Result = {
   normDays: number; workedDays: number; paidLeaveDays: number; downtimeDays: number; benefitDays: number; unpaidDays: number; hourly: number;
-  lines: Line[]; gross: number; incomeTax: number; employeeSocial: number; employeeUnemployment: number; employeeMedical: number;
+  lines: Line[]; benefitAmount: number; benefitCalendarDays: number; gross: number; incomeTax: number; employeeSocial: number; employeeUnemployment: number; employeeMedical: number;
   employerSocial: number; employerUnemployment: number; employerMedical: number; employerCost: number; net: number; taxReduction: number;
   otherDeductions: (Deduction & { applied: number })[]; deductionsCapped: boolean; advances: number; toPay: number; advanceExcess: number; notes: string[];
 };
@@ -254,7 +254,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
                 </td>
                 <td>
                   {r.result.workedDays + r.result.paidLeaveDays + r.result.downtimeDays} / {r.result.normDays}
-                  {(r.result.benefitDays > 0 || r.result.unpaidDays > 0) && <small className="skill-description">{r.result.benefitDays ? `müavinət ${r.result.benefitDays}` : ""} {r.result.unpaidDays ? `ödənişsiz ${r.result.unpaidDays}` : ""}</small>}
+                  {(r.result.benefitDays > 0 || r.result.unpaidDays > 0) && <small className="skill-description">{r.result.benefitDays ? `müavinət ${r.result.benefitDays}${r.result.benefitAmount ? ` (${azn(r.result.benefitAmount)}, ayrıca)` : ""}` : ""} {r.result.unpaidDays ? `ödənişsiz ${r.result.unpaidDays}` : ""}</small>}
                 </td>
                 <td>
                   {azn(r.result.gross)}

@@ -150,3 +150,10 @@ test("vacation pay uses the 12-month average over 30.4 days", () => {
   assert.equal(r.lines.find((l) => l.id === "paid-leave"), undefined);
   assert.equal(r.lines.find((l) => l.id === "worked").amount, 500);
 });
+
+test("benefit days stay out of the pay and the benefit is shown apart", () => {
+  const statuses = Array.from({ length: 20 }, (_, i) => (i < 5 ? "benefit" : "work"));
+  const r = computePay({ monthlySalary: 1000, statuses, insured: { averageMonthly: 912, calendarDays: 7, percent: 100 } });
+  assert.equal(r.benefitAmount, 210);
+  assert.equal(r.gross, 750);
+});

@@ -375,8 +375,8 @@ import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows
 import { maskCard, normalizeProfile, parseProfile, validIban } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
 import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
-import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, isVacationCode, latePenalty, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
-import { averageMonthlyForLeave } from "@/lib/hr-calc";
+import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, isVacationCode, latePenalty, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
+import { MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave } from "@/lib/hr-calc";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
@@ -7651,7 +7651,7 @@ async function route(request: Request) {
       const d = new Date(Date.UTC(year, month - 1 - (12 - i), 1));
       return d.toISOString().slice(0, 7);
     });
-    const wantsHistory = marks.results.some((m) => isVacationCode(m.code));
+    const wantsHistory = marks.results.some((m) => isVacationCode(m.code) || isInsuredCode(m.code));
     const history = new Map<string, Map<string, number>>();
     if (wantsHistory) {
       const past = await db.prepare("SELECT month,snapshot FROM payroll_runs WHERE company_id=? AND status='approved' AND month>=? AND month<?").bind(id, priorMonths[0], monthRaw).all<{ month: string; snapshot: string }>();
@@ -7685,9 +7685,13 @@ async function route(request: Request) {
       const inputsOf = inputBy.get(p.id) || { ...EMPTY_INPUTS };
       const vacationOf = (date: string) => isVacationCode(marksOf.get(date) || "");
       const vacation = vacationCalendarDays(days, vacationOf);
+      const insuredOf = (date: string) => isInsuredCode(marksOf.get(date) || "");
+      const insuredDays = vacationCalendarDays(days, insuredOf, true);
       let annual: { mask: boolean[]; calendarDays: number; averageMonthly: number } | undefined;
       let annualInfo: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null = null;
-      if (vacation.workingDays > 0) {
+      let insured: { averageMonthly: number; calendarDays: number; percent: number } | undefined;
+      if (vacation.workingDays > 0 || insuredDays.workingDays > 0) {
+        // The 12 months before: real gross pay of approved months, the current salary for the others.
         const mine = history.get(p.id);
         const earnings: number[] = [];
         let estimated = false;
@@ -7695,14 +7699,20 @@ async function route(request: Request) {
           if (p.start_date && `${m}-01` < p.start_date) continue;
           const real = mine?.get(m);
           if (real === undefined) estimated = true;
-          earnings.push(real ?? pay?.gross ?? 0);
+          earnings.push(real ?? (pay?.gross || 0));
         }
         const avg = earnings.length ? averageMonthlyForLeave(earnings).averageMonthly : pay?.gross || 0;
         if (!earnings.length) estimated = true;
-        annual = { mask: working.map((d) => vacationOf(d.date)), calendarDays: vacation.calendarDays, averageMonthly: avg };
-        annualInfo = { months: earnings.length, estimated, averageMonthly: avg, calendarDays: vacation.calendarDays };
+        if (vacation.workingDays > 0) {
+          annual = { mask: working.map((d) => vacationOf(d.date)), calendarDays: vacation.calendarDays, averageMonthly: avg };
+          annualInfo = { months: earnings.length, estimated, averageMonthly: avg, calendarDays: vacation.calendarDays };
+        }
+        if (insuredDays.workingDays > 0) {
+          const maternity = [...marksOf.values()].includes("maternity");
+          insured = { averageMonthly: avg, calendarDays: insuredDays.calendarDays, percent: maternity ? MATERNITY_BENEFIT_PERCENT : SICK_BENEFIT_PERCENT };
+        }
       }
-      const base = { monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: inputsOf, annual };
+      const base = { monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: inputsOf, annual, insured };
       const result = frozen?.rows?.find((r) => r.employeeId === p.id)?.result || computePay({ ...base, advances });
       const upTo = month === Number(todayIso.slice(5, 7)) && year === Number(todayIso.slice(0, 4)) ? behind : todayIso > `${monthRaw}-31` ? statuses.length : 0;
       const available = availableAdvance(base, Math.min(statuses.length, upTo), advances);
@@ -8005,7 +8015,7 @@ async function route(request: Request) {
         "İşlənmiş günlərə görə", "Məzuniyyət/icazə haqqı", "Boşdayanma haqqı (2/3)", "Artıq iş saatı", "Artıq iş haqqı", "İstirahət/bayram günü saatı", "İstirahət/bayram günü haqqı", "Gecə saatı", "Gecə əlavəsi", "Əlavələr", "Mükafat",
         "Cəmi hesablanıb (gross)", "Gəlir vergisi", "DSMF (işçi)", "İşsizlik sığortası (işçi)", "İcbari tibbi sığorta (işçi)", "Cəmi qanuni tutulmalar", "Net (vergilərdən sonra)",
         "Digər tutulmalar (tətbiq edilən)", "Digər tutulmalar (tələb edilən)", "Verilmiş avans", "Ödəniləcək", "Faktiki ödənilib", "Qalıq borc", "Son ödəniş tarixi", "Gecikmə (gün)", "Gecikmə cəriməsi (1%/gün)", "Avans həddi (indiyədək qazanılan)",
-        "DSMF (işəgötürən)", "İşsizlik (işəgötürən)", "Tibbi sığorta (işəgötürən)", "İşəgötürən üzrə cəmi sığorta", "İşəgötürənin ümumi xərci", "Ödəniş üsulu", "Bank", "Bank kodu", "IBAN", "Hesab nömrəsi", "Maaş kartı", "Əmək məzuniyyəti haqqı (md. 140)", "Orta aylıq (əvvəlki 12 ay)", "Orta gündəlik (÷ 30,4)", "Məzuniyyət təqvim günü", "Qeyd",
+        "DSMF (işəgötürən)", "İşsizlik (işəgötürən)", "Tibbi sığorta (işəgötürən)", "İşəgötürən üzrə cəmi sığorta", "İşəgötürənin ümumi xərci", "Ödəniş üsulu", "Bank", "Bank kodu", "IBAN", "Hesab nömrəsi", "Maaş kartı", "Əmək məzuniyyəti haqqı (md. 140)", "Orta aylıq (əvvəlki 12 ay)", "Orta gündəlik (÷ 30,4)", "Məzuniyyət təqvim günü", "Müavinət təqvim günü (xəstəlik/analıq)", "Müavinət (DSMF, ayrıca ödənilir)", "Qeyd",
       ];
       const status = (v: string) => (v === "left" ? "İşdən çıxıb" : "İşləyir");
       const body: (string | number)[][] = sheet.rows.map((r, i) => {
@@ -8020,11 +8030,11 @@ async function route(request: Request) {
           line(r, "worked"), line(r, "paid-leave"), line(r, "downtime"), r.inputs.overtimeHours, line(r, "overtime"), r.inputs.restDayHours, line(r, "rest-day"), r.inputs.nightHours, line(r, "night"), line(r, "allowance"), line(r, "bonus"),
           x.gross, x.incomeTax, x.employeeSocial, x.employeeUnemployment, x.employeeMedical, legal, x.net,
           otherApplied, otherAsked, r.advances, x.toPay, r.salaryPaid, r.outstanding, r.lastPaid, r.late.days, r.late.amount, r.availableAdvance,
-          x.employerSocial, x.employerUnemployment, x.employerMedical, employer, x.employerCost, METHOD_TEXT[r.payMethod] || "—", r.bankName, r.bankCode, r.iban, r.accountNumber, r.card, line(r, "vacation"), r.annual?.averageMonthly || 0, r.annual ? Math.round((r.annual.averageMonthly / 30.4) * 100) / 100 : 0, r.result.vacationDays, [r.inputs.note, r.annual?.estimated ? `Orta əmək haqqı təxminidir (${r.annual.months} ay, təsdiqlənmiş ay yoxdur)` : "", ...x.notes].filter(Boolean).join(" | "),
+          x.employerSocial, x.employerUnemployment, x.employerMedical, employer, x.employerCost, METHOD_TEXT[r.payMethod] || "—", r.bankName, r.bankCode, r.iban, r.accountNumber, r.card, line(r, "vacation"), r.annual?.averageMonthly || 0, r.annual ? Math.round((r.annual.averageMonthly / 30.4) * 100) / 100 : 0, r.result.vacationDays, r.result.benefitCalendarDays, r.result.benefitAmount, [r.inputs.note, r.annual?.estimated ? `Orta əmək haqqı təxminidir (${r.annual.months} ay, təsdiqlənmiş ay yoxdur)` : "", ...x.notes].filter(Boolean).join(" | "),
         ];
       });
       // Totals for the money and quantity columns; text columns stay empty.
-      const textColumns = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 47, 59, 60, 61, 62, 63, 64, 65, 67, 68, 70]);
+      const textColumns = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 47, 59, 60, 61, 62, 63, 64, 65, 67, 68, 72]);
       const totals: (string | number)[] = headers.map((_, c) => (c === 1 ? "CƏMİ" : textColumns.has(c) ? "" : money(body.reduce((t, row) => t + (Number(row[c]) || 0), 0))));
       body.push(totals);
       const deductionRows: (string | number)[][] = [];
