@@ -11,6 +11,7 @@ import { OTHER_REQUEST, REQUEST_KINDS, orderPrefill, requestKindLabel, requestPr
 import { ATTENDANCE_CODES } from "@/lib/calendar-az";
 import { RATES, RATE_LABEL, type PlanUnit } from "@/lib/staff-plan";
 import { createXlsxBook } from "@/lib/xlsx";
+import { linkCodeSheets, type LinkCodeItem } from "@/lib/employee-link";
 import { canonicalOrgName } from "@/lib/org-names";
 import { splitNames, suggestSections } from "@/lib/section-suggestions";
 import { EMPTY_PROFILE, ageOn, idExpiresSoon, type EmployeeProfile } from "@/lib/employee-profile";
@@ -1587,6 +1588,56 @@ export function EmployeeLinkPanel({ employeeId, name, linked, pending, notify, o
         </>
       )}
     </div>
+  );
+}
+
+// Codes for all employees who have not linked their own profile yet, handed out as one Excel file.
+export function BulkLinkCodes({ unlinked, withCode, notify, onClose, onDone }: { unlinked: number; withCode: number; notify: Notify; onClose: () => void; onDone: () => void }) {
+  const [again, setAgain] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ created: number; skipped: number } | null>(null);
+  const count = again ? unlinked : Math.max(0, unlinked - withCode);
+  async function make() {
+    setBusy(true);
+    try {
+      const [done, me] = await Promise.all([
+        request<{ items: LinkCodeItem[]; created: number; skipped: number }>("company/employees/link-codes", { includeActive: again }),
+        request<{ company: { name: string } | null }>("company/me").catch(() => ({ company: null })),
+      ]);
+      if (done.items.length) downloadBlob(createXlsxBook(linkCodeSheets(done.items, me.company?.name || "şirkət")), `qosulma-kodlari-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      setResult({ created: done.created, skipped: done.skipped });
+      onDone();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title="Qoşulma kodlarını toplu yarat" onClose={onClose}>
+      <div className="offer-composer">
+        <p className="muted">
+          Öz profilini hələ qoşmamış bütün işçilər üçün qoşulma kodu yaradılır və <b>Excel faylı</b> kimi yüklənir (ad, vəzifə, departament, e-poçt, kod). Hər işçiyə yalnız öz kodunu verin: kod bir dəfə işləyir və 7 gün qüvvədədir. Kodlar bazada açıq saxlanılmır — bu fayl onları görmək üçün yeganə yoldur.
+        </p>
+        <p>
+          Qoşulmamış işçi: <b>{unlinked}</b> · qüvvədə kodu olan: <b>{withCode}</b>
+        </p>
+        {withCode > 0 && (
+          <label className="check-row">
+            <input type="checkbox" checked={again} onChange={(e) => setAgain(e.target.checked)} /> Qüvvədə kodu olanlara da yeni kod ver (köhnə kodları etibarsız edir)
+          </label>
+        )}
+        <button type="button" className="primary" disabled={busy || count === 0} onClick={() => void make()}>
+          <Download size={14} /> {count} işçi üçün kod yarat və Excel-ə yüklə
+        </button>
+        {result && (
+          <p className={result.created ? "plan-state plan-approved" : "plan-state"}>
+            {result.created ? `${result.created} kod yaradıldı və fayl yükləndi. Faylı yalnız lazım olan şəxslərlə paylaşın və işlər bitəndən sonra silin.` : "Yeni kod yaradılmadı."}
+            {result.skipped ? ` ${result.skipped} işçi keçildi (qoşulub və ya qüvvədə kodu var).` : ""}
+          </p>
+        )}
+      </div>
+    </Modal>
   );
 }
 

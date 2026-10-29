@@ -7525,6 +7525,31 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "employee-link-code", employee.id, employee.name);
     return ok({ code: formatLinkCode(code), expires });
   }
+  // Codes for many employees at once (the employees added before the employee profile existed).
+  if (request.method === "POST" && path === "company/employees/link-codes") {
+    requirePermission("salaries", "Qoşulma kodlarını yalnız işçi kartı icazəsi olan şəxs yarada bilər.");
+    const b = await jsonBody(request);
+    const again = b.includeActive === true;
+    const wanted = Array.isArray(b.ids) ? new Set(b.ids.map((x: unknown) => str(x, 100))) : null;
+    const rows = await db
+      .prepare("SELECT id,name,position,department,email,link_hash,link_expires FROM company_employees WHERE company_id=? AND status IN ('active','leave') AND user_id='' ORDER BY name LIMIT 1000")
+      .bind(id)
+      .all<{ id: string; name: string; position: string; department: string; email: string; link_hash: string; link_expires: string }>();
+    const now = new Date();
+    const eligible = rows.results.filter((r) => (!wanted || wanted.has(r.id)) && (again || !r.link_hash || linkExpired(r.link_expires, now)));
+    if (eligible.length > 500) throw new HttpError(400, "Bir dəfəyə ən çox 500 işçi üçün kod yaradıla bilər. İşçiləri seçib bölün.");
+    const expires = linkExpiry(now);
+    const items: { id: string; name: string; position: string; department: string; email: string; code: string; expires: string }[] = [];
+    const statements: D1PreparedStatement[] = [];
+    for (const r of eligible) {
+      const code = generateLinkCode();
+      items.push({ id: r.id, name: r.name, position: r.position, department: r.department, email: r.email, code: formatLinkCode(code), expires });
+      statements.push(db.prepare("UPDATE company_employees SET link_hash=?,link_expires=?,updated=? WHERE id=? AND company_id=? AND user_id=''").bind(await hashLinkCode(code), expires, now.toISOString(), r.id, id));
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    if (items.length) await companyAudit(db, id, userId, "employee-link-codes", "", `${items.length} işçi üçün qoşulma kodu yaradıldı`);
+    return ok({ items, created: items.length, skipped: rows.results.length - eligible.length });
+  }
   if (request.method === "POST" && path === "company/employees/unlink") {
     requirePermission("salaries", "Qoşulmanı yalnız işçi kartı icazəsi olan şəxs ləğv edə bilər.");
     const b = await jsonBody(request);

@@ -33,7 +33,7 @@ import { VACANCY_REASONS } from "@/lib/recruitment";
 import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
 import { DOC_KINDS, OTHER_TYPE, docLabel } from "@/lib/employee-docs";
-import { EmployeeLinkPanel, EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
+import { BulkLinkCodes, EmployeeLinkPanel, EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
 
 export type CompanyMe = {
   company: { id: string; name: string } | null;
@@ -2497,6 +2497,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const [editing, setEditing] = useState<Partial<Employee> | null>(null);
   const [importing, setImporting] = useState(false);
   const [importingProfiles, setImportingProfiles] = useState(false);
+  const [bulkCodes, setBulkCodes] = useState(false);
   // The employee list and the staff table are two views of one page, shown one at a time.
   const [view, setView] = useState<"people" | "staff">("people");
   // Extra sections of the employee card open in their own pop-up windows.
@@ -2576,6 +2577,11 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
         />
         <div className="admin-actions">
           <ReportButton kind="employees" label="XLSX" />
+          {data.canEdit && (
+            <button className="secondary" onClick={() => setBulkCodes(true)}>
+              İşçi profili kodları
+            </button>
+          )}
           {data.canPersonal && (
             <button className="secondary" onClick={() => setImportingProfiles(true)}>
               <Download size={14} style={{ transform: "rotate(180deg)" }} /> Şəxsi məlumatları Excel-dən
@@ -2729,6 +2735,15 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
       )}
       {data.canStaff && view === "staff" && <StaffTable notify={notify} />}
       {importing && <SheetImport kind="employees" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
+      {bulkCodes && (
+        <BulkLinkCodes
+          unlinked={data.employees.filter((e) => e.status !== "left" && !e.linked).length}
+          withCode={data.employees.filter((e) => e.status !== "left" && !e.linked && e.linkPending).length}
+          notify={notify}
+          onClose={() => setBulkCodes(false)}
+          onDone={load}
+        />
+      )}
       {importingProfiles && <SheetImport kind="profiles" notify={notify} onClose={() => setImportingProfiles(false)} onDone={load} />}
       {editing && (
         <Modal
