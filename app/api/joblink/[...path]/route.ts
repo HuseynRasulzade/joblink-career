@@ -7880,6 +7880,131 @@ async function route(request: Request) {
     for (let i = 0; i < list.length; i += 50)
       await db.batch(list.slice(i, i + 50).map((pay) => db.prepare("UPDATE payroll_payments SET reversed_at=?,reversed_by_name=?,reverse_reason=? WHERE id=? AND company_id=? AND reversed_at=''").bind(now, me, reason, pay.id, id)));
   };
+  // ── HR and pay-fund report: headcount, plan, budget against the actual fund, vacation liability and turnover per department ──
+  const hrFundReport = async () => {
+    const year = (/^\d{4}$/.test(str(requestUrl.searchParams.get("year"), 4)) ? str(requestUrl.searchParams.get("year"), 4) : new Date().toISOString().slice(0, 4));
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const money = (v: number) => Math.round(v * 100) / 100;
+    const [people, plan, runs] = await Promise.all([
+      db
+        .prepare("SELECT id,name,position,department,section,start_date,end_date,status,exit_type,salary_cents,salary_type,sector,vacation_days,vacation_used,profile FROM company_employees WHERE company_id=? AND status<>'removed'")
+        .bind(id)
+        .all<{ id: string; name: string; position: string; department: string; section: string; start_date: string; end_date: string; status: string; exit_type: string; salary_cents: number; salary_type: string; sector: string; vacation_days: number; vacation_used: number; profile: string }>(),
+      loadPlanData(db, id),
+      db.prepare("SELECT month,snapshot FROM payroll_runs WHERE company_id=? AND status='approved' AND month LIKE ?").bind(id, `${year}-%`).all<{ month: string; snapshot: string }>(),
+    ]);
+    const annual = await db
+      .prepare("SELECT employee_id,COUNT(*) AS n FROM attendance_marks WHERE company_id=? AND code='annual' GROUP BY employee_id")
+      .bind(id)
+      .all<{ employee_id: string; n: number }>()
+      .catch(() => ({ results: [] as { employee_id: string; n: number }[] }));
+    const annualBy = new Map(annual.results.map((r) => [r.employee_id, Number(r.n)]));
+    const key = (v: string) => (v || "").trim().toLocaleLowerCase("az");
+    type Dep = { department: string; headcount: number; planned: number; fte: number; budget: number; fund: number; vacationDays: number; vacationLiability: number; hires: number; exits: number; actualGross: number; actualNet: number; actualTax: number; actualInsurance: number; actualEmployerCost: number; months: number; leavers: Record<string, number> };
+    const deps = new Map<string, Dep>();
+    const dep = (name: string) => {
+      const k = key(name) || "—";
+      if (!deps.has(k)) deps.set(k, { department: name || "Departamentsiz", headcount: 0, planned: 0, fte: 0, budget: 0, fund: 0, vacationDays: 0, vacationLiability: 0, hires: 0, exits: 0, actualGross: 0, actualNet: 0, actualTax: 0, actualInsurance: 0, actualEmployerCost: 0, months: 0, leavers: {} });
+      return deps.get(k)!;
+    };
+    const summary = summarize(plan.units, plan.people);
+    for (const r of summary.rows) {
+      const d = dep(r.department);
+      d.planned += r.planned;
+      d.fte += r.fte;
+      d.budget += r.budget;
+    }
+    const deptOf = new Map<string, string>();
+    for (const p of people.results) {
+      const d = dep(p.department);
+      deptOf.set(p.id, p.department);
+      const profile = parseProfile(p.profile);
+      if (p.status !== "left") {
+        d.headcount += 1;
+        const gross = p.salary_cents > 0 ? employeePay(p.salary_cents / 100, p.salary_type === "net" ? "net" : "gross", p.sector === "public" ? "public" : "private", taxReduction(profile, todayIso))?.gross || 0 : 0;
+        d.fund += gross;
+        const balance = vacationBalance({ start: p.start_date, end: "", entitlement: p.vacation_days ?? 21, used: (p.vacation_used ?? 0) + (annualBy.get(p.id) || 0) }, todayIso);
+        d.vacationDays += balance.remaining;
+        // A day of unused leave is worth the average daily pay (the salary over 30,4 days, art. 140).
+        d.vacationLiability += Math.max(0, balance.remaining) * (gross / 30.4);
+      }
+      if (p.start_date.startsWith(year)) d.hires += 1;
+      if (p.status === "left" && (p.end_date || "").startsWith(year)) {
+        d.exits += 1;
+        const type = exitTypeLabel(p.exit_type) || "Qeyd edilməyib";
+        d.leavers[type] = (d.leavers[type] || 0) + 1;
+      }
+    }
+    // What was really paid in the approved months of the year, by the employee's department.
+    const months: { month: string; gross: number; net: number; employerCost: number }[] = [];
+    for (const run of runs.results.sort((a, b) => a.month.localeCompare(b.month))) {
+      let gross = 0;
+      let net = 0;
+      let cost = 0;
+      try {
+        for (const r of (JSON.parse(run.snapshot) as { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] }).rows || []) {
+          const d = dep(deptOf.get(r.employeeId) || "");
+          d.actualGross += r.result.gross;
+          d.actualNet += r.result.net;
+          d.actualTax += r.result.incomeTax;
+          d.actualInsurance += r.result.employeeSocial + r.result.employeeUnemployment + r.result.employeeMedical;
+          d.actualEmployerCost += r.result.employerCost;
+          gross += r.result.gross;
+          net += r.result.net;
+          cost += r.result.employerCost;
+        }
+      } catch {
+        // A broken snapshot adds nothing for that month.
+      }
+      months.push({ month: run.month, gross: money(gross), net: money(net), employerCost: money(cost) });
+    }
+    const monthCount = months.length;
+    const list = [...deps.values()]
+      .filter((d) => d.headcount || d.planned || d.hires || d.exits || d.actualGross)
+      .map((d) => {
+        const avg = d.headcount + d.exits ? (d.headcount + (d.headcount + d.exits - d.hires)) / 2 : 0;
+        return {
+          department: d.department, headcount: d.headcount, planned: d.planned, free: Math.max(0, d.planned - d.headcount), over: Math.max(0, d.headcount - d.planned), fte: money(d.fte),
+          monthlyBudget: money(d.budget), monthlyFund: money(d.fund), monthlyVariance: money(d.budget - d.fund), avgSalary: d.headcount ? money(d.fund / d.headcount) : 0,
+          vacationDays: money(d.vacationDays), vacationLiability: money(d.vacationLiability),
+          hires: d.hires, exits: d.exits, turnover: avg > 0 ? money((d.exits / avg) * 100) : 0, leavers: d.leavers,
+          actualGross: money(d.actualGross), actualNet: money(d.actualNet), actualTax: money(d.actualTax), actualInsurance: money(d.actualInsurance), actualEmployerCost: money(d.actualEmployerCost),
+          budgetForPeriod: money(d.budget * monthCount), periodVariance: money(d.budget * monthCount - d.actualGross),
+        };
+      })
+      .sort((a, b) => b.monthlyFund - a.monthlyFund);
+    const sum = (pick: (d: (typeof list)[number]) => number) => money(list.reduce((t, d) => t + pick(d), 0));
+    return {
+      year, approvedMonths: monthCount, months, departments: list,
+      totals: {
+        headcount: sum((d) => d.headcount), planned: sum((d) => d.planned), free: sum((d) => d.free), monthlyBudget: sum((d) => d.monthlyBudget), monthlyFund: sum((d) => d.monthlyFund), monthlyVariance: sum((d) => d.monthlyVariance),
+        vacationDays: sum((d) => d.vacationDays), vacationLiability: sum((d) => d.vacationLiability), hires: sum((d) => d.hires), exits: sum((d) => d.exits),
+        turnover: (() => { const avg = list.reduce((t, d) => t + d.headcount, 0) + list.reduce((t, d) => t + d.exits, 0) - list.reduce((t, d) => t + d.hires, 0); const mean = (list.reduce((t, d) => t + d.headcount, 0) + Math.max(0, avg)) / 2; return mean > 0 ? money((list.reduce((t, d) => t + d.exits, 0) / mean) * 100) : 0; })(),
+        actualGross: sum((d) => d.actualGross), actualNet: sum((d) => d.actualNet), actualEmployerCost: sum((d) => d.actualEmployerCost), budgetForPeriod: sum((d) => d.budgetForPeriod), periodVariance: sum((d) => d.periodVariance),
+      },
+    };
+  };
+  if (request.method === "GET" && path === "company/hr-report") {
+    requirePermission("salaries", "Kadr və əmək haqqı fondu hesabatını yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    return ok(await hrFundReport());
+  }
+  if (request.method === "GET" && path === "company/hr-report/export") {
+    requirePermission("salaries", "Hesabatı yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
+    const r = await hrFundReport();
+    const rows = r.departments.map((d) => [d.department, d.headcount, d.planned, d.free, d.over, d.fte, d.monthlyBudget, d.monthlyFund, d.monthlyVariance, d.avgSalary, d.vacationDays, d.vacationLiability, d.hires, d.exits, d.turnover, d.actualGross, d.actualNet, d.actualTax, d.actualInsurance, d.actualEmployerCost, d.budgetForPeriod, d.periodVariance]);
+    const t = r.totals;
+    rows.push(["CƏMİ", t.headcount, t.planned, t.free, "", "", t.monthlyBudget, t.monthlyFund, t.monthlyVariance, "", t.vacationDays, t.vacationLiability, t.hires, t.exits, t.turnover, t.actualGross, t.actualNet, "", "", t.actualEmployerCost, t.budgetForPeriod, t.periodVariance]);
+    const leavers = r.departments.flatMap((d) => Object.entries(d.leavers).map(([type, n]) => [d.department, type, n]));
+    await companyAudit(db, id, userId, "hr-report-exported", "", r.year);
+    const book = createXlsxBook([
+      { name: "Departamentlər", headers: ["Departament", "İşçi sayı", "Plan (ştat)", "Boş ştat", "Plandan artıq", "Ştat vahidi (FTE)", "Aylıq büdcə (plan)", "Aylıq fond (faktiki maaşlar, gross)", "Büdcə − fond", "Orta maaş", "Məzuniyyət qalığı (gün)", "Məzuniyyət borcu (AZN)", "İşə qəbul", "İşdən çıxma", "Dövriyyə %", "Təsdiqlənmiş aylar üzrə gross", "Net", "Gəlir vergisi", "İşçi sığortası", "İşəgötürənin xərci", "Dövr üçün büdcə", "Büdcə − fakt"], rows },
+      { name: "Aylar üzrə", headers: ["Ay", "Gross", "Net", "İşəgötürənin xərci"], rows: r.months.map((m) => [m.month, m.gross, m.net, m.employerCost]) },
+      { name: "Çıxış səbəbləri", headers: ["Departament", "Çıxışın növü", "Say"], rows: leavers },
+    ]);
+    return new Response(Uint8Array.from(book).buffer, {
+      headers: { "Cache-Control": "private, no-store", "Content-Disposition": `attachment; filename="kadr-fond-hesabati-${r.year}.xlsx"`, "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+    });
+  }
   // ── Settlement report: per employee what was accrued, what was paid and for what, and who owes whom ──
   const reportMonths = () => {
     const todayMonth = new Date().toISOString().slice(0, 7);

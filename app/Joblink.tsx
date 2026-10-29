@@ -117,6 +117,7 @@ import {
 import { HrCalculators } from "./HrCalculators";
 import WorkplacePage from "./WorkplacePage";
 import PayrollPage from "./PayrollPage";
+import HrFundReport from "./HrFundReport";
 import { FitReviewPanel } from "./FitReview";
 import PackagesPage from "./PackagesPage";
 import { localizeTree, setSiteLanguage } from "./i18n";
@@ -2748,7 +2749,10 @@ export default function Joblink() {
                 />
               )}
               {page === "hr-reports" && (
-                <CompanyDashboard me={companyMe} notify={notify} />
+                <>
+                  <CompanyDashboard me={companyMe} notify={notify} />
+                  {companyMe?.permissions.includes("payroll" as never) && <HrFundReport notify={notify} />}
+                </>
               )}
               {page === "hr-employees" && <EmployeesPage notify={notify} />}
               {page === "hr-orders" && <OrdersRegistry notify={notify} />}
