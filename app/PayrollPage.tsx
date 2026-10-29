@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Printer } from "lucide-react";
 import { Field, Modal } from "./components";
 import PayrollBank from "./PayrollBank";
+import PayrollReport from "./PayrollReport";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -60,6 +61,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const [paying, setPaying] = useState<Row | null>(null);
   const [settings, setSettings] = useState(false);
   const [bank, setBank] = useState(false);
+  const [view, setView] = useState<"sheet" | "report">("sheet");
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -155,6 +157,16 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
+  if (view === "report")
+    return (
+      <div className="company-page payroll-page">
+        <div className="admin-actions">
+          <button type="button" className="secondary" onClick={() => setView("sheet")}>← Əmək haqqı cədvəli</button>
+          <b>İşçilərlə hesablaşma hesabatı</b>
+        </div>
+        <PayrollReport initialMonth={month} notify={notify} />
+      </div>
+    );
   if (!sheet) return <p className="muted">Yüklənir…</p>;
   const t = sheet.totals;
   const approved = sheet.status === "approved";
@@ -183,6 +195,9 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <a className="secondary report-button" href={`/api/joblink/company/payroll/export?month=${month}&kind=bank`} download>
             <Download size={14} /> Bank reyestri (XLSX)
           </a>
+          <button type="button" className="secondary" onClick={() => setView("report")}>
+            Hesablaşma hesabatı
+          </button>
           <button type="button" className="primary" onClick={() => setBank(true)}>
             Bank və ödəniş sənədləri
           </button>

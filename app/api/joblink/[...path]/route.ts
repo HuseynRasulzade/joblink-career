@@ -7810,6 +7810,115 @@ async function route(request: Request) {
     for (let i = 0; i < list.length; i += 50)
       await db.batch(list.slice(i, i + 50).map((pay) => db.prepare("UPDATE payroll_payments SET reversed_at=?,reversed_by_name=?,reverse_reason=? WHERE id=? AND company_id=? AND reversed_at=''").bind(now, me, reason, pay.id, id)));
   };
+  // ── Settlement report: per employee what was accrued, what was paid and for what, and who owes whom ──
+  const reportMonths = () => {
+    const todayMonth = new Date().toISOString().slice(0, 7);
+    const valid = (v: string | null) => (/^\d{4}-(0[1-9]|1[0-2])$/.test(v || "") ? (v as string) : "");
+    let to = valid(requestUrl.searchParams.get("to")) || todayMonth;
+    let from = valid(requestUrl.searchParams.get("from")) || `${to.slice(0, 4)}-01`;
+    if (from > to) [from, to] = [to, from];
+    const list: string[] = [];
+    for (let cursor = from; cursor <= to && list.length < 13; ) {
+      list.push(cursor);
+      const d = new Date(Date.UTC(Number(cursor.slice(0, 4)), Number(cursor.slice(5, 7)), 1));
+      cursor = d.toISOString().slice(0, 7);
+    }
+    if (list.length > 12) throw new HttpError(400, "Hesabat ən çox 12 ay üçün hazırlanır.");
+    return { from, to, list };
+  };
+  const PAY_LABEL: Record<string, string> = { advance: "Avans", salary: "Əmək haqqı", vacation: "Məzuniyyət haqqı", benefit: "Sosial sığorta müavinəti", extra: "Digər ödəniş" };
+  const settlementReport = async () => {
+    const { from, to, list } = reportMonths();
+    const money = (v: number) => Math.round(v * 100) / 100;
+    type Acc = {
+      employeeId: string; name: string; position: string; department: string; fin: string; iban: string;
+      gross: number; tax: number; insurance: number; net: number; deductions: number; deductionsAsked: number; due: number; vacation: number; benefitDue: number;
+      paid: Record<string, number>; companyOwes: number; benefitOwes: number; late: number; employeeOwes: number;
+      months: { month: string; status: string; gross: number; net: number; due: number; advance: number; salary: number; vacation: number; benefit: number; extra: number; outstanding: number; benefitOutstanding: number; employeeOwes: number; late: number }[];
+      payments: { month: string; paidOn: string; kind: string; label: string; title: string; amount: number; method: string; note: string; reversed: boolean; reverseReason: string; reversedBy: string }[];
+    };
+    const by = new Map<string, Acc>();
+    const status: { month: string; status: string }[] = [];
+    for (const m of list) {
+      const sheet = await payrollRows(m);
+      status.push({ month: m, status: sheet.status });
+      for (const r of sheet.rows) {
+        const x = r.result;
+        const a: Acc = by.get(r.employeeId) || { employeeId: r.employeeId, name: r.name, position: r.position, department: r.department, fin: r.fin, iban: r.iban, gross: 0, tax: 0, insurance: 0, net: 0, deductions: 0, deductionsAsked: 0, due: 0, vacation: 0, benefitDue: 0, paid: { advance: 0, salary: 0, vacation: 0, benefit: 0, extra: 0 }, companyOwes: 0, benefitOwes: 0, late: 0, employeeOwes: 0, months: [], payments: [] };
+        const applied = x.otherDeductions.reduce((t, d) => t + d.applied, 0);
+        const live = r.payments.filter((p) => !p.reversed);
+        const sum = (k: string) => live.filter((p) => p.kind === k).reduce((t, p) => t + p.amount, 0);
+        a.gross += x.gross;
+        a.tax += x.incomeTax;
+        a.insurance += x.employeeSocial + x.employeeUnemployment + x.employeeMedical;
+        a.net += x.net;
+        a.deductions += applied;
+        a.deductionsAsked += x.otherDeductions.reduce((t, d) => t + d.amount, 0);
+        a.due += x.net - applied;
+        a.vacation += x.lines.find((l) => l.id === "vacation")?.amount || 0;
+        a.benefitDue += r.benefitDue;
+        for (const k of Object.keys(a.paid)) a.paid[k] += sum(k);
+        a.companyOwes += r.outstanding;
+        a.benefitOwes += r.benefitOutstanding;
+        a.late += r.late.amount;
+        a.employeeOwes += x.advanceExcess;
+        a.months.push({ month: m, status: sheet.status, gross: x.gross, net: x.net, due: money(x.net - applied), advance: sum("advance"), salary: sum("salary"), vacation: sum("vacation"), benefit: sum("benefit"), extra: sum("extra"), outstanding: r.outstanding, benefitOutstanding: r.benefitOutstanding, employeeOwes: x.advanceExcess, late: r.late.amount });
+        for (const p of r.payments) a.payments.push({ month: m, paidOn: p.paidOn, kind: p.kind, label: PAY_LABEL[p.kind] || p.kind, title: p.title, amount: p.amount, method: p.method, note: p.note, reversed: p.reversed, reverseReason: p.reverseReason, reversedBy: p.reversedBy });
+        by.set(r.employeeId, a);
+      }
+    }
+    const employees = [...by.values()]
+      .map((a) => {
+        const paidTotal = Object.values(a.paid).reduce((t, v) => t + v, 0);
+        return {
+          ...a,
+          gross: money(a.gross), tax: money(a.tax), insurance: money(a.insurance), net: money(a.net), deductions: money(a.deductions), deductionsAsked: money(a.deductionsAsked), due: money(a.due), vacation: money(a.vacation), benefitDue: money(a.benefitDue),
+          paid: Object.fromEntries(Object.entries(a.paid).map(([k, v]) => [k, money(v)])) as Record<string, number>,
+          paidTotal: money(paidTotal), companyOwes: money(a.companyOwes), benefitOwes: money(a.benefitOwes), late: money(a.late), employeeOwes: money(a.employeeOwes),
+          balance: money(a.companyOwes + a.benefitOwes + a.late - a.employeeOwes), // positive: the company owes the employee
+          payments: a.payments.sort((x, y) => x.paidOn.localeCompare(y.paidOn)),
+        };
+      })
+      .sort((x, y) => x.name.localeCompare(y.name));
+    const total = (pick: (e: (typeof employees)[number]) => number) => money(employees.reduce((t, e) => t + pick(e), 0));
+    return {
+      from, to, months: status, employees,
+      totals: {
+        employees: employees.length, gross: total((e) => e.gross), tax: total((e) => e.tax), insurance: total((e) => e.insurance), net: total((e) => e.net), deductions: total((e) => e.deductions), due: total((e) => e.due),
+        paidTotal: total((e) => e.paidTotal), advance: total((e) => e.paid.advance), salary: total((e) => e.paid.salary), vacation: total((e) => e.paid.vacation), benefit: total((e) => e.paid.benefit), extra: total((e) => e.paid.extra),
+        companyOwes: total((e) => e.companyOwes), benefitOwes: total((e) => e.benefitOwes), late: total((e) => e.late), employeeOwes: total((e) => e.employeeOwes), balance: total((e) => e.balance),
+      },
+    };
+  };
+  if (request.method === "GET" && path === "company/payroll/report") {
+    requirePermission("salaries", "Hesablaşma hesabatını yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    return ok(await settlementReport());
+  }
+  if (request.method === "GET" && path === "company/payroll/report/export") {
+    requirePermission("salaries", "Hesabatı yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
+    const report = await settlementReport();
+    const methodText: Record<string, string> = { bank: "Bank köçürməsi", card: "Kart", cash: "Nağd", other: "Digər" };
+    const summary = report.employees.map((e, i) => [i + 1, e.name, e.fin, e.position, e.department, e.gross, e.tax, e.insurance, e.net, e.deductions, e.due, e.vacation, e.benefitDue, e.paid.advance, e.paid.salary, e.paid.vacation, e.paid.benefit, e.paid.extra, e.paidTotal, e.companyOwes, e.benefitOwes, e.late, e.employeeOwes, e.balance, e.balance > 0.005 ? "Şirkət işçiyə borcludur" : e.balance < -0.005 ? "İşçi şirkətə borcludur" : "Hesablaşma bağlıdır"]);
+    const t = report.totals;
+    summary.push(["", "CƏMİ", "", "", "", t.gross, t.tax, t.insurance, t.net, t.deductions, t.due, "", "", t.advance, t.salary, t.vacation, t.benefit, t.extra, t.paidTotal, t.companyOwes, t.benefitOwes, t.late, t.employeeOwes, t.balance, ""]);
+    const monthly = report.employees.flatMap((e) => e.months.map((m) => [m.month, m.status === "approved" ? "Təsdiqlənib" : "Layihə", e.name, e.fin, m.gross, m.net, m.due, m.advance, m.salary, m.vacation, m.benefit, m.extra, m.outstanding, m.benefitOutstanding, m.employeeOwes, m.late]));
+    const payments = report.employees.flatMap((e) => e.payments.map((p) => [p.paidOn, p.month, e.name, e.fin, p.label, p.title, p.amount, methodText[p.method] || p.method, p.note, p.reversed ? `Geri çəkilib: ${p.reverseReason} (${p.reversedBy})` : "Qüvvədədir"])).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    const debts = report.employees.filter((e) => Math.abs(e.balance) > 0.005 || e.employeeOwes > 0).map((e) => [e.name, e.fin, e.companyOwes, e.benefitOwes, e.late, e.employeeOwes, e.balance, e.employeeOwes > 0 ? "Avans hesablanmış məbləğdən artıq verilib: işçidən geri alınmalıdır və ya növbəti ayın əmək haqqından tutulmalıdır." : ""]);
+    await companyAudit(db, id, userId, "payroll-report-exported", "", `${report.from} – ${report.to}`);
+    const book = createXlsxBook([
+      { name: "İşçilər üzrə yekun", headers: ["№", "Ad Soyad", "FİN", "Vəzifə", "Departament", "Hesablanıb (gross)", "Gəlir vergisi", "Sığorta (işçi)", "Net", "Digər tutulmalar", "Ödəniləcək cəmi", "o cümlədən məzuniyyət haqqı", "Müavinət (ayrıca)", "Ödənilib: avans", "Ödənilib: əmək haqqı", "Ödənilib: məzuniyyət", "Ödənilib: müavinət", "Ödənilib: digər", "Cəmi ödənilib", "Şirkətin işçiyə borcu (əmək haqqı)", "Şirkətin işçiyə borcu (müavinət)", "Gecikmə cəriməsi", "İşçinin şirkətə borcu", "Xalis qalıq (+ şirkət borclu, − işçi borclu)", "Vəziyyət"], rows: summary },
+      { name: "Aylar üzrə", headers: ["Ay", "Ayın vəziyyəti", "Ad Soyad", "FİN", "Gross", "Net", "Ödəniləcək", "Avans", "Əmək haqqı", "Məzuniyyət", "Müavinət", "Digər ödəniş", "Əmək haqqı qalığı", "Müavinət qalığı", "İşçinin borcu", "Gecikmə cəriməsi"], rows: monthly },
+      { name: "Ödənişlər (nəyə görə)", headers: ["Tarix", "Ay", "Ad Soyad", "FİN", "Ödənişin növü", "Ödənişin adı", "Məbləğ (AZN)", "Üsul", "Qeyd", "Vəziyyət"], rows: payments },
+      { name: "Borclar", headers: ["Ad Soyad", "FİN", "Şirkətin borcu (əmək haqqı)", "Şirkətin borcu (müavinət)", "Gecikmə cəriməsi", "İşçinin şirkətə borcu", "Xalis qalıq", "Qeyd"], rows: debts },
+    ]);
+    return new Response(Uint8Array.from(book).buffer, {
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Content-Disposition": `attachment; filename="hesablasma-hesabati-${report.from}-${report.to}.xlsx"`,
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    });
+  }
   // ── Company bank accounts and transfer orders ──
   type BankAccountRow = { id: string; label: string; bank_name: string; bank_code: string; swift: string; iban: string; account_number: string; voen: string; holder: string; currency: string; auto: string; is_default: number };
   const bankAccounts = async () =>
