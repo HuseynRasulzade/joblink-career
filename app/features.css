@@ -6062,3 +6062,4 @@ a svg {
 .hr-doc-preview h4 { text-align: center; text-transform: uppercase; }
 .hr-doc-preview h5 { margin: 10px 0 2px; }
 .hr-doc-preview p { margin: 4px 0; text-align: justify; }
+.report-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
