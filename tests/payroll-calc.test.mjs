@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { computePay, availableAdvance, paymentDate, scheduleProblem, latePenalty, dayStatus, cleanInputs, EMPTY_INPUTS } from "../lib/payroll-calc.ts";
+import { computePay, availableAdvance, paymentDate, scheduleProblem, dayStatus, cleanInputs, EMPTY_INPUTS } from "../lib/payroll-calc.ts";
 
 const days = (spec) => spec.flatMap(([status, n]) => Array(n).fill(status));
 const FULL = days([["work", 14]]); // March 2026 has 14 working days
@@ -106,12 +106,6 @@ test("payment day moves back to a working day, two payments need a gap of 16 day
   assert.equal(scheduleProblem(15, 30), "");
   assert.match(scheduleProblem(10, 30), /16/);
   assert.match(scheduleProblem(20, 10), /sonra/);
-});
-
-test("a late payment costs 1% a day", () => {
-  assert.deepEqual(latePenalty("2026-03-13", "2026-03-18", 1000), { days: 5, amount: 50 });
-  assert.deepEqual(latePenalty("2026-03-13", "2026-03-13", 1000), { days: 0, amount: 0 });
-  assert.deepEqual(latePenalty("2026-03-13", "2026-03-20", 0), { days: 0, amount: 0 });
 });
 
 test("attendance codes map to how the pay counts them, inputs are cleaned", () => {

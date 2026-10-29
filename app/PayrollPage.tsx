@@ -33,7 +33,7 @@ const KIND_LABEL: Record<Payment["kind"], string> = { advance: "Avans", salary: 
 type Row = {
   employeeId: string; name: string; position: string; department: string; status: string; monthlySalary: number; weekHours: number; iban: string; bankName: string; card: string; payMethod: string; fin: string; ssn: string; startDate: string; sector: string; benefit: string; section: string; salaryType: string; lastPaid: string;
   taxReduction: number; annual: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null; inputs: Inputs; result: Result; advances: number; salaryPaid: number; vacationDue: number; vacationPaid: number; vacationOutstanding: number; benefitDue: number; benefitPaid: number; benefitOutstanding: number; extraPaid: number; outstanding: number; availableAdvance: number;
-  earnedToDate: number; late: { days: number; amount: number }; payments: Payment[];
+  earnedToDate: number; payments: Payment[];
 };
 type Sheet = {
   month: string; status: "draft" | "approved"; approvedBy: string; approvedAt: string;
@@ -140,7 +140,6 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <tr class="tot"><td>Əlinə veriləcək məbləğ</td><td></td><td>${azn(x.toPay)}</td></tr>
           ${r.salaryPaid ? `<tr><td>Faktiki ödənilib</td><td></td><td>${azn(r.salaryPaid)}</td></tr>` : ""}
           <tr><td>Ödənilməmiş qalıq</td><td></td><td>${azn(r.outstanding)}</td></tr>
-          ${r.late.days ? `<tr><td>Gecikmə: ${r.late.days} gün, hər gün 1% (Əmək M. 172)</td><td></td><td>${azn(r.late.amount)}</td></tr>` : ""}
           <tr><td>Ödəniş tarixi (Əmək M. 172)</td><td></td><td>${dmy(data.schedule.payDate)}</td></tr></table>
         ${pays ? `<h2>Ödənişlər</h2><table class="half">${pays}</table>` : ""}
         ${x.advanceExcess ? `<p>Avans hesablanmış məbləğdən ${azn(x.advanceExcess)} artıqdır: işçinin borcu.</p>` : ""}
@@ -290,7 +289,6 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
                   {r.outstanding > 0 ? azn(r.outstanding) : approved ? "ödənilib" : "—"}
                   {(r.advances > 0 || r.salaryPaid > 0) && <small className="skill-description">ödənilib {azn(r.advances + r.salaryPaid)}{r.lastPaid ? ` · son ${dmy(r.lastPaid)}` : ""}</small>}
                   <small className="skill-description">{r.payMethod === "cash" ? "nağd" : r.payMethod === "card" ? `kart ${r.card || "—"}` : r.iban ? `IBAN …${r.iban.slice(-6)}` : r.card ? `kart ${r.card}` : "hesab rekviziti yoxdur"}</small>
-                  {r.late.days > 0 && <small className="danger-text">gecikmə {r.late.days} gün · ən azı {azn(r.late.amount)}</small>}
                 </td>
                 <td className="admin-actions">
                   {!approved && (

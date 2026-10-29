@@ -3,17 +3,17 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Download, Printer } from "lucide-react";
 
 type Notify = (message: string) => void;
-type Month = { month: string; status: string; gross: number; net: number; due: number; advance: number; salary: number; vacation: number; benefit: number; extra: number; outstanding: number; benefitOutstanding: number; employeeOwes: number; late: number };
+type Month = { month: string; status: string; gross: number; net: number; due: number; advance: number; salary: number; vacation: number; benefit: number; extra: number; outstanding: number; benefitOutstanding: number; employeeOwes: number };
 type Pay = { month: string; paidOn: string; kind: string; label: string; title: string; amount: number; method: string; note: string; reversed: boolean; reverseReason: string; reversedBy: string };
 type Employee = {
   employeeId: string; name: string; position: string; department: string; fin: string; iban: string;
   gross: number; tax: number; insurance: number; net: number; deductions: number; deductionsAsked: number; due: number; vacation: number; benefitDue: number;
-  paid: Record<string, number>; paidTotal: number; companyOwes: number; benefitOwes: number; late: number; employeeOwes: number; balance: number;
+  paid: Record<string, number>; paidTotal: number; companyOwes: number; benefitOwes: number; employeeOwes: number; balance: number;
   months: Month[]; payments: Pay[];
 };
 type Report = {
   from: string; to: string; months: { month: string; status: string }[]; employees: Employee[];
-  totals: { employees: number; gross: number; tax: number; insurance: number; net: number; deductions: number; due: number; paidTotal: number; advance: number; salary: number; vacation: number; benefit: number; extra: number; companyOwes: number; benefitOwes: number; late: number; employeeOwes: number; balance: number };
+  totals: { employees: number; gross: number; tax: number; insurance: number; net: number; deductions: number; due: number; paidTotal: number; advance: number; salary: number; vacation: number; benefit: number; extra: number; companyOwes: number; benefitOwes: number; employeeOwes: number; balance: number };
 };
 
 const azn = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AZN`;
@@ -52,13 +52,13 @@ export default function PayrollReport({ initialMonth, notify }: { initialMonth: 
     if (!win) return notify("Çap pəncərəsi bloklanıb.");
     const t = report.totals;
     const rows = list
-      .map((e) => `<tr><td>${esc(e.name)}<br><small>${esc([e.position, e.department].filter(Boolean).join(" · "))}</small></td><td>${azn(e.due)}</td><td>${azn(e.paid.advance)}</td><td>${azn(e.paid.salary + e.paid.vacation)}</td><td>${azn(e.paid.benefit)}</td><td>${azn(e.paid.extra)}</td><td>${azn(e.paidTotal)}</td><td>${azn(e.companyOwes + e.benefitOwes + e.late)}</td><td>${azn(e.employeeOwes)}</td><td><b>${azn(e.balance)}</b><br><small>${state(e)}</small></td></tr>`)
+      .map((e) => `<tr><td>${esc(e.name)}<br><small>${esc([e.position, e.department].filter(Boolean).join(" · "))}</small></td><td>${azn(e.due)}</td><td>${azn(e.paid.advance)}</td><td>${azn(e.paid.salary + e.paid.vacation)}</td><td>${azn(e.paid.benefit)}</td><td>${azn(e.paid.extra)}</td><td>${azn(e.paidTotal)}</td><td>${azn(e.companyOwes + e.benefitOwes)}</td><td>${azn(e.employeeOwes)}</td><td><b>${azn(e.balance)}</b><br><small>${state(e)}</small></td></tr>`)
       .join("");
     win.document.write(`<!doctype html><html lang="az"><head><meta charset="utf-8"><title>Hesablaşma hesabatı ${report.from} – ${report.to}</title><style>
       body{font:12px/1.4 Arial,sans-serif;color:#17332b;margin:18px}h1{font-size:18px;margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:10px}
       th,td{border:1px solid #cdd9d3;padding:4px 6px;text-align:right}th{background:#eef4f1}td:first-child,th:first-child{text-align:left}small{color:#5b7068}p{margin:4px 0}
     </style></head><body><h1>İşçilərlə hesablaşma hesabatı</h1><p>Dövr: ${report.from} – ${report.to} · ${list.length} işçi</p>
-      <p>Ödəniləcək cəmi: <b>${azn(t.due)}</b> · ödənilib: <b>${azn(t.paidTotal)}</b> · şirkətin borcu: <b>${azn(t.companyOwes + t.benefitOwes + t.late)}</b> · işçilərin borcu: <b>${azn(t.employeeOwes)}</b></p>
+      <p>Ödəniləcək cəmi: <b>${azn(t.due)}</b> · ödənilib: <b>${azn(t.paidTotal)}</b> · şirkətin borcu: <b>${azn(t.companyOwes + t.benefitOwes)}</b> · işçilərin borcu: <b>${azn(t.employeeOwes)}</b></p>
       <table><thead><tr><th>İşçi</th><th>Ödəniləcək</th><th>Avans</th><th>Əmək haqqı və məzuniyyət</th><th>Müavinət</th><th>Digər</th><th>Cəmi ödənilib</th><th>Şirkətin borcu</th><th>İşçinin borcu</th><th>Xalis qalıq</th></tr></thead><tbody>${rows}</tbody></table>
       <p>Xalis qalıq müsbətdirsə şirkət işçiyə borcludur, mənfidirsə işçi şirkətə.</p></body></html>`);
     win.document.close();
@@ -93,7 +93,7 @@ export default function PayrollReport({ initialMonth, notify }: { initialMonth: 
         <div className="staff-kpi"><small>Ödəniləcək cəmi (net − tutulmalar)</small><strong>{azn(t.due)}</strong><span>gross {azn(t.gross)} · vergi və sığorta {azn(t.tax + t.insurance)}</span></div>
         <div className="staff-kpi"><small>Ödənilib</small><strong>{azn(t.paidTotal)}</strong><span>avans {azn(t.advance)} · maaş {azn(t.salary)} · məzuniyyət {azn(t.vacation)}</span></div>
         <div className="staff-kpi"><small>Müavinət və digər ödənişlər</small><strong>{azn(t.benefit + t.extra)}</strong><span>müavinət {azn(t.benefit)} · digər {azn(t.extra)}</span></div>
-        <div className="staff-kpi staff-kpi-good"><small>Şirkətin işçilərə borcu</small><strong>{azn(t.companyOwes + t.benefitOwes + t.late)}</strong><span>əmək haqqı {azn(t.companyOwes)} · müavinət {azn(t.benefitOwes)} · cərimə {azn(t.late)}</span></div>
+        <div className="staff-kpi staff-kpi-good"><small>Şirkətin işçilərə borcu</small><strong>{azn(t.companyOwes + t.benefitOwes)}</strong><span>əmək haqqı {azn(t.companyOwes)} · müavinət {azn(t.benefitOwes)}</span></div>
         <div className="staff-kpi"><small>İşçilərin şirkətə borcu</small><strong>{azn(t.employeeOwes)}</strong><span>artıq verilmiş avans</span></div>
       </div>
       <div className="admin-table-wrap">
@@ -112,7 +112,7 @@ export default function PayrollReport({ initialMonth, notify }: { initialMonth: 
                   <td>{azn(e.paid.benefit)}</td>
                   <td>{azn(e.paid.extra)}</td>
                   <td><b>{azn(e.paidTotal)}</b></td>
-                  <td>{azn(e.companyOwes + e.benefitOwes + e.late)}</td>
+                  <td>{azn(e.companyOwes + e.benefitOwes)}</td>
                   <td>{e.employeeOwes ? <span className="danger-text">{azn(e.employeeOwes)}</span> : "—"}</td>
                   <td><b>{azn(e.balance)}</b><small className={e.balance < -0.005 ? "danger-text" : "skill-description"}>{state(e)}</small></td>
                 </tr>
@@ -141,7 +141,7 @@ export default function PayrollReport({ initialMonth, notify }: { initialMonth: 
                       ) : <p className="muted">Bu dövrdə ödəniş yoxdur.</p>}
                       <p className="muted">
                         Hesablanıb {azn(e.gross)} (gross) → vergi {azn(e.tax)}, sığorta {azn(e.insurance)}{e.deductions ? `, digər tutulmalar ${azn(e.deductions)}` : ""} → ödəniləcək {azn(e.due)}.
-                        {e.benefitDue ? ` Müavinət (ayrıca): ${azn(e.benefitDue)}.` : ""}{e.late ? ` Gecikmə cəriməsi: ${azn(e.late)}.` : ""}
+                        {e.benefitDue ? ` Müavinət (ayrıca): ${azn(e.benefitDue)}.` : ""}
                       </p>
                     </td>
                   </tr>
@@ -152,7 +152,7 @@ export default function PayrollReport({ initialMonth, notify }: { initialMonth: 
           </tbody>
         </table>
       </div>
-      <small className="skill-picker-help">Xalis qalıq müsbətdirsə şirkət işçiyə borcludur (ödənilməmiş əmək haqqı, müavinət, gecikmə cəriməsi); mənfidirsə işçiyə hesablanandan artıq avans verilib. Sətrə basanda aylar üzrə təfərrüat və ödənişlərin səbəbi açılır.</small>
+      <small className="skill-picker-help">Xalis qalıq müsbətdirsə şirkət işçiyə borcludur (ödənilməmiş əmək haqqı və müavinət); mənfidirsə işçiyə hesablanandan artıq avans verilib. Sətrə basanda aylar üzrə təfərrüat və ödənişlərin səbəbi açılır.</small>
     </div>
   );
 }

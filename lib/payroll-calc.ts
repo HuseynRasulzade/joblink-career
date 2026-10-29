@@ -266,10 +266,3 @@ export function scheduleProblem(advanceDay: number, payDay: number): string {
   if (payDay - advanceDay > 16) return "Avans və əmək haqqının qalan hissəsi arasında fasilə 16 gündən çox ola bilməz (Əmək M. 172.1).";
   return "";
 }
-
-// A pay that is late through the employer's fault earns the employee at least 1% of the pay for each day (172.5).
-export function latePenalty(due: string, paidOn: string, unpaidAmount: number): { days: number; amount: number } {
-  if (!due || !paidOn || paidOn <= due || unpaidAmount <= 0) return { days: 0, amount: 0 };
-  const days = Math.round((Date.parse(`${paidOn}T00:00:00Z`) - Date.parse(`${due}T00:00:00Z`)) / 86_400_000);
-  return { days, amount: r2(unpaidAmount * 0.01 * days) };
-}
