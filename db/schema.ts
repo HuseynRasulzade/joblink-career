@@ -1003,6 +1003,77 @@ export const attendanceHours = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.companyId, t.employeeId, t.day] }), index("attendance_hours_day").on(t.companyId, t.day)],
 );
+// The annual leave schedule: a stretch of leave proposed by HR or by the employee, then approved.
+export const leaveSchedule = sqliteTable(
+  "leave_schedule",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    year: integer("year").notNull(),
+    startDate: text("start_date").notNull(),
+    endDate: text("end_date").notNull(),
+    days: integer("days").notNull(),
+    status: text("status").notNull().default("proposed"),
+    proposedBy: text("proposed_by").notNull().default("hr"),
+    note: text("note").notNull().default(""),
+    decidedByName: text("decided_by_name").notNull().default(""),
+    decidedAt: text("decided_at").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [index("leave_schedule_company").on(t.companyId, t.year), index("leave_schedule_employee").on(t.employeeId)],
+);
+// What has to be done when an employee leaves: the checklist and the exit interview.
+export const offboardingCases = sqliteTable(
+  "offboarding_cases",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    status: text("status").notNull().default("open"),
+    plannedEnd: text("planned_end").notNull().default(""),
+    checklist: text("checklist").notNull().default("{}"),
+    exitInterview: text("exit_interview").notNull().default("{}"),
+    note: text("note").notNull().default(""),
+    created: text("created").notNull(),
+    closedAt: text("closed_at").notNull().default(""),
+  },
+  (t) => [uniqueIndex("offboarding_cases_employee").on(t.companyId, t.employeeId)],
+);
+// Company property (laptop, phone, key) and who holds it.
+export const assets = sqliteTable(
+  "assets",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    name: text("name").notNull(),
+    category: text("category").notNull().default(""),
+    serial: text("serial").notNull().default(""),
+    inventoryNo: text("inventory_no").notNull().default(""),
+    valueCents: integer("value_cents").notNull().default(0),
+    status: text("status").notNull().default("stock"),
+    note: text("note").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [index("assets_company").on(t.companyId, t.status)],
+);
+export const assetAssignments = sqliteTable(
+  "asset_assignments",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    assetId: text("asset_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    issuedOn: text("issued_on").notNull(),
+    returnedOn: text("returned_on").notNull().default(""),
+    conditionOut: text("condition_out").notNull().default(""),
+    conditionIn: text("condition_in").notNull().default(""),
+    note: text("note").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [index("asset_assignments_employee").on(t.companyId, t.employeeId), index("asset_assignments_asset").on(t.assetId)],
+);
 // Draft until the director approves the staff plan; after that changes need the director.
 export const staffPlanState = sqliteTable("staff_plan_state", {
   companyId: text("company_id").primaryKey(),
@@ -1096,6 +1167,7 @@ export const employeeDocuments = sqliteTable(
     subtype: text("subtype").notNull().default(""),
     docNumber: text("doc_number").notNull().default(""),
     docDate: text("doc_date").notNull().default(""),
+    expires: text("expires").notNull().default(""),
     name: text("name").notNull(),
     type: text("type").notNull(),
     data: text("data").notNull(),

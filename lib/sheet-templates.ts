@@ -5,7 +5,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "assets";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -167,6 +167,24 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       ["Orxan Əliyev", "", "2026-03-21", 6, 2, "Şənbə növbəsi"],
     ],
     rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "İş günündə gündəlik normadan (həftəlik saat / 5; bayram qabağı gün 1 saat az) artıq saat avtomatik artıq iş sayılır; istirahət və bayram günündə işlənən bütün saat istirahət günü işi sayılır.", "Təsdiqlənmiş aya aid sətirlər yüklənmir.", "Əmək haqqı cədvəlində əl ilə yazılmış saat varsa, o üstünlük təşkil edir."],
+  },
+  assets: {
+    title: "Şirkət əmlakı (aktivlər)",
+    file: "emlak-numune.xlsx",
+    sheet: "Əmlak",
+    columns: [
+      { header: "Ad", required: true, format: "Mətn", description: "Əmlakın adı (məsələn: Dell Latitude 5440 noutbuk)." },
+      { header: "Kateqoriya", required: false, format: "Mətn", description: "Qrup: Kompüter, Telefon, Mebel və s." },
+      { header: "Seriya nömrəsi", required: false, format: "Mətn", description: "İstehsalçının seriya nömrəsi." },
+      { header: "İnventar nömrəsi", required: false, format: "Mətn", description: "Şirkətin daxili inventar nömrəsi." },
+      { header: "Dəyər", required: false, format: "AZN", description: "Alış və ya balans dəyəri." },
+      { header: "Qeyd", required: false, format: "Mətn", description: "İstəyə görə izah." },
+    ],
+    examples: [
+      ["Dell Latitude 5440 noutbuk", "Kompüter", "SN-DL-001", "INV-0001", 1850, "Mühasibat üçün"],
+      ["iPhone 14 telefon", "Telefon", "SN-IP-014", "INV-0002", 1500, ""],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Yüklənən əmlak “Anbarda” statusu ilə yaranır; işçiyə verilmə aktivlər bölməsində edilir.", "Bir dəfəyə ən çox 500 sətir."],
   },
   questions: {
     title: "Test sualları",

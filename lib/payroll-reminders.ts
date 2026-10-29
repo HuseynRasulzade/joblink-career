@@ -1,6 +1,7 @@
 // The daily job: tells a company when an advance day is near, when a month's pay is not yet approved close to the pay day,
 // and when a past month was never approved. Each reminder is sent once.
 import { paymentDate } from "./payroll-calc.ts";
+import { deadlinesOf } from "./hr-deadlines.ts";
 
 const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -59,6 +60,46 @@ export async function runPayrollReminders(db: D1Database, now = new Date()) {
         await db
           .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
           .bind(crypto.randomUUID(), company_id, "payroll", item.title, item.body, "hr-payroll", now.toISOString())
+          .run();
+        sent++;
+      }
+    } catch {
+      // One company's failure does not stop the others.
+    }
+  }
+  return sent;
+}
+
+// A month ahead of a document or identity card running out the company is told once.
+export async function runDeadlineReminders(db: D1Database, now = new Date()) {
+  const today = iso(now);
+  let sent = 0;
+  const companies = await db
+    .prepare("SELECT DISTINCT company_id FROM company_employees WHERE status IN ('active','leave') LIMIT 2000")
+    .all<{ company_id: string }>()
+    .catch(() => ({ results: [] as { company_id: string }[] }));
+  for (const { company_id } of companies.results) {
+    try {
+      const [people, docs] = await Promise.all([
+        db.prepare("SELECT id,name,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(company_id).all<{ id: string; name: string; profile: string }>(),
+        db.prepare("SELECT id,employee_id,subtype,name,expires FROM employee_documents WHERE company_id=? AND expires<>''").bind(company_id).all<{ id: string; employee_id: string; subtype: string; name: string; expires: string }>(),
+      ]);
+      const parsed = people.results.map((p) => {
+        let profile: { idExpires?: string; disabilityUntil?: string } = {};
+        try {
+          profile = JSON.parse(p.profile || "{}");
+        } catch {
+          // A broken profile has no dates.
+        }
+        return { id: p.id, name: p.name, profile };
+      });
+      const due = deadlinesOf(parsed, docs.results.map((d) => ({ id: d.id, employeeId: d.employee_id, label: d.subtype || d.name, expires: d.expires })), today, 30);
+      for (const item of due) {
+        const claimed = await db.prepare("INSERT OR IGNORE INTO payroll_reminders(company_id,key,created) VALUES(?,?,?)").bind(company_id, item.key, now.toISOString()).run();
+        if (!claimed.meta.changes) continue;
+        await db
+          .prepare("INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)")
+          .bind(crypto.randomUUID(), company_id, "employee", `${item.employeeName}: ${item.what} ${item.days < 0 ? "müddəti bitib" : `${item.days} gün sonra bitir`}`, `Müddət: ${item.date}. Sənəd reyestrində yeniləyin.`, "hr-people-ops", now.toISOString())
           .run();
         sent++;
       }

@@ -6,6 +6,7 @@ import {
   CalendarCheck,
   CalendarClock,
   ClipboardCheck,
+  ClipboardList,
   LayoutDashboard,
   BriefcaseBusiness,
   FileText,
@@ -117,6 +118,7 @@ import {
 import { HrCalculators } from "./HrCalculators";
 import WorkplacePage from "./WorkplacePage";
 import PayrollPage from "./PayrollPage";
+import PeopleOps from "./PeopleOps";
 import HrFundReport from "./HrFundReport";
 import { FitReviewPanel } from "./FitReview";
 import PackagesPage from "./PackagesPage";
@@ -150,6 +152,7 @@ const hrNav = [
   { id: "hr-employees", label: "İşçilər", icon: Contact },
   { id: "hr-orders", label: "Əmrlər reyestri", icon: FileCheck2 },
   { id: "hr-payroll", label: "Əmək haqqı", icon: Banknote },
+  { id: "hr-people-ops", label: "Kadr əməliyyatları", icon: ClipboardList },
   { id: "hr-attendance", label: "Davamiyyət", icon: CalendarCheck },
   { id: "hr-workforce", label: "İşçi axını", icon: TrendingUp },
   { id: "hr-team", label: "Komanda və rollar", icon: UserCog },
@@ -452,6 +455,7 @@ export default function Joblink() {
     "hr-orders": "orders",
     "hr-attendance": "attendance",
     "hr-payroll": "payroll",
+    "hr-people-ops": "employees",
   };
   const hrVisible = hrNav.filter(
     (item) =>
@@ -2721,6 +2725,7 @@ export default function Joblink() {
               "hr-orders",
               "hr-attendance",
               "hr-payroll",
+              "hr-people-ops",
               "hr-workforce",
               "hr-team",
               "hr-company",
@@ -2757,6 +2762,7 @@ export default function Joblink() {
               {page === "hr-employees" && <EmployeesPage notify={notify} />}
               {page === "hr-orders" && <OrdersRegistry notify={notify} />}
               {page === "hr-payroll" && <PayrollPage notify={notify} />}
+              {page === "hr-people-ops" && <PeopleOps notify={notify} />}
               {page === "hr-attendance" && <AttendancePage notify={notify} />}
               {page === "hr-workforce" && (
                 <WorkforcePage me={companyMe} notify={notify} />

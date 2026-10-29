@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { SHEET_TEMPLATES, templateSheets } from "../lib/sheet-templates.ts";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "../lib/staff-import.ts";
 import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind } from "../lib/sheet-imports.ts";
+import { parseAssetRows } from "../lib/assets.ts";
 import { parseHoursRows } from "../lib/hours.ts";
 import { createXlsxBook } from "../lib/xlsx.ts";
 
@@ -21,6 +22,7 @@ test("every sample file is read back by its own importer without a problem", () 
     profiles: parseProfileRows,
     payroll: parsePayrollRows,
     hours: parseHoursRows,
+    assets: parseAssetRows,
   };
   for (const [kind, parse] of Object.entries(checks)) {
     const result = parse(asRows(kind));
