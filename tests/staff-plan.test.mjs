@@ -85,3 +85,22 @@ test("structure rows", () => {
   assert.equal(r.rows.length, 2);
   assert.equal(r.issues.length, 1);
 });
+
+import { bandConflicts, conflictMessage } from "../lib/staff-plan.ts";
+test("people paid outside the band of their row are found, with a message that names them", () => {
+  const units = [unit("a", "Maliyyə", "Müasibtliq", "Baş mühasib", 1, { salaryMin: 3500 }), unit("b", "Maliyyə", "", "Mühasib", 2, { salaryMin: 1000, salaryMax: 1500 })];
+  const people = [
+    person("1", "Maliyyə", "Müasibtliq", "Baş mühasib", { name: "Aysel", gross: 2800 }),
+    person("2", "Maliyyə", "Müasibtliq", "Baş mühasib", { name: "Nəmizəd", gross: 2500 }),
+    person("3", "Maliyyə", "", "Mühasib", { name: "Orxan", gross: 1200 }),
+    person("4", "Maliyyə", "", "Mühasib", { name: "Nigar", gross: 2000 }),
+    person("5", "IT", "", "Proqramçı", { name: "Kənar", gross: 99999 }),
+  ];
+  const found = bandConflicts(units, people);
+  assert.deepEqual(found.map((c) => [c.person.id, c.side]).sort(), [["1", "below"], ["2", "below"], ["4", "above"]]);
+  const text = conflictMessage(found.filter((c) => c.unit.id === "a"));
+  assert.match(text, /Baş mühasib/);
+  assert.match(text, /3500 AZN/);
+  assert.match(text, /Aysel — 2800 AZN \(həddən aşağı\)/);
+  assert.deepEqual(bandConflicts([unit("a", "X", "", "Y", 1)], [person("1", "X", "", "Y", { gross: 5 })]), []);
+});

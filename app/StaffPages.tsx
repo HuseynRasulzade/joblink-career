@@ -1724,7 +1724,7 @@ export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notif
 
 
 // ---------- Staff table ----------
-type StaffPerson = { id: string; name: string };
+type StaffPerson = { id: string; name: string; gross?: number | null; outside?: "" | "below" | "above" };
 type StaffRow = PlanUnit & { note: string; filled: number; free: number; fte: number; budget: number; people: StaffPerson[] };
 type StaffDepartment = { department: string; planned: number; filled: number; free: number; fte: number; budget: number; unplaced: number; units: number; openVacancies: number };
 type Unplaced = { id: string; name: string; department: string; section: string; position: string };
@@ -1734,6 +1734,7 @@ type StaffData = {
   unplaced: Unplaced[];
   total: { planned: number; filled: number; fte: number; budget: number; unplaced: number; payroll: number };
   pending: { id: string; subject: string; requested_by_name: string; created: string }[];
+  mismatches?: number;
   locked?: boolean;
   planStatus?: "draft" | "pending" | "approved";
 };
@@ -1752,7 +1753,7 @@ function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?
   );
 }
 
-export function StaffTable({ notify }: { notify: Notify }) {
+export function StaffTable({ notify, onEditEmployee }: { notify: Notify; onEditEmployee?: (id: string) => void }) {
   const [data, setData] = useState<StaffData | null>(null);
   const [editing, setEditing] = useState<EditingUnit | null>(null);
   const [importing, setImporting] = useState<SheetKind | null>(null);
@@ -1853,6 +1854,12 @@ export function StaffTable({ notify }: { notify: Notify }) {
             ? "Plan direktorun təsdiqini gözləyir. Təsdiqə qədər sətirləri düzəltmək olar."
             : "Plan layihə mərhələsindədir: departament və şöbələri yaradın, sətirləri əlavə edin və ya Excel yükləyin, sonra “Planı təsdiqə göndər” düyməsini basın. Təsdiqdən sonra direktor təsdiqləməsə dəyişmək olmaz."}
       </p>
+      {!!data.mismatches && (
+        <div className="staff-unplaced">
+          <b>Maaşı ştat həddindən kənar olan işçi: {data.mismatches}</b>
+          <p className="muted">İşçinin maaşı ilə ştat cədvəlindəki maaş arasında fərq olmamalıdır: işçiyə ştat həddindən aşağı və ya yuxarı maaş təyin etmək olmaz. Aşağıdakı cədvəldə qırmızı ilə göstərilən işçilərin maaşını düzəldin (işçi kartında “Maaşı düzəlt”) və ya ştat həddini dəyişin. Uyğunsuzluq qaldıqca həmin ştat sətrini saxlamaq mümkün olmur.</p>
+        </div>
+      )}
       {!!data.pending.length && (
         <div className="staff-pending">
           <b>Direktorun təsdiqini gözləyən dəyişikliklər ({data.pending.length})</b>
@@ -1948,7 +1955,22 @@ export function StaffTable({ notify }: { notify: Notify }) {
                         <td>{row.section || "—"}</td>
                         <td>
                           {row.position || "—"}
-                          {!!row.people.length && <small className="skill-description">{row.people.map((p) => p.name).join(", ")}</small>}
+                          {!!row.people.length && (
+                            <small className="skill-description">
+                              {row.people.map((p, i) => (
+                                <span key={p.id} className={p.outside ? "danger-text" : undefined}>
+                                  {i ? ", " : ""}
+                                  {p.name}
+                                  {p.gross ? ` (${azn(p.gross)}${p.outside ? p.outside === "below" ? " — həddən aşağı" : " — həddən yuxarı" : ""})` : ""}
+                                  {p.outside && onEditEmployee && (
+                                    <button type="button" className="text-button" onClick={() => onEditEmployee(p.id)}>
+                                      {" "}Maaşı düzəlt
+                                    </button>
+                                  )}
+                                </span>
+                              ))}
+                            </small>
+                          )}
                           {row.note && <small className="skill-description">{row.note}</small>}
                         </td>
                         <td>{row.planned}</td>

@@ -120,3 +120,33 @@ export function checkSalary(units: PlanUnit[], person: PlanPerson, gross: number
   const range = min === max ? `${min} AZN` : `${min}–${max} AZN`;
   return `Ştat cədvəlində “${withBand[0].position}” (${withBand[0].department}) üçün əmək haqqı ${range} (gross) müəyyən edilib; ${Math.round(gross * 100) / 100} AZN təyin etmək olmaz. Əvvəl ştat cədvəlini dəyişin (direktorun təsdiqi ilə).`;
 }
+
+export type BandConflict = { unit: PlanUnit; person: PlanPerson; band: [number, number]; side: "below" | "above" };
+
+// People who sit in a row with a pay band but are paid below or above it (gross a month).
+export function bandConflicts(units: PlanUnit[], people: PlanPerson[]): BandConflict[] {
+  const { byUnit } = assignPeople(units, people);
+  const out: BandConflict[] = [];
+  for (const unit of units) {
+    const band = salaryBand(unit);
+    if (!band) continue;
+    for (const person of byUnit.get(unit.id) || []) {
+      const gross = person.gross || 0;
+      if (gross <= 0) continue;
+      if (gross < band[0] - 0.005) out.push({ unit, person, band, side: "below" });
+      else if (gross > band[1] + 0.005) out.push({ unit, person, band, side: "above" });
+    }
+  }
+  return out;
+}
+
+const money = (n: number) => `${Math.round(n * 100) / 100} AZN`;
+export function conflictMessage(conflicts: BandConflict[]): string {
+  const first = conflicts[0];
+  const who = conflicts
+    .slice(0, 5)
+    .map((c) => `${(c.person as PlanPerson & { name?: string }).name || "işçi"} — ${money(c.person.gross || 0)} (${c.side === "below" ? "həddən aşağı" : "həddən yuxarı"})`)
+    .join("; ");
+  const [min, max] = first.band;
+  return `“${first.unit.position || first.unit.department}” üçün maaş həddi ${min === max ? money(min) : `${money(min)} – ${money(max)}`} (gross) olacaq, amma bu sətirdəki işçilərin maaşı ona uyğun deyil: ${who}${conflicts.length > 5 ? ` və daha ${conflicts.length - 5} nəfər` : ""}. Əvvəl işçilərin maaşını ştata uyğunlaşdırın (işçi kartı) və ya həddi dəyişin.`;
+}

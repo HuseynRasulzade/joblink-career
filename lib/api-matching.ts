@@ -127,10 +127,11 @@ export async function addHiredEmployee(db: D1Database, applicationId: string) {
     const probationEnd = probationMonths ? addMonthsIso(startDate, probationMonths) : "";
     try {
       await db.batch([
-      db.prepare(`INSERT INTO company_employees(id,company_id,name,position,department,email,phone,start_date,salary_cents,status,source,application_id,job_id,user_id,created,updated)
-          VALUES(?,?,?,?,?,?,?,?,?,'active','hired',?,?,?,?,?)`)
-        .bind(employeeId, row.owner, profile.name, offer?.position || job.title, "", profile.email || "", profile.phone || "",
-          startDate, Math.round((offer?.salary || 0) * 100), applicationId, row.job_id, row.candidate_id || "", now, now),
+      db.prepare(`INSERT INTO company_employees(id,company_id,name,position,department,section,email,phone,start_date,salary_cents,salary_type,status,source,application_id,job_id,user_id,created,updated)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,'active','hired',?,?,?,?,?)`)
+        // The pay stays as the offer named it (net or gross), and the department of the vacancy puts the person in the staff table.
+        .bind(employeeId, row.owner, profile.name, offer?.position || job.title, job.department || "", job.section || "", profile.email || "", profile.phone || "",
+          startDate, Math.round((offer?.salary || 0) * 100), offer?.salaryPeriod === "gross" ? "gross" : offer ? "net" : "gross", applicationId, row.job_id, row.candidate_id || "", now, now),
       db.prepare("INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)")
         .bind(crypto.randomUUID(), row.owner, employeeId, "hired", "", "", "joblink", "", startDate, now),
       ]);

@@ -365,7 +365,7 @@ import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, attendanceCode, daysO
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
 import { addSections, addStructure, canonicalOrg, deletePosition, deleteStructure, loadPositions, renamePosition, loadStaffHistory, loadStructure, orgNameList, renameStructure, type OrgKind } from "@/lib/staff-db";
-import { assignPeople, checkSalary, normalizeRate, RATE_LABEL, summarize, type PlanPerson, type PlanUnit } from "@/lib/staff-plan";
+import { assignPeople, bandConflicts, checkSalary, conflictMessage, normalizeRate, RATE_LABEL, salaryBand, summarize, type PlanPerson, type PlanUnit } from "@/lib/staff-plan";
 import { parseStructureRows } from "@/lib/staff-import";
 import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
@@ -533,6 +533,38 @@ async function loadPlanData(db: D1Database, companyId: string) {
     gross: p.salary_cents > 0 ? employeePay(p.salary_cents / 100, p.salary_type === "net" ? "net" : "gross", p.sector === "public" ? "public" : "private").gross : 0,
   }));
   return { units: planUnits, people: planPeople };
+}
+// A staff row with a pay band cannot be saved while the people who would sit in it are paid outside the band.
+// The rows being saved replace (or join) the current ones, everybody is placed again, and only the saved rows are judged.
+async function staffBandProblem(
+  db: D1Database,
+  companyId: string,
+  changes: { id?: string; department: string; section: string; position: string; planned: number; rate?: number; salaryCents: number; salaryMaxCents?: number }[],
+): Promise<string> {
+  if (!changes.some((c) => c.salaryCents > 0 || (c.salaryMaxCents || 0) > 0)) return "";
+  const plan = await loadPlanData(db, companyId);
+  const units: PlanUnit[] = plan.units.map((u) => ({ id: u.id, department: u.department, section: u.section, position: u.position, planned: u.planned, rate: u.rate, salaryMin: u.salaryMin, salaryMax: u.salaryMax }));
+  const same = (a: string, b: string) => a.trim().toLocaleLowerCase("az") === b.trim().toLocaleLowerCase("az");
+  const touched = new Set<string>();
+  changes.forEach((c, index) => {
+    const position = bestCatalogMatch(c.position)?.title.label || c.position;
+    const existing = units.find((u) => (c.id && u.id === c.id) || (!c.id && same(u.department, c.department) && same(u.section, c.section) && same(u.position, position)));
+    const next: PlanUnit = {
+      id: existing?.id || `new-${index}`,
+      department: c.department,
+      section: c.section,
+      position,
+      planned: c.planned,
+      rate: normalizeRate(c.rate ?? 1),
+      salaryMin: c.salaryCents / 100,
+      salaryMax: Math.max(c.salaryCents, c.salaryMaxCents || 0) / 100,
+    };
+    if (existing) Object.assign(existing, next);
+    else units.push(next);
+    touched.add(next.id);
+  });
+  const found = bandConflicts(units, plan.people).filter((c) => touched.has(c.unit.id));
+  return found.length ? conflictMessage(found) : "";
 }
 async function setPlanStatus(db: D1Database, companyId: string, status: "draft" | "pending" | "approved") {
   await db
@@ -7034,6 +7066,16 @@ async function route(request: Request) {
       .all<{ employee_id: string; n: number }>()
       .catch(() => ({ results: [] as { employee_id: string; n: number }[] }));
     const annualBy = new Map(annual.results.map((row) => [row.employee_id, Number(row.n)]));
+    // The pay band of the staff row each employee sits in, to show it beside the salary.
+    const bandBy = new Map<string, [number, number]>();
+    if (showSalary) {
+      const planData = await loadPlanData(db, id);
+      const placed = assignPeople(planData.units, planData.people);
+      for (const [unitId, list] of placed.byUnit) {
+        const band = salaryBand(planData.units.find((u) => u.id === unitId)!);
+        if (band) for (const p of list) bandBy.set(p.id, band);
+      }
+    }
     return ok({
       showSalary,
       canEdit: can(memberRole, "employees", memberGrants),
@@ -7060,6 +7102,12 @@ async function route(request: Request) {
         sector: r.sector === "public" ? "public" : "private",
         vacationDays: r.vacation_days ?? 21,
         vacationUsed: r.vacation_used ?? 0,
+        staffBand: (() => {
+          const band = bandBy.get(r.id);
+          if (!band) return null;
+          const gross = r.salary_cents > 0 ? employeePay(r.salary_cents / 100, r.salary_type === "net" ? "net" : "gross", r.sector === "public" ? "public" : "private").gross : 0;
+          return { min: band[0], max: band[1], side: gross > 0 && gross < band[0] - 0.005 ? "below" : gross > band[1] + 0.005 ? "above" : "" };
+        })(),
         linked: Boolean((r as { user_id?: string }).user_id),
         linkPending: Boolean((r as { link_hash?: string }).link_hash) && !linkExpired(String((r as { link_expires?: string }).link_expires || ""), new Date()),
         profile: can(memberRole, "personal-data", memberGrants) ? parseProfile((r as { profile?: string }).profile) : null,
@@ -7998,7 +8046,13 @@ async function route(request: Request) {
     const summary = summarize(plan.units, plan.people);
     const placedBy = new Map<string, { id: string; name: string }[]>();
     const assigned = assignPeople(plan.units, plan.people);
-    for (const [unitId, list] of assigned.byUnit) placedBy.set(unitId, list.map((p) => ({ id: p.id, name: (p as PlanPerson & { name: string }).name })));
+    const conflicts = new Map(bandConflicts(plan.units, plan.people).map((c) => [c.person.id, c.side]));
+    const mayPay = can(memberRole, "salaries", memberGrants);
+    for (const [unitId, list] of assigned.byUnit)
+      placedBy.set(
+        unitId,
+        list.map((p) => ({ id: p.id, name: (p as PlanPerson & { name: string }).name, gross: mayPay ? p.gross || 0 : null, outside: conflicts.get(p.id) || "" })),
+      );
     const noteBy = new Map(plan.units.map((u) => [u.id, u.note]));
     const rows = summary.rows.map((row) => ({ ...row, note: noteBy.get(row.id) || "", people: placedBy.get(row.id) || [] }));
     const departments = summary.departments.map((d) => ({ ...d, openVacancies: openBy.get(d.department.toLocaleLowerCase("az")) || 0 }));
@@ -8009,6 +8063,7 @@ async function route(request: Request) {
       unplaced: summary.unplaced.map((p) => ({ id: p.id, name: (p as PlanPerson & { name: string }).name, department: p.department, section: p.section, position: p.position })),
       total: { ...summary.total, payroll: Math.round(payroll * 100) / 100 },
       pending: pending.results,
+      mismatches: conflicts.size,
       locked: await planLocked(),
       planStatus: await planStatus(),
     };
@@ -8040,6 +8095,8 @@ async function route(request: Request) {
     if (!unit.department && !unit.position) throw new HttpError(400, "Departamenti və ya vəzifəni yazın.");
     if (!Number.isFinite(unit.planned)) throw new HttpError(400, "Ştat sayı düzgün deyil.");
     const unitId = str(b.id, 100);
+    const unitProblem = await staffBandProblem(db, id, [{ ...unit, id: unitId }]);
+    if (unitProblem) throw new HttpError(409, unitProblem);
     if (await planLocked()) {
       await queueApproval("headcount", `${unit.department || "—"} / ${unit.position || "—"}: ${unit.planned} ştat`, { unit: { ...unit, id: unitId } });
       return ok({ ok: true, pending: true });
@@ -8233,6 +8290,8 @@ async function route(request: Request) {
     );
     if (!incoming.rows.length) throw new HttpError(400, incoming.issues[0]?.reason || "Faylda ştat sətri tapılmadı.");
     const rows = incoming.rows.map((row) => ({ department: row.department, section: row.section, position: row.position, planned: row.planned, rate: row.rate, salaryCents: Math.round(row.salary * 100), salaryMaxCents: Math.round(row.salaryMax * 100), note: row.note }));
+    const importProblem = await staffBandProblem(db, id, rows);
+    if (importProblem) throw new HttpError(409, importProblem);
     if (await planLocked()) {
       await queueApproval("headcount", `Excel idxalı: ${rows.length} ştat sətri`, { units: rows });
       return ok({ created: 0, updated: 0, pending: true, issues: incoming.issues });
@@ -13868,6 +13927,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         await setPlanStatus(db, id, "approved");
         await companyAudit(db, id, userId, "staff-plan-approved", "", "Ştat planı təsdiqləndi");
       } else if (req.kind === "headcount" && Array.isArray(payload.units)) {
+        const problem = await staffBandProblem(db, id, payload.units as StaffInput[]);
+        if (problem) throw new HttpError(409, `Təsdiq mümkün deyil: ${problem}`);
         const result = await applyStaffRows(db, id, payload.units as StaffInput[]);
         await companyAudit(db, id, userId, "staff-imported", "", `${result.created} yeni, ${result.updated} yenilənən (təsdiqləndi)`);
       } else if (req.kind === "headcount" && (payload.unit || payload.unitDelete)) {
@@ -13875,6 +13936,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           await db.prepare("DELETE FROM staff_units WHERE id=? AND company_id=?").bind(String(payload.unitDelete), id).run();
         } else {
           const unit = payload.unit as { id: string; department: string; section: string; position: string; planned: number; salaryCents: number; note: string };
+          const problem = await staffBandProblem(db, id, [unit]);
+          if (problem) throw new HttpError(409, `Təsdiq mümkün deyil: ${problem}`);
           await saveStaffUnit(db, id, String(unit.id || ""), unit);
         }
         await companyAudit(db, id, userId, "staff-unit", "", "təsdiqləndi");

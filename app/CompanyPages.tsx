@@ -2462,6 +2462,7 @@ type Employee = {
   profile?: import("@/lib/employee-profile").EmployeeProfile | null;
   linked?: boolean;
   linkPending?: boolean;
+  staffBand?: { min: number; max: number; side: "" | "below" | "above" } | null;
   tenure?: string;
   vacation?: { entitlement: number; accrued: number; used: number; remaining: number };
   pay?: { net: number; gross: number; superGross: number; incomeTax: number; employeeSocial: number; employeeUnemployment: number; employeeMedical: number } | null;
@@ -2680,7 +2681,16 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   ) : null}
                 </td>
                 {data.showSalary && <td>{e.pay ? azn(e.pay.net) : "—"}</td>}
-                {data.showSalary && <td>{e.pay ? azn(e.pay.gross) : "—"}</td>}
+                {data.showSalary && (
+                  <td>
+                    {e.pay ? azn(e.pay.gross) : "—"}
+                    {e.staffBand?.side && (
+                      <small className="danger-text" style={{ display: "block" }}>
+                        ştat həddindən {e.staffBand.side === "below" ? "aşağı" : "yuxarı"}: {e.staffBand.min === e.staffBand.max ? azn(e.staffBand.min) : `${azn(e.staffBand.min)} – ${azn(e.staffBand.max)}`}
+                      </small>
+                    )}
+                  </td>
+                )}
                 {data.showSalary && <td>{e.pay ? azn(e.pay.superGross) : "—"}</td>}
                 <td>
                   {e.vacation ? (
@@ -2733,7 +2743,17 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
       </div>
         </>
       )}
-      {data.canStaff && view === "staff" && <StaffTable notify={notify} />}
+      {data.canStaff && view === "staff" && (
+        <StaffTable
+          notify={notify}
+          onEditEmployee={(employeeId) => {
+            const person = data.employees.find((x) => x.id === employeeId);
+            if (!person) return notify("İşçi tapılmadı.");
+            setView("people");
+            setEditing(person);
+          }}
+        />
+      )}
       {importing && <SheetImport kind="employees" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {bulkCodes && (
         <BulkLinkCodes
@@ -2810,6 +2830,12 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   }
                 />
               </Field>
+              {editing.staffBand && (
+                <small className={editing.staffBand.side ? "danger-text" : "skill-picker-help"}>
+                  Ştat cədvəlində bu vəzifə üçün maaş həddi (gross): {editing.staffBand.min === editing.staffBand.max ? azn(editing.staffBand.min) : `${azn(editing.staffBand.min)} – ${azn(editing.staffBand.max)}`}.
+                  {editing.staffBand.side ? ` Hazırkı maaş həddən ${editing.staffBand.side === "below" ? "aşağıdır" : "yuxarıdır"} — ştatla fərq olmamalıdır.` : " Bu hüdudlardan kənar maaş təyin etmək olmaz."}
+                </small>
+              )}
               <Field label="Maaş növü">
                 <select value={editing.salaryType || "gross"} onChange={(e) => setEditing({ ...editing, salaryType: e.target.value as "gross" | "net" })}>
                   <option value="gross">Gross (vergilərdən əvvəl)</option>
