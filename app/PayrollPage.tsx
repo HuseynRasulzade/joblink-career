@@ -30,12 +30,12 @@ type Result = {
 type Payment = { id: string; kind: "advance" | "salary"; amount: number; paidOn: string; method: string; note: string };
 type Row = {
   employeeId: string; name: string; position: string; department: string; status: string; monthlySalary: number; weekHours: number; iban: string; bankName: string; card: string; payMethod: string; fin: string; ssn: string; startDate: string; sector: string; benefit: string; section: string; salaryType: string; lastPaid: string;
-  taxReduction: number; inputs: Inputs; result: Result; advances: number; salaryPaid: number; outstanding: number; availableAdvance: number;
+  taxReduction: number; annual: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null; inputs: Inputs; result: Result; advances: number; salaryPaid: number; outstanding: number; availableAdvance: number;
   earnedToDate: number; late: { days: number; amount: number }; payments: Payment[];
 };
 type Sheet = {
   month: string; status: "draft" | "approved"; approvedBy: string; approvedAt: string;
-  settings: { advanceDay: number; payDay: number; problem: string }; schedule: { advanceDate: string; payDate: string };
+  settings: { advanceDay: number; payDay: number; dualThreshold: number; problem: string }; schedule: { advanceDate: string; payDate: string };
   workingDays: number; rows: Row[];
   totals: { employees: number; gross: number; incomeTax: number; employeeInsurance: number; net: number; advances: number; toPay: number; outstanding: number; employerContributions: number; employerCost: number };
 };
@@ -141,6 +141,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <tr><td>Ödəniş tarixi (Əmək M. 172)</td><td></td><td>${dmy(data.schedule.payDate)}</td></tr></table>
         ${pays ? `<h2>Ödənişlər</h2><table class="half">${pays}</table>` : ""}
         ${x.advanceExcess ? `<p>Avans hesablanmış məbləğdən ${azn(x.advanceExcess)} artıqdır: işçinin borcu.</p>` : ""}
+        ${r.annual ? `<p>Məzuniyyət haqqının əsası (Əmək M. 140): əvvəlki ${r.annual.months} ayın orta aylıq əmək haqqı ${azn(r.annual.averageMonthly)}, günlük ${azn(r.annual.averageMonthly / 30.4)}; ${r.annual.calendarDays} təqvim günü.${r.annual.estimated ? " Bəzi aylar üçün təsdiqlənmiş cədvəl olmadığından cari maaş götürülüb (təxmini)." : ""}</p>` : ""}
         ${x.notes.map((n) => `<p>${esc(n)}</p>`).join("")}
         <p>İşəgötürən tərəfindən əlavə ödənilir (işçidən tutulmur): DSMF ${azn(x.employerSocial)}, işsizlik ${azn(x.employerUnemployment)}, tibbi sığorta ${azn(x.employerMedical)}.</p>
         <p>Bu vərəqə Əmək Məcəlləsinin 173-cü maddəsinə uyğun hazırlanıb.</p>
@@ -174,6 +175,9 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
         <div className="admin-actions">
           <a className="secondary report-button" href={`/api/joblink/company/payroll/export?month=${month}&kind=sheet`} download>
             <Download size={14} /> Cədvəl (XLSX)
+          </a>
+          <a className="secondary report-button" href={`/api/joblink/company/payroll/export?month=${month}&kind=declaration`} download>
+            <Download size={14} /> Bəyannamə üçün (XLSX)
           </a>
           <a className="secondary report-button" href={`/api/joblink/company/payroll/export?month=${month}&kind=bank`} download>
             <Download size={14} /> Bank reyestri (XLSX)
@@ -472,9 +476,10 @@ function PayModal({ month, row, notify, onClose, onSaved }: { month: string; row
 function SettingsModal({ settings, notify, onClose, onSaved }: { settings: Sheet["settings"]; notify: Notify; onClose: () => void; onSaved: () => void }) {
   const [advanceDay, setAdvanceDay] = useState(settings.advanceDay);
   const [payDay, setPayDay] = useState(settings.payDay);
+  const [dual, setDual] = useState(settings.dualThreshold);
   async function save() {
     try {
-      await request("company/payroll/settings", { advanceDay, payDay });
+      await request("company/payroll/settings", { advanceDay, payDay, dualThreshold: dual });
       notify("Ayarlar saxlanıldı.");
       onSaved();
       onClose();
@@ -489,6 +494,7 @@ function SettingsModal({ settings, notify, onClose, onSaved }: { settings: Sheet
         <div className="form-grid">
           <Field label="Avans günü (0 — avans verilmir)"><input type="number" min={0} max={28} value={advanceDay} onChange={(e) => setAdvanceDay(Number(e.target.value))} /></Field>
           <Field label="Əmək haqqının ödəniş günü (həmin ayın)"><input type="number" min={1} max={31} value={payDay} onChange={(e) => setPayDay(Number(e.target.value))} /></Field>
+          <Field label="Bank ödənişinə iki nəfərin təsdiqi (AZN-dən; 0 — bir təsdiq kifayətdir)"><input type="number" min={0} step={100} value={dual} onChange={(e) => setDual(Number(e.target.value))} /></Field>
         </div>
         <button type="button" className="primary" onClick={() => void save()}>Saxla</button>
       </div>

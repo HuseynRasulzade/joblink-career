@@ -131,3 +131,22 @@ test("attendance codes map to how the pay counts them, inputs are cleaned", () =
   assert.equal(c.restDayWithinNorm, false);
   assert.deepEqual(cleanInputs(null), EMPTY_INPUTS);
 });
+
+import { vacationCalendarDays } from "../lib/payroll-calc.ts";
+test("vacation days count weekends between vacation working days but not holidays", () => {
+  const days = [
+    { date: "2026-03-02", off: "" }, { date: "2026-03-03", off: "" }, { date: "2026-03-04", off: "" }, { date: "2026-03-05", off: "" }, { date: "2026-03-06", off: "" },
+    { date: "2026-03-07", off: "weekend" }, { date: "2026-03-08", off: "weekend" },
+    { date: "2026-03-09", off: "" }, { date: "2026-03-10", off: "" }, { date: "2026-03-11", off: "holiday" }, { date: "2026-03-12", off: "" },
+  ];
+  const marked = new Set(["2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-12"]);
+  assert.deepEqual(vacationCalendarDays(days, (d) => marked.has(d)), { workingDays: 6, calendarDays: 8 });
+});
+test("vacation pay uses the 12-month average over 30.4 days", () => {
+  const statuses = Array.from({ length: 20 }, (_, i) => (i < 10 ? "paid" : "work"));
+  const r = computePay({ monthlySalary: 1000, statuses, annual: { mask: statuses.map((s) => s === "paid"), calendarDays: 14, averageMonthly: 912 } });
+  const line = r.lines.find((l) => l.id === "vacation");
+  assert.equal(line.amount, Math.round(((912 / 30.4) * 14) * 100) / 100);
+  assert.equal(r.lines.find((l) => l.id === "paid-leave"), undefined);
+  assert.equal(r.lines.find((l) => l.id === "worked").amount, 500);
+});

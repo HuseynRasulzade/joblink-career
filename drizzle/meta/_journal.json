@@ -519,6 +519,13 @@
       "when": 1797274800000,
       "tag": "0073_payroll_bank",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "6",
+      "when": 1797361200000,
+      "tag": "0074_payroll_dual_approval",
+      "breakpoints": true
     }
   ]
 }

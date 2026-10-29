@@ -21,7 +21,7 @@ type Account = { id: string; label: string; bankName: string; bankCode: string; 
 type Item = { employeeId: string; name: string; iban: string; card: string; method: "bank" | "card"; amountCents: number };
 type Batch = {
   id: string; month: string; kind: "advance" | "salary"; accountId: string; status: string; statusText: string; source: string; total: number; count: number; note: string;
-  createdBy: string; approvedBy: string; approvedAt: string; sentAt: string; paidAt: string; created: string; items: Item[]; skipped: { name: string; reason: string }[];
+  createdBy: string; approvedBy: string; firstApprovedBy: string; approvedAt: string; sentAt: string; paidAt: string; created: string; items: Item[]; skipped: { name: string; reason: string }[];
 };
 type Data = { month: string; accounts: Account[]; batches: Batch[]; canManage: boolean };
 const EMPTY: Account = { id: "", label: "", bankName: "", bankCode: "", swift: "", iban: "", accountNumber: "", voen: "", holder: "", currency: "AZN", auto: "off", isDefault: false };
@@ -125,11 +125,11 @@ export default function PayrollBank({ month, notify, onClose, onChanged }: { mon
               <div>
                 <b>{b.kind === "advance" ? "Avans" : "Əmək haqqı"}: {azn(b.total)}</b> · {b.count} işçi
                 {b.source === "auto" && <span className="week-badge">avtomatik</span>}
-                <small className="skill-description">{b.statusText}{b.approvedBy ? ` · təsdiq: ${b.approvedBy}` : ""}{b.paidAt ? ` · ${dmy(b.paidAt.slice(0, 10))}` : ""}</small>
+                <small className="skill-description">{b.statusText}{b.status === "draft" && b.firstApprovedBy ? ` · 1-ci təsdiq: ${b.firstApprovedBy}, ikinci təsdiq gözlənilir` : ""}{b.approvedBy ? ` · təsdiq: ${b.approvedBy}` : ""}{b.paidAt ? ` · ${dmy(b.paidAt.slice(0, 10))}` : ""}</small>
               </div>
               <div className="admin-actions">
                 <button type="button" onClick={() => setOpen(open === b.id ? "" : b.id)}>{open === b.id ? "Gizlət" : "Siyahı"}</button>
-                {b.status === "draft" && data.canManage && <button type="button" className="primary" onClick={() => void act("company/payroll/bank/batch/approve", { id: b.id }, "Sənəd təsdiqləndi.")}>Təsdiqlə (direktor)</button>}
+                {b.status === "draft" && data.canManage && <button type="button" className="primary" onClick={() => void act("company/payroll/bank/batch/approve", { id: b.id }, b.firstApprovedBy ? "Sənəd təsdiqləndi." : "Təsdiq qeyd edildi (ikinci təsdiq lazımdırsa başqa şəxs verməlidir).")}>{b.firstApprovedBy ? "İkinci təsdiq (direktor)" : "Təsdiqlə (direktor)"}</button>}
                 {(b.status === "approved" || b.status === "sent") && (
                   <a className="secondary report-button" href={`/api/joblink/company/payroll/bank/batch/file?id=${b.id}`} download><Download size={14} /> Bank faylı</a>
                 )}

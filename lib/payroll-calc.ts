@@ -2,7 +2,7 @@
 // deductions, with the taxes of lib/salary.ts. Pure functions for the payroll page, the pay slip and the tests.
 // Rules: Labor Code 154–176 (pay, additions, payment terms, pay slip, deductions), 164–166 (extra work), 169 (downtime).
 import { calculateFromGross, type Sector } from "./salary.ts";
-import { deductionLimit, HOURS_PER_DAY, type DeductionKind } from "./hr-calc.ts";
+import { deductionLimit, HOURS_PER_DAY, MEAN_MONTH_DAYS, type DeductionKind } from "./hr-calc.ts";
 import { daysOff } from "./calendar-az.ts";
 
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -27,6 +27,33 @@ export function dayStatus(code: string): Exclude<DayStatus, "outside"> {
   if (BENEFIT.has(code)) return "benefit";
   return "unpaid"; // unpaid, permission, family, suspension, absent
 }
+// Leave under articles 139–140 (annual, additional, creative) is paid from the 12-month average, not from the month's salary.
+const VACATION = new Set(["annual", "addleave", "creative"]);
+export const isVacationCode = (code: string) => VACATION.has(code);
+
+// Calendar days of vacation inside a month (art. 114, 138): the marked working days plus the weekends and company days off
+// between two marked working days. Holidays are not counted: the vacation is extended by them.
+export function vacationCalendarDays(days: { date: string; off: "" | "weekend" | "holiday" | "transfer" | "company" }[], isVacation: (date: string) => boolean): { workingDays: number; calendarDays: number } {
+  let working = 0;
+  let calendar = 0;
+  for (let i = 0; i < days.length; i++) {
+    const d = days[i];
+    if (d.off === "") {
+      if (isVacation(d.date)) {
+        working += 1;
+        calendar += 1;
+      }
+    } else if (d.off === "weekend" || d.off === "company") {
+      let before = i - 1;
+      while (before >= 0 && days[before].off !== "") before--;
+      let after = i + 1;
+      while (after < days.length && days[after].off !== "") after++;
+      if (before >= 0 && after < days.length && isVacation(days[before].date) && isVacation(days[after].date)) calendar += 1;
+    }
+  }
+  return { workingDays: working, calendarDays: calendar };
+}
+
 const WEIGHT: Record<DayStatus, number> = { outside: 0, work: 1, paid: 1, twothirds: 2 / 3, benefit: 0, unpaid: 0 };
 
 export type OtherDeduction = { label: string; amount: number; kind: DeductionKind };
@@ -72,6 +99,8 @@ export type PayInput = {
   sector?: Sector;
   taxReduction?: number;
   inputs?: Partial<PayInputs>;
+  // Vacation days of the month and the average monthly pay of the previous 12 months (art. 140); `mask` marks, per working day, the vacation ones.
+  annual?: { mask: boolean[]; calendarDays: number; averageMonthly: number };
   advances?: number; // paid in advance this month
   asOf?: number; // count only the first N working days (the rest are assumed worked, for the advance)
 };
@@ -85,6 +114,8 @@ export type PayResult = {
   unpaidDays: number;
   hourly: number;
   lines: { id: string; label: string; amount: number; article: string }[];
+  vacationDays: number; // vacation calendar days paid from the average (art. 140)
+  vacationAverageMonthly: number;
   gross: number;
   incomeTax: number;
   employeeSocial: number;
@@ -116,7 +147,14 @@ export function computePay(input: PayInput): PayResult {
   const counted = input.statuses.map((s, i) => (input.asOf !== undefined && i >= input.asOf && s !== "outside" ? ("work" as DayStatus) : s));
   const count = (kinds: DayStatus[]) => counted.filter((s) => kinds.includes(s)).length;
   const worked = count(["work"]);
+  // Vacation working days are paid from the average, the other paid days from the salary share.
+  const vacationMask = input.annual?.mask || [];
+  const vacationTotal = vacationMask.filter(Boolean).length;
+  const vacationCounted = counted.filter((st, i) => vacationMask[i] && st === "paid").length;
   const paidLeave = count(["paid"]);
+  const otherPaid = Math.max(0, paidLeave - vacationCounted);
+  const vacationDays = vacationTotal ? r2((input.annual?.calendarDays || 0) * (vacationCounted / vacationTotal)) : 0;
+  const vacationAverage = r2(pos(input.annual?.averageMonthly));
   const downtime = count(["twothirds"]);
   const benefit = count(["benefit"]);
   const unpaid = count(["unpaid"]);
@@ -127,7 +165,8 @@ export function computePay(input: PayInput): PayResult {
     if (amount > 0) lines.push({ id, label, amount: r2(amount), article });
   };
   add("worked", `İşlənmiş günlər (${worked} / ${normDays})`, perDay * worked, "Əmək M. 154, 171");
-  add("paid-leave", `Ödənişli məzuniyyət və icazə günləri (${paidLeave})`, perDay * paidLeave, "Əmək M. 139–140, 179");
+  add("paid-leave", `Digər ödənişli icazə və məzuniyyət günləri (${otherPaid})`, perDay * otherPaid, "Əmək M. 139, 179");
+  add("vacation", `Əmək məzuniyyəti: orta aylıq ${vacationAverage.toFixed(2)} ÷ ${MEAN_MONTH_DAYS} × ${vacationDays} təqvim günü`, (vacationAverage / MEAN_MONTH_DAYS) * vacationDays, "Əmək M. 140");
   add("downtime", `Boşdayanma, tarif maaşının 2/3 hissəsi (${downtime})`, perDay * downtime * (2 / 3), "Əmək M. 169");
   add("overtime", `İş vaxtından artıq iş (${extra.overtimeHours} saat × 2)`, hourly * 2 * extra.overtimeHours, "Əmək M. 165");
   add("rest-day", `İstirahət və bayram günü işi (${extra.restDayHours} saat × ${extra.restDayWithinNorm ? 1 : 2})`, hourly * (extra.restDayWithinNorm ? 1 : 2) * extra.restDayHours, "Əmək M. 164");
@@ -152,7 +191,8 @@ export function computePay(input: PayInput): PayResult {
   if (benefit) notes.push(`${benefit} gün müavinətlə ödənilir (Sosial Sığorta): əmək haqqına daxil deyil, müavinəti ayrıca hesablayın.`);
   if (unpaid) notes.push(`${unpaid} gün ödənişsizdir (ödənişsiz məzuniyyət, üzrsüz yoxluq və s.).`);
   if (other.some((d) => d.applied < d.amount)) notes.push("Tutulmalar Əmək Məcəlləsinin 176-cı maddəsindəki həddə endirildi; qalıq növbəti aya keçirilməlidir.");
-  if (paidLeave) notes.push("Məzuniyyət günləri aylıq maaşın gün payı ilə hesablanıb; 140-cı maddə ilə dəqiq məbləğ əvvəlki 12 ayın orta əmək haqqından tapılır.");
+  if (vacationDays) notes.push("Əmək məzuniyyəti haqqı 140-cı maddə ilə əvvəlki 12 ayın orta aylıq əmək haqqından (÷ 30,4) hesablanıb; bayram günləri məzuniyyətə daxil deyil.");
+  if (otherPaid) notes.push("Digər ödənişli günlər aylıq maaşın gün payı ilə hesablanıb.");
   return {
     normDays,
     workedDays: worked,
@@ -162,6 +202,8 @@ export function computePay(input: PayInput): PayResult {
     unpaidDays: unpaid,
     hourly: r2(hourly),
     lines,
+    vacationDays,
+    vacationAverageMonthly: vacationAverage,
     gross,
     incomeTax: taxed.incomeTax,
     employeeSocial: taxed.employeeSocial,

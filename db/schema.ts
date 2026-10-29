@@ -881,6 +881,7 @@ export const payrollSettings = sqliteTable("payroll_settings", {
   companyId: text("company_id").primaryKey(),
   advanceDay: integer("advance_day").notNull().default(0),
   payDay: integer("pay_day").notNull().default(28),
+  dualThreshold: integer("dual_threshold").notNull().default(0),
   updated: text("updated").notNull(),
 });
 export const payrollBankAccounts = sqliteTable("payroll_bank_accounts", {
@@ -916,6 +917,9 @@ export const payrollBatches = sqliteTable("payroll_batches", {
   createdByName: text("created_by_name").notNull().default(""),
   approvedByName: text("approved_by_name").notNull().default(""),
   approvedAt: text("approved_at").notNull().default(""),
+  approvedBy: text("approved_by").notNull().default(""),
+  firstApprovedBy: text("first_approved_by").notNull().default(""),
+  firstApprovedName: text("first_approved_name").notNull().default(""),
   sentAt: text("sent_at").notNull().default(""),
   paidAt: text("paid_at").notNull().default(""),
   created: text("created").notNull(),
