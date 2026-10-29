@@ -56,10 +56,11 @@ export type CompanyPermission =
   | "attendance" // attendance sheet and the production calendar
   | "documents" // employee document folder: contracts, orders, IDs
   | "personal-data" // identity card, address and bank data of employees
-  | "audit"; // the company journal
+  | "audit" // the company journal
+  | "payroll"; // monthly pay, advances, pay slips and the bank register
 
 // What owner, director and HR do every day; a role below them gets each only as a grant.
-const HR_WORK: CompanyPermission[] = ["employees", "staff", "orders", "attendance", "documents", "personal-data"];
+const HR_WORK: CompanyPermission[] = ["employees", "staff", "orders", "attendance", "documents", "personal-data", "payroll"];
 const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
   owner: [
     "team",
@@ -118,6 +119,7 @@ export const PERMISSION_INFO: PermissionInfo[] = [
   { id: "documents", label: "İşçi sənəd qovluğu", group: "Kadr və işçilər", description: "Müqavilə, əmr və vəsiqə kimi sənədləri yükləyir və açır.", grantable: true, sensitive: true },
   { id: "personal-data", label: "İşçilərin şəxsi məlumatları", group: "Kadr və işçilər", description: "Şəxsiyyət vəsiqəsi, FİN, ünvan, IBAN və ailə məlumatları.", grantable: true, sensitive: true },
   { id: "salaries", label: "Maaşlar və təklif məbləğləri", group: "Maliyyə və hesabat", description: "İşçilərin əmək haqqını, vergi və sığorta hesabını və təklif məbləğlərini görür və dəyişir.", grantable: true, sensitive: true },
+  { id: "payroll", label: "Əmək haqqı hesablanması, avans və ödənişlər", group: "Maliyyə və hesabat", description: "Aylıq əmək haqqı cədvəlini hesablayır, avans verir, ödənişləri qeyd edir, haqq-hesab vərəqələrini və bank reyestrini hazırlayır.", grantable: true, sensitive: true },
   { id: "reports", label: "Hesabatların Excel-ə ixracı", group: "Maliyyə və hesabat", description: "Panel hesabatları və XLSX faylları.", grantable: true },
   { id: "billing", label: "Hesab-fakturalar və ödənişlər", group: "Maliyyə və hesabat", description: "Paket, ödəniş və hesab-fakturalar.", grantable: true, sensitive: true },
   { id: "company-profile", label: "Şirkət məlumatları və təsdiqləmə", group: "Şirkət", description: "Şirkət profilini və doğrulama sənədlərini dəyişir.", grantable: true },
@@ -133,6 +135,7 @@ export const GRANTABLE: { id: CompanyPermission; label: string; group: string; d
 // The HR endpoints behind the one broad "salaries" check each need their own permission.
 const PATH_PERMISSION: [RegExp, CompanyPermission][] = [
   [/^company\/(staff|headcount|org-names|structure)(\/|$)/, "staff"],
+  [/^company\/payroll(\/|$)/, "payroll"],
   [/^company\/(orders|order-signers|applications)(\/|$)/, "orders"],
   [/^company\/(attendance|calendar)(\/|$)/, "attendance"],
   [/^company\/employee-docs?(\/|$)/, "documents"],

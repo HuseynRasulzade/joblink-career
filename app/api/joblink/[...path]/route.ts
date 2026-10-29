@@ -374,6 +374,7 @@ import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode,
 import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
 import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
 import { taxReduction, weeklyHours } from "@/lib/employee-rights";
+import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, latePenalty, paymentDate, scheduleProblem, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
@@ -7613,6 +7614,268 @@ async function route(request: Request) {
     const done = await db.prepare("UPDATE company_employees SET user_id='',link_hash='',link_expires='',updated=? WHERE id=? AND company_id=?").bind(new Date().toISOString(), str(b.id, 100), id).run();
     if (!done.meta.changes) throw new HttpError(404, "İşçi tapılmadı.");
     await companyAudit(db, id, userId, "employee-unlinked", str(b.id, 100), "");
+    return ok({ ok: true });
+  }
+  // ---- Payroll: monthly pay, advances, payments, pay slips ----
+  const payrollMonth = () => {
+    const raw = str(requestUrl.searchParams.get("month"), 7) || new Date().toISOString().slice(0, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) throw new HttpError(400, "Ayı düzgün seçin (YYYY-AA).");
+    return { raw, year: Number(raw.slice(0, 4)), month: Number(raw.slice(5, 7)) };
+  };
+  const payrollRows = async (monthRaw: string) => {
+    const year = Number(monthRaw.slice(0, 4));
+    const month = Number(monthRaw.slice(5, 7));
+    const first = `${monthRaw}-01`;
+    const last = `${monthRaw}-31`;
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const [people, overrides, marks, inputs, payments, run, settings] = await Promise.all([
+      db
+        .prepare(
+          "SELECT id,name,position,department,section,start_date,end_date,status,salary_cents,salary_type,sector,profile FROM company_employees WHERE company_id=? AND status<>'removed' AND (start_date='' OR start_date<=?) AND (status<>'left' OR end_date='' OR end_date>=?) ORDER BY department,section,name",
+        )
+        .bind(id, last, first)
+        .all<{ id: string; name: string; position: string; department: string; section: string; start_date: string; end_date: string; status: string; salary_cents: number; salary_type: string; sector: string; profile: string }>(),
+      db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<CalendarOverride>(),
+      db.prepare("SELECT employee_id,day,code FROM attendance_marks WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<{ employee_id: string; day: string; code: string }>(),
+      db.prepare("SELECT employee_id,data FROM payroll_inputs WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ employee_id: string; data: string }>(),
+      db.prepare("SELECT id,employee_id,kind,amount_cents,paid_on,method,note FROM payroll_payments WHERE company_id=? AND month=? ORDER BY paid_on,created").bind(id, monthRaw).all<{ id: string; employee_id: string; kind: string; amount_cents: number; paid_on: string; method: string; note: string }>(),
+      db.prepare("SELECT status,snapshot,approved_by_name,approved_at FROM payroll_runs WHERE company_id=? AND month=?").bind(id, monthRaw).first<{ status: string; snapshot: string; approved_by_name: string; approved_at: string }>(),
+      db.prepare("SELECT advance_day,pay_day FROM payroll_settings WHERE company_id=?").bind(id).first<{ advance_day: number; pay_day: number }>(),
+    ]);
+    const days = monthDays(year, month, overrides.results);
+    const working = days.filter((d) => !d.off);
+    const behind = working.filter((d) => d.date <= todayIso).length;
+    const markBy = new Map<string, Map<string, string>>();
+    for (const m of marks.results) markBy.set(m.employee_id, (markBy.get(m.employee_id) || new Map()).set(m.day, m.code));
+    const inputBy = new Map(inputs.results.map((r) => [r.employee_id, (() => { try { return cleanInputs(JSON.parse(r.data)); } catch { return { ...EMPTY_INPUTS }; } })()]));
+    const advanceDay = settings?.advance_day || 0;
+    const payDay = settings?.pay_day || 28;
+    const advanceDate = advanceDay ? paymentDate(year, month, advanceDay) : "";
+    const payDate = paymentDate(year, month, payDay);
+    const frozen: { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] } | null = run?.status === "approved" && run.snapshot ? (() => { try { return JSON.parse(run.snapshot); } catch { return null; } })() : null;
+    const rows = people.results.map((p) => {
+      const profile = parseProfile(p.profile);
+      const reduction = taxReduction(profile, todayIso);
+      const week = weeklyHours(profile, first);
+      const pay = p.salary_cents > 0 ? employeePay(p.salary_cents / 100, p.salary_type === "net" ? "net" : "gross", p.sector === "public" ? "public" : "private", reduction) : null;
+      const marksOf = markBy.get(p.id) || new Map<string, string>();
+      const statuses: DayStatus[] = working.map((d) => ((p.start_date && d.date < p.start_date) || (p.status === "left" && p.end_date && d.date > p.end_date) ? "outside" : dayStatus(marksOf.get(d.date) || "")));
+      const mine = payments.results.filter((x) => x.employee_id === p.id);
+      const advances = mine.filter((x) => x.kind === "advance").reduce((sum, x) => sum + x.amount_cents, 0) / 100;
+      const salaryPaid = mine.filter((x) => x.kind === "salary").reduce((sum, x) => sum + x.amount_cents, 0) / 100;
+      const inputsOf = inputBy.get(p.id) || { ...EMPTY_INPUTS };
+      const base = { monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: inputsOf };
+      const result = frozen?.rows?.find((r) => r.employeeId === p.id)?.result || computePay({ ...base, advances });
+      const upTo = month === Number(todayIso.slice(5, 7)) && year === Number(todayIso.slice(0, 4)) ? behind : todayIso > `${monthRaw}-31` ? statuses.length : 0;
+      const available = availableAdvance(base, Math.min(statuses.length, upTo), advances);
+      const outstanding = Math.max(0, Math.round((result.toPay - salaryPaid) * 100) / 100);
+      const lastPaid = mine.filter((x) => x.kind === "salary").map((x) => x.paid_on).sort().pop() || "";
+      return {
+        employeeId: p.id,
+        name: p.name,
+        position: p.position,
+        department: p.department,
+        section: p.section,
+        status: p.status,
+        salaryType: p.salary_type === "net" ? "net" : "gross",
+        monthlySalary: pay?.gross || 0,
+        weekHours: week.hours,
+        iban: profile.iban,
+        taxReduction: reduction,
+        inputs: inputsOf,
+        result,
+        advances,
+        salaryPaid,
+        outstanding,
+        availableAdvance: available.available,
+        earnedToDate: available.earned,
+        late: outstanding > 0 && payDate < todayIso ? latePenalty(payDate, todayIso, outstanding) : { days: 0, amount: 0 },
+        lastPaid,
+        payments: mine.map((x) => ({ id: x.id, kind: x.kind, amount: x.amount_cents / 100, paidOn: x.paid_on, method: x.method, note: x.note })),
+      };
+    });
+    const sum = (pick: (r: (typeof rows)[number]) => number) => Math.round(rows.reduce((t, r) => t + pick(r), 0) * 100) / 100;
+    return {
+      month: monthRaw,
+      status: run?.status || "draft",
+      approvedBy: run?.approved_by_name || "",
+      approvedAt: run?.approved_at || "",
+      settings: { advanceDay, payDay, problem: scheduleProblem(advanceDay, payDay) },
+      schedule: { advanceDate, payDate },
+      workingDays: working.length,
+      rows,
+      totals: {
+        employees: rows.length,
+        gross: sum((r) => r.result.gross),
+        incomeTax: sum((r) => r.result.incomeTax),
+        employeeInsurance: sum((r) => r.result.employeeSocial + r.result.employeeUnemployment + r.result.employeeMedical),
+        net: sum((r) => r.result.net),
+        advances: sum((r) => r.advances),
+        toPay: sum((r) => r.result.toPay),
+        outstanding: sum((r) => r.outstanding),
+        employerContributions: sum((r) => r.result.employerSocial + r.result.employerUnemployment + r.result.employerMedical),
+        employerCost: sum((r) => r.result.employerCost),
+      },
+    };
+  };
+  const payrollLocked = async (monthRaw: string) =>
+    (await db.prepare("SELECT status FROM payroll_runs WHERE company_id=? AND month=?").bind(id, monthRaw).first<{ status: string }>())?.status === "approved";
+  if (request.method === "GET" && path === "company/payroll") {
+    requirePermission("salaries", "Əmək haqqı cədvəlini yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    return ok(await payrollRows(payrollMonth().raw));
+  }
+  // The sheet and the bank register as Excel files; a pay slip as data for printing.
+  if (request.method === "GET" && path === "company/payroll/export") {
+    requirePermission("salaries", "Cədvəli yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
+    const sheet = await payrollRows(payrollMonth().raw);
+    const kind = str(requestUrl.searchParams.get("kind"), 10) === "bank" ? "bank" : "sheet";
+    let headers: string[];
+    let rows: (string | number)[][];
+    if (kind === "bank") {
+      headers = ["Ad Soyad", "IBAN", "Ödənilməli məbləğ (AZN)", "Təyinat"];
+      rows = sheet.rows.filter((r) => r.outstanding > 0).map((r) => [r.name, r.iban, r.outstanding, `${sheet.month} ayı üçün əmək haqqı`]);
+    } else {
+      headers = ["Ad Soyad", "Vəzifə", "Departament", "Norma günü", "İşlənmiş gün", "Hesablanmış (gross)", "Gəlir vergisi", "DSMF", "İşsizlik sığortası", "Tibbi sığorta", "Net", "Digər tutulmalar", "Avans", "Ödəniləcək", "Ödənilib", "Qalıq", "İşəgötürən sığorta payı", "İşəgötürənin ümumi xərci"];
+      rows = sheet.rows.map((r) => [r.name, r.position, r.department, r.result.normDays, r.result.workedDays, r.result.gross, r.result.incomeTax, r.result.employeeSocial, r.result.employeeUnemployment, r.result.employeeMedical, r.result.net, r.result.otherDeductions.reduce((t, d) => t + d.applied, 0), r.advances, r.result.toPay, r.salaryPaid, r.outstanding, Math.round((r.result.employerSocial + r.result.employerUnemployment + r.result.employerMedical) * 100) / 100, r.result.employerCost]);
+      rows.push(["CƏMİ", "", "", "", "", sheet.totals.gross, sheet.totals.incomeTax, "", "", "", sheet.totals.net, "", sheet.totals.advances, sheet.totals.toPay, "", sheet.totals.outstanding, sheet.totals.employerContributions, sheet.totals.employerCost]);
+    }
+    await companyAudit(db, id, userId, "payroll-exported", kind, sheet.month);
+    return new Response(Uint8Array.from(createXlsx(headers, rows, kind === "bank" ? "Bank reyestri" : "Əmək haqqı")).buffer, {
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Content-Disposition": `attachment; filename="emek-haqqi-${kind === "bank" ? "bank" : "cedvel"}-${sheet.month}.xlsx"`,
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    });
+  }
+  if (request.method === "GET" && path === "company/payroll/payslip") {
+    requirePermission("salaries", "Haqq-hesab vərəqəsini yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    const sheet = await payrollRows(payrollMonth().raw);
+    const row = sheet.rows.find((r) => r.employeeId === str(requestUrl.searchParams.get("employeeId"), 100));
+    if (!row) throw new HttpError(404, "İşçi bu ay üçün siyahıda yoxdur.");
+    const company = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>();
+    return ok({ month: sheet.month, status: sheet.status, company: company?.name || "", schedule: sheet.schedule, row });
+  }
+  if (request.method === "POST" && path === "company/payroll/input") {
+    requirePermission("salaries", "Əmək haqqı məlumatlarını yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    const monthRaw = str(b.month, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthRaw)) throw new HttpError(400, "Ayı düzgün seçin.");
+    if (await payrollLocked(monthRaw)) throw new HttpError(409, "Bu ay təsdiqlənib: dəyişmək üçün əvvəlcə təsdiqi geri çəkin (direktor).");
+    const employee = await db.prepare("SELECT id FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(str(b.employeeId, 100), id).first<{ id: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const clean: PayInputs = cleanInputs(b.inputs);
+    await db
+      .prepare("INSERT INTO payroll_inputs(company_id,month,employee_id,data,updated) VALUES(?,?,?,?,?) ON CONFLICT(company_id,month,employee_id) DO UPDATE SET data=excluded.data,updated=excluded.updated")
+      .bind(id, monthRaw, employee.id, JSON.stringify(clean), new Date().toISOString())
+      .run();
+    await companyAudit(db, id, userId, "payroll-input", employee.id, monthRaw);
+    return ok({ ok: true, inputs: clean });
+  }
+  if (request.method === "POST" && path === "company/payroll/settings") {
+    requirePermission("salaries", "Əmək haqqı ayarlarını yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    const advanceDay = Math.max(0, Math.min(28, Math.round(Number(b.advanceDay) || 0)));
+    const payDay = Math.max(1, Math.min(31, Math.round(Number(b.payDay) || 28)));
+    const problem = scheduleProblem(advanceDay, payDay);
+    if (problem) throw new HttpError(400, problem);
+    await db
+      .prepare("INSERT INTO payroll_settings(company_id,advance_day,pay_day,updated) VALUES(?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET advance_day=excluded.advance_day,pay_day=excluded.pay_day,updated=excluded.updated")
+      .bind(id, advanceDay, payDay, new Date().toISOString())
+      .run();
+    await companyAudit(db, id, userId, "payroll-settings", "", `avans ${advanceDay || "yoxdur"}, ödəniş ${payDay}`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/payroll/pay") {
+    requirePermission("salaries", "Ödənişləri yalnız əmək haqqı icazəsi olan şəxs qeyd edə bilər.");
+    const b = await jsonBody(request);
+    const monthRaw = str(b.month, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthRaw)) throw new HttpError(400, "Ayı düzgün seçin.");
+    const kind = b.kind === "advance" ? "advance" : "salary";
+    const amount = Math.round((Number(b.amount) || 0) * 100) / 100;
+    if (!(amount > 0)) throw new HttpError(400, "Məbləği yazın.");
+    const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(str(b.paidOn, 10)) ? str(b.paidOn, 10) : new Date().toISOString().slice(0, 10);
+    const sheet = await payrollRows(monthRaw);
+    const row = sheet.rows.find((r) => r.employeeId === str(b.employeeId, 100));
+    if (!row) throw new HttpError(404, "İşçi bu ay üçün siyahıda yoxdur.");
+    if (kind === "advance") {
+      if (!sheet.settings.advanceDay) throw new HttpError(409, "Avans verməzdən əvvəl ayarlarda avans gününü seçin: aylıq əmək haqqı tərəflərin razılığı ilə ayda iki dəfə verilir (Əmək M. 172.1).");
+      if (sheet.status === "approved") throw new HttpError(409, "Bu ay təsdiqlənib: avans artıq verilmir.");
+      if (amount > row.availableAdvance + 0.005 && !canAct("approve-director"))
+        throw new HttpError(409, `Bu işçi bu günədək ${row.availableAdvance} AZN qazanıb (avans: ${row.advances} AZN). Daha çox avansı yalnız direktor verə bilər.`);
+    } else {
+      if (sheet.status !== "approved") throw new HttpError(409, "Əmək haqqının ödənişini qeyd etməzdən əvvəl ayı təsdiqləyin.");
+      if (amount > row.outstanding + 0.005) throw new HttpError(409, `Bu işçiyə ödəniləcək qalıq ${row.outstanding} AZN-dir.`);
+    }
+    const paymentId = crypto.randomUUID();
+    await db
+      .prepare("INSERT INTO payroll_payments(id,company_id,employee_id,month,kind,amount_cents,paid_on,method,note,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(paymentId, id, row.employeeId, monthRaw, kind, Math.round(amount * 100), paidOn, str(b.method, 40), str(b.note, 200), userId, new Date().toISOString())
+      .run();
+    await companyAudit(db, id, userId, kind === "advance" ? "payroll-advance" : "payroll-paid", row.employeeId, `${row.name}: ${amount} AZN (${monthRaw})`);
+    return ok({ ok: true, id: paymentId }, 201);
+  }
+  if (request.method === "POST" && path === "company/payroll/pay-all") {
+    requirePermission("salaries", "Ödənişləri yalnız əmək haqqı icazəsi olan şəxs qeyd edə bilər.");
+    const b = await jsonBody(request);
+    const monthRaw = str(b.month, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthRaw)) throw new HttpError(400, "Ayı düzgün seçin.");
+    const sheet = await payrollRows(monthRaw);
+    if (sheet.status !== "approved") throw new HttpError(409, "Əvvəlcə ayı təsdiqləyin.");
+    const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(str(b.paidOn, 10)) ? str(b.paidOn, 10) : new Date().toISOString().slice(0, 10);
+    const due = sheet.rows.filter((r) => r.outstanding > 0);
+    const now = new Date().toISOString();
+    for (let i = 0; i < due.length; i += 50)
+      await db.batch(
+        due.slice(i, i + 50).map((r) =>
+          db
+            .prepare("INSERT INTO payroll_payments(id,company_id,employee_id,month,kind,amount_cents,paid_on,method,note,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+            .bind(crypto.randomUUID(), id, r.employeeId, monthRaw, "salary", Math.round(r.outstanding * 100), paidOn, str(b.method, 40) || "bank", "", userId, now),
+        ),
+      );
+    await companyAudit(db, id, userId, "payroll-paid", "", `${monthRaw}: ${due.length} işçi`);
+    return ok({ ok: true, paid: due.length });
+  }
+  if (request.method === "POST" && path === "company/payroll/payment/delete") {
+    requirePermission("salaries", "Ödənişləri yalnız əmək haqqı icazəsi olan şəxs silə bilər.");
+    const b = await jsonBody(request);
+    const row = await db.prepare("SELECT month,kind FROM payroll_payments WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<{ month: string; kind: string }>();
+    if (!row) throw new HttpError(404, "Ödəniş tapılmadı.");
+    if (row.kind === "advance" && (await payrollLocked(row.month))) throw new HttpError(409, "Təsdiqlənmiş ayın avansı silinə bilməz.");
+    await db.prepare("DELETE FROM payroll_payments WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    await companyAudit(db, id, userId, "payroll-payment-removed", str(b.id, 100), row.month);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/payroll/approve") {
+    requirePermission("salaries", "Ayı yalnız əmək haqqı icazəsi olan şəxs təsdiqləyə bilər.");
+    const b = await jsonBody(request);
+    const monthRaw = str(b.month, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthRaw)) throw new HttpError(400, "Ayı düzgün seçin.");
+    if (await payrollLocked(monthRaw)) throw new HttpError(409, "Bu ay artıq təsdiqlənib.");
+    const sheet = await payrollRows(monthRaw);
+    if (!sheet.rows.length) throw new HttpError(400, "Bu ay üçün işçi yoxdur.");
+    const noPay = sheet.rows.filter((r) => r.monthlySalary <= 0);
+    if (noPay.length) throw new HttpError(409, `Maaşı daxil edilməyən işçilər var: ${noPay.slice(0, 5).map((r) => r.name).join(", ")}. Əvvəl işçi kartında maaşı yazın.`);
+    const excess = sheet.rows.filter((r) => r.result.advanceExcess > 0);
+    if (excess.length) throw new HttpError(409, `Avansı hesablanmış əmək haqqından çox olan işçilər var: ${excess.slice(0, 5).map((r) => `${r.name} (${r.result.advanceExcess} AZN artıq)`).join(", ")}. Avansı silin və ya düzəldin.`);
+    const me = await requesterName();
+    const now = new Date().toISOString();
+    await db
+      .prepare("INSERT INTO payroll_runs(company_id,month,status,snapshot,approved_by,approved_by_name,approved_at,updated) VALUES(?,?,'approved',?,?,?,?,?) ON CONFLICT(company_id,month) DO UPDATE SET status='approved',snapshot=excluded.snapshot,approved_by=excluded.approved_by,approved_by_name=excluded.approved_by_name,approved_at=excluded.approved_at,updated=excluded.updated")
+      .bind(id, monthRaw, JSON.stringify({ rows: sheet.rows.map((r) => ({ employeeId: r.employeeId, result: r.result })) }), userId, me, now, now)
+      .run();
+    await companyAudit(db, id, userId, "payroll-approved", "", `${monthRaw}: ${sheet.rows.length} işçi, ödəniləcək ${sheet.totals.toPay} AZN`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/payroll/reopen") {
+    requirePermission("salaries", "Təsdiqi yalnız əmək haqqı icazəsi olan şəxs geri çəkə bilər.");
+    if (!canAct("approve-director")) throw new HttpError(403, "Təsdiqi yalnız direktor və ya hesab sahibi geri çəkə bilər.");
+    const b = await jsonBody(request);
+    const monthRaw = str(b.month, 7);
+    const paid = await db.prepare("SELECT COUNT(*) AS n FROM payroll_payments WHERE company_id=? AND month=? AND kind='salary'").bind(id, monthRaw).first<{ n: number }>();
+    if (Number(paid?.n) > 0) throw new HttpError(409, "Bu ay üçün əmək haqqı ödənişi qeyd edilib: əvvəlcə ödənişləri silin.");
+    await db.prepare("UPDATE payroll_runs SET status='draft',snapshot='',updated=? WHERE company_id=? AND month=?").bind(new Date().toISOString(), id, monthRaw).run();
+    await companyAudit(db, id, userId, "payroll-reopened", "", monthRaw);
     return ok({ ok: true });
   }
   // ---- Excel: attendance marks, calendar days, personal data ----

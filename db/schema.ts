@@ -834,6 +834,55 @@ export const employeeLinkAttempts = sqliteTable(
   { userId: text("user_id").notNull(), created: text("created").notNull() },
   (t) => [index("employee_link_attempts_user").on(t.userId, t.created)],
 );
+// Payroll: one-off additions and deductions of a month, advances and salary payments, the frozen result of an approved month.
+export const payrollInputs = sqliteTable(
+  "payroll_inputs",
+  {
+    companyId: text("company_id").notNull(),
+    month: text("month").notNull(),
+    employeeId: text("employee_id").notNull(),
+    data: text("data").notNull().default("{}"),
+    updated: text("updated").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.month, t.employeeId] })],
+);
+export const payrollPayments = sqliteTable(
+  "payroll_payments",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    month: text("month").notNull(),
+    kind: text("kind").notNull(), // "advance" or "salary"
+    amountCents: integer("amount_cents").notNull(),
+    paidOn: text("paid_on").notNull(),
+    method: text("method").notNull().default(""),
+    note: text("note").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [index("payroll_payments_month").on(t.companyId, t.month)],
+);
+export const payrollRuns = sqliteTable(
+  "payroll_runs",
+  {
+    companyId: text("company_id").notNull(),
+    month: text("month").notNull(),
+    status: text("status").notNull().default("draft"),
+    snapshot: text("snapshot").notNull().default(""),
+    approvedBy: text("approved_by").notNull().default(""),
+    approvedByName: text("approved_by_name").notNull().default(""),
+    approvedAt: text("approved_at").notNull().default(""),
+    updated: text("updated").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.month] })],
+);
+export const payrollSettings = sqliteTable("payroll_settings", {
+  companyId: text("company_id").primaryKey(),
+  advanceDay: integer("advance_day").notNull().default(0),
+  payDay: integer("pay_day").notNull().default(28),
+  updated: text("updated").notNull(),
+});
 // Draft until the director approves the staff plan; after that changes need the director.
 export const staffPlanState = sqliteTable("staff_plan_state", {
   companyId: text("company_id").primaryKey(),

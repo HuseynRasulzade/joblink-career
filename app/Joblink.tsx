@@ -18,6 +18,7 @@ import {
   Clock3,
   Building2,
   Calculator,
+  Banknote,
   Search,
   SlidersHorizontal,
   Check,
@@ -115,6 +116,7 @@ import {
 } from "./CompaniesPage";
 import { HrCalculators } from "./HrCalculators";
 import WorkplacePage from "./WorkplacePage";
+import PayrollPage from "./PayrollPage";
 import { FitReviewPanel } from "./FitReview";
 import PackagesPage from "./PackagesPage";
 import { localizeTree, setSiteLanguage } from "./i18n";
@@ -146,6 +148,7 @@ const hrNav = [
   { id: "hr-reports", label: "Hesabatlar", icon: BarChart3 },
   { id: "hr-employees", label: "İşçilər", icon: Contact },
   { id: "hr-orders", label: "Əmrlər reyestri", icon: FileCheck2 },
+  { id: "hr-payroll", label: "Əmək haqqı", icon: Banknote },
   { id: "hr-attendance", label: "Davamiyyət", icon: CalendarCheck },
   { id: "hr-workforce", label: "İşçi axını", icon: TrendingUp },
   { id: "hr-team", label: "Komanda və rollar", icon: UserCog },
@@ -447,6 +450,7 @@ export default function Joblink() {
     "hr-reports": "reports",
     "hr-orders": "orders",
     "hr-attendance": "attendance",
+    "hr-payroll": "payroll",
   };
   const hrVisible = hrNav.filter(
     (item) =>
@@ -2715,6 +2719,7 @@ export default function Joblink() {
               "hr-employees",
               "hr-orders",
               "hr-attendance",
+              "hr-payroll",
               "hr-workforce",
               "hr-team",
               "hr-company",
@@ -2747,6 +2752,7 @@ export default function Joblink() {
               )}
               {page === "hr-employees" && <EmployeesPage notify={notify} />}
               {page === "hr-orders" && <OrdersRegistry notify={notify} />}
+              {page === "hr-payroll" && <PayrollPage notify={notify} />}
               {page === "hr-attendance" && <AttendancePage notify={notify} />}
               {page === "hr-workforce" && (
                 <WorkforcePage me={companyMe} notify={notify} />

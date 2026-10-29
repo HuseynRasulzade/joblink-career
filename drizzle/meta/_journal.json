@@ -505,6 +505,13 @@
       "when": 1797102000000,
       "tag": "0071_employee_profile_link",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "6",
+      "when": 1797188400000,
+      "tag": "0072_payroll",
+      "breakpoints": true
     }
   ]
 }
