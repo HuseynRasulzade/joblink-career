@@ -5,7 +5,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -125,6 +125,48 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       ["2026-12-30", "Qısaldılmış gün", "Bayram qabağı"],
     ],
     rules: ["Rəsmi bayramlar və köçürmələr artıq təqvimdədir; yalnız şirkətin ondan fərqli günlərini yazın.", "Bir dəfəyə ən çox 400 gün yüklənir."],
+  },
+  payroll: {
+    title: "Ayın əmək haqqı məlumatları (mükafat, əlavə, saat, tutulma)",
+    file: "emek-haqqi-numune.xlsx",
+    sheet: "Əmək haqqı",
+    columns: [
+      { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. Eyni adlı iki işçi varsa e-poçt əlavə edin." },
+      { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "Mükafat", required: false, format: "AZN", description: "Ayın mükafatı." },
+      { header: "Əlavə", required: false, format: "AZN", description: "Əlavə ödəniş (iş şəraiti, staj və s.)." },
+      { header: "Artıq iş saatı", required: false, format: "Saat", description: "İş vaxtından artıq işlənən saat (2 qat, Əmək M. 165)." },
+      { header: "İstirahət günü saatı", required: false, format: "Saat", description: "İstirahət və bayram günlərində işlənən saat (md. 164)." },
+      { header: "Gecə saatı", required: false, format: "Saat", description: "22:00–06:00 arası işlənən saat." },
+      { header: "Gecə əlavəsi", required: false, format: "% (0–100)", description: "Müqavilədəki gecə əlavəsinin faizi." },
+      { header: "Tutulma adı", required: false, format: "Mətn", description: "Tutulmanın adı və səbəbi (məsələn kredit, icra sənədi)." },
+      { header: "Tutulma məbləği", required: false, format: "AZN", description: "Tutulacaq məbləğ; qanuni həddən (20/50/70%) artıq hissə növbəti aya keçir." },
+      { header: "Tutulma növü", required: false, format: "Mətn", description: "Ümumi, İcra sənədi və ya Aliment.", values: "Ümumi; İcra sənədi; Aliment" },
+      { header: "Qeyd", required: false, format: "Mətn", description: "Ayın qeydi." },
+    ],
+    examples: [
+      ["Aysel Məmmədova", "", 150, 50, 6, 0, 0, 0, "Bank krediti", 100, "Ümumi", "Rüblük mükafat"],
+      ["Orxan Əliyev", "", 0, 0, 0, 8, 12, 20, "", 0, "", ""],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Fayl seçilmiş ayın məlumatlarını əvəz edir: yalnız faylda adı olan işçilərin həmin ay üçün əl ilə yazılmış əlavə və saatları yenilənir.", "Təsdiqlənmiş ay dəyişdirilmir.", "Hər işçi üçün bir tutulma yazılır; bir neçə tutulma üçün işçi kartında “Əlavə / tutulma” və ya təkrarlanan maddələrdən istifadə edin."],
+  },
+  hours: {
+    title: "İşlənən saatlar (gün üzrə)",
+    file: "saat-ucotu-numune.xlsx",
+    sheet: "Saatlar",
+    columns: [
+      { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. Eyni adlı iki işçi varsa e-poçt əlavə edin." },
+      { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "Tarix", required: true, format: DATE, description: "İşlənən gün." },
+      { header: "Saat", required: true, format: "0–24", description: "Həmin gün işlənən ümumi saat (0 yazılsa həmin günün qeydi silinir)." },
+      { header: "Gecə saatı", required: false, format: "0–24", description: "Bunlardan 22:00–06:00 arası işlənən saat." },
+      { header: "Qeyd", required: false, format: "Mətn", description: "İstəyə görə izah." },
+    ],
+    examples: [
+      ["Aysel Məmmədova", "", "2026-03-16", 10, 0, "Hesabat dövrü"],
+      ["Orxan Əliyev", "", "2026-03-21", 6, 2, "Şənbə növbəsi"],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "İş günündə gündəlik normadan (həftəlik saat / 5; bayram qabağı gün 1 saat az) artıq saat avtomatik artıq iş sayılır; istirahət və bayram günündə işlənən bütün saat istirahət günü işi sayılır.", "Təsdiqlənmiş aya aid sətirlər yüklənmir.", "Əmək haqqı cədvəlində əl ilə yazılmış saat varsa, o üstünlük təşkil edir."],
   },
   questions: {
     title: "Test sualları",

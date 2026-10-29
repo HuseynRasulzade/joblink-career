@@ -989,6 +989,20 @@ export const payrollReminders = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.companyId, t.key] })],
 );
+// Hours worked on a day (and of them at night): overtime, rest-day and night pay come from here.
+export const attendanceHours = sqliteTable(
+  "attendance_hours",
+  {
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    day: text("day").notNull(),
+    hours: real("hours").notNull().default(0),
+    nightHours: real("night_hours").notNull().default(0),
+    note: text("note").notNull().default(""),
+    updated: text("updated").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.employeeId, t.day] }), index("attendance_hours_day").on(t.companyId, t.day)],
+);
 // Draft until the director approves the staff plan; after that changes need the director.
 export const staffPlanState = sqliteTable("staff_plan_state", {
   companyId: text("company_id").primaryKey(),

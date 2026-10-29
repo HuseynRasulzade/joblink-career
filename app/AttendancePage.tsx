@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, Plus, Trash2 } from "lucide-react";
 import { ATTENDANCE_CODES, attendanceCode, type CalendarDay, type CalendarOverride, type AttendanceSummary, type MonthSummary } from "@/lib/calendar-az";
+import HoursPanel from "./HoursPanel";
 import { Field, Modal } from "./components";
 import { SheetImport } from "./StaffPages";
 
@@ -557,7 +558,7 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
 }
 
 export function AttendancePage({ notify }: { notify: Notify }) {
-  const [tab, setTab] = useState<"sheet" | "calendar">("sheet");
+  const [tab, setTab] = useState<"sheet" | "calendar" | "hours">("sheet");
   return (
     <div>
       <div className="admin-actions" role="tablist" style={{ marginBottom: 12 }}>
@@ -567,8 +568,11 @@ export function AttendancePage({ notify }: { notify: Notify }) {
         <button type="button" role="tab" aria-selected={tab === "calendar"} className={tab === "calendar" ? "primary" : "secondary"} onClick={() => setTab("calendar")}>
           İstehsalat təqvimi və bayramlar
         </button>
+        <button type="button" role="tab" aria-selected={tab === "hours"} className={tab === "hours" ? "primary" : "secondary"} onClick={() => setTab("hours")}>
+          Saat uçotu
+        </button>
       </div>
-      {tab === "sheet" ? <AttendanceSheet notify={notify} /> : <ProductionCalendar notify={notify} />}
+      {tab === "sheet" ? <AttendanceSheet notify={notify} /> : tab === "calendar" ? <ProductionCalendar notify={notify} /> : <HoursPanel notify={notify} />}
     </div>
   );
 }

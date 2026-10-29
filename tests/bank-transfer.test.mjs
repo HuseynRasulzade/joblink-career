@@ -22,3 +22,22 @@ test("file rows carry the sender and purpose", () => {
   assert.equal(rows[0][8], "AZ00SENDER");
   assert.match(String(rows[0][7]), /avans/);
 });
+
+import { matchStatement, parseBankStatement } from "../lib/bank-transfer.ts";
+test("a bank statement is matched to the lines of an order", () => {
+  const { items } = buildTransfers([
+    { employeeId: "1", name: "Aysel", fin: "", iban: "AZ21NABZ00000000137010001944", cardNumber: "", payMethod: "", amount: 865.5 },
+    { employeeId: "2", name: "Orxan", fin: "", iban: "AZ96AIIB33800000000000000001", cardNumber: "", payMethod: "", amount: 100 },
+  ]);
+  const statement = parseBankStatement([
+    ["Tarix", "Alıcı", "IBAN", "Məbləğ", "Təyinat"],
+    ["15.03.2026", "Aysel M.", "AZ21 NABZ 0000 0000 1370 1000 1944", "865,50", "maaş"],
+    ["16.03.2026", "Başqası", "AZ00XXXX", "12.00", ""],
+  ]);
+  assert.equal(statement.rows.length, 2);
+  const used = new Set();
+  const m = matchStatement(items, statement.rows, used);
+  assert.equal(m.found, 1);
+  assert.equal(m.lastDate, "2026-03-15");
+  assert.match(m.missing[0], /Orxan/);
+});

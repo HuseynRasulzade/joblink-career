@@ -4,8 +4,9 @@ import { Download, FileSpreadsheet, Plus, Printer, Trash2, Upload } from "lucide
 import { buildEmployeeOffer, buildOrder, leaveDays, orderNumber, ORDER_KINDS, UNPAID_REASONS, unpaidReason, type OrderField, type OrderInput, type OrderKind } from "@/lib/orders";
 import { employeePay, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 import { readSheetRows } from "@/lib/question-file";
+import { parseHoursRows } from "@/lib/hours";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "@/lib/staff-import";
-import { parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
+import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { SHEET_TEMPLATES, templateSheets } from "@/lib/sheet-templates";
 import { OTHER_REQUEST, REQUEST_KINDS, orderPrefill, requestKindLabel, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { ATTENDANCE_CODES } from "@/lib/calendar-az";
@@ -35,13 +36,15 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 const azn = (value: number) => `${value.toLocaleString("az-AZ", { maximumFractionDigits: 2 })} AZN`;
 
 // ---------- Excel file: template and import ----------
-export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles";
+export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles" | "payroll" | "hours";
 const SHEET_META: Record<SheetKind, { title: string; endpoint: string; done: (r: SheetResult) => string }> = {
   employees: { title: "İşçiləri Excel faylından əlavə et", endpoint: "company/employees/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən işçi yadda saxlanıldı.` },
   staff: { title: "Ştat cədvəlini Excel faylından əlavə et", endpoint: "company/staff/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən ştat sətri yadda saxlanıldı.` },
   structure: { title: "Departament və şöbələri Excel faylından əlavə et", endpoint: "company/structure/import", done: (r) => `${r.created} yeni ad yaradıldı, ${r.existing ?? 0} artıq var idi.` },
   attendance: { title: "Davamiyyət qeydlərini Excel faylından yüklə", endpoint: "company/attendance/import", done: (r) => `${r.applied ?? 0} sətir tətbiq olundu (${r.days ?? 0} gün qeyd edildi).` },
   calendar: { title: "Şirkət təqvimini Excel faylından yüklə", endpoint: "company/calendar/import", done: (r) => `${r.applied ?? 0} gün təqvimdə yeniləndi.` },
+  hours: { title: "İşlənən saatları Excel faylından yüklə", endpoint: "company/hours/import", done: (r) => `${r.applied ?? 0} günün saatı yeniləndi.` },
+  payroll: { title: "Ayın əmək haqqı məlumatlarını Excel faylından yüklə", endpoint: "company/payroll/inputs-import", done: (r) => `${r.applied ?? 0} işçinin əlavə, saat və tutulma məlumatı yeniləndi.` },
   profiles: { title: "Şəxsi məlumatları Excel faylından yüklə", endpoint: "company/employees/profile-import", done: (r) => `${r.applied ?? 0} işçinin şəxsi məlumatı yeniləndi.` },
 };
 type SheetResult = { created: number; updated?: number; existing?: number; applied?: number; days?: number; pending?: boolean; issues?: { line: number; reason: string }[] };
@@ -74,6 +77,8 @@ function previewOf(kind: SheetKind, rows: unknown[]): { head: string[]; body: st
   if (kind === "structure") return { head: ["Departament", "Şöbə"], body: list.map((r) => [str(r.department), str(r.section)]) };
   if (kind === "attendance") return { head: ["Ad Soyad", "Başlama", "Bitmə", "Səbəb", "Qeyd"], body: list.map((r) => [str(r.name), str(r.from), str(r.to), codeName(String(r.code)), str(r.note)]) };
   if (kind === "calendar") return { head: ["Tarix", "Növ", "Ad"], body: list.map((r) => [str(r.day), KIND_NAME[String(r.kind)] || str(r.kind), str(r.label)]) };
+  if (kind === "hours") return { head: ["Ad Soyad", "Tarix", "Saat", "Gecə saatı"], body: list.map((r) => [str(r.name), str(r.day), str(r.hours), str(r.night)]) };
+  if (kind === "payroll") return { head: ["Ad Soyad", "Mükafat", "Əlavə", "Artıq iş saatı", "Tutulma"], body: list.map((r) => [str(r.name), str(r.bonus), str(r.allowance), str(r.overtimeHours), r.deductionAmount ? `${str(r.deductionLabel)}: ${str(r.deductionAmount)}` : "—"]) };
   return { head: ["Ad Soyad", "E-poçt", "Doldurulan sahə sayı"], body: list.map((r) => [str(r.name), str(r.email), String(Object.keys((r.profile as object) || {}).length)]) };
 }
 
@@ -82,11 +87,13 @@ export function SheetImport({
   onClose,
   onDone,
   notify,
+  extra,
 }: {
   kind: SheetKind;
   onClose: () => void;
   onDone: () => void;
   notify: Notify;
+  extra?: Record<string, unknown>;
 }) {
   const [rows, setRows] = useState<string[][] | null>(null);
   const [fileName, setFileName] = useState("");
@@ -94,7 +101,7 @@ export function SheetImport({
   const template = SHEET_TEMPLATES[kind];
   const parsed = useMemo(() => {
     if (!rows) return null;
-    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows }[kind];
+    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows, payroll: parsePayrollRows, hours: parseHoursRows }[kind];
     return parse(rows) as { rows: unknown[]; issues: { line: number; reason: string }[] };
   }, [rows, kind]);
   async function pick(file: File | undefined) {
@@ -110,7 +117,7 @@ export function SheetImport({
     if (!rows) return;
     setBusy(true);
     try {
-      const result = await request<SheetResult>(SHEET_META[kind].endpoint, { rows });
+      const result = await request<SheetResult>(SHEET_META[kind].endpoint, { rows, ...extra });
       const problems = result.issues?.length ? ` ${result.issues.length} sətir yüklənmədi: ${result.issues[0].reason}` : "";
       notify(result.pending ? "Ştat cədvəli təsdiq olunub: yükləmə direktorun təsdiqinə göndərildi." : `${SHEET_META[kind].done(result)}${problems}`);
       onDone();

@@ -5,6 +5,7 @@ import { Field, Modal } from "./components";
 import PayrollBank from "./PayrollBank";
 import PayrollReport from "./PayrollReport";
 import { payslipHtml } from "@/lib/payslip-html";
+import { SheetImport } from "./StaffPages";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -33,7 +34,7 @@ type Payment = { id: string; kind: "advance" | "salary" | "vacation" | "benefit"
 const KIND_LABEL: Record<Payment["kind"], string> = { advance: "Avans", salary: "Əmək haqqı", vacation: "Məzuniyyət haqqı", benefit: "Sosial sığorta müavinəti", extra: "Digər ödəniş" };
 type Row = {
   employeeId: string; name: string; position: string; department: string; status: string; monthlySalary: number; weekHours: number; iban: string; bankName: string; card: string; payMethod: string; fin: string; ssn: string; startDate: string; sector: string; benefit: string; section: string; salaryType: string; lastPaid: string;
-  taxReduction: number; warnings: string[]; recurring: { id: string; type: string; label: string; amount: number }[]; carries: { label: string; amount: number; from: string }[]; annual: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null; inputs: Inputs; result: Result; advances: number; salaryPaid: number; vacationDue: number; vacationPaid: number; vacationOutstanding: number; benefitDue: number; benefitPaid: number; benefitOutstanding: number; extraPaid: number; outstanding: number; availableAdvance: number;
+  taxReduction: number; hours: { days: number; worked: number; overtime: number; restDay: number; night: number }; warnings: string[]; recurring: { id: string; type: string; label: string; amount: number }[]; carries: { label: string; amount: number; from: string }[]; annual: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null; inputs: Inputs; result: Result; advances: number; salaryPaid: number; vacationDue: number; vacationPaid: number; vacationOutstanding: number; benefitDue: number; benefitPaid: number; benefitOutstanding: number; extraPaid: number; outstanding: number; availableAdvance: number;
   earnedToDate: number; payments: Payment[];
 };
 type Sheet = {
@@ -61,6 +62,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const [paying, setPaying] = useState<Row | null>(null);
   const [settings, setSettings] = useState(false);
   const [bank, setBank] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [view, setView] = useState<"sheet" | "report">("sheet");
   const notifyRef = useRef(notify);
   useEffect(() => {
@@ -133,6 +135,11 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <a className="secondary report-button" href={`/api/joblink/company/payroll/export?month=${month}&kind=bank`} download>
             <Download size={14} /> Bank reyestri (XLSX)
           </a>
+          {sheet?.status !== "approved" && (
+            <button type="button" className="secondary" onClick={() => setImporting(true)}>
+              Excel-dən əlavə və saatlar
+            </button>
+          )}
           <button type="button" className="secondary" onClick={() => setView("report")}>
             Hesablaşma hesabatı
           </button>
@@ -205,6 +212,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
                   <small className="skill-description">{[r.position, r.department, r.section].filter(Boolean).join(" · ")}</small>
                   {r.weekHours < 40 && <small className="week-badge">{r.weekHours} saatlıq həftə</small>}
                   {r.monthlySalary <= 0 && <small className="danger-text">Maaş daxil edilməyib</small>}
+                  {r.hours.days > 0 && <small className="skill-description">saat uçotu: {r.hours.worked} saat{r.hours.overtime ? ` · artıq ${r.hours.overtime}` : ""}{r.hours.restDay ? ` · istirahət günü ${r.hours.restDay}` : ""}{r.hours.night ? ` · gecə ${r.hours.night}` : ""}</small>}
                   {r.monthlySalary > 0 && r.warnings.map((w) => <small key={w} className="danger-text">{w}</small>)}
                 </td>
                 <td>
@@ -268,6 +276,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       {edit && <InputsModal month={month} row={edit} notify={notify} onClose={() => setEdit(null)} onSaved={load} />}
       {advance && <AdvanceModal month={month} row={advance} schedule={sheet.schedule.advanceDate} notify={notify} onClose={() => setAdvance(null)} onChanged={load} />}
       {paying && <PayModal month={month} row={paying} approved={approved} notify={notify} onClose={() => setPaying(null)} onSaved={load} />}
+      {importing && <SheetImport kind="payroll" extra={{ month }} notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {bank && <PayrollBank month={month} notify={notify} onClose={() => setBank(false)} onChanged={load} />}
       {settings && <SettingsModal settings={sheet.settings} notify={notify} onClose={() => setSettings(false)} onSaved={load} />}
     </div>

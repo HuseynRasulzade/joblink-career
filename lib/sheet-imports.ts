@@ -326,3 +326,74 @@ export function matchEmployee(list: EmployeeRef[], row: { name: string; email: s
   if (same.length > 1) return { error: `${row.name}: eyni adlı ${same.length} işçi var — e-poçt sütununu doldurun.` };
   return { error: `${row.name}: işçi siyahısında tapılmadı.` };
 }
+
+// ── Pay inputs of a month: bonus, allowance, extra hours and one deduction per row ──────────
+
+export type PayrollImportRow = { line: number; name: string; email: string; bonus: number; allowance: number; overtimeHours: number; restDayHours: number; nightHours: number; nightPercent: number; deductionLabel: string; deductionAmount: number; deductionKind: "general" | "writ" | "alimony"; note: string; present: string[] };
+type PayrollField = "name" | "email" | "bonus" | "allowance" | "overtimeHours" | "restDayHours" | "nightHours" | "nightPercent" | "deductionLabel" | "deductionAmount" | "deductionKind" | "note";
+const PAYROLL_ALIASES: Aliases<PayrollField> = {
+  name: ["ad soyad", "isci", "isci adi", "ad", "full name", "name", "employee"],
+  email: ["e poct", "email", "e mail", "poct"],
+  bonus: ["mukafat", "bonus"],
+  allowance: ["elave", "elaveler", "allowance"],
+  overtimeHours: ["artiq is saati", "artiq is", "overtime", "is vaxtindan artiq saat"],
+  restDayHours: ["istirahet gunu saati", "bayram gunu saati", "istirahet saati", "rest day hours"],
+  nightHours: ["gece saati", "gece is saati", "night hours"],
+  nightPercent: ["gece elavesi", "gece faizi", "gece %", "night percent"],
+  deductionLabel: ["tutulma adi", "tutulmanin adi", "tutulma", "deduction"],
+  deductionAmount: ["tutulma mebleği", "tutulma meblegi", "tutulma mebleg", "deduction amount"],
+  deductionKind: ["tutulma novu", "tutulmanin novu", "deduction type"],
+  note: ["qeyd", "izah", "note"],
+};
+export function parsePayrollRows(rows: string[][], limit = 500): { rows: PayrollImportRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, PAYROLL_ALIASES, "name");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  const numeric: PayrollField[] = ["bonus", "allowance", "overtimeHours", "restDayHours", "nightHours", "nightPercent", "deductionAmount"];
+  if (!numeric.concat(["deductionLabel"]).some((f) => header.map.has(f))) return { rows: [], issues: [{ line: header.index + 1, reason: "Ad Soyad-dan başqa heç bir sütun tapılmadı (Mükafat, Əlavə, Artıq iş saatı, Tutulma …)." }] };
+  const out: PayrollImportRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} işçi yüklənir.` });
+      break;
+    }
+    const name = cell(row, header.map, "name").slice(0, 120);
+    if (name.length < 2) {
+      issues.push({ line, reason: "Ad Soyad yoxdur." });
+      continue;
+    }
+    const values: Record<string, number> = {};
+    let bad = false;
+    for (const f of numeric) {
+      const text = cell(row, header.map, f);
+      const n = text ? parseNumberCell(text) : 0;
+      if (text && (!Number.isFinite(n) || n < 0)) {
+        issues.push({ line, reason: `${name}: “${text}” rəqəm kimi oxunmadı.` });
+        bad = true;
+        break;
+      }
+      values[f] = n;
+    }
+    if (bad) continue;
+    const kindKey = fold(cell(row, header.map, "deductionKind"));
+    const deductionKind = /icra|mehkeme|writ/.test(kindKey) ? "writ" : /aliment|alimony/.test(kindKey) ? "alimony" : "general";
+    if (values.deductionAmount > 0 && !cell(row, header.map, "deductionLabel")) {
+      issues.push({ line, reason: `${name}: tutulmanın adı yoxdur.` });
+      continue;
+    }
+    if (values.nightPercent > 100) {
+      issues.push({ line, reason: `${name}: gecə əlavəsi 100%-dən çox ola bilməz.` });
+      continue;
+    }
+    out.push({
+      line, name, email: cell(row, header.map, "email").slice(0, 160),
+      bonus: values.bonus, allowance: values.allowance, overtimeHours: values.overtimeHours, restDayHours: values.restDayHours, nightHours: values.nightHours, nightPercent: values.nightPercent,
+      deductionLabel: cell(row, header.map, "deductionLabel").slice(0, 120), deductionAmount: values.deductionAmount, deductionKind, note: cell(row, header.map, "note").slice(0, 300),
+      present: [...header.map.keys()],
+    });
+  }
+  return { rows: out, issues };
+}

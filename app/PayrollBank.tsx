@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { Field, Modal } from "./components";
+import { readSheetRows } from "@/lib/question-file";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -34,6 +35,8 @@ export default function PayrollBank({ month, notify, onClose, onChanged }: { mon
   const [form, setForm] = useState<Account | null>(null);
   const [open, setOpen] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [statement, setStatement] = useState<{ rows: string[][]; name: string } | null>(null);
+  const [reconciled, setReconciled] = useState<{ rows: number; unmatchedRows: number; issues: { line: number; reason: string }[]; batches: { id: string; month: string; kind: string; total: number; found: number; count: number; missing: string[]; paid: boolean }[] } | null>(null);
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -53,6 +56,29 @@ export default function PayrollBank({ month, notify, onClose, onChanged }: { mon
       notify(done);
       load();
       onChanged();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function pickStatement(file: File | undefined) {
+    if (!file) return;
+    try {
+      setStatement({ rows: await readSheetRows(file), name: file.name });
+      setReconciled(null);
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function reconcile(apply: boolean) {
+    if (!statement) return;
+    try {
+      const result = await request<NonNullable<typeof reconciled>>("company/payroll/bank/reconcile", { rows: statement.rows, apply });
+      setReconciled(result);
+      if (apply) {
+        notify(`${result.batches.filter((b) => b.paid).length} sənəd ödənilmiş kimi qeyd edildi.`);
+        load();
+        onChanged();
+      }
     } catch (error) {
       notify((error as Error).message);
     }
@@ -121,6 +147,32 @@ export default function PayrollBank({ month, notify, onClose, onChanged }: { mon
             <button type="button" className="secondary" onClick={() => void act("company/payroll/bank/batch", { kind: "benefit", accountId }, "Müavinət sənədi hazırlandı.")}>Müavinət sənədi</button>
           </div>
         )}
+        <details className="sheet-guide">
+          <summary><b>Bank çıxarışı ilə yoxla</b> <small className="muted">— köçürmələr çıxarışda tapılırsa sənəd özü “ödənildi” olur</small></summary>
+          <div className="offer-composer">
+            <p className="muted">Bankdan çıxarışı Excel və ya CSV kimi yükləyin (tarix, alıcı, IBAN və ya kart, məbləğ sütunları). Yalnız göndərilmiş və ya təsdiqlənmiş sənədlər yoxlanır; bütün sətirləri çıxarışda tapılan sənəd ödənilmiş qeyd olunur.</p>
+            <label className="secondary report-button" style={{ cursor: "pointer" }}>
+              {statement?.name || "Çıxarış faylı seçin"}
+              <input type="file" accept=".xlsx,.csv" hidden onChange={(e) => void pickStatement(e.target.files?.[0])} />
+            </label>
+            {statement && (
+              <div className="admin-actions">
+                <button type="button" className="secondary" onClick={() => void reconcile(false)}>Yoxla</button>
+                <button type="button" className="primary" onClick={() => window.confirm("Tam uyğun gələn sənədlər ödənilmiş kimi qeyd edilsin?") && void reconcile(true)}>Uyğun gələnləri ödənilmiş qeyd et</button>
+              </div>
+            )}
+            {reconciled && (
+              <>
+                <p>{reconciled.rows} çıxarış sətri, o cümlədən {reconciled.unmatchedRows} sətir heç bir sənədə uyğun gəlmədi.{reconciled.issues.length > 0 && ` ${reconciled.issues.length} sətir oxunmadı.`}</p>
+                {reconciled.batches.map((r) => (
+                  <p key={r.id}>
+                    <b>{KIND[r.kind] || r.kind} {r.month}</b> ({azn(r.total)}): {r.found}/{r.count} tapıldı{r.paid ? " — ödənilmiş qeyd edildi" : r.missing.length ? `. Tapılmayanlar: ${r.missing.join(", ")}` : ""}
+                  </p>
+                ))}
+              </>
+            )}
+          </div>
+        </details>
         {!data.batches.length && <p className="muted">Bu ay üçün ödəniş sənədi yoxdur.</p>}
         {data.batches.map((b) => (
           <div key={b.id} className={`bank-batch bank-${b.status}`}>

@@ -2052,6 +2052,22 @@ export function TeamPage({
   );
 }
 const AUDIT_LABELS: Record<string, string> = {
+  "view-payroll": "əmək haqqı cədvəlinə baxdı",
+  "view-payslip": "işçinin haqq-hesab vərəqəsinə baxdı",
+  "view-salaries": "işçilərin maaşlarına baxdı",
+  "view-personal-data": "işçilərin şəxsi məlumatlarına baxdı",
+  "view-salary-history": "maaş tarixçəsinə baxdı",
+  "view-settlement-report": "hesablaşma hesabatına baxdı",
+  "view-fund-report": "kadr və fond hesabatına baxdı",
+  "payroll-exported": "əmək haqqı faylı yüklədi",
+  "payroll-report-exported": "hesablaşma hesabatını yüklədi",
+  "payroll-approved": "əmək haqqı ayını təsdiqlədi",
+  "payroll-reopened": "əmək haqqı ayının təsdiqini geri çəkdi",
+  "payroll-payment-reversed": "ödənişi geri çəkdi",
+  "payroll-batch-approved": "bank ödəniş sənədini təsdiqlədi",
+  "payroll-recurring-added": "təkrarlanan maddə əlavə etdi",
+  "payroll-inputs-imported": "əmək haqqı məlumatlarını Excel-dən yüklədi",
+  "hours-imported": "işlənən saatları Excel-dən yüklədi",
   "test-results-exported": "test nəticələrini Excel-ə yüklədi",
   "test-ai-parse": "test faylını AI ilə oxudu",
   "employee-doc-added": "işçi sənədi əlavə etdi",
