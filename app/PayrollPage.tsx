@@ -202,7 +202,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
               <tr key={r.employeeId}>
                 <td>
                   <b>{r.name}</b>
-                  <small className="skill-description">{[r.position, r.department].filter(Boolean).join(" · ")}</small>
+                  <small className="skill-description">{[r.position, r.department, r.section].filter(Boolean).join(" · ")}</small>
                   {r.weekHours < 40 && <small className="week-badge">{r.weekHours} saatlıq həftə</small>}
                   {r.monthlySalary <= 0 && <small className="danger-text">Maaş daxil edilməyib</small>}
                 </td>

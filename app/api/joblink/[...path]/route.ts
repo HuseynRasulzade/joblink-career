@@ -1952,9 +1952,48 @@ async function route(request: Request) {
     const row = await db.prepare("SELECT user_id FROM company_employees WHERE id=? AND company_id=?").bind(employeeId, id).first<{ user_id: string }>().catch(() => null);
     if (row?.user_id) await notify(db, { userId: row.user_id, type: "application", title, body, link: "workplace" }).catch(() => undefined);
   };
+  // Tells employees whose record is linked to an account (in the app) and, for the pay slip, those with an e-mail address.
+  // The text carries no amounts: the figures are only in the employee's own page.
+  const tellPayroll = async (employeeIds: string[] | null, title: string, body: string, mail = false) => {
+    try {
+      const rows = (await db.prepare("SELECT id,user_id,email,name FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).all<{ id: string; user_id: string; email: string; name: string }>()).results;
+      const wanted = new Set(employeeIds || rows.map((r) => r.id));
+      const list = rows.filter((r) => wanted.has(r.id)).slice(0, 400);
+      const settings = runtime();
+      const send = mail && mailConfigured(settings);
+      for (let i = 0; i < list.length; i += 20)
+        await Promise.allSettled(
+          list.slice(i, i + 20).flatMap((r) => [
+            r.user_id ? notify(db, { userId: r.user_id, type: "application", title, body, link: "workplace" }) : Promise.resolve(),
+            send && r.email ? sendMail(settings, { to: r.email, subject: title, text: `Salam, ${r.name}.\n\n${body}\n\nJoblink` }) : Promise.resolve(),
+          ]),
+        );
+    } catch {
+      // A notice that does not go out never stops the payroll work.
+    }
+  };
   // The plan is a draft until the director approves it; after that a change to it needs the director.
   const planStatus = async () =>
     (await db.prepare("SELECT status FROM staff_plan_state WHERE company_id=?").bind(id).first<{ status: string }>())?.status || "draft";
+  // The section of the staff row each employee sits in: shown where the employee has no section of their own.
+  let sectionCache: Promise<Map<string, string>> | null = null;
+  const staffSections = () => {
+    sectionCache ||= (async () => {
+      const map = new Map<string, string>();
+      try {
+        const planData = await loadPlanData(db, id);
+        const placed = assignPeople(planData.units, planData.people);
+        for (const [unitId, list] of placed.byUnit) {
+          const unit = planData.units.find((u) => u.id === unitId);
+          if (unit?.section) for (const p of list) map.set(p.id, unit.section);
+        }
+      } catch {
+        // Without the staff plan the sections stay as the employees have them.
+      }
+      return map;
+    })();
+    return sectionCache;
+  };
   const planLocked = async () => {
     if (canAct("approve-director")) return false;
     return (await approvalRules()).headcount || (await planStatus()) === "approved";
@@ -7342,6 +7381,7 @@ async function route(request: Request) {
       byEmployee.set(m.employee_id, { ...(byEmployee.get(m.employee_id) || {}), [m.day]: m.code });
       if (m.note) notes.set(m.employee_id, { ...(notes.get(m.employee_id) || {}), [m.day]: m.note });
     }
+    const sectionFor = await staffSections();
     const employees = people.results.map((p) => {
       const mine = byEmployee.get(p.id) || {};
       const employed = { start: p.start_date, end: p.status === "left" ? p.end_date : "" };
@@ -7352,7 +7392,7 @@ async function route(request: Request) {
         name: p.name,
         position: p.position,
         department: p.department,
-        section: p.section,
+        section: p.section || sectionFor.get(p.id) || "",
         startDate: p.start_date,
         endDate: employed.end,
         status: p.status,
@@ -7743,6 +7783,7 @@ async function route(request: Request) {
     const advanceDate = advanceDay ? paymentDate(year, month, advanceDay) : "";
     const payDate = paymentDate(year, month, payDay);
     const frozen: { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] } | null = run?.status === "approved" && run.snapshot ? (() => { try { return JSON.parse(run.snapshot); } catch { return null; } })() : null;
+    const sectionFor = await staffSections();
     const rows = people.results.map((p) => {
       const profile = parseProfile(p.profile);
       const reduction = taxReduction(profile, todayIso);
@@ -7806,7 +7847,7 @@ async function route(request: Request) {
         name: p.name,
         position: p.position,
         department: p.department,
-        section: p.section,
+        section: p.section || sectionFor.get(p.id) || "",
         status: p.status,
         salaryType: p.salary_type === "net" ? "net" : "gross",
         monthlySalary: pay?.gross || 0,
@@ -8341,6 +8382,7 @@ async function route(request: Request) {
     for (let i = 0; i < inserts.length; i += 50) await db.batch(inserts.slice(i, i + 50));
     await db.prepare("UPDATE payroll_batches SET status='paid',paid_at=? WHERE id=? AND company_id=?").bind(now, batch.id, id).run();
     await companyAudit(db, id, userId, "payroll-batch-paid", batch.id, `${batch.month}: ${recorded / 100} AZN, ${inserts.length} işçi`);
+    await tellPayroll(items.map((it) => it.employeeId), "Ödəniş edildi", `${batch.month} ayı üçün ${({ advance: "avans", salary: "əmək haqqı", vacation: "məzuniyyət haqqı", benefit: "müavinət" } as Record<string, string>)[kind]} bank vasitəsilə ödənildi. Təfərrüat: İş yerim → Əmək haqqı.`);
     return ok({ ok: true, paid: inserts.length, amount: recorded / 100 });
   }
   // The bank did not pay after all, or the order was recorded by mistake: the payments of the order are taken back.
@@ -8561,6 +8603,7 @@ async function route(request: Request) {
       .bind(paymentId, id, row.employeeId, monthRaw, kind, Math.round(amount * 100), paidOn, str(b.method, 40), str(b.note, 200), title, userId, new Date().toISOString())
       .run();
     await companyAudit(db, id, userId, kind === "advance" ? "payroll-advance" : "payroll-paid", row.employeeId, `${row.name}: ${amount} AZN (${monthRaw}, ${kind}${title ? `, ${title}` : ""})`);
+    await tellPayroll([row.employeeId], kind === "advance" ? "Avansınız ödənildi" : "Ödəniş edildi", `${monthRaw} ayı üçün ${({ advance: "avans", salary: "əmək haqqı", vacation: "məzuniyyət haqqı", benefit: "müavinət", extra: title || "digər ödəniş" } as Record<string, string>)[kind]} ödənişi qeyd edildi (${amount.toFixed(2)} AZN, ${paidOn}). Təfərrüat: İş yerim → Əmək haqqı.`);
     return ok({ ok: true, id: paymentId }, 201);
   }
   if (request.method === "POST" && path === "company/payroll/pay-all") {
@@ -8582,6 +8625,7 @@ async function route(request: Request) {
         ),
       );
     await companyAudit(db, id, userId, "payroll-paid", "", `${monthRaw}: ${due.length} işçi`);
+    await tellPayroll(due.map((r) => r.employeeId), "Əmək haqqınız ödənildi", `${monthRaw} ayının əmək haqqı ödənişi qeyd edildi. Təfərrüat: İş yerim → Əmək haqqı.`);
     return ok({ ok: true, paid: due.length });
   }
   if (request.method === "POST" && path === "company/payroll/payment/reverse") {
@@ -8625,6 +8669,7 @@ async function route(request: Request) {
       .bind(id, monthRaw, JSON.stringify({ rows: sheet.rows.map((r) => ({ employeeId: r.employeeId, result: r.result })) }), userId, me, now, now)
       .run();
     await companyAudit(db, id, userId, "payroll-approved", "", `${monthRaw}: ${sheet.rows.length} işçi, ödəniləcək ${sheet.totals.toPay} AZN`);
+    await tellPayroll(sheet.rows.map((r) => r.employeeId), `${monthRaw} ayı üçün haqq-hesab vərəqəniz hazırdır`, `${monthRaw} ayının əmək haqqı hesablaması təsdiqləndi. Vərəqəni Joblink hesabınızda “İş yerim” → “Əmək haqqı” bölməsində görə və çap edə bilərsiniz.`, true);
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/payroll/reopen") {
