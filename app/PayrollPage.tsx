@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Printer } from "lucide-react";
 import { Field, Modal } from "./components";
+import PayrollBank from "./PayrollBank";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -28,7 +29,7 @@ type Result = {
 };
 type Payment = { id: string; kind: "advance" | "salary"; amount: number; paidOn: string; method: string; note: string };
 type Row = {
-  employeeId: string; name: string; position: string; department: string; status: string; monthlySalary: number; weekHours: number; iban: string; fin: string; ssn: string; startDate: string; sector: string; benefit: string; section: string; salaryType: string; lastPaid: string;
+  employeeId: string; name: string; position: string; department: string; status: string; monthlySalary: number; weekHours: number; iban: string; bankName: string; card: string; payMethod: string; fin: string; ssn: string; startDate: string; sector: string; benefit: string; section: string; salaryType: string; lastPaid: string;
   taxReduction: number; inputs: Inputs; result: Result; advances: number; salaryPaid: number; outstanding: number; availableAdvance: number;
   earnedToDate: number; late: { days: number; amount: number }; payments: Payment[];
 };
@@ -57,6 +58,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const [advance, setAdvance] = useState<Row | null>(null);
   const [paying, setPaying] = useState<Row | null>(null);
   const [settings, setSettings] = useState(false);
+  const [bank, setBank] = useState(false);
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -83,16 +85,6 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       const win = window.open("", "_blank");
       if (!win) return notify("Çap pəncərəsi bloklanıb.");
       const lines = r.result.lines.map((l) => `<tr><td>${esc(l.label)}</td><td>${esc(l.article)}</td><td>${azn(l.amount)}</td></tr>`).join("");
-      const deductions = [
-        ["Gəlir vergisi", r.result.incomeTax, "Vergi"],
-        ["DSMF (işçi payı)", r.result.employeeSocial, "Məcburi sığorta"],
-        ["İşsizlik sığortası", r.result.employeeUnemployment, "Məcburi sığorta"],
-        ["İcbari tibbi sığorta", r.result.employeeMedical, "Məcburi sığorta"],
-        ...r.result.otherDeductions.map((d) => [d.label || "Digər tutulma", d.applied, KIND_TEXT[d.kind]] as [string, number, string]),
-        ...(r.advances ? ([["Verilmiş avans", r.advances, "Əvvəlcədən ödənilib"]] as [string, number, string][]) : []),
-      ]
-        .map((d) => `<tr><td>${esc(String(d[0]))}</td><td>${esc(String(d[2]))}</td><td>${azn(Number(d[1]))}</td></tr>`)
-        .join("");
       const x = r.result;
       const legal = [
         ["Gəlir vergisi", x.incomeTax, `Vergi Məcəlləsi, md. 101${x.taxReduction ? ` (güzəşt: ${azn(x.taxReduction)}${r.benefit ? `, ${r.benefit}` : ""})` : ""}`],
@@ -164,6 +156,9 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   if (!sheet) return <p className="muted">Yüklənir…</p>;
   const t = sheet.totals;
   const approved = sheet.status === "approved";
+  const paidTotal = Math.round(sheet.rows.reduce((sum, r) => sum + r.advances + r.salaryPaid, 0) * 100) / 100;
+  const dueTotal = Math.round((paidTotal + t.outstanding) * 100) / 100;
+  const paidShare = dueTotal > 0 ? Math.min(100, Math.round((paidTotal / dueTotal) * 100)) : 0;
   return (
     <div className="company-page payroll-page">
       <div className="section-heading">
@@ -183,6 +178,9 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <a className="secondary report-button" href={`/api/joblink/company/payroll/export?month=${month}&kind=bank`} download>
             <Download size={14} /> Bank reyestri (XLSX)
           </a>
+          <button type="button" className="primary" onClick={() => setBank(true)}>
+            Bank və ödəniş sənədləri
+          </button>
           <button type="button" className="secondary" onClick={() => setSettings(true)}>
             Ödəniş ayarları
           </button>
@@ -205,6 +203,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
         <div className="staff-kpi"><small>Hesablanıb (gross)</small><strong>{azn(t.gross)}</strong><span>{t.employees} işçi · {sheet.workingDays} iş günü</span></div>
         <div className="staff-kpi"><small>Vergi və sığorta (işçi)</small><strong>{azn(t.incomeTax + t.employeeInsurance)}</strong><span>gəlir vergisi {azn(t.incomeTax)}</span></div>
         <div className="staff-kpi"><small>Net (əlinə)</small><strong>{azn(t.net)}</strong><span>avans {azn(t.advances)}</span></div>
+        <div className="staff-kpi"><small>Ödənilib (avans və maaş)</small><strong>{azn(paidTotal)}</strong><span>{paidShare}% · cəmi {azn(dueTotal)}</span><i className="pay-progress"><b style={{ width: `${paidShare}%` }} /></i></div>
         <div className="staff-kpi staff-kpi-good"><small>Ödəniləcək qalıq</small><strong>{azn(t.outstanding)}</strong><span>hesablanmış {azn(t.toPay)}</span></div>
         <div className="staff-kpi"><small>İşəgötürənin xərci</small><strong>{azn(t.employerCost)}</strong><span>sığorta payı {azn(t.employerContributions)}</span></div>
       </div>
@@ -269,6 +268,8 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
                 </td>
                 <td>
                   {r.outstanding > 0 ? azn(r.outstanding) : approved ? "ödənilib" : "—"}
+                  {(r.advances > 0 || r.salaryPaid > 0) && <small className="skill-description">ödənilib {azn(r.advances + r.salaryPaid)}{r.lastPaid ? ` · son ${dmy(r.lastPaid)}` : ""}</small>}
+                  <small className="skill-description">{r.payMethod === "cash" ? "nağd" : r.payMethod === "card" ? `kart ${r.card || "—"}` : r.iban ? `IBAN …${r.iban.slice(-6)}` : r.card ? `kart ${r.card}` : "hesab rekviziti yoxdur"}</small>
                   {r.late.days > 0 && <small className="danger-text">gecikmə {r.late.days} gün · ən azı {azn(r.late.amount)}</small>}
                 </td>
                 <td className="admin-actions">
@@ -309,6 +310,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       {edit && <InputsModal month={month} row={edit} notify={notify} onClose={() => setEdit(null)} onSaved={load} />}
       {advance && <AdvanceModal month={month} row={advance} schedule={sheet.schedule.advanceDate} notify={notify} onClose={() => setAdvance(null)} onChanged={load} />}
       {paying && <PayModal month={month} row={paying} notify={notify} onClose={() => setPaying(null)} onSaved={load} />}
+      {bank && <PayrollBank month={month} notify={notify} onClose={() => setBank(false)} onChanged={load} />}
       {settings && <SettingsModal settings={sheet.settings} notify={notify} onClose={() => setSettings(false)} onSaved={load} />}
     </div>
   );

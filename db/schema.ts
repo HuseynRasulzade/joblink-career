@@ -883,6 +883,43 @@ export const payrollSettings = sqliteTable("payroll_settings", {
   payDay: integer("pay_day").notNull().default(28),
   updated: text("updated").notNull(),
 });
+export const payrollBankAccounts = sqliteTable("payroll_bank_accounts", {
+  id: text("id").primaryKey(),
+  companyId: text("company_id").notNull(),
+  label: text("label").notNull().default(""),
+  bankName: text("bank_name").notNull(),
+  bankCode: text("bank_code").notNull().default(""),
+  swift: text("swift").notNull().default(""),
+  iban: text("iban").notNull(),
+  accountNumber: text("account_number").notNull().default(""),
+  voen: text("voen").notNull().default(""),
+  holder: text("holder").notNull().default(""),
+  currency: text("currency").notNull().default("AZN"),
+  auto: text("auto").notNull().default("off"),
+  isDefault: integer("is_default").notNull().default(0),
+  created: text("created").notNull(),
+});
+// A transfer order of the salary or advance: draft, approved by the director, sent to the bank, paid.
+export const payrollBatches = sqliteTable("payroll_batches", {
+  id: text("id").primaryKey(),
+  companyId: text("company_id").notNull(),
+  month: text("month").notNull(),
+  kind: text("kind").notNull(),
+  accountId: text("account_id").notNull(),
+  status: text("status").notNull().default("draft"),
+  source: text("source").notNull().default("manual"),
+  totalCents: integer("total_cents").notNull().default(0),
+  itemCount: integer("item_count").notNull().default(0),
+  items: text("items").notNull().default("[]"),
+  skipped: text("skipped").notNull().default("[]"),
+  note: text("note").notNull().default(""),
+  createdByName: text("created_by_name").notNull().default(""),
+  approvedByName: text("approved_by_name").notNull().default(""),
+  approvedAt: text("approved_at").notNull().default(""),
+  sentAt: text("sent_at").notNull().default(""),
+  paidAt: text("paid_at").notNull().default(""),
+  created: text("created").notNull(),
+});
 // Draft until the director approves the staff plan; after that changes need the director.
 export const staffPlanState = sqliteTable("staff_plan_state", {
   companyId: text("company_id").primaryKey(),

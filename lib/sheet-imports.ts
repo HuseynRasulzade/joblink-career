@@ -194,6 +194,12 @@ const PROFILE_ALIASES: Aliases<"name" | "email" | ProfileField> = {
   ssn: ["ssn", "sosial sigorta nomresi", "sosial sigorta ssn nomresi"],
   voen: ["voen"],
   iban: ["iban", "bank hesabi"],
+  bankName: ["bank", "bank adi"],
+  bankCode: ["bank kodu"],
+  accountNumber: ["hesab nomresi", "cari hesab"],
+  cardNumber: ["kart nomresi", "maas karti", "kart"],
+  cardHolder: ["kart sahibi", "kartin sahibi"],
+  payMethod: ["odenis usulu", "maas usulu"],
   educationLevel: ["tehsil seviyyesi", "tehsil"],
   militaryStatus: ["herbi ucot", "herbi veziyyet"],
   emergencyName: ["yaxin sexs", "yaxin sexs ad", "yaxin sexs adi"],
@@ -287,6 +293,7 @@ export function parseProfileRows(rows: string[][], limit = 500): { rows: Profile
       else if (field === "disabilityDegree") raw.disabilityDegree = degreeOf(text);
       else if (field === "careDependent") raw.careDependent = careOf(text);
       else if (field === "taxBenefit") raw.taxBenefit = benefitOf(text);
+      else if (field === "payMethod") raw.payMethod = /^(bank|kocurme)/.test(fold(text)) ? "bank" : /^kart|card/.test(fold(text)) ? "card" : /^(negd|cash)/.test(fold(text)) ? "cash" : "";
       else raw[field] = text;
     }
     if (raw.__bad) continue;

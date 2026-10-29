@@ -35,6 +35,13 @@ export type EmployeeProfile = {
   ssn: string;
   voen: string;
   iban: string;
+  // Account details for paying the salary: bank, its code, the account number, the salary card and how the pay is sent.
+  bankName: string;
+  bankCode: string;
+  accountNumber: string;
+  cardNumber: string;
+  cardHolder: string;
+  payMethod: "" | "bank" | "card" | "cash";
   educationLevel: string;
   militaryStatus: string;
   emergencyName: string;
@@ -46,7 +53,7 @@ export const EMPTY_PROFILE: EmployeeProfile = {
   idIssuedBy: "", idIssuedDate: "", idExpires: "", address: "", registeredAddress: "", maritalStatus: "",
   childrenUnder14: 0, hasDisabledChild: false, soleParent: false, disability: "", disabilityDegree: "", disabilityWar: false,
   disabilityDoc: "", disabilityUntil: "", disabledChildren: 0, careDependent: "", taxBenefit: "", taxBenefitDoc: "", taxBenefitFrom: "",
-  dependents3: false, mainJob: true, ssn: "", voen: "", iban: "",
+  dependents3: false, mainJob: true, ssn: "", voen: "", iban: "", bankName: "", bankCode: "", accountNumber: "", cardNumber: "", cardHolder: "", payMethod: "",
   educationLevel: "", militaryStatus: "", emergencyName: "", emergencyPhone: "",
 };
 
@@ -57,6 +64,23 @@ const isoDate = (value: unknown) => {
   const d = new Date(`${v}T00:00:00Z`);
   return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v ? "" : v;
 };
+
+// Card numbers: 16 digits that pass the Luhn check.
+export function validCard(number: string) {
+  const digits = number.replace(/\D/g, "");
+  if (digits.length !== 16) return false;
+  let sum = 0;
+  for (let i = 0; i < 16; i++) {
+    let d = Number(digits[15 - i]);
+    if (i % 2 === 1) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+export const maskCard = (number: string) => (number.length === 16 ? `${number.slice(0, 4)} **** **** ${number.slice(12)}` : "");
 
 // IBAN check digits (ISO 7064 mod 97-10).
 export function validIban(iban: string) {
@@ -87,6 +111,10 @@ export function normalizeProfile(input: unknown): ProfileResult {
   if (fin && !/^[A-Z0-9]{7}$/.test(fin)) issues.push("FİN 7 simvoldan (rəqəm və latın hərfi) ibarət olmalıdır.");
   const iban = text(raw.iban, 34).replace(/\s+/g, "").toUpperCase();
   if (iban && !validIban(iban)) issues.push("IBAN düzgün deyil.");
+  const card = text(raw.cardNumber, 24).replace(/\D/g, "");
+  if (card && !validCard(card)) issues.push("Kart nömrəsi düzgün deyil (16 rəqəm).");
+  const account = text(raw.accountNumber, 30).replace(/\s+/g, "");
+  if (account && !/^\d{6,30}$/.test(account)) issues.push("Hesab nömrəsi yalnız rəqəmlərdən ibarət olmalıdır.");
   const series = text(raw.idSeries, 6).toUpperCase();
   const idNumber = text(raw.idNumber, 12).replace(/\s+/g, "");
   if (idNumber && !/^\d{6,9}$/.test(idNumber)) issues.push("Şəxsiyyət vəsiqəsinin nömrəsi 6–9 rəqəmdən ibarət olmalıdır.");
@@ -122,6 +150,12 @@ export function normalizeProfile(input: unknown): ProfileResult {
     ssn: text(raw.ssn, 20),
     voen: text(raw.voen, 20),
     iban: iban && validIban(iban) ? iban : "",
+    bankName: text(raw.bankName, 80),
+    bankCode: text(raw.bankCode, 12).replace(/\s+/g, ""),
+    accountNumber: /^\d{6,30}$/.test(account) ? account : "",
+    cardNumber: card && validCard(card) ? card : "",
+    cardHolder: text(raw.cardHolder, 80).toUpperCase(),
+    payMethod: raw.payMethod === "bank" || raw.payMethod === "card" || raw.payMethod === "cash" ? raw.payMethod : "",
     educationLevel: text(raw.educationLevel, 80),
     militaryStatus: text(raw.militaryStatus, 80),
     emergencyName: text(raw.emergencyName, 120),

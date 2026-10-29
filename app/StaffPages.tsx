@@ -1794,12 +1794,30 @@ export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notif
         {text("emergencyName", "Yaxın şəxs (ad)")}
         {text("emergencyPhone", "Yaxın şəxs (telefon)")}
       </div>
-      <h4>Sosial sığorta və bank</h4>
+      <h4>Sosial sığorta</h4>
       <div className="form-grid">
         {text("ssn", "Sosial sığorta (SSN) nömrəsi")}
         {text("voen", "VÖEN")}
-        {text("iban", "IBAN", { placeholder: "AZ00 XXXX ..." })}
       </div>
+      <h4>Maaş kartı və hesab rekvizitləri</h4>
+      <div className="form-grid">
+        <Field label="Maaş necə verilir">
+          <select value={profile.payMethod} onChange={(e) => set("payMethod", e.target.value as EmployeeProfile["payMethod"])}>
+            <option value="">Seçilməyib</option>
+            <option value="bank">Bank hesabına köçürmə</option>
+            <option value="card">Maaş kartına</option>
+            <option value="cash">Nağd</option>
+          </select>
+        </Field>
+        {text("bankName", "Bank", { placeholder: "Məsələn Kapital Bank" })}
+        {text("bankCode", "Bank kodu", { inputMode: "numeric", maxLength: 12 })}
+        {text("iban", "IBAN", { placeholder: "AZ00 XXXX ..." })}
+        {text("accountNumber", "Hesab nömrəsi", { inputMode: "numeric", maxLength: 30 })}
+        {text("cardNumber", "Maaş kartının nömrəsi", { inputMode: "numeric", maxLength: 19, placeholder: "16 rəqəm" })}
+        {text("cardHolder", "Kart sahibi (kartdakı ad)", { maxLength: 80 })}
+      </div>
+      {profile.payMethod === "bank" && !profile.iban && <p className="danger-text">Bank köçürməsi seçilib, amma IBAN yoxdur: bank ödəniş sənədinə düşməyəcək.</p>}
+      {profile.payMethod === "card" && !profile.cardNumber && !profile.iban && <p className="danger-text">Kart seçilib, amma nə kart nömrəsi, nə IBAN yazılıb.</p>}
       <button type="button" className="primary" onClick={save}>Yadda saxla</button>
     </div>
   );

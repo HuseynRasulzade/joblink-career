@@ -372,7 +372,8 @@ import { bestCatalogMatch } from "@/lib/job-title-match";
 import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
 import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
-import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
+import { maskCard, normalizeProfile, parseProfile, validIban } from "@/lib/employee-profile";
+import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
 import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
 import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, latePenalty, paymentDate, scheduleProblem, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
@@ -7682,6 +7683,11 @@ async function route(request: Request) {
         weekHours: week.hours,
         iban: profile.iban,
         fin: profile.fin,
+        bankName: profile.bankName,
+        bankCode: profile.bankCode,
+        accountNumber: profile.accountNumber,
+        card: maskCard(profile.cardNumber),
+        payMethod: profile.payMethod,
         ssn: profile.ssn,
         voen: profile.voen,
         startDate: p.start_date,
@@ -7726,6 +7732,196 @@ async function route(request: Request) {
   };
   const payrollLocked = async (monthRaw: string) =>
     (await db.prepare("SELECT status FROM payroll_runs WHERE company_id=? AND month=?").bind(id, monthRaw).first<{ status: string }>())?.status === "approved";
+  // ── Company bank accounts and transfer orders ──
+  type BankAccountRow = { id: string; label: string; bank_name: string; bank_code: string; swift: string; iban: string; account_number: string; voen: string; holder: string; currency: string; auto: string; is_default: number };
+  const bankAccounts = async () =>
+    (await db.prepare("SELECT id,label,bank_name,bank_code,swift,iban,account_number,voen,holder,currency,auto,is_default FROM payroll_bank_accounts WHERE company_id=? ORDER BY is_default DESC,created").bind(id).all<BankAccountRow>()).results;
+  type BatchRow = { id: string; month: string; kind: string; account_id: string; status: string; source: string; total_cents: number; item_count: number; items: string; skipped: string; note: string; created_by_name: string; approved_by_name: string; approved_at: string; sent_at: string; paid_at: string; created: string };
+  const batchView = (b: BatchRow, withItems = true) => ({
+    id: b.id, month: b.month, kind: b.kind, accountId: b.account_id, status: b.status, statusText: BATCH_STATUS[b.status] || b.status, source: b.source, total: b.total_cents / 100, count: b.item_count, note: b.note,
+    createdBy: b.created_by_name, approvedBy: b.approved_by_name, approvedAt: b.approved_at, sentAt: b.sent_at, paidAt: b.paid_at, created: b.created,
+    items: withItems ? (JSON.parse(b.items || "[]") as TransferItem[]).map((it) => ({ ...it, card: maskCard(it.card) })) : undefined,
+    skipped: JSON.parse(b.skipped || "[]") as TransferSkip[],
+  });
+  const batchColumns = "id,month,kind,account_id,status,source,total_cents,item_count,items,skipped,note,created_by_name,approved_by_name,approved_at,sent_at,paid_at,created";
+  // Builds the order for a month: advances up to what is earned, salary up to what is still owed.
+  const createBatch = async (monthRaw: string, kind: "advance" | "salary", accountId: string, source: "manual" | "auto", createdBy: string) => {
+    const sheet = await payrollRows(monthRaw);
+    if (kind === "salary" && sheet.status !== "approved") throw new HttpError(409, "Əmək haqqı üçün ödəniş sənədi hazırlamazdan əvvəl ayı təsdiqləyin.");
+    if (kind === "advance" && sheet.status === "approved") throw new HttpError(409, "Ay təsdiqlənib: avans artıq verilmir.");
+    if (kind === "advance" && !sheet.settings.advanceDay) throw new HttpError(409, "Əvvəlcə ödəniş ayarlarında avans gününü seçin.");
+    const open = await db.prepare("SELECT id FROM payroll_batches WHERE company_id=? AND month=? AND kind=? AND status IN ('draft','approved','sent') LIMIT 1").bind(id, monthRaw, kind).first();
+    if (open) throw new HttpError(409, "Bu ay üçün açıq ödəniş sənədi var: onu tamamlayın və ya ləğv edin.");
+    const profiles = await db.prepare("SELECT id,profile FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; profile: string }>();
+    const cards = new Map(profiles.results.map((p) => [p.id, parseProfile(p.profile).cardNumber]));
+    const { items, skipped } = buildTransfers(
+      sheet.rows.map((r) => ({ employeeId: r.employeeId, name: r.name, fin: r.fin, iban: r.iban, cardNumber: cards.get(r.employeeId) || "", payMethod: (r.payMethod || "") as "" | "bank" | "card" | "cash", amount: kind === "advance" ? r.availableAdvance : r.outstanding })),
+    );
+    if (!items.length) throw new HttpError(409, skipped.length ? `Köçürüləcək işçi yoxdur: ${skipped.length} işçinin hesab məlumatı çatışmır və ya maaşı nağd verilir.` : kind === "advance" ? "Bu gün üçün verilə bilən avans yoxdur." : "Ödəniləcək qalıq yoxdur.");
+    const batchId = crypto.randomUUID();
+    await db
+      .prepare("INSERT INTO payroll_batches(id,company_id,month,kind,account_id,status,source,total_cents,item_count,items,skipped,created_by_name,created) VALUES(?,?,?,?,?,'draft',?,?,?,?,?,?,?)")
+      .bind(batchId, id, monthRaw, kind, accountId, source, batchTotal(items), items.length, JSON.stringify(items), JSON.stringify(skipped), createdBy, new Date().toISOString())
+      .run();
+    return batchId;
+  };
+  if (request.method === "GET" && path === "company/payroll/bank") {
+    requirePermission("salaries", "Bank bölməsini yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    const monthRaw = payrollMonth().raw;
+    const accounts = await bankAccounts();
+    // Accounts set to prepare orders automatically get a draft on the advance day and on the pay day.
+    const auto = accounts.find((a) => a.auto === "prepare");
+    const todayIso = new Date().toISOString().slice(0, 10);
+    if (auto && monthRaw === todayIso.slice(0, 7)) {
+      const sheet = await payrollRows(monthRaw);
+      const done = async (kind: string) => !!(await db.prepare("SELECT id FROM payroll_batches WHERE company_id=? AND month=? AND kind=? AND status<>'cancelled' LIMIT 1").bind(id, monthRaw, kind).first());
+      try {
+        if (sheet.status === "approved" && sheet.schedule.payDate <= todayIso && sheet.totals.outstanding > 0 && !(await done("salary"))) await createBatch(monthRaw, "salary", auto.id, "auto", "Avtomatik");
+        else if (sheet.status !== "approved" && sheet.schedule.advanceDate && sheet.schedule.advanceDate <= todayIso && !(await done("advance"))) await createBatch(monthRaw, "advance", auto.id, "auto", "Avtomatik");
+      } catch {
+        // Nothing to prepare today (no one to pay or no account data); the list stays as it is.
+      }
+    }
+    const batches = (await db.prepare(`SELECT ${batchColumns} FROM payroll_batches WHERE company_id=? AND month=? ORDER BY created DESC`).bind(id, monthRaw).all<BatchRow>()).results;
+    return ok({
+      month: monthRaw,
+      accounts: accounts.map((a) => ({ id: a.id, label: a.label, bankName: a.bank_name, bankCode: a.bank_code, swift: a.swift, iban: a.iban, accountNumber: a.account_number, voen: a.voen, holder: a.holder, currency: a.currency, auto: a.auto, isDefault: !!a.is_default })),
+      batches: batches.map((b) => batchView(b)),
+      canManage: canAct("approve-director"),
+    });
+  }
+  if (request.method === "POST" && path === "company/payroll/bank/account") {
+    requirePermission("salaries", "Bank hesabını yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
+    if (!canAct("approve-director")) throw new HttpError(403, "Şirkətin bank hesabını yalnız direktor və ya hesab sahibi əlavə edə və ya dəyişə bilər.");
+    const b = await jsonBody(request);
+    const bankName = str(b.bankName, 80);
+    const iban = str(b.iban, 40).replace(/\s+/g, "").toUpperCase();
+    if (!bankName) throw new HttpError(400, "Bankın adını yazın.");
+    if (!validIban(iban)) throw new HttpError(400, "Şirkətin IBAN-ı düzgün deyil.");
+    const voen = str(b.voen, 12).replace(/\s+/g, "");
+    if (voen && !/^\d{10}$/.test(voen)) throw new HttpError(400, "VÖEN 10 rəqəmdən ibarət olmalıdır.");
+    const auto = b.auto === "prepare" ? "prepare" : "off";
+    const existing = str(b.id, 100) ? await db.prepare("SELECT id FROM payroll_bank_accounts WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<{ id: string }>() : null;
+    const count = (await db.prepare("SELECT COUNT(*) AS n FROM payroll_bank_accounts WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0;
+    if (!existing && count >= 5) throw new HttpError(409, "Ən çox 5 bank hesabı saxlanılır.");
+    const accountId = existing?.id || crypto.randomUUID();
+    const makeDefault = b.isDefault === true || count === 0;
+    if (makeDefault) await db.prepare("UPDATE payroll_bank_accounts SET is_default=0 WHERE company_id=?").bind(id).run();
+    if (auto === "prepare") await db.prepare("UPDATE payroll_bank_accounts SET auto='off' WHERE company_id=? AND id<>?").bind(id, accountId).run();
+    if (existing)
+      await db
+        .prepare("UPDATE payroll_bank_accounts SET label=?,bank_name=?,bank_code=?,swift=?,iban=?,account_number=?,voen=?,holder=?,auto=?,is_default=CASE WHEN ? THEN 1 ELSE is_default END WHERE id=? AND company_id=?")
+        .bind(str(b.label, 60), bankName, str(b.bankCode, 12), str(b.swift, 12).toUpperCase(), iban, str(b.accountNumber, 30), voen, str(b.holder, 120), auto, makeDefault ? 1 : 0, accountId, id)
+        .run();
+    else
+      await db
+        .prepare("INSERT INTO payroll_bank_accounts(id,company_id,label,bank_name,bank_code,swift,iban,account_number,voen,holder,currency,auto,is_default,created) VALUES(?,?,?,?,?,?,?,?,?,?,'AZN',?,?,?)")
+        .bind(accountId, id, str(b.label, 60), bankName, str(b.bankCode, 12), str(b.swift, 12).toUpperCase(), iban, str(b.accountNumber, 30), voen, str(b.holder, 120), auto, makeDefault ? 1 : 0, new Date().toISOString())
+        .run();
+    await companyAudit(db, id, userId, "payroll-bank-account", accountId, `${bankName} ${iban}`);
+    return ok({ ok: true, id: accountId });
+  }
+  if (request.method === "POST" && path === "company/payroll/bank/account/delete") {
+    requirePermission("salaries", "Bank hesabını yalnız əmək haqqı icazəsi olan şəxs silə bilər.");
+    if (!canAct("approve-director")) throw new HttpError(403, "Şirkətin bank hesabını yalnız direktor və ya hesab sahibi silə bilər.");
+    const b = await jsonBody(request);
+    const open = await db.prepare("SELECT id FROM payroll_batches WHERE company_id=? AND account_id=? AND status IN ('draft','approved','sent') LIMIT 1").bind(id, str(b.id, 100)).first();
+    if (open) throw new HttpError(409, "Bu hesabla açıq ödəniş sənədi var: əvvəl onu tamamlayın və ya ləğv edin.");
+    await db.prepare("DELETE FROM payroll_bank_accounts WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    await companyAudit(db, id, userId, "payroll-bank-account-removed", str(b.id, 100), "");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/payroll/bank/batch") {
+    requirePermission("salaries", "Ödəniş sənədini yalnız əmək haqqı icazəsi olan şəxs hazırlaya bilər.");
+    const b = await jsonBody(request);
+    const monthRaw = str(b.month, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthRaw)) throw new HttpError(400, "Ayı düzgün seçin.");
+    const account = await db.prepare("SELECT id FROM payroll_bank_accounts WHERE id=? AND company_id=?").bind(str(b.accountId, 100), id).first<{ id: string }>();
+    if (!account) throw new HttpError(400, "Əvvəlcə şirkətin bank hesabını əlavə edin və seçin.");
+    const batchId = await createBatch(monthRaw, b.kind === "advance" ? "advance" : "salary", account.id, "manual", await requesterName());
+    await companyAudit(db, id, userId, "payroll-batch-created", batchId, monthRaw);
+    return ok({ ok: true, id: batchId }, 201);
+  }
+  const batchOf = async (batchId: string) => {
+    const batch = await db.prepare(`SELECT ${batchColumns} FROM payroll_batches WHERE id=? AND company_id=?`).bind(batchId, id).first<BatchRow>();
+    if (!batch) throw new HttpError(404, "Ödəniş sənədi tapılmadı.");
+    return batch;
+  };
+  if (request.method === "POST" && path === "company/payroll/bank/batch/approve") {
+    requirePermission("salaries", "Ödəniş sənədini yalnız əmək haqqı icazəsi olan şəxs təsdiqləyə bilər.");
+    if (!canAct("approve-director")) throw new HttpError(403, "Pulun köçürülməsinə yalnız direktor icazə verə bilər.");
+    const batch = await batchOf(str((await jsonBody(request)).id, 100));
+    if (batch.status !== "draft") throw new HttpError(409, "Yalnız layihə halındakı sənəd təsdiqlənir.");
+    await db.prepare("UPDATE payroll_batches SET status='approved',approved_by_name=?,approved_at=? WHERE id=? AND company_id=?").bind(await requesterName(), new Date().toISOString(), batch.id, id).run();
+    await companyAudit(db, id, userId, "payroll-batch-approved", batch.id, `${batch.month}: ${batch.total_cents / 100} AZN`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/payroll/bank/batch/sent") {
+    requirePermission("salaries", "Ödəniş sənədini yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
+    const batch = await batchOf(str((await jsonBody(request)).id, 100));
+    if (batch.status !== "approved") throw new HttpError(409, "Sənəd təsdiqlənməyib.");
+    await db.prepare("UPDATE payroll_batches SET status='sent',sent_at=? WHERE id=? AND company_id=?").bind(new Date().toISOString(), batch.id, id).run();
+    await companyAudit(db, id, userId, "payroll-batch-sent", batch.id, batch.month);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/payroll/bank/batch/cancel") {
+    requirePermission("salaries", "Ödəniş sənədini yalnız əmək haqqı icazəsi olan şəxs ləğv edə bilər.");
+    const batch = await batchOf(str((await jsonBody(request)).id, 100));
+    if (batch.status === "paid" || batch.status === "cancelled") throw new HttpError(409, "Bu sənəd artıq bağlanıb.");
+    await db.prepare("UPDATE payroll_batches SET status='cancelled' WHERE id=? AND company_id=?").bind(batch.id, id).run();
+    await companyAudit(db, id, userId, "payroll-batch-cancelled", batch.id, batch.month);
+    return ok({ ok: true });
+  }
+  // The bank has paid: the payments are recorded for every employee in the order, never above what is still owed.
+  if (request.method === "POST" && path === "company/payroll/bank/batch/paid") {
+    requirePermission("salaries", "Ödənişi yalnız əmək haqqı icazəsi olan şəxs qeyd edə bilər.");
+    const b = await jsonBody(request);
+    const batch = await batchOf(str(b.id, 100));
+    if (batch.status !== "approved" && batch.status !== "sent") throw new HttpError(409, "Sənəd təsdiqlənməyib: əvvəl direktor təsdiq etməlidir.");
+    const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(str(b.paidOn, 10)) ? str(b.paidOn, 10) : new Date().toISOString().slice(0, 10);
+    const sheet = await payrollRows(batch.month);
+    const items = JSON.parse(batch.items || "[]") as TransferItem[];
+    const kind = batch.kind === "advance" ? "advance" : "salary";
+    const now = new Date().toISOString();
+    const inserts: ReturnType<typeof db.prepare>[] = [];
+    let recorded = 0;
+    for (const it of items) {
+      const row = sheet.rows.find((r) => r.employeeId === it.employeeId);
+      if (!row) continue;
+      const room = kind === "advance" ? row.availableAdvance : row.outstanding;
+      const amount = Math.min(it.amountCents / 100, Math.max(0, room));
+      if (amount <= 0) continue;
+      recorded += Math.round(amount * 100);
+      inserts.push(
+        db
+          .prepare("INSERT INTO payroll_payments(id,company_id,employee_id,month,kind,amount_cents,paid_on,method,note,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), id, it.employeeId, batch.month, kind, Math.round(amount * 100), paidOn, it.method === "card" ? "card" : "bank", `Bank sənədi ${batch.id.slice(0, 8)}`, userId, now),
+      );
+    }
+    for (let i = 0; i < inserts.length; i += 50) await db.batch(inserts.slice(i, i + 50));
+    await db.prepare("UPDATE payroll_batches SET status='paid',paid_at=? WHERE id=? AND company_id=?").bind(now, batch.id, id).run();
+    await companyAudit(db, id, userId, "payroll-batch-paid", batch.id, `${batch.month}: ${recorded / 100} AZN, ${inserts.length} işçi`);
+    return ok({ ok: true, paid: inserts.length, amount: recorded / 100 });
+  }
+  if (request.method === "GET" && path === "company/payroll/bank/batch/file") {
+    requirePermission("salaries", "Faylı yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
+    const batch = await batchOf(str(requestUrl.searchParams.get("id"), 100));
+    if (batch.status === "draft") throw new HttpError(409, "Bank faylı üçün sənədi əvvəl direktor təsdiqləməlidir.");
+    if (batch.status === "cancelled") throw new HttpError(409, "Sənəd ləğv edilib.");
+    const account = await db.prepare("SELECT bank_name,iban,holder,voen,currency FROM payroll_bank_accounts WHERE id=? AND company_id=?").bind(batch.account_id, id).first<{ bank_name: string; iban: string; holder: string; voen: string; currency: string }>();
+    if (!account) throw new HttpError(404, "Göndərən bank hesabı silinib.");
+    const items = JSON.parse(batch.items || "[]") as TransferItem[];
+    const rows = transferFileRows(items, { bankName: account.bank_name, iban: account.iban, holder: account.holder, voen: account.voen, currency: account.currency }, transferPurpose(batch.month, batch.kind === "advance" ? "advance" : "salary"));
+    rows.push(["", "CƏMİ", "", "", "", batchTotal(items) / 100, "", "", ""]);
+    await companyAudit(db, id, userId, "payroll-batch-file", batch.id, batch.month);
+    return new Response(Uint8Array.from(createXlsx(TRANSFER_HEADERS, rows, "Köçürmə siyahısı")).buffer, {
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Content-Disposition": `attachment; filename="bank-kocurme-${batch.kind}-${batch.month}.xlsx"`,
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    });
+  }
   if (request.method === "GET" && path === "company/payroll") {
     requirePermission("salaries", "Əmək haqqı cədvəlini yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
     return ok(await payrollRows(payrollMonth().raw));
@@ -7736,6 +7932,7 @@ async function route(request: Request) {
     const sheet = await payrollRows(payrollMonth().raw);
     const kind = str(requestUrl.searchParams.get("kind"), 10) === "bank" ? "bank" : "sheet";
     const money = (v: number) => Math.round(v * 100) / 100;
+    const METHOD_TEXT: Record<string, string> = { bank: "Bank hesabına", card: "Maaş kartına", cash: "Nağd" };
     const line = (r: (typeof sheet.rows)[number], lineId: string) => r.result.lines.find((l) => l.id === lineId)?.amount || 0;
     let book: Uint8Array;
     if (kind === "bank") {
@@ -7750,7 +7947,7 @@ async function route(request: Request) {
         "İşlənmiş günlərə görə", "Məzuniyyət/icazə haqqı", "Boşdayanma haqqı (2/3)", "Artıq iş saatı", "Artıq iş haqqı", "İstirahət/bayram günü saatı", "İstirahət/bayram günü haqqı", "Gecə saatı", "Gecə əlavəsi", "Əlavələr", "Mükafat",
         "Cəmi hesablanıb (gross)", "Gəlir vergisi", "DSMF (işçi)", "İşsizlik sığortası (işçi)", "İcbari tibbi sığorta (işçi)", "Cəmi qanuni tutulmalar", "Net (vergilərdən sonra)",
         "Digər tutulmalar (tətbiq edilən)", "Digər tutulmalar (tələb edilən)", "Verilmiş avans", "Ödəniləcək", "Faktiki ödənilib", "Qalıq borc", "Son ödəniş tarixi", "Gecikmə (gün)", "Gecikmə cəriməsi (1%/gün)", "Avans həddi (indiyədək qazanılan)",
-        "DSMF (işəgötürən)", "İşsizlik (işəgötürən)", "Tibbi sığorta (işəgötürən)", "İşəgötürən üzrə cəmi sığorta", "İşəgötürənin ümumi xərci", "IBAN", "Qeyd",
+        "DSMF (işəgötürən)", "İşsizlik (işəgötürən)", "Tibbi sığorta (işəgötürən)", "İşəgötürən üzrə cəmi sığorta", "İşəgötürənin ümumi xərci", "Ödəniş üsulu", "Bank", "Bank kodu", "IBAN", "Hesab nömrəsi", "Maaş kartı", "Qeyd",
       ];
       const status = (v: string) => (v === "left" ? "İşdən çıxıb" : "İşləyir");
       const body: (string | number)[][] = sheet.rows.map((r, i) => {
@@ -7765,18 +7962,33 @@ async function route(request: Request) {
           line(r, "worked"), line(r, "paid-leave"), line(r, "downtime"), r.inputs.overtimeHours, line(r, "overtime"), r.inputs.restDayHours, line(r, "rest-day"), r.inputs.nightHours, line(r, "night"), line(r, "allowance"), line(r, "bonus"),
           x.gross, x.incomeTax, x.employeeSocial, x.employeeUnemployment, x.employeeMedical, legal, x.net,
           otherApplied, otherAsked, r.advances, x.toPay, r.salaryPaid, r.outstanding, r.lastPaid, r.late.days, r.late.amount, r.availableAdvance,
-          x.employerSocial, x.employerUnemployment, x.employerMedical, employer, x.employerCost, r.iban, [r.inputs.note, ...x.notes].filter(Boolean).join(" | "),
+          x.employerSocial, x.employerUnemployment, x.employerMedical, employer, x.employerCost, METHOD_TEXT[r.payMethod] || "—", r.bankName, r.bankCode, r.iban, r.accountNumber, r.card, [r.inputs.note, ...x.notes].filter(Boolean).join(" | "),
         ];
       });
       // Totals for the money and quantity columns; text columns stay empty.
-      const textColumns = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 47, 59, 60]);
+      const textColumns = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 47, 59, 60, 61, 62, 63, 64, 65]);
       const totals: (string | number)[] = headers.map((_, c) => (c === 1 ? "CƏMİ" : textColumns.has(c) ? "" : money(body.reduce((t, row) => t + (Number(row[c]) || 0), 0))));
       body.push(totals);
       const deductionRows: (string | number)[][] = [];
       for (const r of sheet.rows) for (const d of r.result.otherDeductions) deductionRows.push([r.name, r.fin, d.label || "Digər tutulma", d.kind === "writ" ? "İcra sənədi (50%-dək)" : d.kind === "alimony" ? "Aliment və s. (70%-dək)" : "Ümumi (20%-dək)", d.amount, d.applied, money(d.amount - d.applied)]);
+      const methodText: Record<string, string> = { bank: "Bank köçürməsi", card: "Kart", cash: "Nağd", other: "Digər" };
       const paymentRows: (string | number)[][] = [];
-      for (const r of sheet.rows) for (const pay of r.payments) paymentRows.push([pay.paidOn, r.name, r.fin, pay.kind === "advance" ? "Avans" : "Əmək haqqı", pay.amount, ({ bank: "Bank köçürməsi", card: "Kart", cash: "Nağd", other: "Digər" } as Record<string, string>)[pay.method] || pay.method, r.iban, pay.note]);
+      for (const r of sheet.rows) {
+        // Running balance per employee: what is still owed after each payment.
+        let left = r.result.net - r.result.otherDeductions.reduce((t, d) => t + d.applied, 0);
+        for (const pay of [...r.payments].sort((a, b) => a.paidOn.localeCompare(b.paidOn))) {
+          left = money(left - pay.amount);
+          paymentRows.push([pay.paidOn, r.name, r.fin, pay.kind === "advance" ? "Avans" : "Əmək haqqı", pay.amount, left, methodText[pay.method] || pay.method, r.iban, pay.note]);
+        }
+      }
       paymentRows.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+      const balanceRows: (string | number)[][] = sheet.rows.map((r, i) => {
+        const due = money(r.result.net - r.result.otherDeductions.reduce((t, d) => t + d.applied, 0));
+        const paid = money(r.advances + r.salaryPaid);
+        const left = money(Math.max(0, due - paid));
+        return [i + 1, r.name, r.fin, r.position, r.department, due, r.advances, r.salaryPaid, paid, left, due > 0 ? Math.min(100, Math.round((paid / due) * 100)) : 0, left <= 0.005 && due > 0 ? "Tam ödənilib" : paid > 0 ? "Qismən ödənilib" : "Ödənilməyib", r.lastPaid, r.payments.length, r.late.days, r.late.amount, METHOD_TEXT[r.payMethod] || "—", r.iban || r.card || ""];
+      });
+      balanceRows.push(["", "CƏMİ", "", "", "", ...[5, 6, 7, 8, 9].map((c) => money(balanceRows.reduce((t, row) => t + (Number(row[c]) || 0), 0))), "", "", "", "", "", money(balanceRows.reduce((t, row) => t + (Number(row[15]) || 0), 0)), "", ""]);
       const unitRows = [...new Set(sheet.rows.map((r) => r.department || "Departamentsiz"))].sort().map((dep) => {
         const group = sheet.rows.filter((r) => (r.department || "Departamentsiz") === dep);
         const total = (pick: (r: (typeof group)[number]) => number) => money(group.reduce((t, r) => t + pick(r), 0));
@@ -7786,7 +7998,8 @@ async function route(request: Request) {
         { name: "Əmək haqqı", headers, rows: body },
         { name: "Departamentlər üzrə", headers: ["Departament", "İşçi sayı", "Gross", "Gəlir vergisi", "İşçi sığortası", "Net", "Avans", "Ödəniləcək", "Qalıq borc", "İşəgötürən sığortası", "İşəgötürənin ümumi xərci"], rows: unitRows },
         { name: "Tutulmalar", headers: ["Ad Soyad", "FİN", "Tutulmanın adı", "Növü", "Tələb edilən", "Tətbiq edilən", "Növbəti aya qalan"], rows: deductionRows },
-        { name: "Ödənişlər", headers: ["Tarix", "Ad Soyad", "FİN", "Növ", "Məbləğ (AZN)", "Üsul", "IBAN", "Qeyd"], rows: paymentRows },
+        { name: "Ödəniş balansı", headers: ["№", "Ad Soyad", "FİN", "Vəzifə", "Departament", "Ödəniləcək cəmi (net − tutulmalar)", "Avans", "Maaş ödənişi", "Cəmi ödənilib", "Qalıq", "Ödənilmə %", "Vəziyyət", "Son ödəniş", "Ödəniş sayı", "Gecikmə (gün)", "Gecikmə cəriməsi", "Ödəniş üsulu", "Hesab/kart"], rows: balanceRows },
+        { name: "Ödənişlər", headers: ["Tarix", "Ad Soyad", "FİN", "Növ", "Məbləğ (AZN)", "Ödənişdən sonra qalıq", "Üsul", "IBAN", "Qeyd"], rows: paymentRows },
       ]);
     }
     await companyAudit(db, id, userId, "payroll-exported", kind, sheet.month);

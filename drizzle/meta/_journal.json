@@ -512,6 +512,13 @@
       "when": 1797188400000,
       "tag": "0072_payroll",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "6",
+      "when": 1797274800000,
+      "tag": "0073_payroll_bank",
+      "breakpoints": true
     }
   ]
 }
