@@ -31,6 +31,8 @@ type SheetEmployee = {
   marks: Record<string, string>;
   notes: Record<string, string>;
   summary: AttendanceSummary;
+  weekHours: number;
+  weekReason: string;
 };
 type Sheet = {
   month: string;
@@ -143,6 +145,11 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
                   <small className="skill-description">
                     {[e.department, e.section, e.position].filter(Boolean).join(" · ")}
                   </small>
+                  {e.weekHours < 40 && (
+                    <small className="week-badge" title={`${e.weekReason}. Həftədə ən çox ${e.weekHours} saat; əmək haqqı tam ödənilir (159.2); bayram qabağı gün əlavə qısaldılmır (108.1).`}>
+                      {e.weekHours} saatlıq həftə
+                    </small>
+                  )}
                 </td>
                 {sheet.days.map((d) => {
                   const code = e.marks[d.date];
@@ -169,7 +176,7 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
                 <td>
                   <b>{e.summary.worked}</b>
                 </td>
-                <td>
+                <td title={e.weekHours < 40 ? `Gündəlik norma ${e.weekHours / 5} saat; ödəniş tam (8 saatlıq gün kimi)` : undefined}>
                   {e.summary.hours} / {e.summary.paidHours}
                 </td>
                 <td>

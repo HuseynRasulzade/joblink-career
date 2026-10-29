@@ -373,7 +373,7 @@ import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, request
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
 import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
 import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
-import { taxReduction } from "@/lib/employee-rights";
+import { taxReduction, weeklyHours } from "@/lib/employee-rights";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
@@ -7320,10 +7320,10 @@ async function route(request: Request) {
       db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<CalendarOverride>(),
       db
         .prepare(
-          "SELECT id,name,position,department,section,start_date,end_date,status FROM company_employees WHERE company_id=? AND status<>'removed' AND (start_date='' OR start_date<=?) AND (status<>'left' OR end_date='' OR end_date>=?) ORDER BY department,section,name",
+          "SELECT id,name,position,department,section,start_date,end_date,status,profile FROM company_employees WHERE company_id=? AND status<>'removed' AND (start_date='' OR start_date<=?) AND (status<>'left' OR end_date='' OR end_date>=?) ORDER BY department,section,name",
         )
         .bind(id, last, first)
-        .all<{ id: string; name: string; position: string; department: string; section: string; start_date: string; end_date: string; status: string }>(),
+        .all<{ id: string; name: string; position: string; department: string; section: string; start_date: string; end_date: string; status: string; profile: string }>(),
       db.prepare("SELECT employee_id,day,code,note FROM attendance_marks WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<{ employee_id: string; day: string; code: string; note: string }>(),
     ]);
     const days = monthDays(year, month, overrides.results);
@@ -7336,6 +7336,8 @@ async function route(request: Request) {
     const employees = people.results.map((p) => {
       const mine = byEmployee.get(p.id) || {};
       const employed = { start: p.start_date, end: p.status === "left" ? p.end_date : "" };
+      // A shorter working week (24 or 36 hours) by age or disability; the reason is shown only to those who may see personal data.
+      const week = weeklyHours(parseProfile(p.profile), first);
       return {
         id: p.id,
         name: p.name,
@@ -7347,7 +7349,9 @@ async function route(request: Request) {
         status: p.status,
         marks: mine,
         notes: notes.get(p.id) || {},
-        summary: summarizeAttendance(days, mine, employed),
+        weekHours: week.hours,
+        weekReason: week.hours < 40 ? (can(memberRole, "personal-data", memberGrants) ? week.reason : "qısaldılmış iş vaxtı (Əmək Məcəlləsi, 91-ci maddə)") : "",
+        summary: summarizeAttendance(days, mine, employed, week.hours),
       };
     });
     return { month: raw, days, employees, overrides: overrides.results };
@@ -9458,12 +9462,13 @@ async function route(request: Request) {
       rows.push(["İl üzrə cəmi", months.reduce((x, m) => x + m.calendarDays, 0), months.reduce((x, m) => x + m.workDays, 0), months.reduce((x, m) => x + m.restDays, 0), months.reduce((x, m) => x + m.holidayDays, 0), months.reduce((x, m) => x + m.shortDays, 0), months.reduce((x, m) => x + m.hours, 0), months.reduce((x, m) => x + m.paidHours, 0), ""]);
     } else if (kind === "attendance") {
       const sheet = await attendanceData();
-      headers = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "İş günü norması", "İşlənmiş gün", "İşlənmiş saat", "Ödənilən saat", ...ATTENDANCE_CODES.filter((c) => c.id !== "work").map((c) => `${c.short} (${c.label})`), ...sheet.days.map((d) => d.date.slice(8))];
+      headers = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "Həftəlik norma (saat)", "İş günü norması", "İşlənmiş gün", "İşlənmiş saat", "Ödənilən saat", ...ATTENDANCE_CODES.filter((c) => c.id !== "work").map((c) => `${c.short} (${c.label})`), ...sheet.days.map((d) => d.date.slice(8))];
       rows = sheet.employees.map((e) => [
         e.name,
         e.position,
         e.department,
         e.section,
+        e.weekHours,
         e.summary.norm,
         e.summary.worked,
         e.summary.hours,

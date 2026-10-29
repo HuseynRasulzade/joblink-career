@@ -144,7 +144,7 @@ export const ATTENDANCE_CODES: AttendanceCode[] = [
 ];
 export const attendanceCode = (id: string) => ATTENDANCE_CODES.find((c) => c.id === id);
 
-export type AttendanceSummary = { norm: number; worked: number; byCode: Record<string, number>; hours: number; paidHours: number; shortDays: number };
+export type AttendanceSummary = { norm: number; worked: number; byCode: Record<string, number>; hours: number; paidHours: number; shortDays: number; weekHours: number };
 
 // Working days an employee should have in the month (employed days that are not off), the days worked
 // (those less the days marked as leave or absence) and the marked days by code.
@@ -152,7 +152,12 @@ export function summarize(
   days: CalendarDay[],
   marks: Record<string, string>,
   employed: { start: string; end: string },
+  weekHours = 40,
 ): AttendanceSummary {
+  // A reduced week (24 or 36 hours, Labor Code 91.2) has a shorter day, is not shortened again before a holiday
+  // (108.1 leaves out the workers of 91–93) and is paid as the full 8-hour day (159.2).
+  const reduced = weekHours < 40;
+  const daily = reduced ? weekHours / 5 : HOURS_PER_DAY;
   const byCode: Record<string, number> = {};
   let norm = 0;
   let worked = 0;
@@ -167,19 +172,19 @@ export function summarize(
       // A rest day marked as work (a trip or working on a day off) counts as worked.
       if (kind?.counts === "work") {
         worked += 1;
-        hours += HOURS_PER_DAY;
+        hours += daily;
       }
       continue;
     }
     norm += 1;
     if (!kind || kind.counts === "work") {
       worked += 1;
-      hours += day.short ? HOURS_PER_DAY - 1 : HOURS_PER_DAY;
-      if (day.short) shortDays += 1;
+      hours += day.short && !reduced ? HOURS_PER_DAY - 1 : daily;
+      if (day.short && !reduced) shortDays += 1;
     }
   }
   // A shortened day is worked an hour less but paid in full.
-  return { norm, worked, byCode, hours, paidHours: worked * HOURS_PER_DAY, shortDays };
+  return { norm, worked, byCode, hours: Math.round(hours * 10) / 10, paidHours: worked * HOURS_PER_DAY, shortDays, weekHours };
 }
 
 // ---- Production calendar of a year: the working days, rest and holiday days and the hours of each month ----

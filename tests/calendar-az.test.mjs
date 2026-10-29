@@ -118,3 +118,34 @@ test("every attendance code has a short mark, a group and is listed once", () =>
   assert.ok(ATTENDANCE_CODES.length >= 20);
   assert.ok(ATTENDANCE_CODES.every((c) => c.group && c.label));
 });
+
+import { weeklyHours } from "../lib/employee-rights.ts";
+import { EMPTY_PROFILE } from "../lib/employee-profile.ts";
+test("a 36-hour week: shorter day, no extra shortening before holidays, paid as a full day", () => {
+  const days = monthDays(2026, 3);
+  const none = {};
+  const normal = summarize(days, none, { start: "", end: "" });
+  const reduced = summarize(days, none, { start: "", end: "" }, 36);
+  assert.equal(normal.norm, 14);
+  assert.equal(reduced.norm, 14);
+  assert.equal(reduced.worked, 14);
+  assert.equal(reduced.hours, 100.8); // 14 days x 7.2
+  assert.equal(reduced.paidHours, 14 * 8);
+  assert.equal(reduced.shortDays, 0);
+  assert.equal(reduced.weekHours, 36);
+  assert.equal(normal.weekHours, 40);
+  assert.ok(normal.shortDays > 0, "an ordinary worker still has the shortened eve of holidays");
+  assert.equal(summarize(days, none, { start: "", end: "" }, 24).hours, 67.2); // 14 x 4.8
+  // leave days are not worked hours
+  const leave = { "2026-03-02": "annual", "2026-03-03": "annual" };
+  assert.equal(summarize(days, leave, { start: "", end: "" }, 36).hours, 12 * 7.2 + 0);
+});
+test("who has a shorter week", () => {
+  assert.deepEqual(weeklyHours({ ...EMPTY_PROFILE, disability: "p61_80" }, "2026-06-01").hours, 36);
+  assert.equal(weeklyHours({ ...EMPTY_PROFILE, disability: "p81_100" }, "2026-06-01").hours, 36);
+  assert.equal(weeklyHours({ ...EMPTY_PROFILE, disability: "under61" }, "2026-06-01").hours, 40);
+  assert.equal(weeklyHours({ ...EMPTY_PROFILE }, "2026-06-01").hours, 40);
+  assert.equal(weeklyHours({ ...EMPTY_PROFILE, birthDate: "2009-05-01" }, "2026-06-01").hours, 36);
+  assert.equal(weeklyHours({ ...EMPTY_PROFILE, birthDate: "2012-05-01" }, "2026-06-01").hours, 24);
+  assert.match(weeklyHours({ ...EMPTY_PROFILE, disability: "p61_80" }, "2026-06-01").reason, /91\.2/);
+});

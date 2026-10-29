@@ -89,3 +89,16 @@ export function employeeRights(profile: EmployeeProfile, today: string): Right[]
   if (reduction > 0 || chosen) out.push({ id: "tax-note", text: "Güzəştlərdən yalnız biri — məbləğcə ən böyüyü — verilir (102.1-1, 102.2, 102.3, 102.4); güzəşt sənəd təqdim edildiyi andan tətbiq olunur.", article: "Vergi M. 102.7, 102.8" });
   return out;
 }
+
+export type WeekHours = { hours: 24 | 36 | 40; reason: string };
+
+// The longest working week of the employee: 24 hours under 16, 36 hours at 16–17 and with 61–100% impairment of body
+// functions (Labor Code 91.2), otherwise the normal 40 hours (89.3). Pay stays that of the full norm (159.2).
+// Pregnant women and mothers or sole parents of small children are also named in 91.2, but their data is not kept here.
+export function weeklyHours(profile: Pick<EmployeeProfile, "birthDate" | "disability">, today: string): WeekHours {
+  const age = ageOn(profile.birthDate, today);
+  if (age !== null && age < 16) return { hours: 24, reason: "16 yaşınadək işçi (Əmək M. 91.2)" };
+  if (age !== null && age < 18) return { hours: 36, reason: "16–18 yaşlı işçi (Əmək M. 91.2)" };
+  if (profile.disability === "p61_80" || profile.disability === "p81_100") return { hours: 36, reason: "orqanizmin funksiyalarının 61–100% pozulmasına görə əlillik (Əmək M. 91.2)" };
+  return { hours: 40, reason: "" };
+}
