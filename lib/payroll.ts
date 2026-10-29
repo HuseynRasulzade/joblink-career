@@ -10,8 +10,9 @@ export type EmployeePay = SalaryBreakdown & {
 };
 
 // The stored amount is gross or net; the other figures follow from the tax rules.
-export function employeePay(amount: number, type: SalaryType, sector: Sector = "private"): EmployeePay {
-  const base = type === "net" ? calculateFromNet(amount, sector) : calculateFromGross(amount, sector);
+export function employeePay(amount: number, type: SalaryType, sector: Sector = "private", taxReduction = 0): EmployeePay {
+  const options = { reduction: taxReduction };
+  const base = type === "net" ? calculateFromNet(amount, sector, options) : calculateFromGross(amount, sector, options);
   return { ...base, superGross: base.employerCost };
 }
 

@@ -29,6 +29,9 @@ export type VacationEntitlementInput = {
   eligibleForChildLeave?: boolean;
   // Art. 115: harmful or heavy conditions, at least 6 days; the list and length are set by the authority.
   harmfulConditionsDays?: number;
+  // Art. 119: under 16 at least 42 days, 16–17 at least 35; a disabled worker under 18 at least 42, whatever the cause.
+  age?: number;
+  disabledMinor?: boolean;
 };
 export type VacationEntitlement = Cited<{
   main: number;
@@ -47,15 +50,20 @@ export function tenureLeaveDays(tenureYears: number) {
 }
 
 export function vacationEntitlement(input: VacationEntitlementInput): VacationEntitlement {
-  const main = input.extendedMain ? 30 : 21;
-  const byTenure = tenureLeaveDays(input.tenureYears);
+  const minor = input.age !== undefined && input.age > 0 && input.age < 18;
+  const minorDays = !minor ? 0 : input.disabledMinor || (input.age as number) < 16 ? 42 : 35;
+  const main = Math.max(input.extendedMain ? 30 : 21, minorDays);
+  // Art. 116.3 and 117.4: workers whose leave is set by articles 118–121 do not get the additional days of 116 and 117.
+  const own = minorDays > 0;
+  const byTenure = own ? 0 : tenureLeaveDays(input.tenureYears);
   const kids = Math.floor(pos(input.childrenUnder14));
-  const byChildren = !input.eligibleForChildLeave ? 0 : input.hasDisabledChild || kids >= 3 ? 5 : kids === 2 ? 2 : 0;
+  const byChildren = own || !input.eligibleForChildLeave ? 0 : input.hasDisabledChild || kids >= 3 ? 5 : kids === 2 ? 2 : 0;
   const harmful = Math.floor(pos(input.harmfulConditionsDays));
   const notes = [
     "Əsas məzuniyyət təqvim günü ilə sayılır.",
     "Pedaqoji, elmi, tibbi, teatr və s. işçilərin müddətləri 118–121-ci maddələrlə ayrıca müəyyən edilir.",
   ];
+  if (own) notes.push(`18 yaşınadək işçinin məzuniyyəti ${main} təqvim günündən az olmamalıdır (119-cu maddə); staj və uşağa görə əlavə məzuniyyətlər verilmir (116.3, 117.4).`);
   if (harmful) notes.push("Zərərli şərait üçün əlavə məzuniyyət azı 6 gün olmalıdır; siyahı və müddət müvafiq orqan tərəfindən təsdiq edilir.");
   return {
     main,
@@ -63,7 +71,7 @@ export function vacationEntitlement(input: VacationEntitlementInput): VacationEn
     byChildren,
     harmful,
     total: main + byTenure + byChildren + harmful,
-    articles: ["114", "115", "116", "117"],
+    articles: own ? ["114", "115", "119", "116.3", "117.4"] : ["114", "115", "116", "117"],
     notes,
   };
 }

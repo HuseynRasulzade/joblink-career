@@ -2462,6 +2462,7 @@ type Employee = {
   profile?: import("@/lib/employee-profile").EmployeeProfile | null;
   linked?: boolean;
   linkPending?: boolean;
+  taxReduction?: number;
   staffBand?: { min: number; max: number; side: "" | "below" | "above" } | null;
   tenure?: string;
   vacation?: { entitlement: number; accrued: number; used: number; remaining: number };
@@ -2990,6 +2991,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
             {panel === "pay" && (
               <Modal title={`Maaş hesabı və məzuniyyət: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
                 <EmployeePayPanel
+                  taxReduction={editing.taxReduction || 0}
                   salary={editing.salary || 0}
                   salaryType={editing.salaryType || "gross"}
                   sector={editing.sector || "private"}

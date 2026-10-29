@@ -155,3 +155,15 @@ test("final settlement taxes wages but not the severance", () => {
   assert.equal(r.toPay, Math.round((r.net + 1400) * 100) / 100);
   assert.ok(r.net < 1000 && r.net > 800);
 });
+
+test("a worker under 18 has the leave of article 119, a disabled one 42 days", () => {
+  assert.equal(c.vacationEntitlement({ tenureYears: 6, age: 15 }).main, 42);
+  assert.equal(c.vacationEntitlement({ tenureYears: 6, age: 17 }).main, 35);
+  assert.equal(c.vacationEntitlement({ tenureYears: 6, age: 17, disabledMinor: true }).main, 42);
+  const minor = c.vacationEntitlement({ tenureYears: 12, age: 17, childrenUnder14: 3, eligibleForChildLeave: true });
+  assert.equal(minor.total, 35);
+  assert.equal(minor.byTenure + minor.byChildren, 0);
+  assert.equal(c.vacationEntitlement({ tenureYears: 6, age: 30 }).main, 21);
+  assert.equal(c.vacationEntitlement({ tenureYears: 6, age: 30 }).byTenure, 2);
+  assert.equal(c.vacationEntitlement({ tenureYears: 6, age: 17, harmfulConditionsDays: 6 }).total, 41);
+});

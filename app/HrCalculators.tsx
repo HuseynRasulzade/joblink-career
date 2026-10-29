@@ -4,7 +4,7 @@ import * as hr from "@/lib/hr-calc";
 import { calculateFromGross } from "@/lib/salary";
 import { SalaryCalculator } from "./SalaryCalculator";
 import { createXlsx } from "@/lib/xlsx";
-import type { EmployeeProfile } from "@/lib/employee-profile";
+import { ageOn, type EmployeeProfile } from "@/lib/employee-profile";
 import { Field } from "./components";
 
 const azn = (v: number) => `${v.toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AZN`;
@@ -25,6 +25,7 @@ type Emp = {
   vacationUsed?: number;
   vacation?: { remaining: number; used: number };
   pay?: { gross: number; net: number } | null;
+  taxReduction?: number;
   profile?: EmployeeProfile | null;
 };
 const empLabel = (e: Emp) => `${e.name} — ${e.position || "vəzifəsiz"}${e.department ? ` (${e.department})` : ""}`;
@@ -178,12 +179,15 @@ function Vacation({ emp }: { emp: Emp | null }) {
   const [tenure, setTenure] = useState(emp ? yearsSince(emp.startDate) : 3);
   const [kids, setKids] = useState(profile?.childrenUnder14 || 0);
   const [childRight, setChildRight] = useState(Boolean(profile && (profile.gender === "female" || profile.soleParent)));
-  const [disabledChild, setDisabledChild] = useState(Boolean(profile?.hasDisabledChild));
+  const [disabledChild, setDisabledChild] = useState(Boolean(profile && (profile.hasDisabledChild || profile.disabledChildren > 0)));
+  const years = profile?.birthDate ? ageOn(profile.birthDate, today()) : null;
+  const [age, setAge] = useState(years ?? 30);
+  const [disabledMinor, setDisabledMinor] = useState(Boolean(profile && (profile.disability || profile.disabilityDegree) && years !== null && years < 18));
   const [harmful, setHarmful] = useState(0);
   const [start, setStart] = useState(today());
   const [earnings, setEarnings] = useState(String(grossOf(emp) || 1500));
   const [daysText, setDaysText] = useState("");
-  const e = hr.vacationEntitlement({ extendedMain: extended, tenureYears: tenure, childrenUnder14: kids, eligibleForChildLeave: childRight, hasDisabledChild: disabledChild, harmfulConditionsDays: harmful });
+  const e = hr.vacationEntitlement({ extendedMain: extended, tenureYears: tenure, childrenUnder14: kids, eligibleForChildLeave: childRight, hasDisabledChild: disabledChild, harmfulConditionsDays: harmful, age, disabledMinor });
   const days = daysText === "" ? e.total : Number(daysText);
   const dates = useMemo(() => hr.vacationDates(start, days), [start, days]);
   const pay = hr.vacationPay(parseMonths(earnings), days, start);
@@ -220,6 +224,8 @@ function Vacation({ emp }: { emp: Emp | null }) {
           <option value="30">30 gün (rəhbər, mütəxəssis, həkim və s.)</option>
         </select>
       </Field>
+      <Num label="İşçinin yaşı" value={age} onChange={setAge} />
+      <Check label="18 yaşınadək əlilliyi olan işçi (Əmək Məcəlləsi 119.2: 42 gün)" value={disabledMinor} onChange={setDisabledMinor} />
       <Num label="14 yaşınadək uşaq sayı" value={kids} onChange={setKids} />
       <Check label="Qadın / təkbaşına böyüdən ata / övladlığa götürən" value={childRight} onChange={setChildRight} />
       <Check label="Əlilliyi olan uşaq var" value={disabledChild} onChange={setDisabledChild} />
@@ -746,7 +752,7 @@ export function HrCalculators({
           employer={employer}
           api={api}
           notify={tell}
-          initial={emp && emp.salary ? { amount: emp.salary, from: emp.salaryType || "gross", sector: emp.sector || "private" } : undefined}
+          initial={emp && emp.salary ? { amount: emp.salary, from: emp.salaryType || "gross", sector: emp.sector || "private", reduction: emp.taxReduction || 0 } : undefined}
         />
       )}
       {tab === "vacation" && <Vacation key={empId} emp={emp} />}

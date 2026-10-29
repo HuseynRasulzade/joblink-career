@@ -28,20 +28,21 @@ export function SalaryCalculator({
   employer?: boolean;
   api?: (path: string, body?: unknown) => Promise<any>;
   notify: (message: string) => void;
-  initial?: { amount: number; from: "gross" | "net"; sector: Sector };
+  initial?: { amount: number; from: "gross" | "net"; sector: Sector; reduction?: number };
 }) {
   const [from, setFrom] = useState<"gross" | "net">(initial?.from || "gross");
   const [sector, setSector] = useState<Sector>(initial?.sector || "private");
   const [amount, setAmount] = useState(initial?.amount || 1500);
+  const [reduction, setReduction] = useState(initial?.reduction || 0);
   const [headcount, setHeadcount] = useState(1);
   const [serverResult, setServerResult] = useState<Employer | null>(null);
   const local = useMemo(
-    () => (from === "net" ? calculateFromNet(amount, sector) : calculateFromGross(amount, sector)),
-    [from, amount, sector],
+    () => (from === "net" ? calculateFromNet(amount, sector, { reduction }) : calculateFromGross(amount, sector, { reduction })),
+    [from, amount, sector, reduction],
   );
   async function calculate() {
     try {
-      setServerResult((await api!("company/salary-calc", { from, sector, amount, headcount })) as Employer);
+      setServerResult((await api!("company/salary-calc", { from, sector, amount, headcount, reduction })) as Employer);
     } catch (error) {
       notify((error as Error).message);
     }
@@ -67,6 +68,19 @@ export function SalaryCalculator({
           <Field label={from === "gross" ? "Aylıq gross maaş (AZN)" : "Aylıq net maaş (AZN)"}>
             <input type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
           </Field>
+          <Field label="Vergi güzəşti — aylıq gəlirin azalması (AZN)">
+            <select value={reduction} onChange={(e) => setReduction(Number(e.target.value))}>
+              <option value={0}>Güzəşt yoxdur</option>
+              <option value={50}>50 — himayəsində azı 3 nəfər (102.5)</option>
+              <option value={100}>100 — 102.4 (məcburi köçkün, daimi qulluq edən I dərəcə və s.)</option>
+              <option value={200}>200 — 102.3 (əlillik 61–100%, əlilliyi olan uşaq, daimi qulluq edən)</option>
+              <option value={250}>250 — 200 + himayəsində 3 nəfər</option>
+              <option value={400}>400 — 102.2 (qəhrəman, müharibə veteranı, müharibə əlili I–II və s.)</option>
+              <option value={450}>450 — 400 + himayəsində 3 nəfər</option>
+              <option value={800}>800 — şəhid ailəsi (102.1-1)</option>
+              <option value={850}>850 — 800 + himayəsində 3 nəfər</option>
+            </select>
+          </Field>
           {employer && (
             <Field label="İşçi sayı">
               <input type="number" min={1} value={headcount} onChange={(e) => setHeadcount(Number(e.target.value))} />
@@ -80,6 +94,7 @@ export function SalaryCalculator({
           <table className="admin-table">
             <tbody>
               <Row label="Gross maaş" value={r.gross} />
+              {r.taxReduction > 0 && <Row label="Vergi güzəşti (aylıq gəlirin azalması)" value={r.taxReduction} />}
               <Row label="Gəlir vergisi" value={r.incomeTax} />
               <Row label="DSMF (işçi payı)" value={r.employeeSocial} />
               <Row label="İşsizlik sığortası (işçi)" value={r.employeeUnemployment} />

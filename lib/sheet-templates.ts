@@ -3,6 +3,7 @@
 // parsers in the tests, so a template can never drift from what the import accepts.
 import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
+import { TAX_BENEFITS } from "./employee-rights.ts";
 
 export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
@@ -166,7 +167,18 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       { header: "Vətəndaşlıq", required: false, format: "Mətn", description: "Məsələn Azərbaycan." },
       { header: "Ailə vəziyyəti", required: false, format: "Mətn", description: "Ailə vəziyyəti.", values: "Subay, Evli, Boşanıb, Dul" },
       { header: "14 yaşınadək uşaq sayı", required: false, format: "Tam ədəd", description: "Əlavə məzuniyyət hüququ (Əmək Məcəlləsi 117) üçün." },
-      { header: "Əlilliyi olan uşaq", required: false, format: "Bəli / Xeyr", description: "Əlilliyi olan uşağı var." },
+      { header: "Əlillik", required: false, format: "Mətn", description: "İşçinin özünün əlilliyi: orqanizmin funksiyalarının pozulma faizi. Xeyr üçün boş buraxın.", values: "60%-dək, 61-80%, 81-100%" },
+      { header: "Əlillik dərəcəsi", required: false, format: "I, II və ya III", description: "Əlillik dərəcəsi (qrupu).", values: "I, II, III" },
+      { header: "Müharibə ilə əlaqədar əlillik", required: false, format: "Bəli / Xeyr", description: "Əlillik müharibə və ya hərbi xidmətlə əlaqədardır." },
+      { header: "Əlillik sənədi", required: false, format: "Mətn", description: "Əlillik arayışının nömrəsi." },
+      { header: "Əlillik müddəti", required: false, format: DATE, description: "Əlilliyin müəyyən edildiyi son tarix." },
+      { header: "Əlilliyi olan uşaq sayı", required: false, format: "Tam ədəd", description: "Əlilliyi olan uşaqların sayı (Əmək Məcəlləsi 117, 130, 78)." },
+      { header: "Daimi qulluq", required: false, format: "Mətn", description: "Daimi qulluq tələb edən şəxsə baxır və onunla yaşayır (Vergi Məcəlləsi 102.3, 102.4.4).", values: "uşaq, 81-100%, I dərəcə" },
+      { header: "Vergi güzəşti", required: false, format: "Mətn", description: "Gəlir vergisi güzəştinin əsası (Vergi Məcəlləsi 102): yalnız biri, ən böyüyü verilir. Aşağıdakı adlardan birini yazın.", values: TAX_BENEFITS.map((b) => `${b.short} (${b.amount} AZN)`).join("; ") },
+      { header: "Güzəşt sənədi", required: false, format: "Mətn", description: "Güzəşti təsdiq edən sənədin nömrəsi və tarixi." },
+      { header: "Güzəşt başlama tarixi", required: false, format: DATE, description: "Sənəd təqdim edildiyi tarix; güzəşt həmin andan tətbiq olunur (102.8)." },
+      { header: "Himayəsində 3 nəfər", required: false, format: "Bəli / Xeyr", description: "Himayəsində azı üç nəfər var: aylıq gəlir 50 AZN azalır (102.5)." },
+      { header: "Əsas iş yeri", required: false, format: "Bəli / Xeyr", description: "Əmək kitabçası bu işəgötürəndədir. “Xeyr” yazılsa vergi güzəştləri tətbiq edilmir (102.8). Boşdursa “Bəli” sayılır." },
       { header: "Uşağı təkbaşına böyüdür", required: false, format: "Bəli / Xeyr", description: "Təkvalideyn." },
       { header: "Qeydiyyat ünvanı", required: false, format: "Mətn", description: "Vəsiqədəki ünvan." },
       { header: "Faktiki ünvan", required: false, format: "Mətn", description: "Yaşadığı ünvan." },
@@ -179,8 +191,8 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       { header: "Yaxın şəxs telefon", required: false, format: "Mətn", description: "Onun telefonu." },
     ],
     examples: [
-      ["Aysel Məmmədova", "", "5ABC12X", "AZE", "12345678", "DİN", "2022-03-01", "2032-02-28", "1990-04-12", "Bakı", "Qadın", "Azərbaycan", "Evli", 2, "Xeyr", "Xeyr", "Bakı, Nəsimi r.", "Bakı, Yasamal r.", "", "", "AZ21NABZ00000000137010001944", "Ali", "Hərbi mükəlləfiyyətli deyil", "Elnur Məmmədov", "+994501112233"],
-      ["Orxan Əliyev", "", "7XYZ98K", "AA", "7654321", "DİN", "2021-06-10", "2031-06-09", "1995-11-03", "Gəncə", "Kişi", "Azərbaycan", "Subay", 0, "Xeyr", "Xeyr", "", "Bakı, Binəqədi r.", "", "", "", "Ali", "Hərbi xidmət keçib", "", ""],
+      ["Aysel Məmmədova", "", "5ABC12X", "AZE", "12345678", "DİN", "2022-03-01", "2032-02-28", "1990-04-12", "Bakı", "Qadın", "Azərbaycan", "Evli", 2, "", "", "Xeyr", "", "", 0, "", "", "", "", "Bəli", "Bəli", "Xeyr", "Bakı, Nəsimi r.", "Bakı, Yasamal r.", "", "", "AZ21NABZ00000000137010001944", "Ali", "Hərbi mükəlləfiyyətli deyil", "Elnur Məmmədov", "+994501112233"],
+      ["Orxan Əliyev", "", "7XYZ98K", "AA", "7654321", "DİN", "2021-06-10", "2031-06-09", "1995-11-03", "Gəncə", "Kişi", "Azərbaycan", "Subay", 0, "61-80%", "II", "Xeyr", "ƏA-2024-118", "2028-05-01", 0, "", "Əlillik 61-100%", "TSEA qərarı 2024-05-02", "2024-05-02", "Xeyr", "Bəli", "Xeyr", "", "Bakı, Binəqədi r.", "", "", "", "Ali", "Hərbi xidmət keçib", "", ""],
     ],
     rules: ["Yalnız doldurduğunuz xanalar yazılır: boş xana işçinin mövcud məlumatını silmir.", "Yalnız işçi siyahısındakı işçilər üçün işləyir; tapılmayan ad yüklənmir.", "Bu məlumatlar həssasdır: faylı yükləndikdən sonra silin.", "Şəxsi məlumat icazəsi tələb edir."],
   },

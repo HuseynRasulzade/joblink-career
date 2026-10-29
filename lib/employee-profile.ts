@@ -15,8 +15,23 @@ export type EmployeeProfile = {
   registeredAddress: string;
   maritalStatus: "" | "single" | "married" | "divorced" | "widowed";
   childrenUnder14: number;
-  hasDisabledChild: boolean;
+  hasDisabledChild: boolean; // kept for older data: true when disabledChildren > 0
   soleParent: boolean;
+  // Disability of the employee: share of body functions impaired (Labor Code 91.2, Tax Code 102.3) and degree (Tax Code 102.4.4).
+  disability: "" | "under61" | "p61_80" | "p81_100";
+  disabilityDegree: "" | "I" | "II" | "III";
+  disabilityWar: boolean; // caused by war or military service
+  disabilityDoc: string;
+  disabilityUntil: string;
+  disabledChildren: number;
+  // Lives with and cares for a person who needs permanent care (Tax Code 102.3, 102.4.4).
+  careDependent: "" | "child" | "adult81" | "degree1";
+  // The one income-tax reduction used (Tax Code 102.7), the paper it rests on and the month from which it applies (102.8).
+  taxBenefit: string;
+  taxBenefitDoc: string;
+  taxBenefitFrom: string;
+  dependents3: boolean; // supports at least three people (Tax Code 102.5)
+  mainJob: boolean; // the main workplace (work book is kept here); tax reductions apply only there (102.8)
   ssn: string;
   voen: string;
   iban: string;
@@ -29,7 +44,9 @@ export type EmployeeProfile = {
 export const EMPTY_PROFILE: EmployeeProfile = {
   birthDate: "", birthPlace: "", gender: "", citizenship: "Azərbaycan", fin: "", idSeries: "", idNumber: "",
   idIssuedBy: "", idIssuedDate: "", idExpires: "", address: "", registeredAddress: "", maritalStatus: "",
-  childrenUnder14: 0, hasDisabledChild: false, soleParent: false, ssn: "", voen: "", iban: "",
+  childrenUnder14: 0, hasDisabledChild: false, soleParent: false, disability: "", disabilityDegree: "", disabilityWar: false,
+  disabilityDoc: "", disabilityUntil: "", disabledChildren: 0, careDependent: "", taxBenefit: "", taxBenefitDoc: "", taxBenefitFrom: "",
+  dependents3: false, mainJob: true, ssn: "", voen: "", iban: "",
   educationLevel: "", militaryStatus: "", emergencyName: "", emergencyPhone: "",
 };
 
@@ -88,8 +105,20 @@ export function normalizeProfile(input: unknown): ProfileResult {
     registeredAddress: text(raw.registeredAddress, 300),
     maritalStatus: ["single", "married", "divorced", "widowed"].includes(String(raw.maritalStatus)) ? (raw.maritalStatus as EmployeeProfile["maritalStatus"]) : "",
     childrenUnder14: Math.max(0, Math.min(30, Math.round(Number(raw.childrenUnder14) || 0))),
-    hasDisabledChild: raw.hasDisabledChild === true,
+    hasDisabledChild: raw.hasDisabledChild === true || Number(raw.disabledChildren) > 0,
     soleParent: raw.soleParent === true,
+    disability: ["under61", "p61_80", "p81_100"].includes(String(raw.disability)) ? (raw.disability as EmployeeProfile["disability"]) : "",
+    disabilityDegree: ["I", "II", "III"].includes(String(raw.disabilityDegree)) ? (raw.disabilityDegree as EmployeeProfile["disabilityDegree"]) : "",
+    disabilityWar: raw.disabilityWar === true,
+    disabilityDoc: text(raw.disabilityDoc, 60),
+    disabilityUntil: dates("disabilityUntil", "Əlillik müddəti"),
+    disabledChildren: Math.max(0, Math.min(20, Math.round(Number(raw.disabledChildren) || (raw.hasDisabledChild === true ? 1 : 0)))),
+    careDependent: ["child", "adult81", "degree1"].includes(String(raw.careDependent)) ? (raw.careDependent as EmployeeProfile["careDependent"]) : "",
+    taxBenefit: text(raw.taxBenefit, 40),
+    taxBenefitDoc: text(raw.taxBenefitDoc, 80),
+    taxBenefitFrom: dates("taxBenefitFrom", "Güzəştin başlama tarixi"),
+    dependents3: raw.dependents3 === true,
+    mainJob: raw.mainJob === false ? false : true,
     ssn: text(raw.ssn, 20),
     voen: text(raw.voen, 20),
     iban: iban && validIban(iban) ? iban : "",

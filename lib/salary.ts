@@ -4,6 +4,7 @@ export type Sector = "private" | "public";
 
 export type SalaryBreakdown = {
   gross: number;
+  taxReduction: number;
   net: number;
   incomeTax: number;
   employeeSocial: number;
@@ -48,12 +49,16 @@ function medical(gross: number) {
   return gross <= 2500 ? gross * 0.02 : 50 + (gross - 2500) * 0.005;
 }
 
-export function calculateFromGross(grossInput: number, sector: Sector = "private"): SalaryBreakdown {
+// `reduction` is the monthly amount the taxable wage is reduced by (Tax Code 102.1-1, 102.2, 102.3, 102.4, 102.5):
+// only the income tax changes, the insurance contributions stay on the whole wage.
+export type TaxOptions = { reduction?: number };
+export function calculateFromGross(grossInput: number, sector: Sector = "private", options: TaxOptions = {}): SalaryBreakdown {
   const gross = Math.max(0, Number(grossInput) || 0);
+  const reduction = Math.max(0, Number(options.reduction) || 0);
   const employeeSocial = social(gross, "employee", sector);
   const employeeUnemployment = gross * 0.005;
   const employeeMedical = medical(gross);
-  const tax = incomeTax(gross, sector);
+  const tax = incomeTax(Math.max(0, gross - reduction), sector);
   const employerSocial = social(gross, "employer", sector);
   const employerUnemployment = gross * 0.005;
   const employerMedical = medical(gross);
@@ -61,6 +66,7 @@ export function calculateFromGross(grossInput: number, sector: Sector = "private
   const contributions = employerSocial + employerUnemployment + employerMedical;
   return {
     gross: r2(gross),
+    taxReduction: r2(Math.min(reduction, gross)),
     net: r2(gross - deductions),
     incomeTax: r2(tax),
     employeeSocial: r2(employeeSocial),
@@ -76,14 +82,14 @@ export function calculateFromGross(grossInput: number, sector: Sector = "private
 }
 
 // Net pay grows monotonically with gross, so bisection finds the gross.
-export function calculateFromNet(netInput: number, sector: Sector = "private"): SalaryBreakdown {
+export function calculateFromNet(netInput: number, sector: Sector = "private", options: TaxOptions = {}): SalaryBreakdown {
   const net = Math.max(0, Number(netInput) || 0);
   let lo = net;
   let hi = Math.max(net * 2, 100);
   for (let i = 0; i < 80; i++) {
     const mid = (lo + hi) / 2;
-    if (calculateFromGross(mid, sector).net < net) lo = mid;
+    if (calculateFromGross(mid, sector, options).net < net) lo = mid;
     else hi = mid;
   }
-  return calculateFromGross(hi, sector);
+  return calculateFromGross(hi, sector, options);
 }

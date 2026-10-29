@@ -15,6 +15,7 @@ import { linkCodeSheets, type LinkCodeItem } from "@/lib/employee-link";
 import { canonicalOrgName } from "@/lib/org-names";
 import { splitNames, suggestSections } from "@/lib/section-suggestions";
 import { EMPTY_PROFILE, ageOn, idExpiresSoon, type EmployeeProfile } from "@/lib/employee-profile";
+import { TAX_BENEFITS, employeeRights, suggestedBenefits, taxBenefit, taxReduction } from "@/lib/employee-rights";
 import { Field, Modal } from "./components";
 import JobTitleInput from "./JobTitleInput";
 
@@ -227,7 +228,9 @@ export function EmployeePayPanel({
   status,
   vacationDays,
   vacationUsed,
+  taxReduction: reduction = 0,
 }: {
+  taxReduction?: number;
   salary: number;
   salaryType: SalaryType;
   sector: "private" | "public";
@@ -238,7 +241,7 @@ export function EmployeePayPanel({
   vacationUsed: number;
 }) {
   const today = new Date().toISOString().slice(0, 10);
-  const pay = salary > 0 ? employeePay(salary, salaryType, sector) : null;
+  const pay = salary > 0 ? employeePay(salary, salaryType, sector, reduction) : null;
   const worked = tenure(startDate, status === "left" ? endDate : "", today);
   const leave = vacationBalance({ start: startDate, end: status === "left" ? endDate : "", entitlement: vacationDays, used: vacationUsed }, today);
   const line = (label: string, value: number) => (
@@ -1699,11 +1702,91 @@ export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notif
           </select>
         </Field>
         <Field label="14 yaşınadək uşaq sayı"><input type="number" min={0} value={profile.childrenUnder14} onChange={(e) => set("childrenUnder14", Number(e.target.value))} /></Field>
-        <label className="check-row"><input type="checkbox" checked={profile.hasDisabledChild} onChange={(e) => set("hasDisabledChild", e.target.checked)} /> Əlilliyi olan uşaq var</label>
         <label className="check-row"><input type="checkbox" checked={profile.soleParent} onChange={(e) => set("soleParent", e.target.checked)} /> Uşağı təkbaşına böyüdür</label>
         {text("educationLevel", "Təhsil səviyyəsi")}
         {text("militaryStatus", "Hərbi uçot")}
       </div>
+      <h4>Əlillik və sosial status</h4>
+      <p className="muted">Əlillik məlumatı işçinin qanuni hüquqlarını (iş vaxtı, məzuniyyət, ixtisarda üstünlük) və vergi güzəştini müəyyən edir. Yalnız arayış və sənədə əsasən doldurulur.</p>
+      <div className="form-grid">
+        <Field label="İşçinin özünün əlilliyi (orqanizmin funksiyalarının pozulması)">
+          <select value={profile.disability} onChange={(e) => set("disability", e.target.value as EmployeeProfile["disability"])}>
+            <option value="">Əlilliyi yoxdur</option>
+            <option value="under61">Əlillik var — pozulma 60%-dək</option>
+            <option value="p61_80">Əlillik var — pozulma 61–80%</option>
+            <option value="p81_100">Əlillik var — pozulma 81–100%</option>
+          </select>
+        </Field>
+        <Field label="Əlillik dərəcəsi (qrupu)">
+          <select value={profile.disabilityDegree} onChange={(e) => set("disabilityDegree", e.target.value as EmployeeProfile["disabilityDegree"])}>
+            <option value="">—</option>
+            <option value="I">I dərəcə</option>
+            <option value="II">II dərəcə</option>
+            <option value="III">III dərəcə</option>
+          </select>
+        </Field>
+        <label className="check-row"><input type="checkbox" checked={profile.disabilityWar} onChange={(e) => set("disabilityWar", e.target.checked)} /> Müharibə və ya hərbi xidmətlə əlaqədar əlillik</label>
+        {text("disabilityDoc", "Əlillik arayışının nömrəsi")}
+        <Field label="Əlillik müddəti (tarixədək)"><input type="date" value={profile.disabilityUntil} onChange={(e) => set("disabilityUntil", e.target.value)} /></Field>
+        <Field label="Əlilliyi olan uşaq sayı"><input type="number" min={0} value={profile.disabledChildren} onChange={(e) => set("disabledChildren", Number(e.target.value))} /></Field>
+        <Field label="Daimi qulluq tələb edən şəxsə baxır və onunla yaşayır">
+          <select value={profile.careDependent} onChange={(e) => set("careDependent", e.target.value as EmployeeProfile["careDependent"])}>
+            <option value="">Xeyr</option>
+            <option value="child">Daimi qulluq tələb edən əlilliyi olan uşağa</option>
+            <option value="adult81">Orqanizmin funksiyalarının 81–100% pozulması olan şəxsə</option>
+            <option value="degree1">I dərəcə əlilliyi olan şəxsə / daimi qulluq tələb edən sağlamlıq imkanları məhdud uşağa</option>
+          </select>
+        </Field>
+      </div>
+      <h4>Gəlir vergisi güzəşti (Vergi Məcəlləsi, 102-ci maddə)</h4>
+      <p className="muted">Vergi tutulan aylıq gəlir seçilən güzəştin məbləği qədər azaldılır. Güzəştlərdən yalnız biri — məbləğcə ən böyüyü — verilir (102.7); güzəşt yalnız əsas iş yerində və sənəd təqdim ediləndən tətbiq olunur (102.8).</p>
+      {!!suggestedBenefits(profile).length && !profile.taxBenefit && (
+        <div className="plan-state plan-pending">
+          Məlumatlara görə hüquq ola bilər: <b>{suggestedBenefits(profile)[0].label}</b> — {suggestedBenefits(profile)[0].amount} AZN ({suggestedBenefits(profile)[0].article}).{" "}
+          <button type="button" className="text-button" onClick={() => set("taxBenefit", suggestedBenefits(profile)[0].id)}>
+            Bunu seç
+          </button>
+        </div>
+      )}
+      <div className="form-grid">
+        <Field label="Güzəştin əsası">
+          <select value={profile.taxBenefit} onChange={(e) => set("taxBenefit", e.target.value)}>
+            <option value="">Güzəşt yoxdur</option>
+            {[800, 400, 200, 100].map((amount) => (
+              <optgroup key={amount} label={`Aylıq gəlir ${amount} AZN azalır`}>
+                {TAX_BENEFITS.filter((b) => b.amount === amount).map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.label} ({b.article})
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </Field>
+        {text("taxBenefitDoc", "Güzəşti təsdiq edən sənəd (nömrə, tarix)")}
+        <Field label="Güzəşt hansı tarixdən tətbiq olunur"><input type="date" value={profile.taxBenefitFrom} onChange={(e) => set("taxBenefitFrom", e.target.value)} /></Field>
+        <label className="check-row"><input type="checkbox" checked={profile.dependents3} onChange={(e) => set("dependents3", e.target.checked)} /> Himayəsində azı 3 nəfər var (gündüz təhsilli 23 yaşınadək tələbələr daxil) — 50 AZN (102.5)</label>
+        <label className="check-row"><input type="checkbox" checked={profile.mainJob} onChange={(e) => set("mainJob", e.target.checked)} /> Bu, işçinin əsas iş yeridir (əmək kitabçası burada saxlanılır)</label>
+      </div>
+      <p>
+        Hazırkı aylıq vergi azalması: <b>{taxReduction(profile, today)} AZN</b>
+        {taxBenefit(profile.taxBenefit) ? ` (${taxBenefit(profile.taxBenefit)!.article}${profile.dependents3 ? " + 102.5" : ""})` : ""}.
+      </p>
+      {(() => {
+        const rights = employeeRights(profile, today);
+        return rights.length ? (
+          <div className="rights-box">
+            <h4>Əmək Məcəlləsi və Vergi Məcəlləsinə görə işçinin hüquqları</h4>
+            <ul>
+              {rights.map((r) => (
+                <li key={r.id}>
+                  {r.text} <small className="muted">({r.article})</small>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null;
+      })()}
       <h4>Ünvan və əlaqə</h4>
       <div className="form-grid">
         {text("registeredAddress", "Qeydiyyat ünvanı")}

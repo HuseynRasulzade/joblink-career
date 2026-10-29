@@ -6014,3 +6014,17 @@ a svg {
 .letters textarea {
   width: 100%;
 }
+.rights-box {
+  background: #f3f9f6;
+  border: 1px solid #cfe0d8;
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin: 12px 0;
+}
+.rights-box ul {
+  margin: 6px 0 2px;
+  padding-left: 18px;
+}
+.rights-box li {
+  margin: 4px 0;
+}

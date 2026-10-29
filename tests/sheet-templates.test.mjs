@@ -139,3 +139,19 @@ test("the admin CSV samples are accepted by their importers", () => {
   assert.deepEqual(skills.issues, []);
   assert.equal(skills.rows.length, 2);
 });
+
+test("disability and tax-benefit columns of the personal data file are read", () => {
+  const r = parseProfileRows(asRows("profiles"));
+  assert.deepEqual(r.issues, []);
+  const orxan = r.rows[1].profile;
+  assert.equal(orxan.disability, "p61_80");
+  assert.equal(orxan.disabilityDegree, "II");
+  assert.equal(orxan.disabilityDoc, "ƏA-2024-118");
+  assert.equal(orxan.disabilityUntil, "2028-05-01");
+  assert.equal(orxan.taxBenefit, "disabled-61-100");
+  assert.equal(orxan.taxBenefitFrom, "2024-05-02");
+  assert.equal(orxan.mainJob, true);
+  const aysel = r.rows[0].profile;
+  assert.equal(aysel.dependents3, true);
+  assert.equal(aysel.disabilityWar, false);
+});

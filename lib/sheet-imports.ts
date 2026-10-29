@@ -2,6 +2,7 @@
 // found by the column names, wrong rows are reported by line and the rest is used. Browser (preview) and server.
 import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import { normalizeProfile, type EmployeeProfile } from "./employee-profile.ts";
+import { TAX_BENEFITS } from "./employee-rights.ts";
 import { parseDateCell, parseNumberCell, type RowIssue } from "./staff-import.ts";
 
 export const fold = (value: string) =>
@@ -175,6 +176,18 @@ const PROFILE_ALIASES: Aliases<"name" | "email" | ProfileField> = {
   maritalStatus: ["aile veziyyeti"],
   childrenUnder14: ["14 yasinadek usaq sayi", "usaq sayi", "usaqlarin sayi"],
   hasDisabledChild: ["elilliyi olan usaq", "elil usaq"],
+  disability: ["elillik", "elillik faizi", "orqanizmin funksiyalarinin pozulmasi", "elillik pozulma faizi"],
+  disabilityDegree: ["elillik derecesi", "elillik qrupu"],
+  disabilityWar: ["muharibe ile elaqedar elillik", "muharibe elilliyi"],
+  disabilityDoc: ["elillik sened", "elillik senedi", "elillik arayisi", "elillik arayis nomresi", "elillik sened nomresi"],
+  disabilityUntil: ["elillik muddeti", "elillik bitme tarixi"],
+  disabledChildren: ["elilliyi olan usaq sayi", "elil usaq sayi"],
+  careDependent: ["daimi qulluq", "daimi qulluq tələb edən", "daimi qulluq teleb eden", "qulluq etdiyi sexs"],
+  taxBenefit: ["vergi guzesti", "gelir vergisi guzesti", "guzest"],
+  taxBenefitDoc: ["guzest sened", "guzest senedi", "guzest sened nomresi"],
+  taxBenefitFrom: ["guzest baslama tarixi", "guzest tarixi"],
+  dependents3: ["himayesinde 3 nefer", "himayesinde en azi 3 nefer", "himaye 3"],
+  mainJob: ["esas is yeri", "emek kitabcasi burada"],
   soleParent: ["usagi tekbasina boyudur", "tekvalideyn", "tek valideyn"],
   address: ["faktiki unvan", "unvan", "yasayis unvani"],
   registeredAddress: ["qeydiyyat unvani", "qeydiyyat"],
@@ -190,6 +203,35 @@ const PROFILE_ALIASES: Aliases<"name" | "email" | ProfileField> = {
 export type ProfileImportRow = { line: number; name: string; email: string; profile: Partial<EmployeeProfile> };
 
 const yes = (text: string) => ["beli", "he", "ha", "yes", "1", "true", "var"].includes(fold(text));
+// "61-80", "81–100%", "60%-dək" ... -> the range of the Codes.
+function disabilityOf(text: string): EmployeeProfile["disability"] {
+  const key = fold(text);
+  if (!key || /^(yox|xeyr|none|no)/.test(key)) return "";
+  const n = Number((key.match(/\d+/g) || []).slice(-1)[0]);
+  if (/81/.test(key) || n >= 81) return "p81_100";
+  if (/61/.test(key) || n >= 61) return "p61_80";
+  return "under61";
+}
+function degreeOf(text: string): EmployeeProfile["disabilityDegree"] {
+  const key = text.trim().toUpperCase().replace(/[^IV1-3]/g, "");
+  return ({ I: "I", "1": "I", II: "II", "2": "II", III: "III", "3": "III" } as Record<string, EmployeeProfile["disabilityDegree"]>)[key] || "";
+}
+function careOf(text: string): EmployeeProfile["careDependent"] {
+  const key = fold(text);
+  if (/uşaq|usaq|child/.test(key)) return "child";
+  if (/81|100/.test(key)) return "adult81";
+  if (/i derece|1 derece|degree/.test(key)) return "degree1";
+  return "";
+}
+// A benefit named by its id, its short name or its words ("müharibə veteranı", "məcburi köçkün").
+function benefitOf(text: string): string {
+  const key = fold(text);
+  if (!key) return "";
+  const found =
+    TAX_BENEFITS.find((b) => b.id === key || fold(b.short) === key) ||
+    TAX_BENEFITS.find((b) => fold(b.label).includes(key) && key.length >= 8);
+  return found?.id || "";
+}
 function gender(text: string): EmployeeProfile["gender"] {
   const key = fold(text);
   if (/^(kisi|male|erkek)/.test(key) || key === "m") return "male";
@@ -229,7 +271,7 @@ export function parseProfileRows(rows: string[][], limit = 500): { rows: Profile
     for (const field of fields) {
       const text = cell(row, header.map, field);
       if (!text) continue;
-      if (["birthDate", "idIssuedDate", "idExpires"].includes(field)) {
+      if (["birthDate", "idIssuedDate", "idExpires", "disabilityUntil", "taxBenefitFrom"].includes(field)) {
         const date = parseDateCell(text);
         if (!date) {
           issues.push({ line, reason: `${name}: tarix oxunmadı: “${text}”.` });
@@ -238,7 +280,13 @@ export function parseProfileRows(rows: string[][], limit = 500): { rows: Profile
       } else if (field === "gender") raw.gender = gender(text);
       else if (field === "maritalStatus") raw.maritalStatus = marital(text);
       else if (field === "childrenUnder14") raw.childrenUnder14 = Math.round(parseNumberCell(text));
-      else if (field === "hasDisabledChild" || field === "soleParent") raw[field] = yes(text);
+      else if (field === "hasDisabledChild" || field === "soleParent" || field === "disabilityWar" || field === "dependents3") raw[field] = yes(text);
+      else if (field === "mainJob") raw.mainJob = !["xeyr", "no", "0", "false", "yox"].includes(fold(text));
+      else if (field === "disabledChildren") raw.disabledChildren = Math.round(parseNumberCell(text));
+      else if (field === "disability") raw.disability = disabilityOf(text);
+      else if (field === "disabilityDegree") raw.disabilityDegree = degreeOf(text);
+      else if (field === "careDependent") raw.careDependent = careOf(text);
+      else if (field === "taxBenefit") raw.taxBenefit = benefitOf(text);
       else raw[field] = text;
     }
     if (raw.__bad) continue;

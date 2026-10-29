@@ -373,6 +373,7 @@ import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, request
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
 import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
 import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
+import { taxReduction } from "@/lib/employee-rights";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
@@ -508,10 +509,11 @@ async function loadPlanData(db: D1Database, companyId: string) {
       .bind(companyId)
       .all<{ id: string; department: string; section: string; position: string; planned: number; rate: number; salary_cents: number; salary_max_cents: number; note: string }>(),
     db
-      .prepare("SELECT id,name,department,section,position,status,salary_cents,salary_type,sector FROM company_employees WHERE company_id=? AND status IN ('active','leave')")
+      .prepare("SELECT id,name,department,section,position,status,salary_cents,salary_type,sector,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave')")
       .bind(companyId)
-      .all<{ id: string; name: string; department: string; section: string; position: string; status: string; salary_cents: number; salary_type: string; sector: string }>(),
+      .all<{ id: string; name: string; department: string; section: string; position: string; status: string; salary_cents: number; salary_type: string; sector: string; profile: string }>(),
   ]);
+  const todayIso = new Date().toISOString().slice(0, 10);
   const planUnits: (PlanUnit & { note: string })[] = units.results.map((u) => ({
     id: u.id,
     department: u.department,
@@ -530,7 +532,7 @@ async function loadPlanData(db: D1Database, companyId: string) {
     section: p.section,
     position: p.position,
     status: p.status,
-    gross: p.salary_cents > 0 ? employeePay(p.salary_cents / 100, p.salary_type === "net" ? "net" : "gross", p.sector === "public" ? "public" : "private").gross : 0,
+    gross: p.salary_cents > 0 ? employeePay(p.salary_cents / 100, p.salary_type === "net" ? "net" : "gross", p.sector === "public" ? "public" : "private", taxReduction(parseProfile(p.profile), todayIso)).gross : 0,
   }));
   return { units: planUnits, people: planPeople };
 }
@@ -6106,10 +6108,11 @@ async function route(request: Request) {
       1,
       Math.min(10_000, Math.round(Number(b.headcount)) || 1),
     );
+    const options = { reduction: Math.max(0, Math.min(5000, Number(b.reduction) || 0)) };
     const result =
       b.from === "net"
-        ? calculateFromNet(amount, sector)
-        : calculateFromGross(amount, sector);
+        ? calculateFromNet(amount, sector, options)
+        : calculateFromGross(amount, sector, options);
     return ok({
       result,
       headcount,
@@ -7105,7 +7108,7 @@ async function route(request: Request) {
         staffBand: (() => {
           const band = bandBy.get(r.id);
           if (!band) return null;
-          const gross = r.salary_cents > 0 ? employeePay(r.salary_cents / 100, r.salary_type === "net" ? "net" : "gross", r.sector === "public" ? "public" : "private").gross : 0;
+          const gross = r.salary_cents > 0 ? employeePay(r.salary_cents / 100, r.salary_type === "net" ? "net" : "gross", r.sector === "public" ? "public" : "private", taxReduction(parseProfile((r as { profile?: string }).profile), todayIso)).gross : 0;
           return { min: band[0], max: band[1], side: gross > 0 && gross < band[0] - 0.005 ? "below" : gross > band[1] + 0.005 ? "above" : "" };
         })(),
         linked: Boolean((r as { user_id?: string }).user_id),
@@ -7119,8 +7122,10 @@ async function route(request: Request) {
         ),
         // Net, gross, super-gross (the employer's total cost), income tax and insurance, from the stored pay.
         pay: showSalary && r.salary_cents > 0
-          ? employeePay(r.salary_cents / 100, r.salary_type === "net" ? "net" : "gross", r.sector === "public" ? "public" : "private")
+          ? employeePay(r.salary_cents / 100, r.salary_type === "net" ? "net" : "gross", r.sector === "public" ? "public" : "private", taxReduction(parseProfile((r as { profile?: string }).profile), todayIso))
           : null,
+        // The monthly income-tax reduction the personal data gives (Tax Code 102), shown beside the pay.
+        taxReduction: showSalary ? taxReduction(parseProfile((r as { profile?: string }).profile), todayIso) : 0,
         onboarding: taskSummary(tasksBy.get(r.id) || [], todayIso),
         // Salaries and the way and reason people left stay with HR, the director and the owner.
         exitType: showSalary ? r.exit_type || "" : "",
@@ -8568,7 +8573,8 @@ async function route(request: Request) {
     const existingId = str(b.id, 100);
     // Nobody is paid above or below the band the staff table names for their position.
     if (status !== "left" && salary > 0) {
-      const gross = employeePay(salary, b.salaryType === "net" ? "net" : "gross", b.sector === "public" ? "public" : "private").gross;
+      const own = existingId ? await db.prepare("SELECT profile FROM company_employees WHERE id=? AND company_id=?").bind(existingId, id).first<{ profile: string }>() : null;
+      const gross = employeePay(salary, b.salaryType === "net" ? "net" : "gross", b.sector === "public" ? "public" : "private", taxReduction(parseProfile(own?.profile), today)).gross;
       const plan = await loadPlanData(db, id);
       const problem = checkSalary(plan.units, { id: existingId, department, section: str(b.section, 120), position }, gross);
       if (problem) throw new HttpError(409, problem);
@@ -9561,7 +9567,7 @@ async function route(request: Request) {
       ];
       rows = result.results.map((r) => {
         const worked = tenure(r.start_date, r.status === "left" ? r.end_date : "", today)?.text || "";
-        const pay = showSalary && r.salary_cents > 0 ? employeePay(r.salary_cents / 100, r.salary_type === "net" ? "net" : "gross", r.sector === "public" ? "public" : "private") : null;
+        const pay = showSalary && r.salary_cents > 0 ? employeePay(r.salary_cents / 100, r.salary_type === "net" ? "net" : "gross", r.sector === "public" ? "public" : "private", taxReduction(parseProfile((r as { profile?: string }).profile), today)) : null;
         const leave = vacationBalance({ start: r.start_date, end: r.status === "left" ? r.end_date : "", entitlement: r.vacation_days, used: r.vacation_used }, today);
         return [
           r.name,
