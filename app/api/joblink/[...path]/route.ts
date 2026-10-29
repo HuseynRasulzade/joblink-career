@@ -7483,6 +7483,71 @@ async function route(request: Request) {
       })),
     });
   }
+  // The employee's own pay slips: only months the company has approved, and only the employee's own figures.
+  const approvedSlipOf = async (employee: { id: string; company_id: string }, month: string) => {
+    const run = await db.prepare("SELECT snapshot,approved_at FROM payroll_runs WHERE company_id=? AND month=? AND status='approved'").bind(employee.company_id, month).first<{ snapshot: string; approved_at: string }>();
+    if (!run?.snapshot) return null;
+    try {
+      const mine = (JSON.parse(run.snapshot) as { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] }).rows?.find((r) => r.employeeId === employee.id);
+      return mine ? { result: mine.result, approvedAt: run.approved_at } : null;
+    } catch {
+      return null;
+    }
+  };
+  if (request.method === "GET" && path === "employee/payslips") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const runs = await db.prepare("SELECT month,snapshot,approved_at FROM payroll_runs WHERE company_id=? AND status='approved' ORDER BY month DESC LIMIT 24").bind(employee.company_id).all<{ month: string; snapshot: string; approved_at: string }>();
+    const pays = await db.prepare("SELECT month,kind,amount_cents FROM payroll_payments WHERE company_id=? AND employee_id=? AND reversed_at=''").bind(employee.company_id, employee.id).all<{ month: string; kind: string; amount_cents: number }>();
+    const months = runs.results.flatMap((run) => {
+      try {
+        const mine = (JSON.parse(run.snapshot) as { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] }).rows?.find((r) => r.employeeId === employee.id);
+        if (!mine) return [];
+        const paid = pays.results.filter((p) => p.month === run.month);
+        const sum = (kinds: string[]) => paid.filter((p) => kinds.includes(p.kind)).reduce((t, p) => t + p.amount_cents, 0) / 100;
+        const salaryPaid = sum(["salary", "vacation"]);
+        return [{ month: run.month, gross: mine.result.gross, net: mine.result.net, toPay: mine.result.toPay, advances: mine.result.advances, paid: sum(["advance", "salary", "vacation", "benefit"]), outstanding: Math.max(0, Math.round((mine.result.toPay - salaryPaid) * 100) / 100), benefit: mine.result.benefitAmount || 0 }];
+      } catch {
+        return [];
+      }
+    });
+    return ok({ months });
+  }
+  if (request.method === "GET" && path === "employee/payslip") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const month = str(requestUrl.searchParams.get("month"), 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpError(400, "Ayı düzgün seçin.");
+    const slip = await approvedSlipOf(employee, month);
+    if (!slip) throw new HttpError(404, "Bu ay üçün təsdiqlənmiş haqq-hesab vərəqəsi yoxdur.");
+    const [company, profileRow, payments, settings, inputs] = await Promise.all([
+      db.prepare("SELECT name FROM accounts WHERE id=?").bind(employee.company_id).first<{ name: string }>(),
+      db.prepare("SELECT salary_cents,salary_type,sector,profile FROM company_employees WHERE id=?").bind(employee.id).first<{ salary_cents: number; salary_type: string; sector: string; profile: string }>(),
+      db.prepare("SELECT kind,amount_cents,paid_on,method,note,title FROM payroll_payments WHERE company_id=? AND employee_id=? AND month=? AND reversed_at='' ORDER BY paid_on,created").bind(employee.company_id, employee.id, month).all<{ kind: string; amount_cents: number; paid_on: string; method: string; note: string; title: string }>(),
+      db.prepare("SELECT pay_day FROM payroll_settings WHERE company_id=?").bind(employee.company_id).first<{ pay_day: number }>(),
+      db.prepare("SELECT data FROM payroll_inputs WHERE company_id=? AND month=? AND employee_id=?").bind(employee.company_id, month, employee.id).first<{ data: string }>(),
+    ]);
+    const profile = parseProfile(profileRow?.profile);
+    const paid = (kinds: string[]) => payments.results.filter((p) => kinds.includes(p.kind)).reduce((t, p) => t + p.amount_cents, 0) / 100;
+    const salaryPaid = paid(["salary", "vacation"]);
+    let inputData = { ...EMPTY_INPUTS };
+    try {
+      inputData = cleanInputs(JSON.parse(inputs?.data || "{}"));
+    } catch {
+      // No extra inputs saved for the month.
+    }
+    return ok({
+      company: company?.name || "",
+      month,
+      approved: true,
+      payDate: paymentDate(Number(month.slice(0, 4)), Number(month.slice(5, 7)), settings?.pay_day || 28),
+      row: {
+        name: employee.name, position: employee.position, department: employee.department, section: employee.section, startDate: employee.start_date,
+        fin: profile.fin, ssn: profile.ssn, iban: profile.iban, benefit: "", monthlySalary: profileRow && profileRow.salary_cents > 0 ? employeePay(profileRow.salary_cents / 100, profileRow.salary_type === "net" ? "net" : "gross", profileRow.sector === "public" ? "public" : "private", slip.result.taxReduction)?.gross || 0 : 0, weekHours: 40,
+        advances: paid(["advance"]), salaryPaid, outstanding: Math.max(0, Math.round((slip.result.toPay - salaryPaid) * 100) / 100),
+        annual: null, inputs: inputData, result: slip.result,
+        payments: payments.results.map((p) => ({ kind: p.kind, amount: p.amount_cents / 100, paidOn: p.paid_on, method: p.method, note: p.note, title: p.title })),
+      },
+    });
+  }
   if (request.method === "POST" && path === "employee/link") {
     if (accountRole === "company") throw new HttpError(403, "İşçi profili yalnız şəxsi hesab üçündür.");
     const b = await jsonBody(request);

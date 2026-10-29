@@ -4,6 +4,7 @@ import { Send, Trash2 } from "lucide-react";
 import { ORDER_KINDS, UNPAID_REASONS } from "@/lib/orders";
 import { OTHER_REQUEST, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { Field } from "./components";
+import { monthLabel, payslipHtml, type SlipData } from "@/lib/payslip-html";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -51,7 +52,7 @@ const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slic
 export default function WorkplacePage({ notify }: { notify: Notify }) {
   const [places, setPlaces] = useState<Workplace[] | null>(null);
   const [current, setCurrent] = useState("");
-  const [tab, setTab] = useState<"info" | "letters">("letters");
+  const [tab, setTab] = useState<"info" | "letters" | "pay">("letters");
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -92,6 +93,9 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
               <button type="button" role="tab" aria-selected={tab === "letters"} className={tab === "letters" ? "primary" : "ghost"} onClick={() => setTab("letters")}>
                 Müəssisə ilə yazışmalar
               </button>
+              <button type="button" role="tab" aria-selected={tab === "pay"} className={tab === "pay" ? "primary" : "ghost"} onClick={() => setTab("pay")}>
+                Əmək haqqı
+              </button>
               <button type="button" role="tab" aria-selected={tab === "info"} className={tab === "info" ? "primary" : "ghost"} onClick={() => setTab("info")}>
                 Məlumatlarım
               </button>
@@ -106,11 +110,66 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
                 <div><dt>Məzuniyyət</dt><dd>{place.vacation.remaining} gün qalıb (qazanılıb {place.vacation.accrued}, istifadə {place.vacation.used})</dd></div>
               </dl>
             )}
+            {tab === "pay" && <Payslips key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "letters" && <Letters key={place.id} employeeId={place.id} company={place.company} notify={notify} />}
           </>
         )}
       </section>
       <LinkCode notify={notify} onLinked={load} />
+    </div>
+  );
+}
+
+type SlipMonth = { month: string; gross: number; net: number; toPay: number; advances: number; paid: number; outstanding: number; benefit: number };
+const azn = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AZN`;
+
+// The employee's pay slips: the months the company has approved, what was paid and what is still owed.
+function Payslips({ employeeId, notify }: { employeeId: string; notify: Notify }) {
+  const [months, setMonths] = useState<SlipMonth[] | null>(null);
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  });
+  useEffect(() => {
+    request<{ months: SlipMonth[] }>(`employee/payslips?employeeId=${employeeId}`)
+      .then((r) => setMonths(r.months))
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, [employeeId]);
+  async function print(month: string) {
+    try {
+      const data = await request<SlipData>(`employee/payslip?employeeId=${employeeId}&month=${month}`);
+      const win = window.open("", "_blank");
+      if (!win) return notify("Çap pəncərəsi bloklanıb.");
+      win.document.write(payslipHtml(data));
+      win.document.close();
+      win.focus();
+      win.print();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (!months) return <p className="muted">Yüklənir…</p>;
+  if (!months.length) return <p className="muted">Hələ təsdiqlənmiş ay yoxdur. Şirkət əmək haqqı cədvəlini təsdiqlədikdən sonra haqq-hesab vərəqəniz burada görünəcək.</p>;
+  return (
+    <div className="admin-table-wrap">
+      <table className="admin-table">
+        <thead>
+          <tr><th>Ay</th><th>Hesablanıb (gross)</th><th>Vergi və sığortadan sonra</th><th>Avans</th><th>Ödənilib</th><th>Qalıq</th><th></th></tr>
+        </thead>
+        <tbody>
+          {months.map((m) => (
+            <tr key={m.month}>
+              <td><b>{monthLabel(m.month)}</b></td>
+              <td>{azn(m.gross)}</td>
+              <td>{azn(m.net)}{m.benefit > 0 && <small className="skill-description">müavinət {azn(m.benefit)} (ayrıca)</small>}</td>
+              <td>{m.advances ? azn(m.advances) : "—"}</td>
+              <td>{azn(m.paid)}</td>
+              <td>{m.outstanding > 0 ? <b>{azn(m.outstanding)}</b> : "ödənilib"}</td>
+              <td><button type="button" onClick={() => void print(m.month)}>Vərəqə / çap</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
