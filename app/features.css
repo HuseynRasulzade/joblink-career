@@ -6038,3 +6038,12 @@ a svg {
   font-size: 0.72rem;
   white-space: nowrap;
 }
+.payroll-table small {
+  display: block;
+}
+.payroll-table td {
+  vertical-align: top;
+}
+.payroll-actions {
+  margin: 8px 0 12px;
+}
