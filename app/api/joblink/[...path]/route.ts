@@ -373,7 +373,7 @@ import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, request
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
 import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
 import { maskCard, normalizeProfile, parseProfile, validIban } from "@/lib/employee-profile";
-import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
+import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
 import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
 import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, isVacationCode, latePenalty, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
 import { MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave } from "@/lib/hr-calc";
@@ -7640,7 +7640,7 @@ async function route(request: Request) {
       db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<CalendarOverride>(),
       db.prepare("SELECT employee_id,day,code FROM attendance_marks WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<{ employee_id: string; day: string; code: string }>(),
       db.prepare("SELECT employee_id,data FROM payroll_inputs WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ employee_id: string; data: string }>(),
-      db.prepare("SELECT id,employee_id,kind,amount_cents,paid_on,method,note FROM payroll_payments WHERE company_id=? AND month=? ORDER BY paid_on,created").bind(id, monthRaw).all<{ id: string; employee_id: string; kind: string; amount_cents: number; paid_on: string; method: string; note: string }>(),
+      db.prepare("SELECT id,employee_id,kind,amount_cents,paid_on,method,note,title,reversed_at,reversed_by_name,reverse_reason,batch_id FROM payroll_payments WHERE company_id=? AND month=? ORDER BY paid_on,created").bind(id, monthRaw).all<{ id: string; employee_id: string; kind: string; amount_cents: number; paid_on: string; method: string; note: string; title: string; reversed_at: string; reversed_by_name: string; reverse_reason: string; batch_id: string }>(),
       db.prepare("SELECT status,snapshot,approved_by_name,approved_at FROM payroll_runs WHERE company_id=? AND month=?").bind(id, monthRaw).first<{ status: string; snapshot: string; approved_by_name: string; approved_at: string }>(),
       db.prepare("SELECT advance_day,pay_day,dual_threshold FROM payroll_settings WHERE company_id=?").bind(id).first<{ advance_day: number; pay_day: number; dual_threshold: number }>(),
     ]);
@@ -7680,8 +7680,14 @@ async function route(request: Request) {
       const marksOf = markBy.get(p.id) || new Map<string, string>();
       const statuses: DayStatus[] = working.map((d) => ((p.start_date && d.date < p.start_date) || (p.status === "left" && p.end_date && d.date > p.end_date) ? "outside" : dayStatus(marksOf.get(d.date) || "")));
       const mine = payments.results.filter((x) => x.employee_id === p.id);
-      const advances = mine.filter((x) => x.kind === "advance").reduce((sum, x) => sum + x.amount_cents, 0) / 100;
-      const salaryPaid = mine.filter((x) => x.kind === "salary").reduce((sum, x) => sum + x.amount_cents, 0) / 100;
+      // Reversed payments stay in the history but count for nothing.
+      const live = mine.filter((x) => !x.reversed_at);
+      const sumOf = (kinds: string[]) => live.filter((x) => kinds.includes(x.kind)).reduce((sum, x) => sum + x.amount_cents, 0) / 100;
+      const advances = sumOf(["advance"]);
+      const vacationPaid = sumOf(["vacation"]);
+      const salaryPaid = sumOf(["salary", "vacation"]);
+      const benefitPaid = sumOf(["benefit"]);
+      const extraPaid = sumOf(["extra"]);
       const inputsOf = inputBy.get(p.id) || { ...EMPTY_INPUTS };
       const vacationOf = (date: string) => isVacationCode(marksOf.get(date) || "");
       const vacation = vacationCalendarDays(days, vacationOf);
@@ -7717,7 +7723,13 @@ async function route(request: Request) {
       const upTo = month === Number(todayIso.slice(5, 7)) && year === Number(todayIso.slice(0, 4)) ? behind : todayIso > `${monthRaw}-31` ? statuses.length : 0;
       const available = availableAdvance(base, Math.min(statuses.length, upTo), advances);
       const outstanding = Math.max(0, Math.round((result.toPay - salaryPaid) * 100) / 100);
-      const lastPaid = mine.filter((x) => x.kind === "salary").map((x) => x.paid_on).sort().pop() || "";
+      const lastPaid = live.filter((x) => x.kind !== "advance").map((x) => x.paid_on).sort().pop() || "";
+      // The net share of the vacation pay, which can be paid on its own, 3 days before the vacation (art. 140.5).
+      const vacationLine = result.lines.find((l) => l.id === "vacation")?.amount || 0;
+      const vacationDue = result.gross > 0 ? Math.round(((result.net * vacationLine) / result.gross) * 100) / 100 : 0;
+      const vacationOutstanding = Math.max(0, Math.min(Math.round((vacationDue - vacationPaid) * 100) / 100, outstanding));
+      const benefitDue = result.benefitAmount || 0;
+      const benefitOutstanding = Math.max(0, Math.round((benefitDue - benefitPaid) * 100) / 100);
       return {
         employeeId: p.id,
         name: p.name,
@@ -7746,12 +7758,19 @@ async function route(request: Request) {
         result,
         advances,
         salaryPaid,
+        vacationDue,
+        vacationPaid,
+        vacationOutstanding,
+        benefitDue,
+        benefitPaid,
+        benefitOutstanding,
+        extraPaid,
         outstanding,
         availableAdvance: available.available,
         earnedToDate: available.earned,
         late: outstanding > 0 && payDate < todayIso ? latePenalty(payDate, todayIso, outstanding) : { days: 0, amount: 0 },
         lastPaid,
-        payments: mine.map((x) => ({ id: x.id, kind: x.kind, amount: x.amount_cents / 100, paidOn: x.paid_on, method: x.method, note: x.note })),
+        payments: mine.map((x) => ({ id: x.id, kind: x.kind, amount: x.amount_cents / 100, paidOn: x.paid_on, method: x.method, note: x.note, title: x.title, batchId: x.batch_id, reversed: !!x.reversed_at, reversedBy: x.reversed_by_name, reverseReason: x.reverse_reason })),
       };
     });
     const sum = (pick: (r: (typeof rows)[number]) => number) => Math.round(rows.reduce((t, r) => t + pick(r), 0) * 100) / 100;
@@ -7780,6 +7799,17 @@ async function route(request: Request) {
   };
   const payrollLocked = async (monthRaw: string) =>
     (await db.prepare("SELECT status FROM payroll_runs WHERE company_id=? AND month=?").bind(id, monthRaw).first<{ status: string }>())?.status === "approved";
+  // A payment taken back: it stays in the history with the reason and counts for nothing. An advance of an approved month
+  // is part of the frozen pay, so the month has to be reopened first.
+  const reversePayments = async (list: { id: string; month: string; kind: string }[], reason: string) => {
+    const me = await requesterName();
+    const now = new Date().toISOString();
+    for (const pay of list) {
+      if (pay.kind === "advance" && (await payrollLocked(pay.month))) throw new HttpError(409, "Təsdiqlənmiş ayın avansı geri çəkilmir: əvvəlcə təsdiqi geri çəkin (direktor).");
+    }
+    for (let i = 0; i < list.length; i += 50)
+      await db.batch(list.slice(i, i + 50).map((pay) => db.prepare("UPDATE payroll_payments SET reversed_at=?,reversed_by_name=?,reverse_reason=? WHERE id=? AND company_id=? AND reversed_at=''").bind(now, me, reason, pay.id, id)));
+  };
   // ── Company bank accounts and transfer orders ──
   type BankAccountRow = { id: string; label: string; bank_name: string; bank_code: string; swift: string; iban: string; account_number: string; voen: string; holder: string; currency: string; auto: string; is_default: number };
   const bankAccounts = async () =>
@@ -7793,9 +7823,9 @@ async function route(request: Request) {
   });
   const batchColumns = "id,month,kind,account_id,status,source,total_cents,item_count,items,skipped,note,created_by_name,approved_by_name,approved_at,sent_at,paid_at,created,first_approved_name,first_approved_by";
   // Builds the order for a month: advances up to what is earned, salary up to what is still owed.
-  const createBatch = async (monthRaw: string, kind: "advance" | "salary", accountId: string, source: "manual" | "auto", createdBy: string) => {
+  const createBatch = async (monthRaw: string, kind: BatchKind, accountId: string, source: "manual" | "auto", createdBy: string) => {
     const sheet = await payrollRows(monthRaw);
-    if (kind === "salary" && sheet.status !== "approved") throw new HttpError(409, "Əmək haqqı üçün ödəniş sənədi hazırlamazdan əvvəl ayı təsdiqləyin.");
+    if (kind !== "advance" && sheet.status !== "approved") throw new HttpError(409, "Ödəniş sənədi hazırlamazdan əvvəl ayı təsdiqləyin.");
     if (kind === "advance" && sheet.status === "approved") throw new HttpError(409, "Ay təsdiqlənib: avans artıq verilmir.");
     if (kind === "advance" && !sheet.settings.advanceDay) throw new HttpError(409, "Əvvəlcə ödəniş ayarlarında avans gününü seçin.");
     const open = await db.prepare("SELECT id FROM payroll_batches WHERE company_id=? AND month=? AND kind=? AND status IN ('draft','approved','sent') LIMIT 1").bind(id, monthRaw, kind).first();
@@ -7803,9 +7833,9 @@ async function route(request: Request) {
     const profiles = await db.prepare("SELECT id,profile FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; profile: string }>();
     const cards = new Map(profiles.results.map((p) => [p.id, parseProfile(p.profile).cardNumber]));
     const { items, skipped } = buildTransfers(
-      sheet.rows.map((r) => ({ employeeId: r.employeeId, name: r.name, fin: r.fin, iban: r.iban, cardNumber: cards.get(r.employeeId) || "", payMethod: (r.payMethod || "") as "" | "bank" | "card" | "cash", amount: kind === "advance" ? r.availableAdvance : r.outstanding })),
+      sheet.rows.map((r) => ({ employeeId: r.employeeId, name: r.name, fin: r.fin, iban: r.iban, cardNumber: cards.get(r.employeeId) || "", payMethod: (r.payMethod || "") as "" | "bank" | "card" | "cash", amount: kind === "advance" ? r.availableAdvance : kind === "vacation" ? r.vacationOutstanding : kind === "benefit" ? r.benefitOutstanding : r.outstanding })),
     );
-    if (!items.length) throw new HttpError(409, skipped.length ? `Köçürüləcək işçi yoxdur: ${skipped.length} işçinin hesab məlumatı çatışmır və ya maaşı nağd verilir.` : kind === "advance" ? "Bu gün üçün verilə bilən avans yoxdur." : "Ödəniləcək qalıq yoxdur.");
+    if (!items.length) throw new HttpError(409, skipped.length ? `Köçürüləcək işçi yoxdur: ${skipped.length} işçinin hesab məlumatı çatışmır və ya maaşı nağd verilir.` : kind === "advance" ? "Bu gün üçün verilə bilən avans yoxdur." : "Bu növ üzrə ödəniləcək qalıq yoxdur.");
     const batchId = crypto.randomUUID();
     await db
       .prepare("INSERT INTO payroll_batches(id,company_id,month,kind,account_id,status,source,total_cents,item_count,items,skipped,created_by_name,created) VALUES(?,?,?,?,?,'draft',?,?,?,?,?,?,?)")
@@ -7886,7 +7916,7 @@ async function route(request: Request) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthRaw)) throw new HttpError(400, "Ayı düzgün seçin.");
     const account = await db.prepare("SELECT id FROM payroll_bank_accounts WHERE id=? AND company_id=?").bind(str(b.accountId, 100), id).first<{ id: string }>();
     if (!account) throw new HttpError(400, "Əvvəlcə şirkətin bank hesabını əlavə edin və seçin.");
-    const batchId = await createBatch(monthRaw, b.kind === "advance" ? "advance" : "salary", account.id, "manual", await requesterName());
+    const batchId = await createBatch(monthRaw, (["advance", "vacation", "benefit"] as const).find((k) => k === b.kind) || "salary", account.id, "manual", await requesterName());
     await companyAudit(db, id, userId, "payroll-batch-created", batchId, monthRaw);
     return ok({ ok: true, id: batchId }, 201);
   }
@@ -7939,27 +7969,41 @@ async function route(request: Request) {
     const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(str(b.paidOn, 10)) ? str(b.paidOn, 10) : new Date().toISOString().slice(0, 10);
     const sheet = await payrollRows(batch.month);
     const items = JSON.parse(batch.items || "[]") as TransferItem[];
-    const kind = batch.kind === "advance" ? "advance" : "salary";
+    const kind = (["advance", "vacation", "benefit"] as const).find((k) => k === batch.kind) || "salary";
     const now = new Date().toISOString();
     const inserts: ReturnType<typeof db.prepare>[] = [];
     let recorded = 0;
     for (const it of items) {
       const row = sheet.rows.find((r) => r.employeeId === it.employeeId);
       if (!row) continue;
-      const room = kind === "advance" ? row.availableAdvance : row.outstanding;
+      const room = kind === "advance" ? row.availableAdvance : kind === "vacation" ? row.vacationOutstanding : kind === "benefit" ? row.benefitOutstanding : row.outstanding;
       const amount = Math.min(it.amountCents / 100, Math.max(0, room));
       if (amount <= 0) continue;
       recorded += Math.round(amount * 100);
       inserts.push(
         db
-          .prepare("INSERT INTO payroll_payments(id,company_id,employee_id,month,kind,amount_cents,paid_on,method,note,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
-          .bind(crypto.randomUUID(), id, it.employeeId, batch.month, kind, Math.round(amount * 100), paidOn, it.method === "card" ? "card" : "bank", `Bank sənədi ${batch.id.slice(0, 8)}`, userId, now),
+          .prepare("INSERT INTO payroll_payments(id,company_id,employee_id,month,kind,amount_cents,paid_on,method,note,batch_id,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), id, it.employeeId, batch.month, kind, Math.round(amount * 100), paidOn, it.method === "card" ? "card" : "bank", `Bank sənədi ${batch.id.slice(0, 8)}`, batch.id, userId, now),
       );
     }
     for (let i = 0; i < inserts.length; i += 50) await db.batch(inserts.slice(i, i + 50));
     await db.prepare("UPDATE payroll_batches SET status='paid',paid_at=? WHERE id=? AND company_id=?").bind(now, batch.id, id).run();
     await companyAudit(db, id, userId, "payroll-batch-paid", batch.id, `${batch.month}: ${recorded / 100} AZN, ${inserts.length} işçi`);
     return ok({ ok: true, paid: inserts.length, amount: recorded / 100 });
+  }
+  // The bank did not pay after all, or the order was recorded by mistake: the payments of the order are taken back.
+  if (request.method === "POST" && path === "company/payroll/bank/batch/revert") {
+    requirePermission("salaries", "Ödənişi yalnız əmək haqqı icazəsi olan şəxs geri çəkə bilər.");
+    const b = await jsonBody(request);
+    const reason = str(b.reason, 200);
+    if (reason.length < 3) throw new HttpError(400, "Geri çəkmə səbəbini yazın.");
+    const batch = await batchOf(str(b.id, 100));
+    if (batch.status !== "paid") throw new HttpError(409, "Yalnız ödənilmiş sənədin ödənişləri geri çəkilir.");
+    const list = (await db.prepare("SELECT id,month,kind FROM payroll_payments WHERE company_id=? AND batch_id=? AND reversed_at=''").bind(id, batch.id).all<{ id: string; month: string; kind: string }>()).results;
+    await reversePayments(list, reason);
+    await db.prepare("UPDATE payroll_batches SET status='approved',paid_at='' WHERE id=? AND company_id=?").bind(batch.id, id).run();
+    await companyAudit(db, id, userId, "payroll-batch-reverted", batch.id, `${batch.month}: ${list.length} ödəniş — ${reason}`);
+    return ok({ ok: true, reversed: list.length });
   }
   if (request.method === "GET" && path === "company/payroll/bank/batch/file") {
     requirePermission("salaries", "Faylı yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
@@ -7969,7 +8013,7 @@ async function route(request: Request) {
     const account = await db.prepare("SELECT bank_name,iban,holder,voen,currency FROM payroll_bank_accounts WHERE id=? AND company_id=?").bind(batch.account_id, id).first<{ bank_name: string; iban: string; holder: string; voen: string; currency: string }>();
     if (!account) throw new HttpError(404, "Göndərən bank hesabı silinib.");
     const items = JSON.parse(batch.items || "[]") as TransferItem[];
-    const rows = transferFileRows(items, { bankName: account.bank_name, iban: account.iban, holder: account.holder, voen: account.voen, currency: account.currency }, transferPurpose(batch.month, batch.kind === "advance" ? "advance" : "salary"));
+    const rows = transferFileRows(items, { bankName: account.bank_name, iban: account.iban, holder: account.holder, voen: account.voen, currency: account.currency }, transferPurpose(batch.month, (["advance", "vacation", "benefit"] as const).find((k) => k === batch.kind) || "salary"));
     rows.push(["", "CƏMİ", "", "", "", batchTotal(items) / 100, "", "", ""]);
     await companyAudit(db, id, userId, "payroll-batch-file", batch.id, batch.month);
     return new Response(Uint8Array.from(createXlsx(TRANSFER_HEADERS, rows, "Köçürmə siyahısı")).buffer, {
@@ -8040,13 +8084,15 @@ async function route(request: Request) {
       const deductionRows: (string | number)[][] = [];
       for (const r of sheet.rows) for (const d of r.result.otherDeductions) deductionRows.push([r.name, r.fin, d.label || "Digər tutulma", d.kind === "writ" ? "İcra sənədi (50%-dək)" : d.kind === "alimony" ? "Aliment və s. (70%-dək)" : "Ümumi (20%-dək)", d.amount, d.applied, money(d.amount - d.applied)]);
       const methodText: Record<string, string> = { bank: "Bank köçürməsi", card: "Kart", cash: "Nağd", other: "Digər" };
+      const kindText = (pay: { kind: string; title: string }) => ({ advance: "Avans", salary: "Əmək haqqı", vacation: "Məzuniyyət haqqı", benefit: "Sosial sığorta müavinəti" } as Record<string, string>)[pay.kind] || `Digər${pay.title ? `: ${pay.title}` : ""}`;
       const paymentRows: (string | number)[][] = [];
       for (const r of sheet.rows) {
-        // Running balance per employee: what is still owed after each payment.
+        // Running balance per employee: what is still owed after each payment of the pay itself.
         let left = r.result.net - r.result.otherDeductions.reduce((t, d) => t + d.applied, 0);
         for (const pay of [...r.payments].sort((a, b) => a.paidOn.localeCompare(b.paidOn))) {
-          left = money(left - pay.amount);
-          paymentRows.push([pay.paidOn, r.name, r.fin, pay.kind === "advance" ? "Avans" : "Əmək haqqı", pay.amount, left, methodText[pay.method] || pay.method, r.iban, pay.note]);
+          const counts = !pay.reversed && (pay.kind === "advance" || pay.kind === "salary" || pay.kind === "vacation");
+          if (counts) left = money(left - pay.amount);
+          paymentRows.push([pay.paidOn, r.name, r.fin, kindText(pay), pay.amount, counts ? left : "", pay.reversed ? `Geri çəkilib: ${pay.reverseReason} (${pay.reversedBy})` : "Qüvvədədir", methodText[pay.method] || pay.method, r.iban, pay.note]);
         }
       }
       paymentRows.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
@@ -8054,9 +8100,9 @@ async function route(request: Request) {
         const due = money(r.result.net - r.result.otherDeductions.reduce((t, d) => t + d.applied, 0));
         const paid = money(r.advances + r.salaryPaid);
         const left = money(Math.max(0, due - paid));
-        return [i + 1, r.name, r.fin, r.position, r.department, due, r.advances, r.salaryPaid, paid, left, due > 0 ? Math.min(100, Math.round((paid / due) * 100)) : 0, left <= 0.005 && due > 0 ? "Tam ödənilib" : paid > 0 ? "Qismən ödənilib" : "Ödənilməyib", r.lastPaid, r.payments.length, r.late.days, r.late.amount, METHOD_TEXT[r.payMethod] || "—", r.iban || r.card || ""];
+        return [i + 1, r.name, r.fin, r.position, r.department, due, r.advances, r.salaryPaid, paid, left, due > 0 ? Math.min(100, Math.round((paid / due) * 100)) : 0, left <= 0.005 && due > 0 ? "Tam ödənilib" : paid > 0 ? "Qismən ödənilib" : "Ödənilməyib", r.lastPaid, r.payments.filter((x) => !x.reversed).length, r.late.days, r.late.amount, METHOD_TEXT[r.payMethod] || "—", r.iban || r.card || "", r.vacationDue, r.vacationPaid, r.benefitDue, r.benefitPaid, r.extraPaid, r.payments.filter((x) => x.reversed).length];
       });
-      balanceRows.push(["", "CƏMİ", "", "", "", ...[5, 6, 7, 8, 9].map((c) => money(balanceRows.reduce((t, row) => t + (Number(row[c]) || 0), 0))), "", "", "", "", "", money(balanceRows.reduce((t, row) => t + (Number(row[15]) || 0), 0)), "", ""]);
+      balanceRows.push(["", "CƏMİ", "", "", "", ...[5, 6, 7, 8, 9].map((c) => money(balanceRows.reduce((t, row) => t + (Number(row[c]) || 0), 0))), "", "", "", "", "", money(balanceRows.reduce((t, row) => t + (Number(row[15]) || 0), 0)), "", "", ...[18, 19, 20, 21, 22, 23].map((c) => money(balanceRows.reduce((t, row) => t + (Number(row[c]) || 0), 0)))]);
       const unitRows = [...new Set(sheet.rows.map((r) => r.department || "Departamentsiz"))].sort().map((dep) => {
         const group = sheet.rows.filter((r) => (r.department || "Departamentsiz") === dep);
         const total = (pick: (r: (typeof group)[number]) => number) => money(group.reduce((t, r) => t + pick(r), 0));
@@ -8066,8 +8112,8 @@ async function route(request: Request) {
         { name: "Əmək haqqı", headers, rows: body },
         { name: "Departamentlər üzrə", headers: ["Departament", "İşçi sayı", "Gross", "Gəlir vergisi", "İşçi sığortası", "Net", "Avans", "Ödəniləcək", "Qalıq borc", "İşəgötürən sığortası", "İşəgötürənin ümumi xərci"], rows: unitRows },
         { name: "Tutulmalar", headers: ["Ad Soyad", "FİN", "Tutulmanın adı", "Növü", "Tələb edilən", "Tətbiq edilən", "Növbəti aya qalan"], rows: deductionRows },
-        { name: "Ödəniş balansı", headers: ["№", "Ad Soyad", "FİN", "Vəzifə", "Departament", "Ödəniləcək cəmi (net − tutulmalar)", "Avans", "Maaş ödənişi", "Cəmi ödənilib", "Qalıq", "Ödənilmə %", "Vəziyyət", "Son ödəniş", "Ödəniş sayı", "Gecikmə (gün)", "Gecikmə cəriməsi", "Ödəniş üsulu", "Hesab/kart"], rows: balanceRows },
-        { name: "Ödənişlər", headers: ["Tarix", "Ad Soyad", "FİN", "Növ", "Məbləğ (AZN)", "Ödənişdən sonra qalıq", "Üsul", "IBAN", "Qeyd"], rows: paymentRows },
+        { name: "Ödəniş balansı", headers: ["№", "Ad Soyad", "FİN", "Vəzifə", "Departament", "Ödəniləcək cəmi (net − tutulmalar)", "Avans", "Maaş ödənişi", "Cəmi ödənilib", "Qalıq", "Ödənilmə %", "Vəziyyət", "Son ödəniş", "Ödəniş sayı", "Gecikmə (gün)", "Gecikmə cəriməsi", "Ödəniş üsulu", "Hesab/kart", "Məzuniyyət haqqı (ayrıca ödənilə bilən hissə)", "Məzuniyyət haqqı ödənilib", "Müavinət hesablanıb", "Müavinət ödənilib", "Digər ödənişlər", "Geri çəkilmiş ödəniş sayı"], rows: balanceRows },
+        { name: "Ödənişlər", headers: ["Tarix", "Ad Soyad", "FİN", "Növ", "Məbləğ (AZN)", "Ödənişdən sonra qalıq", "Vəziyyət", "Üsul", "IBAN", "Qeyd"], rows: paymentRows },
       ]);
     }
     await companyAudit(db, id, userId, "payroll-exported", kind, sheet.month);
@@ -8132,9 +8178,12 @@ async function route(request: Request) {
     const b = await jsonBody(request);
     const monthRaw = str(b.month, 7);
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthRaw)) throw new HttpError(400, "Ayı düzgün seçin.");
-    const kind = b.kind === "advance" ? "advance" : "salary";
+    const kind = (["advance", "vacation", "benefit", "extra"] as const).find((k) => k === b.kind) || "salary";
     const amount = Math.round((Number(b.amount) || 0) * 100) / 100;
     if (!(amount > 0)) throw new HttpError(400, "Məbləği yazın.");
+    const title = str(b.title, 120);
+    if (kind === "extra" && title.length < 3) throw new HttpError(400, "Digər ödənişin adını yazın (məsələn: ezamiyyət xərci, maddi yardım).");
+    if (amount > 1_000_000) throw new HttpError(400, "Məbləğ çox böyükdür.");
     const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(str(b.paidOn, 10)) ? str(b.paidOn, 10) : new Date().toISOString().slice(0, 10);
     const sheet = await payrollRows(monthRaw);
     const row = sheet.rows.find((r) => r.employeeId === str(b.employeeId, 100));
@@ -8144,16 +8193,22 @@ async function route(request: Request) {
       if (sheet.status === "approved") throw new HttpError(409, "Bu ay təsdiqlənib: avans artıq verilmir.");
       if (amount > row.availableAdvance + 0.005 && !canAct("approve-director"))
         throw new HttpError(409, `Bu işçi bu günədək ${row.availableAdvance} AZN qazanıb (avans: ${row.advances} AZN). Daha çox avansı yalnız direktor verə bilər.`);
+    } else if (kind === "extra") {
+      // Payments that are not pay: a trip's costs, material aid, a refund. They are recorded and paid on their own.
     } else {
-      if (sheet.status !== "approved") throw new HttpError(409, "Əmək haqqının ödənişini qeyd etməzdən əvvəl ayı təsdiqləyin.");
-      if (amount > row.outstanding + 0.005) throw new HttpError(409, `Bu işçiyə ödəniləcək qalıq ${row.outstanding} AZN-dir.`);
+      if (sheet.status !== "approved") throw new HttpError(409, "Ödənişi qeyd etməzdən əvvəl ayı təsdiqləyin.");
+      if (kind === "benefit") {
+        if (amount > row.benefitOutstanding + 0.005) throw new HttpError(409, `Bu işçiyə ödəniləcək müavinət qalığı ${row.benefitOutstanding} AZN-dir.`);
+      } else if (kind === "vacation") {
+        if (amount > row.vacationOutstanding + 0.005) throw new HttpError(409, `Ödənilməmiş məzuniyyət haqqı ${row.vacationOutstanding} AZN-dir.`);
+      } else if (amount > row.outstanding + 0.005) throw new HttpError(409, `Bu işçiyə ödəniləcək qalıq ${row.outstanding} AZN-dir.`);
     }
     const paymentId = crypto.randomUUID();
     await db
-      .prepare("INSERT INTO payroll_payments(id,company_id,employee_id,month,kind,amount_cents,paid_on,method,note,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
-      .bind(paymentId, id, row.employeeId, monthRaw, kind, Math.round(amount * 100), paidOn, str(b.method, 40), str(b.note, 200), userId, new Date().toISOString())
+      .prepare("INSERT INTO payroll_payments(id,company_id,employee_id,month,kind,amount_cents,paid_on,method,note,title,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(paymentId, id, row.employeeId, monthRaw, kind, Math.round(amount * 100), paidOn, str(b.method, 40), str(b.note, 200), title, userId, new Date().toISOString())
       .run();
-    await companyAudit(db, id, userId, kind === "advance" ? "payroll-advance" : "payroll-paid", row.employeeId, `${row.name}: ${amount} AZN (${monthRaw})`);
+    await companyAudit(db, id, userId, kind === "advance" ? "payroll-advance" : "payroll-paid", row.employeeId, `${row.name}: ${amount} AZN (${monthRaw}, ${kind}${title ? `, ${title}` : ""})`);
     return ok({ ok: true, id: paymentId }, 201);
   }
   if (request.method === "POST" && path === "company/payroll/pay-all") {
@@ -8176,6 +8231,18 @@ async function route(request: Request) {
       );
     await companyAudit(db, id, userId, "payroll-paid", "", `${monthRaw}: ${due.length} işçi`);
     return ok({ ok: true, paid: due.length });
+  }
+  if (request.method === "POST" && path === "company/payroll/payment/reverse") {
+    requirePermission("salaries", "Ödənişi yalnız əmək haqqı icazəsi olan şəxs geri çəkə bilər.");
+    const b = await jsonBody(request);
+    const reason = str(b.reason, 200);
+    if (reason.length < 3) throw new HttpError(400, "Geri çəkmə səbəbini yazın.");
+    const row = await db.prepare("SELECT id,month,kind,amount_cents,reversed_at FROM payroll_payments WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<{ id: string; month: string; kind: string; amount_cents: number; reversed_at: string }>();
+    if (!row) throw new HttpError(404, "Ödəniş tapılmadı.");
+    if (row.reversed_at) throw new HttpError(409, "Bu ödəniş artıq geri çəkilib.");
+    await reversePayments([row], reason);
+    await companyAudit(db, id, userId, "payroll-payment-reversed", row.id, `${row.month}: ${row.amount_cents / 100} AZN — ${reason}`);
+    return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/payroll/payment/delete") {
     requirePermission("salaries", "Ödənişləri yalnız əmək haqqı icazəsi olan şəxs silə bilər.");

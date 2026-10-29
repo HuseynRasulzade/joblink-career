@@ -6055,3 +6055,6 @@ a svg {
 .bank-batch { border: 1px solid var(--line, #dfe8e3); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
 .bank-batch.bank-paid { opacity: 0.8; }
 .bank-batch.bank-cancelled { opacity: 0.55; }
+.payment-history { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.payment-reversed { opacity: 0.6; text-decoration: line-through; }
+.payment-reversed small { text-decoration: none; display: inline-block; }

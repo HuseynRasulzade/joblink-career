@@ -42,7 +42,9 @@ export function buildTransfers(candidates: TransferCandidate[]): { items: Transf
   return { items, skipped };
 }
 
-export const transferPurpose = (month: string, kind: "advance" | "salary") => `${month} ayı üçün ${kind === "advance" ? "əmək haqqı avansı" : "əmək haqqı"}`;
+export type BatchKind = "advance" | "salary" | "vacation" | "benefit";
+export const BATCH_KIND_TEXT: Record<BatchKind, string> = { advance: "əmək haqqı avansı", salary: "əmək haqqı", vacation: "məzuniyyət haqqı", benefit: "sosial sığorta müavinəti" };
+export const transferPurpose = (month: string, kind: BatchKind) => `${month} ayı üçün ${BATCH_KIND_TEXT[kind]}`;
 
 export type SenderAccount = { bankName: string; iban: string; holder: string; voen: string; currency: string };
 

@@ -20,10 +20,11 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 type Account = { id: string; label: string; bankName: string; bankCode: string; swift: string; iban: string; accountNumber: string; voen: string; holder: string; currency: string; auto: string; isDefault: boolean };
 type Item = { employeeId: string; name: string; iban: string; card: string; method: "bank" | "card"; amountCents: number };
 type Batch = {
-  id: string; month: string; kind: "advance" | "salary"; accountId: string; status: string; statusText: string; source: string; total: number; count: number; note: string;
+  id: string; month: string; kind: "advance" | "salary" | "vacation" | "benefit"; accountId: string; status: string; statusText: string; source: string; total: number; count: number; note: string;
   createdBy: string; approvedBy: string; firstApprovedBy: string; approvedAt: string; sentAt: string; paidAt: string; created: string; items: Item[]; skipped: { name: string; reason: string }[];
 };
 type Data = { month: string; accounts: Account[]; batches: Batch[]; canManage: boolean };
+const KIND: Record<string, string> = { advance: "Avans", salary: "Əmək haqqı", vacation: "Məzuniyyət haqqı", benefit: "Müavinət" };
 const EMPTY: Account = { id: "", label: "", bankName: "", bankCode: "", swift: "", iban: "", accountNumber: "", voen: "", holder: "", currency: "AZN", auto: "off", isDefault: false };
 const azn = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AZN`;
 const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "—");
@@ -116,6 +117,8 @@ export default function PayrollBank({ month, notify, onClose, onChanged }: { mon
             </select>
             <button type="button" className="secondary" onClick={() => void act("company/payroll/bank/batch", { kind: "advance", accountId }, "Avans sənədi hazırlandı.")}>Avans sənədi hazırla</button>
             <button type="button" className="primary" onClick={() => void act("company/payroll/bank/batch", { kind: "salary", accountId }, "Əmək haqqı sənədi hazırlandı.")}>Əmək haqqı sənədi hazırla</button>
+            <button type="button" className="secondary" onClick={() => void act("company/payroll/bank/batch", { kind: "vacation", accountId }, "Məzuniyyət haqqı sənədi hazırlandı.")}>Məzuniyyət haqqı sənədi</button>
+            <button type="button" className="secondary" onClick={() => void act("company/payroll/bank/batch", { kind: "benefit", accountId }, "Müavinət sənədi hazırlandı.")}>Müavinət sənədi</button>
           </div>
         )}
         {!data.batches.length && <p className="muted">Bu ay üçün ödəniş sənədi yoxdur.</p>}
@@ -123,7 +126,7 @@ export default function PayrollBank({ month, notify, onClose, onChanged }: { mon
           <div key={b.id} className={`bank-batch bank-${b.status}`}>
             <div className="bank-batch-head">
               <div>
-                <b>{b.kind === "advance" ? "Avans" : "Əmək haqqı"}: {azn(b.total)}</b> · {b.count} işçi
+                <b>{KIND[b.kind] || "Əmək haqqı"}: {azn(b.total)}</b> · {b.count} işçi
                 {b.source === "auto" && <span className="week-badge">avtomatik</span>}
                 <small className="skill-description">{b.statusText}{b.status === "draft" && b.firstApprovedBy ? ` · 1-ci təsdiq: ${b.firstApprovedBy}, ikinci təsdiq gözlənilir` : ""}{b.approvedBy ? ` · təsdiq: ${b.approvedBy}` : ""}{b.paidAt ? ` · ${dmy(b.paidAt.slice(0, 10))}` : ""}</small>
               </div>
@@ -135,6 +138,7 @@ export default function PayrollBank({ month, notify, onClose, onChanged }: { mon
                 )}
                 {b.status === "approved" && <button type="button" onClick={() => void act("company/payroll/bank/batch/sent", { id: b.id }, "Banka göndərildi kimi qeyd edildi.")}>Banka verdim</button>}
                 {(b.status === "approved" || b.status === "sent") && <button type="button" className="primary" onClick={() => window.confirm(`${azn(b.total)} bank tərəfindən ödənilib? Hər işçiyə ödəniş qeyd olunacaq.`) && void act("company/payroll/bank/batch/paid", { id: b.id }, "Ödəniş qeyd edildi.")}>Ödənildi</button>}
+                {b.status === "paid" && <button type="button" className="danger" onClick={() => { const reason = window.prompt("Ödənişi geri çəkmə səbəbi:"); if (reason) void act("company/payroll/bank/batch/revert", { id: b.id, reason }, "Sənədin ödənişləri geri çəkildi."); }}>Ödənişi geri çək</button>}
                 {(b.status === "draft" || b.status === "approved" || b.status === "sent") && <button type="button" className="danger" onClick={() => window.confirm("Sənəd ləğv edilsin?") && void act("company/payroll/bank/batch/cancel", { id: b.id }, "Sənəd ləğv edildi.")}>Ləğv et</button>}
               </div>
             </div>

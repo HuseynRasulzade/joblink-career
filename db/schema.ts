@@ -853,11 +853,16 @@ export const payrollPayments = sqliteTable(
     companyId: text("company_id").notNull(),
     employeeId: text("employee_id").notNull(),
     month: text("month").notNull(),
-    kind: text("kind").notNull(), // "advance" or "salary"
+    kind: text("kind").notNull(), // advance, salary, vacation, benefit or extra
     amountCents: integer("amount_cents").notNull(),
     paidOn: text("paid_on").notNull(),
     method: text("method").notNull().default(""),
     note: text("note").notNull().default(""),
+    title: text("title").notNull().default(""),
+    batchId: text("batch_id").notNull().default(""),
+    reversedAt: text("reversed_at").notNull().default(""),
+    reversedByName: text("reversed_by_name").notNull().default(""),
+    reverseReason: text("reverse_reason").notNull().default(""),
     createdBy: text("created_by").notNull().default(""),
     created: text("created").notNull(),
   },

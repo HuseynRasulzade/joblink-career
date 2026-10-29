@@ -27,10 +27,11 @@ type Result = {
   employerSocial: number; employerUnemployment: number; employerMedical: number; employerCost: number; net: number; taxReduction: number;
   otherDeductions: (Deduction & { applied: number })[]; deductionsCapped: boolean; advances: number; toPay: number; advanceExcess: number; notes: string[];
 };
-type Payment = { id: string; kind: "advance" | "salary"; amount: number; paidOn: string; method: string; note: string };
+type Payment = { id: string; kind: "advance" | "salary" | "vacation" | "benefit" | "extra"; amount: number; paidOn: string; method: string; note: string; title: string; batchId: string; reversed: boolean; reversedBy: string; reverseReason: string };
+const KIND_LABEL: Record<Payment["kind"], string> = { advance: "Avans", salary: "Əmək haqqı", vacation: "Məzuniyyət haqqı", benefit: "Sosial sığorta müavinəti", extra: "Digər ödəniş" };
 type Row = {
   employeeId: string; name: string; position: string; department: string; status: string; monthlySalary: number; weekHours: number; iban: string; bankName: string; card: string; payMethod: string; fin: string; ssn: string; startDate: string; sector: string; benefit: string; section: string; salaryType: string; lastPaid: string;
-  taxReduction: number; annual: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null; inputs: Inputs; result: Result; advances: number; salaryPaid: number; outstanding: number; availableAdvance: number;
+  taxReduction: number; annual: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null; inputs: Inputs; result: Result; advances: number; salaryPaid: number; vacationDue: number; vacationPaid: number; vacationOutstanding: number; benefitDue: number; benefitPaid: number; benefitOutstanding: number; extraPaid: number; outstanding: number; availableAdvance: number;
   earnedToDate: number; late: { days: number; amount: number }; payments: Payment[];
 };
 type Sheet = {
@@ -287,9 +288,9 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
                       Avans
                     </button>
                   )}
-                  {approved && r.outstanding > 0 && (
-                    <button type="button" className="primary" onClick={() => setPaying(r)}>
-                      Ödə
+                  {(approved || r.payments.length > 0) && (
+                    <button type="button" className={approved && (r.outstanding > 0 || r.vacationOutstanding > 0 || r.benefitOutstanding > 0) ? "primary" : undefined} onClick={() => setPaying(r)}>
+                      {approved && r.outstanding > 0 ? "Ödə" : "Ödənişlər"}
                     </button>
                   )}
                   <button type="button" aria-label="Haqq-hesab vərəqəsi" title="Haqq-hesab vərəqəsi" onClick={() => void printSlip(r)}>
@@ -313,7 +314,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       </small>
       {edit && <InputsModal month={month} row={edit} notify={notify} onClose={() => setEdit(null)} onSaved={load} />}
       {advance && <AdvanceModal month={month} row={advance} schedule={sheet.schedule.advanceDate} notify={notify} onClose={() => setAdvance(null)} onChanged={load} />}
-      {paying && <PayModal month={month} row={paying} notify={notify} onClose={() => setPaying(null)} onSaved={load} />}
+      {paying && <PayModal month={month} row={paying} approved={approved} notify={notify} onClose={() => setPaying(null)} onSaved={load} />}
       {bank && <PayrollBank month={month} notify={notify} onClose={() => setBank(false)} onChanged={load} />}
       {settings && <SettingsModal settings={sheet.settings} notify={notify} onClose={() => setSettings(false)} onSaved={load} />}
     </div>
@@ -381,7 +382,7 @@ function AdvanceModal({ month, row, schedule, notify, onClose, onChanged }: { mo
   const [amount, setAmount] = useState(row.availableAdvance);
   const [paidOn, setPaidOn] = useState(schedule || new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState("bank");
-  const advances = row.payments.filter((p) => p.kind === "advance");
+  const advances = row.payments.filter((p) => p.kind === "advance" && !p.reversed);
   async function give() {
     try {
       await request("company/payroll/pay", { month, employeeId: row.employeeId, kind: "advance", amount, paidOn, method });
@@ -393,8 +394,11 @@ function AdvanceModal({ month, row, schedule, notify, onClose, onChanged }: { mo
     }
   }
   async function remove(p: Payment) {
+    const reason = window.prompt("Avansı geri çəkmə səbəbi:");
+    if (!reason) return;
     try {
-      await request("company/payroll/payment/delete", { id: p.id });
+      await request("company/payroll/payment/reverse", { id: p.id, reason });
+      notify("Avans geri çəkildi.");
       onChanged();
       onClose();
     } catch (error) {
@@ -428,7 +432,7 @@ function AdvanceModal({ month, row, schedule, notify, onClose, onChanged }: { mo
               {advances.map((p) => (
                 <li key={p.id}>
                   {dmy(p.paidOn)} — {azn(p.amount)} ({p.method === "cash" ? "nağd" : "bank"}){" "}
-                  <button type="button" className="text-button" onClick={() => void remove(p)}>sil</button>
+                  <button type="button" className="text-button" onClick={() => void remove(p)}>geri çək</button>
                 </li>
               ))}
             </ul>
@@ -439,13 +443,25 @@ function AdvanceModal({ month, row, schedule, notify, onClose, onChanged }: { mo
   );
 }
 
-function PayModal({ month, row, notify, onClose, onSaved }: { month: string; row: Row; notify: Notify; onClose: () => void; onSaved: () => void }) {
-  const [amount, setAmount] = useState(row.outstanding);
+const PAY_KINDS: { id: "salary" | "vacation" | "benefit" | "extra"; label: string }[] = [
+  { id: "salary", label: "Əmək haqqı (qalıq)" },
+  { id: "vacation", label: "Məzuniyyət haqqı" },
+  { id: "benefit", label: "Sosial sığorta müavinəti (xəstəlik/analıq)" },
+  { id: "extra", label: "Digər ödəniş (ezamiyyət, maddi yardım və s.)" },
+];
+
+function PayModal({ month, row, approved, notify, onClose, onSaved }: { month: string; row: Row; approved: boolean; notify: Notify; onClose: () => void; onSaved: () => void }) {
+  const owed = (kind: (typeof PAY_KINDS)[number]["id"]) => (kind === "salary" ? row.outstanding : kind === "vacation" ? row.vacationOutstanding : kind === "benefit" ? row.benefitOutstanding : 0);
+  const first = PAY_KINDS.find((k) => owed(k.id) > 0)?.id || "salary";
+  const [kind, setKind] = useState<(typeof PAY_KINDS)[number]["id"]>(first);
+  const [amount, setAmount] = useState(owed(first));
+  const [title, setTitle] = useState("");
+  const [note, setNote] = useState("");
   const [paidOn, setPaidOn] = useState(new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState("bank");
   async function save() {
     try {
-      await request("company/payroll/pay", { month, employeeId: row.employeeId, kind: "salary", amount, paidOn, method });
+      await request("company/payroll/pay", { month, employeeId: row.employeeId, kind, amount, paidOn, method, title, note });
       notify("Ödəniş qeyd edildi.");
       onSaved();
       onClose();
@@ -453,21 +469,61 @@ function PayModal({ month, row, notify, onClose, onSaved }: { month: string; row
       notify((error as Error).message);
     }
   }
+  async function reverse(p: Payment) {
+    const reason = window.prompt(`${KIND_LABEL[p.kind]} (${azn(p.amount)}) ödənişini geri çəkmə səbəbi:`);
+    if (!reason) return;
+    try {
+      await request("company/payroll/payment/reverse", { id: p.id, reason });
+      notify("Ödəniş geri çəkildi.");
+      onSaved();
+      onClose();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   return (
-    <Modal title={`Ödəniş: ${row.name}`} onClose={onClose}>
+    <Modal title={`Ödənişlər: ${row.name}`} onClose={onClose}>
       <div className="offer-composer">
-        <p>Ödəniləcək qalıq: <b>{azn(row.outstanding)}</b>{row.iban ? ` · IBAN: ${row.iban}` : " · IBAN daxil edilməyib"}</p>
+        <div className="staff-kpis">
+          <div className="staff-kpi"><small>Əmək haqqı qalığı</small><strong>{azn(row.outstanding)}</strong><span>avans {azn(row.advances)} · ödənilib {azn(row.salaryPaid)}</span></div>
+          {row.vacationDue > 0 && <div className="staff-kpi"><small>Məzuniyyət haqqı</small><strong>{azn(row.vacationOutstanding)}</strong><span>hesablanıb {azn(row.vacationDue)} · ödənilib {azn(row.vacationPaid)}</span></div>}
+          {row.benefitDue > 0 && <div className="staff-kpi"><small>Müavinət</small><strong>{azn(row.benefitOutstanding)}</strong><span>hesablanıb {azn(row.benefitDue)} · ödənilib {azn(row.benefitPaid)}</span></div>}
+          {row.extraPaid > 0 && <div className="staff-kpi"><small>Digər ödənişlər</small><strong>{azn(row.extraPaid)}</strong></div>}
+        </div>
+        <p className="muted">{row.iban ? `IBAN: ${row.iban}` : "IBAN daxil edilməyib"}{row.card ? ` · kart ${row.card}` : ""}. Hər növ ayrıca ödənilir və ayrıca geri çəkilə bilər.</p>
+        {!approved && <p className="danger-text">Əmək haqqı, məzuniyyət haqqı və müavinət ödənişi üçün əvvəl ayı təsdiqləyin; digər ödənişi indi də qeyd etmək olar.</p>}
         <div className="form-grid">
+          <Field label="Ödənişin növü">
+            <select value={kind} onChange={(e) => { const k = e.target.value as typeof kind; setKind(k); setAmount(owed(k)); }}>
+              {PAY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}{k.id !== "extra" ? ` — qalıq ${azn(owed(k.id))}` : ""}</option>)}
+            </select>
+          </Field>
+          {kind === "extra" && <Field label="Ödənişin adı"><input value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} placeholder="Məsələn: ezamiyyət xərci" /></Field>}
           <Field label="Məbləğ (AZN)"><input type="number" min={0} value={amount || ""} onChange={(e) => setAmount(Number(e.target.value))} /></Field>
           <Field label="Ödəniş tarixi"><input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} /></Field>
           <Field label="Üsul">
             <select value={method} onChange={(e) => setMethod(e.target.value)}>
               <option value="bank">Bank köçürməsi</option>
+              <option value="card">Kart</option>
               <option value="cash">Nağd</option>
             </select>
           </Field>
+          <Field label="Qeyd"><input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} /></Field>
         </div>
-        <button type="button" className="primary" disabled={!(amount > 0)} onClick={() => void save()}>Ödənildi</button>
+        <button type="button" className="primary" disabled={!(amount > 0) || (kind !== "extra" && !approved)} onClick={() => void save()}>Ödənildi</button>
+        {!!row.payments.length && (
+          <>
+            <h4>Ödəniş tarixçəsi</h4>
+            <ul className="payment-history">
+              {row.payments.map((p) => (
+                <li key={p.id} className={p.reversed ? "payment-reversed" : ""}>
+                  {dmy(p.paidOn)} — <b>{KIND_LABEL[p.kind]}{p.title ? `: ${p.title}` : ""}</b> {azn(p.amount)} ({p.method === "cash" ? "nağd" : p.method === "card" ? "kart" : "bank"}){p.note ? ` · ${p.note}` : ""}{" "}
+                  {p.reversed ? <small className="danger-text">geri çəkilib: {p.reverseReason} ({p.reversedBy})</small> : <button type="button" className="text-button" onClick={() => void reverse(p)}>geri çək</button>}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
     </Modal>
   );
