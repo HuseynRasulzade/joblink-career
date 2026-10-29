@@ -17,7 +17,7 @@ async function get<T>(path: string): Promise<T> {
 }
 
 // Contract, addendum, certificate and the like, filled in from the employee card and the company details.
-export default function HrDocsPanel({ employee }: { employee: Employee }) {
+export default function HrDocsPanel({ employee, notify }: { employee: Employee; notify: (message: string) => void }) {
   const today = new Date().toISOString().slice(0, 10);
   const [company, setCompany] = useState<DocCompany>({ name: "", voen: "", address: "", director: "" });
   const [kind, setKind] = useState<DocKind>("contract");
@@ -54,6 +54,29 @@ export default function HrDocsPanel({ employee }: { employee: Employee }) {
     win.document.close();
     win.focus();
     win.print();
+  }
+  const SAVE_AS: Record<DocKind, { category: string; subtype: string }> = {
+    contract: { category: "contract", subtype: "Əmək müqaviləsi" },
+    addendum: { category: "contract", subtype: "Əmək müqaviləsinə əlavə razılaşma" },
+    liability: { category: "contract", subtype: "Tam maddi məsuliyyət müqaviləsi" },
+    confidentiality: { category: "contract", subtype: "Konfidensiallıq (NDA) müqaviləsi" },
+    certificate: { category: "other", subtype: "İş yerindən arayış" },
+  };
+  async function keep() {
+    const text = [doc.title, "", ...doc.sections.flatMap((section) => [section.heading, ...section.paragraphs, ""]), ...doc.signatures.map((x) => `${x.role}: ${x.name.replace(/\n/g, ", ")}`), "", doc.note].filter((line, i, all) => line !== "" || all[i - 1] !== "").join("\n");
+    try {
+      const response = await fetch("/api/joblink/company/doc-registry/save-generated", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId: employee.id, ...SAVE_AS[kind], number: o.number, date: o.date, title: doc.title, text }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Saxlanılmadı.");
+      notify("Sənəd işçinin qovluğuna və sənəd reyestrinə əlavə olundu.");
+    } catch (error) {
+      notify((error as Error).message);
+    }
   }
   function word() {
     const url = URL.createObjectURL(new Blob(["﻿", hrDocumentHtml(doc)], { type: "application/msword" }));
@@ -109,6 +132,7 @@ export default function HrDocsPanel({ employee }: { employee: Employee }) {
       <div className="admin-actions">
         <button type="button" className="primary" onClick={print}><Printer size={14} /> Çap</button>
         <button type="button" className="secondary" onClick={word}>Word (.doc)</button>
+        <button type="button" className="secondary" onClick={() => void keep()}>İşçinin qovluğuna saxla</button>
       </div>
       <div className="hr-doc-preview">
         <h4>{doc.title}</h4>

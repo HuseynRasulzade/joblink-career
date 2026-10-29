@@ -3089,6 +3089,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
             {panel === "hrdocs" && editing.id && (
               <Modal title={`Müqavilə və kadr sənədləri: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
                 <HrDocsPanel
+                  notify={notify}
                   employee={{
                     id: editing.id,
                     name: editing.name || "",
