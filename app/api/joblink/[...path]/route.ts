@@ -57,7 +57,7 @@ import {
   SKILL_CATALOG_LABELS,
   type SkillDefinition,
 } from "@/lib/skill-catalog";
-import { createXlsx, excelDateSerial } from "@/lib/xlsx";
+import { createXlsx, createXlsxBook, excelDateSerial } from "@/lib/xlsx";
 import { findDuplicates } from "@/lib/duplicates";
 import { normalizeVat, vatParts } from "@/lib/vat";
 import { sanitizeReview, summarizeRatings } from "@/lib/reviews";
@@ -373,7 +373,7 @@ import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, request
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
 import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows } from "@/lib/sheet-imports";
 import { normalizeProfile, parseProfile } from "@/lib/employee-profile";
-import { taxReduction, weeklyHours } from "@/lib/employee-rights";
+import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
 import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, latePenalty, paymentDate, scheduleProblem, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
@@ -7681,6 +7681,12 @@ async function route(request: Request) {
         monthlySalary: pay?.gross || 0,
         weekHours: week.hours,
         iban: profile.iban,
+        fin: profile.fin,
+        ssn: profile.ssn,
+        voen: profile.voen,
+        startDate: p.start_date,
+        sector: p.sector === "public" ? "public" : "private",
+        benefit: profile.taxBenefit ? taxBenefit(profile.taxBenefit)?.short || taxBenefit(profile.taxBenefit)?.label || "" : "",
         taxReduction: reduction,
         inputs: inputsOf,
         result,
@@ -7729,18 +7735,62 @@ async function route(request: Request) {
     requirePermission("salaries", "Cədvəli yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
     const sheet = await payrollRows(payrollMonth().raw);
     const kind = str(requestUrl.searchParams.get("kind"), 10) === "bank" ? "bank" : "sheet";
-    let headers: string[];
-    let rows: (string | number)[][];
+    const money = (v: number) => Math.round(v * 100) / 100;
+    const line = (r: (typeof sheet.rows)[number], lineId: string) => r.result.lines.find((l) => l.id === lineId)?.amount || 0;
+    let book: Uint8Array;
     if (kind === "bank") {
-      headers = ["Ad Soyad", "IBAN", "Ödənilməli məbləğ (AZN)", "Təyinat"];
-      rows = sheet.rows.filter((r) => r.outstanding > 0).map((r) => [r.name, r.iban, r.outstanding, `${sheet.month} ayı üçün əmək haqqı`]);
+      const due = sheet.rows.filter((r) => r.outstanding > 0);
+      const rows: (string | number)[][] = due.map((r, i) => [i + 1, r.name, r.fin, r.iban || "IBAN yoxdur", r.position, r.department, r.result.toPay, r.advances, r.salaryPaid, r.outstanding, `${sheet.month} ayı üçün əmək haqqı`]);
+      rows.push(["", "CƏMİ", "", "", "", "", money(due.reduce((t, r) => t + r.result.toPay, 0)), money(due.reduce((t, r) => t + r.advances, 0)), money(due.reduce((t, r) => t + r.salaryPaid, 0)), money(due.reduce((t, r) => t + r.outstanding, 0)), ""]);
+      book = createXlsxBook([{ name: "Bank reyestri", headers: ["№", "Ad Soyad", "FİN", "IBAN", "Vəzifə", "Departament", "Ödəniləcək (net − avans)", "Verilmiş avans", "Artıq ödənilib", "Köçürüləcək məbləğ (AZN)", "Təyinat"], rows }]);
     } else {
-      headers = ["Ad Soyad", "Vəzifə", "Departament", "Norma günü", "İşlənmiş gün", "Hesablanmış (gross)", "Gəlir vergisi", "DSMF", "İşsizlik sığortası", "Tibbi sığorta", "Net", "Digər tutulmalar", "Avans", "Ödəniləcək", "Ödənilib", "Qalıq", "İşəgötürən sığorta payı", "İşəgötürənin ümumi xərci"];
-      rows = sheet.rows.map((r) => [r.name, r.position, r.department, r.result.normDays, r.result.workedDays, r.result.gross, r.result.incomeTax, r.result.employeeSocial, r.result.employeeUnemployment, r.result.employeeMedical, r.result.net, r.result.otherDeductions.reduce((t, d) => t + d.applied, 0), r.advances, r.result.toPay, r.salaryPaid, r.outstanding, Math.round((r.result.employerSocial + r.result.employerUnemployment + r.result.employerMedical) * 100) / 100, r.result.employerCost]);
-      rows.push(["CƏMİ", "", "", "", "", sheet.totals.gross, sheet.totals.incomeTax, "", "", "", sheet.totals.net, "", sheet.totals.advances, sheet.totals.toPay, "", sheet.totals.outstanding, sheet.totals.employerContributions, sheet.totals.employerCost]);
+      const headers = [
+        "№", "Ad Soyad", "FİN", "SSN", "VÖEN", "Vəzifə", "Departament", "Şöbə", "İşə qəbul tarixi", "Status", "Sektor", "Maaş növü (razılaşdırılmış)", "Həftəlik saat", "Vergi güzəşti", "Güzəşt məbləği (AZN)",
+        "Aylıq maaş (gross)", "Saatlıq tarif", "Norma günü", "İşlənmiş gün", "Ödənişli məzuniyyət/icazə günü", "Boşdayanma günü", "Müavinət günü", "Ödənişsiz gün",
+        "İşlənmiş günlərə görə", "Məzuniyyət/icazə haqqı", "Boşdayanma haqqı (2/3)", "Artıq iş saatı", "Artıq iş haqqı", "İstirahət/bayram günü saatı", "İstirahət/bayram günü haqqı", "Gecə saatı", "Gecə əlavəsi", "Əlavələr", "Mükafat",
+        "Cəmi hesablanıb (gross)", "Gəlir vergisi", "DSMF (işçi)", "İşsizlik sığortası (işçi)", "İcbari tibbi sığorta (işçi)", "Cəmi qanuni tutulmalar", "Net (vergilərdən sonra)",
+        "Digər tutulmalar (tətbiq edilən)", "Digər tutulmalar (tələb edilən)", "Verilmiş avans", "Ödəniləcək", "Faktiki ödənilib", "Qalıq borc", "Son ödəniş tarixi", "Gecikmə (gün)", "Gecikmə cəriməsi (1%/gün)", "Avans həddi (indiyədək qazanılan)",
+        "DSMF (işəgötürən)", "İşsizlik (işəgötürən)", "Tibbi sığorta (işəgötürən)", "İşəgötürən üzrə cəmi sığorta", "İşəgötürənin ümumi xərci", "IBAN", "Qeyd",
+      ];
+      const status = (v: string) => (v === "left" ? "İşdən çıxıb" : "İşləyir");
+      const body: (string | number)[][] = sheet.rows.map((r, i) => {
+        const x = r.result;
+        const legal = money(x.incomeTax + x.employeeSocial + x.employeeUnemployment + x.employeeMedical);
+        const otherApplied = money(x.otherDeductions.reduce((t, d) => t + d.applied, 0));
+        const otherAsked = money(x.otherDeductions.reduce((t, d) => t + d.amount, 0));
+        const employer = money(x.employerSocial + x.employerUnemployment + x.employerMedical);
+        return [
+          i + 1, r.name, r.fin, r.ssn, r.voen, r.position, r.department, r.section || "", r.startDate, status(r.status), r.sector === "public" ? "Dövlət" : "Qeyri-dövlət", r.salaryType === "net" ? "Net" : "Gross", r.weekHours, r.benefit, x.taxReduction,
+          r.monthlySalary, x.hourly, x.normDays, x.workedDays, x.paidLeaveDays, x.downtimeDays, x.benefitDays, x.unpaidDays,
+          line(r, "worked"), line(r, "paid-leave"), line(r, "downtime"), r.inputs.overtimeHours, line(r, "overtime"), r.inputs.restDayHours, line(r, "rest-day"), r.inputs.nightHours, line(r, "night"), line(r, "allowance"), line(r, "bonus"),
+          x.gross, x.incomeTax, x.employeeSocial, x.employeeUnemployment, x.employeeMedical, legal, x.net,
+          otherApplied, otherAsked, r.advances, x.toPay, r.salaryPaid, r.outstanding, r.lastPaid, r.late.days, r.late.amount, r.availableAdvance,
+          x.employerSocial, x.employerUnemployment, x.employerMedical, employer, x.employerCost, r.iban, [r.inputs.note, ...x.notes].filter(Boolean).join(" | "),
+        ];
+      });
+      // Totals for the money and quantity columns; text columns stay empty.
+      const textColumns = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 47, 59, 60]);
+      const totals: (string | number)[] = headers.map((_, c) => (c === 1 ? "CƏMİ" : textColumns.has(c) ? "" : money(body.reduce((t, row) => t + (Number(row[c]) || 0), 0))));
+      body.push(totals);
+      const deductionRows: (string | number)[][] = [];
+      for (const r of sheet.rows) for (const d of r.result.otherDeductions) deductionRows.push([r.name, r.fin, d.label || "Digər tutulma", d.kind === "writ" ? "İcra sənədi (50%-dək)" : d.kind === "alimony" ? "Aliment və s. (70%-dək)" : "Ümumi (20%-dək)", d.amount, d.applied, money(d.amount - d.applied)]);
+      const paymentRows: (string | number)[][] = [];
+      for (const r of sheet.rows) for (const pay of r.payments) paymentRows.push([pay.paidOn, r.name, r.fin, pay.kind === "advance" ? "Avans" : "Əmək haqqı", pay.amount, ({ bank: "Bank köçürməsi", card: "Kart", cash: "Nağd", other: "Digər" } as Record<string, string>)[pay.method] || pay.method, r.iban, pay.note]);
+      paymentRows.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+      const unitRows = [...new Set(sheet.rows.map((r) => r.department || "Departamentsiz"))].sort().map((dep) => {
+        const group = sheet.rows.filter((r) => (r.department || "Departamentsiz") === dep);
+        const total = (pick: (r: (typeof group)[number]) => number) => money(group.reduce((t, r) => t + pick(r), 0));
+        return [dep, group.length, total((r) => r.result.gross), total((r) => r.result.incomeTax), total((r) => r.result.employeeSocial + r.result.employeeUnemployment + r.result.employeeMedical), total((r) => r.result.net), total((r) => r.advances), total((r) => r.result.toPay), total((r) => r.outstanding), total((r) => r.result.employerSocial + r.result.employerUnemployment + r.result.employerMedical), total((r) => r.result.employerCost)];
+      });
+      book = createXlsxBook([
+        { name: "Əmək haqqı", headers, rows: body },
+        { name: "Departamentlər üzrə", headers: ["Departament", "İşçi sayı", "Gross", "Gəlir vergisi", "İşçi sığortası", "Net", "Avans", "Ödəniləcək", "Qalıq borc", "İşəgötürən sığortası", "İşəgötürənin ümumi xərci"], rows: unitRows },
+        { name: "Tutulmalar", headers: ["Ad Soyad", "FİN", "Tutulmanın adı", "Növü", "Tələb edilən", "Tətbiq edilən", "Növbəti aya qalan"], rows: deductionRows },
+        { name: "Ödənişlər", headers: ["Tarix", "Ad Soyad", "FİN", "Növ", "Məbləğ (AZN)", "Üsul", "IBAN", "Qeyd"], rows: paymentRows },
+      ]);
     }
     await companyAudit(db, id, userId, "payroll-exported", kind, sheet.month);
-    return new Response(Uint8Array.from(createXlsx(headers, rows, kind === "bank" ? "Bank reyestri" : "Əmək haqqı")).buffer, {
+    return new Response(Uint8Array.from(book).buffer, {
       headers: {
         "Cache-Control": "private, no-store",
         "Content-Disposition": `attachment; filename="emek-haqqi-${kind === "bank" ? "bank" : "cedvel"}-${sheet.month}.xlsx"`,
