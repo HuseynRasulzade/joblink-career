@@ -121,7 +121,7 @@ import PayrollPage from "./PayrollPage";
 import PeopleOps from "./PeopleOps";
 import GrowthHub from "./GrowthHub";
 import EncryptionPanel from "./EncryptionPanel";
-import HrFundReport from "./HrFundReport";
+import ReportsHub from "./ReportsHub";
 import { FitReviewPanel } from "./FitReview";
 import PackagesPage from "./PackagesPage";
 import { localizeTree, setSiteLanguage } from "./i18n";
@@ -2759,10 +2759,12 @@ export default function Joblink() {
                 />
               )}
               {page === "hr-reports" && (
-                <>
-                  <CompanyDashboard me={companyMe} notify={notify} />
-                  {companyMe?.permissions.includes("payroll" as never) && <HrFundReport notify={notify} />}
-                </>
+                <ReportsHub
+                  me={companyMe}
+                  notify={notify}
+                  hiring={<CompanyDashboard me={companyMe} notify={notify} />}
+                  workforce={<WorkforcePage me={companyMe} notify={notify} />}
+                />
               )}
               {page === "hr-employees" && <EmployeesPage notify={notify} />}
               {page === "hr-orders" && <OrdersRegistry notify={notify} />}

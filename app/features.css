@@ -6070,3 +6070,10 @@ a svg {
 .doc-text { white-space: pre-wrap; font-family: "Times New Roman", serif; background: var(--panel, #fafaf7); border: 1px solid var(--line, #dfe8e3); border-radius: 6px; padding: 10px 12px; max-height: 320px; overflow: auto; }
 .org-section { margin: 6px 0 6px 14px; padding-left: 10px; border-left: 2px solid var(--line, #dfe8e3); }
 .org-section ul { margin: 4px 0 0; padding-left: 16px; }
+.report-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.report-card { display: flex; gap: 10px; align-items: flex-start; text-align: left; border: 1px solid var(--line, #dfe8e3); border-radius: 8px; background: var(--panel, #fff); padding: 12px; cursor: pointer; color: inherit; }
+.report-card:hover { border-color: var(--accent, #187c6c); }
+.report-card span { display: grid; gap: 4px; }
+.report-card small { color: var(--muted, #5b7068); font-size: 12px; }
+.report-filters { align-items: end; }
+.report-frame .tot td { border-top: 2px solid var(--ink, #17332b); }
