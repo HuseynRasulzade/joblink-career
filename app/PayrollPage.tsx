@@ -63,6 +63,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const [settings, setSettings] = useState(false);
   const [bank, setBank] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [accounts, setAccounts] = useState(false);
   const [view, setView] = useState<"sheet" | "report">("sheet");
   const notifyRef = useRef(notify);
   useEffect(() => {
@@ -138,6 +139,11 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           {sheet?.status !== "approved" && (
             <button type="button" className="secondary" onClick={() => setImporting(true)}>
               Excel-dən əlavə və saatlar
+            </button>
+          )}
+          {sheet?.status === "approved" && (
+            <button type="button" className="secondary" onClick={() => setAccounts(true)}>
+              Mühasibat jurnalı (1C)
             </button>
           )}
           <button type="button" className="secondary" onClick={() => setView("report")}>
@@ -276,6 +282,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       {edit && <InputsModal month={month} row={edit} notify={notify} onClose={() => setEdit(null)} onSaved={load} />}
       {advance && <AdvanceModal month={month} row={advance} schedule={sheet.schedule.advanceDate} notify={notify} onClose={() => setAdvance(null)} onChanged={load} />}
       {paying && <PayModal month={month} row={paying} approved={approved} notify={notify} onClose={() => setPaying(null)} onSaved={load} />}
+      {accounts && <AccountingModal month={month} notify={notify} onClose={() => setAccounts(false)} />}
       {importing && <SheetImport kind="payroll" extra={{ month }} notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {bank && <PayrollBank month={month} notify={notify} onClose={() => setBank(false)} onChanged={load} />}
       {settings && <SettingsModal settings={sheet.settings} notify={notify} onClose={() => setSettings(false)} onSaved={load} />}
@@ -583,6 +590,46 @@ function SettingsModal({ settings, notify, onClose, onSaved }: { settings: Sheet
           <Field label="Bank ödənişinə iki nəfərin təsdiqi (AZN-dən; 0 — bir təsdiq kifayətdir)"><input type="number" min={0} step={100} value={dual} onChange={(e) => setDual(Number(e.target.value))} /></Field>
         </div>
         <button type="button" className="primary" onClick={() => void save()}>Saxla</button>
+      </div>
+    </Modal>
+  );
+}
+
+// The accountant's postings of the month: the company's own account codes, then the table for 1C or any ledger.
+function AccountingModal({ month, notify, onClose }: { month: string; notify: Notify; onClose: () => void }) {
+  const [data, setData] = useState<{ map: Record<string, string>; labels: Record<string, string> } | null>(null);
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  });
+  useEffect(() => {
+    request<{ map: Record<string, string>; labels: Record<string, string> }>("company/payroll/accounting-map")
+      .then(setData)
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, []);
+  async function save() {
+    if (!data) return;
+    try {
+      await request("company/payroll/accounting-map", { map: data.map });
+      notify("Hesab kodları saxlanıldı.");
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (!data) return <Modal title="Mühasibat jurnalı" onClose={onClose}><p className="muted">Yüklənir…</p></Modal>;
+  return (
+    <Modal title="Mühasibat jurnalı (1C və ya digər proqram üçün)" onClose={onClose}>
+      <div className="offer-composer">
+        <p className="muted">Hesab kodlarını mühasibatınızın hesab planına görə yazın (məsələn, 721, 533). Boş qalsa jurnalda yalnız hesabın adı olur. Jurnal təsdiqlənmiş ayın hesablama, vergi, sığorta, tutulma və ödənişlərini debet/kredit sətirlərində verir.</p>
+        <div className="form-grid">
+          {Object.entries(data.labels).map(([key, label]) => (
+            <Field key={key} label={label}><input value={data.map[key] || ""} maxLength={20} onChange={(e) => setData({ ...data, map: { ...data.map, [key]: e.target.value } })} /></Field>
+          ))}
+        </div>
+        <div className="admin-actions">
+          <button type="button" className="secondary" onClick={() => void save()}>Kodları saxla</button>
+          <a className="primary report-button" href={`/api/joblink/company/payroll/accounting?month=${month}`} download><Download size={14} /> Jurnalı yüklə ({month})</a>
+        </div>
       </div>
     </Modal>
   );

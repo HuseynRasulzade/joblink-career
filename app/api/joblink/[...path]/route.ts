@@ -376,6 +376,7 @@ import { maskCard, normalizeProfile, parseProfile, validIban } from "@/lib/emplo
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
 import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
 import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, payWarnings, isVacationCode, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
+import { explainChange, type SlipFigures } from "@/lib/payroll-explain";
 import { RATING_TEXT, bandOf, cleanScore, cycleScore } from "@/lib/performance";
 import { shiftHours, validTime } from "@/lib/shifts";
 import { STATUS_TEXT as TRIP_STATUS, settleTrip, tripDays } from "@/lib/trips";
@@ -7774,6 +7775,24 @@ async function route(request: Request) {
     if (!res.meta.changes) throw new HttpError(409, "Bu sorğuya artıq cavab vermisiniz.");
     return ok({ ok: true }, 201);
   }
+  // Documents the company made for the employee to read and confirm: the confirmation keeps the time and a hash of the text.
+  if (request.method === "GET" && path === "employee/docs-to-sign") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const rows = await db.prepare("SELECT id,subtype,doc_number,doc_date,ack_at,data FROM employee_documents WHERE company_id=? AND employee_id=? AND ack_required=1 AND type LIKE 'text/plain%' ORDER BY created DESC").bind(employee.company_id, employee.id).all<{ id: string; subtype: string; doc_number: string; doc_date: string; ack_at: string; data: string }>();
+    return ok({ items: rows.results.map((r) => ({ id: r.id, title: r.subtype, number: r.doc_number, date: r.doc_date, ackAt: r.ack_at, text: new TextDecoder().decode(Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0))) })) });
+  }
+  if (request.method === "POST" && path === "employee/docs/ack") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const doc = await db.prepare("SELECT id,subtype,data,ack_at FROM employee_documents WHERE id=? AND company_id=? AND employee_id=? AND ack_required=1").bind(str(b.docId, 100), employee.company_id, employee.id).first<{ id: string; subtype: string; data: string; ack_at: string }>();
+    if (!doc) throw new HttpError(404, "Sənəd tapılmadı.");
+    if (doc.ack_at) throw new HttpError(409, "Bu sənədlə artıq tanış olduğunuzu təsdiq etmisiniz.");
+    const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(doc.data)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    await db.prepare("UPDATE employee_documents SET ack_at=?,ack_hash=? WHERE id=? AND company_id=?").bind(new Date().toISOString(), hash, doc.id, employee.company_id).run();
+    await tellCompany(employee.company_id, `${employee.name} sənədlə tanış oldu`, `${doc.subtype}: işçi təsdiq etdi.`, "hr-people-ops");
+    await companyAudit(db, employee.company_id, userId, "doc-acknowledged", employee.id, `${doc.subtype} · ${hash.slice(0, 12)}`);
+    return ok({ ok: true, hash: hash.slice(0, 16) });
+  }
   // The employee's own pay slips: only months the company has approved, and only the employee's own figures.
   const approvedSlipOf = async (employee: { id: string; company_id: string }, month: string) => {
     const run = await db.prepare("SELECT snapshot,approved_at FROM payroll_runs WHERE company_id=? AND month=? AND status='approved'").bind(employee.company_id, month).first<{ snapshot: string; approved_at: string }>();
@@ -7789,14 +7808,26 @@ async function route(request: Request) {
     const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
     const runs = await db.prepare("SELECT month,snapshot,approved_at FROM payroll_runs WHERE company_id=? AND status='approved' ORDER BY month DESC LIMIT 24").bind(employee.company_id).all<{ month: string; snapshot: string; approved_at: string }>();
     const pays = await db.prepare("SELECT month,kind,amount_cents FROM payroll_payments WHERE company_id=? AND employee_id=? AND reversed_at=''").bind(employee.company_id, employee.id).all<{ month: string; kind: string; amount_cents: number }>();
+    const figuresOf = (month: string, r: ReturnType<typeof computePay>): SlipFigures => ({ month, gross: r.gross, net: r.net, incomeTax: r.incomeTax, insurance: r.employeeSocial + r.employeeUnemployment + r.employeeMedical, deductions: r.otherDeductions.reduce((t, d) => t + d.applied, 0), workedDays: r.workedDays + r.paidLeaveDays, normDays: r.normDays, lines: r.lines, toPay: r.toPay });
+    const mineBy = new Map<string, ReturnType<typeof computePay>>();
+    for (const run of runs.results) {
+      try {
+        const mine = (JSON.parse(run.snapshot) as { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] }).rows?.find((r) => r.employeeId === employee.id);
+        if (mine) mineBy.set(run.month, mine.result);
+      } catch {
+        // A broken snapshot gives no figures for that month.
+      }
+    }
+    const ordered = [...mineBy.keys()].sort();
     const months = runs.results.flatMap((run) => {
       try {
         const mine = (JSON.parse(run.snapshot) as { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] }).rows?.find((r) => r.employeeId === employee.id);
         if (!mine) return [];
+        const previousMonth = ordered[ordered.indexOf(run.month) - 1];
         const paid = pays.results.filter((p) => p.month === run.month);
         const sum = (kinds: string[]) => paid.filter((p) => kinds.includes(p.kind)).reduce((t, p) => t + p.amount_cents, 0) / 100;
         const salaryPaid = sum(["salary", "vacation"]);
-        return [{ month: run.month, gross: mine.result.gross, net: mine.result.net, toPay: mine.result.toPay, advances: mine.result.advances, paid: sum(["advance", "salary", "vacation", "benefit"]), outstanding: Math.max(0, Math.round((mine.result.toPay - salaryPaid) * 100) / 100), benefit: mine.result.benefitAmount || 0 }];
+        return [{ month: run.month, gross: mine.result.gross, net: mine.result.net, toPay: mine.result.toPay, advances: mine.result.advances, paid: sum(["advance", "salary", "vacation", "benefit"]), outstanding: Math.max(0, Math.round((mine.result.toPay - salaryPaid) * 100) / 100), benefit: mine.result.benefitAmount || 0, explain: explainChange(previousMonth ? figuresOf(previousMonth, mineBy.get(previousMonth)!) : null, figuresOf(run.month, mine.result)) }];
       } catch {
         return [];
       }
@@ -8055,6 +8086,17 @@ async function route(request: Request) {
     const payDate = paymentDate(year, month, payDay);
     const frozen: { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] } | null = run?.status === "approved" && run.snapshot ? (() => { try { return JSON.parse(run.snapshot); } catch { return null; } })() : null;
     const sectionFor = await staffSections();
+    // The gross pay of the last approved month, to point out a sudden change.
+    const previousMonth = new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
+    const previousGross = new Map<string, number>();
+    const previousRun = await db.prepare("SELECT snapshot FROM payroll_runs WHERE company_id=? AND month=? AND status='approved'").bind(id, previousMonth).first<{ snapshot: string }>();
+    if (previousRun?.snapshot) {
+      try {
+        for (const r of (JSON.parse(previousRun.snapshot) as { rows?: { employeeId: string; result: { gross: number } }[] }).rows || []) previousGross.set(r.employeeId, r.result.gross);
+      } catch {
+        // No comparison without a readable snapshot.
+      }
+    }
     // Leave days already taken by those whose contract ends this month.
     const leaverLeave = new Map<string, number>();
     if (leavers.length) {
@@ -8169,7 +8211,7 @@ async function route(request: Request) {
         benefit: profile.taxBenefit ? taxBenefit(profile.taxBenefit)?.short || taxBenefit(profile.taxBenefit)?.label || "" : "",
         taxReduction: reduction,
         annual: annualInfo,
-        warnings: payWarnings({ gross: pay?.gross || 0, weekHours: week.hours, workedAll: result.workedDays + result.paidLeaveDays >= result.normDays && result.normDays > 0, hasIban: !!profile.iban || !!profile.cardNumber, cashPay: profile.payMethod === "cash", advanceExcess: result.advanceExcess }),
+        warnings: payWarnings({ gross: pay?.gross || 0, weekHours: week.hours, workedAll: result.workedDays + result.paidLeaveDays >= result.normDays && result.normDays > 0, hasIban: !!profile.iban || !!profile.cardNumber, cashPay: profile.payMethod === "cash", advanceExcess: result.advanceExcess, earned: result.gross, previousEarned: previousGross.get(p.id) }),
         inputs: inputsOf,
         hours: hoursAuto,
         recurring: recurring.filter((x) => x.employee_id === p.id).map((x) => ({ id: x.id, type: x.type, label: x.label, amount: x.amount_cents / 100 })),
@@ -8408,7 +8450,7 @@ async function route(request: Request) {
     const query = str(requestUrl.searchParams.get("q"), 80).toLocaleLowerCase("az");
     const todayIso = new Date().toISOString().slice(0, 10);
     const [docs, people] = await Promise.all([
-      db.prepare("SELECT d.id,d.employee_id,d.category,d.subtype,d.doc_number,d.doc_date,d.expires,d.name,d.type,d.size,d.created,e.name AS employee FROM employee_documents d JOIN company_employees e ON e.id=d.employee_id WHERE d.company_id=? ORDER BY d.created DESC LIMIT 800").bind(id).all<{ id: string; employee_id: string; category: string; subtype: string; doc_number: string; doc_date: string; expires: string; name: string; type: string; size: number; created: string; employee: string }>(),
+      db.prepare("SELECT d.id,d.employee_id,d.category,d.subtype,d.doc_number,d.doc_date,d.expires,d.ack_required,d.ack_at,d.name,d.type,d.size,d.created,e.name AS employee FROM employee_documents d JOIN company_employees e ON e.id=d.employee_id WHERE d.company_id=? ORDER BY d.created DESC LIMIT 800").bind(id).all<{ id: string; employee_id: string; category: string; subtype: string; doc_number: string; doc_date: string; expires: string; ack_required: number; ack_at: string; name: string; type: string; size: number; created: string; employee: string }>(),
       db.prepare("SELECT id,name,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).all<{ id: string; name: string; profile: string }>(),
     ]);
     const rows = docs.results.filter((d) => (!category || d.category === category) && (!query || `${d.employee} ${d.subtype} ${d.name} ${d.doc_number}`.toLocaleLowerCase("az").includes(query)));
@@ -8420,7 +8462,7 @@ async function route(request: Request) {
     );
     return ok({
       categories: Object.keys(DOC_KINDS),
-      documents: rows.map((d) => ({ id: d.id, employeeId: d.employee_id, employee: d.employee, category: d.category, subtype: d.subtype, number: d.doc_number, date: d.doc_date, expires: d.expires, name: d.name, type: d.type, size: d.size, created: d.created, daysLeft: d.expires ? daysLeft(d.expires, todayIso) : null })),
+      documents: rows.map((d) => ({ id: d.id, employeeId: d.employee_id, employee: d.employee, category: d.category, subtype: d.subtype, number: d.doc_number, date: d.doc_date, expires: d.expires, ackRequired: !!d.ack_required, ackAt: d.ack_at, name: d.name, type: d.type, size: d.size, created: d.created, daysLeft: d.expires ? daysLeft(d.expires, todayIso) : null })),
       deadlines,
     });
   }
@@ -8453,10 +8495,11 @@ async function route(request: Request) {
     if (count >= 30) throw new HttpError(409, "Bir işçi üçün ən çoxu 30 sənəd saxlamaq olar.");
     const docId = crypto.randomUUID();
     await db
-      .prepare("INSERT INTO employee_documents(id,company_id,employee_id,category,subtype,doc_number,doc_date,expires,name,type,data,size,uploaded_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-      .bind(docId, id, employee.id, Object.keys(DOC_KINDS).includes(docType.category) ? docType.category : "other", docType.subtype, str(b.number, 40), /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? dateRaw : "", /^\d{4}-\d{2}-\d{2}$/.test(expiresRaw) ? expiresRaw : "", `${str(b.title, 120) || docType.subtype}.txt`, "text/plain; charset=utf-8", btoa(binary), bytes.length, userId, new Date().toISOString())
+      .prepare("INSERT INTO employee_documents(id,company_id,employee_id,category,subtype,doc_number,doc_date,expires,ack_required,name,type,data,size,uploaded_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(docId, id, employee.id, Object.keys(DOC_KINDS).includes(docType.category) ? docType.category : "other", docType.subtype, str(b.number, 40), /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? dateRaw : "", /^\d{4}-\d{2}-\d{2}$/.test(expiresRaw) ? expiresRaw : "", b.requireAck === true ? 1 : 0, `${str(b.title, 120) || docType.subtype}.txt`, "text/plain; charset=utf-8", btoa(binary), bytes.length, userId, new Date().toISOString())
       .run();
     await companyAudit(db, id, userId, "employee-doc-added", employee.id, `${docType.subtype} (hazırlanmış)`);
+    if (b.requireAck === true) await tellEmployee(employee.id, "Tanış olmalı sənəd", `${docType.subtype}${str(b.number, 40) ? ` № ${str(b.number, 40)}` : ""}. İş yerim → Sənədlər bölməsində oxuyub təsdiqləyin.`);
     return ok({ ok: true, id: docId }, 201);
   }
 
@@ -9879,6 +9922,77 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "payroll-inputs-imported", "", `${monthRaw}: ${applied} işçi`);
     return ok({ ok: true, applied, created: applied, issues });
   }
+  // Postings of a month for the accountant: one table that goes into 1C or any ledger. The account codes are the company's own.
+  const ACCOUNT_KEYS: [string, string][] = [
+    ["wageExpense", "Əmək haqqı xərcləri"],
+    ["socialExpense", "İşəgötürənin sosial sığorta xərcləri"],
+    ["payroll", "İşçi heyəti ilə hesablaşmalar (əmək haqqı üzrə öhdəlik)"],
+    ["incomeTax", "Gəlir vergisi üzrə öhdəlik"],
+    ["insurance", "Sosial sığorta, işsizlik və tibbi sığorta üzrə öhdəlik"],
+    ["otherPayable", "Digər tutulmalar üzrə hesablaşmalar"],
+    ["bank", "Bank hesabı"],
+    ["cash", "Kassa"],
+  ];
+  const accountMap = async () => {
+    const rows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key LIKE 'acct_%'").bind(id).all<{ key: string; value: string }>()).results;
+    return Object.fromEntries(ACCOUNT_KEYS.map(([k]) => [k, rows.find((r) => r.key === `acct_${k}`)?.value || ""])) as Record<string, string>;
+  };
+  if (request.method === "GET" && path === "company/payroll/accounting-map") {
+    requirePermission("salaries", "Hesab planını yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    return ok({ map: await accountMap(), labels: Object.fromEntries(ACCOUNT_KEYS) });
+  }
+  if (request.method === "POST" && path === "company/payroll/accounting-map") {
+    requirePermission("salaries", "Hesab planını yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    const given = (b.map && typeof b.map === "object" ? b.map : {}) as Record<string, unknown>;
+    for (const [k] of ACCOUNT_KEYS)
+      await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, `acct_${k}`, str(given[k], 20)).run();
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "company/payroll/accounting") {
+    requirePermission("salaries", "Mühasibat jurnalını yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
+    const sheet = await payrollRows(payrollMonth().raw);
+    if (sheet.status !== "approved") throw new HttpError(409, "Mühasibat jurnalı yalnız təsdiqlənmiş ay üçün hazırlanır.");
+    const map = await accountMap();
+    const names = Object.fromEntries(ACCOUNT_KEYS);
+    const monthEnd = `${sheet.month}-${String(new Date(Date.UTC(Number(sheet.month.slice(0, 4)), Number(sheet.month.slice(5, 7)), 0)).getUTCDate()).padStart(2, "0")}`;
+    const money = (v: number) => Math.round(v * 100) / 100;
+    const rows: (string | number)[][] = [];
+    const post = (date: string, debit: string, credit: string, amount: number, text: string, note = "") => {
+      if (amount > 0.004) rows.push([date, map[debit] || "", names[debit], map[credit] || "", names[credit], money(amount), text, note]);
+    };
+    const byDepartment = new Map<string, { gross: number; employer: number }>();
+    let tax = 0;
+    let insurance = 0;
+    let other = 0;
+    for (const r of sheet.rows) {
+      const x = r.result;
+      const d = byDepartment.get(r.department || "Departamentsiz") || { gross: 0, employer: 0 };
+      d.gross += x.gross;
+      d.employer += x.employerSocial + x.employerUnemployment + x.employerMedical;
+      byDepartment.set(r.department || "Departamentsiz", d);
+      tax += x.incomeTax;
+      insurance += x.employeeSocial + x.employeeUnemployment + x.employeeMedical;
+      other += x.otherDeductions.reduce((t, o) => t + o.applied, 0);
+    }
+    for (const [department, d] of byDepartment) {
+      post(monthEnd, "wageExpense", "payroll", d.gross, `${sheet.month} ayı üçün əmək haqqı hesablanıb`, department);
+      post(monthEnd, "socialExpense", "insurance", d.employer, `${sheet.month}: işəgötürən sığorta payı`, department);
+    }
+    post(monthEnd, "payroll", "incomeTax", tax, `${sheet.month}: gəlir vergisi tutulub`);
+    post(monthEnd, "payroll", "insurance", insurance, `${sheet.month}: işçi sığorta payı tutulub`);
+    post(monthEnd, "payroll", "otherPayable", other, `${sheet.month}: digər tutulmalar`);
+    for (const r of sheet.rows)
+      for (const pay of r.payments)
+        if (!pay.reversed && pay.kind !== "extra") post(pay.paidOn, "payroll", pay.method === "cash" ? "cash" : "bank", pay.amount, `${PAY_LABEL[pay.kind] || pay.kind}: ${r.name}`, pay.note);
+    const total = money(rows.reduce((t, r) => t + Number(r[5]), 0));
+    const book = createXlsxBook([
+      { name: "Mühasibat jurnalı", headers: ["Tarix", "Debet hesab", "Debet adı", "Kredit hesab", "Kredit adı", "Məbləğ (AZN)", "İzah", "Qeyd (departament / ödəniş)"], rows },
+      { name: "Hesab planı", headers: ["Açar", "Ad", "Hesab kodu (şirkətin)"], rows: ACCOUNT_KEYS.map(([k, label]) => [k, label, map[k] || "doldurulmayıb"]) },
+    ]);
+    await companyAudit(db, id, userId, "payroll-accounting-exported", sheet.month, `${rows.length} sətir, ${total} AZN`);
+    return new Response(Uint8Array.from(book).buffer, { headers: { "Cache-Control": "private, no-store", "Content-Disposition": `attachment; filename="muhasibat-jurnali-${sheet.month}.xlsx"`, "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } });
+  }
   if (request.method === "POST" && path === "company/payroll/settings") {
     requirePermission("salaries", "Əmək haqqı ayarlarını yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
     const b = await jsonBody(request);
@@ -10353,7 +10467,18 @@ async function route(request: Request) {
       )
       .bind(id)
       .all<Parameters<typeof requestRow>[0]>();
-    return ok({ requests: rows.results.map(requestRow) });
+    // How fast the applications are answered: the average time to an answer and the ones waiting more than 3 days.
+    const times = (await db.prepare("SELECT status,created,updated FROM employee_requests WHERE company_id=? AND created>?").bind(id, new Date(Date.now() - 90 * 86_400_000).toISOString()).all<{ status: string; created: string; updated: string }>()).results;
+    const answered = times.filter((t) => t.status !== "new" && t.status !== "withdrawn");
+    const waiting = times.filter((t) => t.status === "new");
+    const hours = answered.map((t) => (Date.parse(t.updated) - Date.parse(t.created)) / 3_600_000).filter((h) => Number.isFinite(h) && h >= 0);
+    const stats = {
+      answered: answered.length,
+      waiting: waiting.length,
+      overdue: waiting.filter((t) => Date.now() - Date.parse(t.created) > 3 * 86_400_000).length,
+      averageHours: hours.length ? Math.round((hours.reduce((t, h) => t + h, 0) / hours.length) * 10) / 10 : null,
+    };
+    return ok({ requests: rows.results.map(requestRow), stats });
   }
   if (request.method === "POST" && path === "company/applications/save") {
     requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs qeyd edə bilər.");

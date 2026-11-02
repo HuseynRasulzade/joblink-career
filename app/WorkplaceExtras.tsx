@@ -136,3 +136,31 @@ export function ExitInterview({ employeeId, notify }: { employeeId: string; noti
     </div>
   );
 }
+
+// Documents the company made: the employee reads them and confirms; the confirmation keeps the time and a hash of the text.
+export function DocsToSign({ employeeId, notify }: { employeeId: string; notify: Notify }) {
+  const [data, load] = useLoad<{ items: { id: string; title: string; number: string; date: string; ackAt: string; text: string }[] }>(`employee/docs-to-sign?employeeId=${employeeId}`, notify);
+  async function ack(docId: string) {
+    try {
+      await request("employee/docs/ack", { employeeId, docId });
+      notify("Sənədlə tanış olduğunuz təsdiq edildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data.items.length) return <p className="muted">Təsdiq üçün sənəd yoxdur.</p>;
+  return (
+    <div className="offer-composer">
+      {data.items.map((d) => (
+        <details key={d.id} className="bank-batch" open={!d.ackAt}>
+          <summary><b>{d.title}{d.number ? ` № ${d.number}` : ""}</b> <small className="skill-description">{d.ackAt ? `təsdiq edilib: ${dmy(d.ackAt.slice(0, 10))}` : "təsdiq gözləyir"}</small></summary>
+          <pre className="doc-text">{d.text}</pre>
+          {!d.ackAt && <button type="button" className="primary" onClick={() => window.confirm("Sənədin mətni ilə tanış oldunuz və razısınız?") && void ack(d.id)}>Oxudum və razıyam</button>}
+        </details>
+      ))}
+      <small className="muted">Bu sadə elektron təsdiqdir (kim, nə vaxt, mətnin hash-i); qanunda tələb olunan hallarda imzalı nüsxə də saxlanılmalıdır.</small>
+    </div>
+  );
+}

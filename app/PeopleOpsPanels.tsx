@@ -35,7 +35,7 @@ function useLoad<T>(path: string, notify: Notify) {
 }
 
 // ---------- Document registry ----------
-type Doc = { id: string; employeeId: string; employee: string; category: string; subtype: string; number: string; date: string; expires: string; name: string; type: string; size: number; created: string; daysLeft: number | null };
+type Doc = { ackRequired: boolean; ackAt: string; id: string; employeeId: string; employee: string; category: string; subtype: string; number: string; date: string; expires: string; name: string; type: string; size: number; created: string; daysLeft: number | null };
 type Deadline = { key: string; employeeName: string; what: string; date: string; days: number };
 const CATEGORY: Record<string, string> = { contract: "Müqavilə", order: "Əmr", id: "Şəxsiyyət sənədi", diploma: "Təhsil və sertifikat", medical: "Tibbi sənəd", other: "Digər" };
 
@@ -80,7 +80,7 @@ export function DocRegistry({ notify }: { notify: Notify }) {
               {data.documents.map((d) => (
                 <tr key={d.id}>
                   <td>{d.employee}</td>
-                  <td><a href={`/api/joblink/company/employee-doc?id=${d.id}`} target="_blank" rel="noreferrer">{d.subtype || d.name}</a><small className="skill-description">{CATEGORY[d.category] || d.category}</small></td>
+                  <td><a href={`/api/joblink/company/employee-doc?id=${d.id}`} target="_blank" rel="noreferrer">{d.subtype || d.name}</a><small className="skill-description">{CATEGORY[d.category] || d.category}{d.ackRequired ? (d.ackAt ? ` · işçi təsdiq edib ${dmy(d.ackAt.slice(0, 10))}` : " · işçinin təsdiqi gözlənilir") : ""}</small></td>
                   <td>{d.number ? `№ ${d.number}` : "—"} {d.date && <small className="skill-description">{dmy(d.date)}</small>}</td>
                   <td>{d.expires ? dmy(d.expires) : "—"}{d.daysLeft !== null && d.daysLeft <= 30 && <small className="danger-text">{d.daysLeft < 0 ? "müddəti bitib" : `${d.daysLeft} gün qalıb`}</small>}</td>
                   <td><button type="button" onClick={() => void setExpiry(d)}>Müddət</button></td>

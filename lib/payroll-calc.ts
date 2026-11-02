@@ -274,11 +274,16 @@ export function scheduleProblem(advanceDay: number, payDay: number): string {
 
 // The minimum monthly wage for full-time work. The figure is set by the state and changes: check it every year.
 export const MINIMUM_WAGE = 400;
-export function payWarnings(input: { gross: number; weekHours: number; workedAll: boolean; hasIban: boolean; cashPay: boolean; advanceExcess: number }): string[] {
+export function payWarnings(input: { gross: number; weekHours: number; workedAll: boolean; hasIban: boolean; cashPay: boolean; advanceExcess: number; earned?: number; previousEarned?: number }): string[] {
   const out: string[] = [];
   const share = Math.min(1, Math.max(0.1, (input.weekHours || 40) / 40));
   if (input.gross > 0 && input.workedAll && input.gross + 0.005 < MINIMUM_WAGE * share) out.push(`Aylıq maaş minimum əmək haqqından (${(MINIMUM_WAGE * share).toFixed(0)} AZN) aşağıdır: yoxlayın.`);
   if (!input.hasIban && !input.cashPay) out.push("Bank hesabı (IBAN) və ya kart yoxdur: bank sənədinə düşməyəcək.");
   if (input.advanceExcess > 0) out.push(`Avans hesablanmış məbləğdən ${input.advanceExcess.toFixed(2)} AZN artıqdır.`);
+  // A big move against the last approved month is worth a second look (a mistyped bonus, a missed leave mark).
+  if (input.previousEarned && input.previousEarned > 0 && input.earned !== undefined) {
+    const change = ((input.earned - input.previousEarned) / input.previousEarned) * 100;
+    if (Math.abs(change) >= 25) out.push(`Hesablanan məbləğ əvvəlki aya nisbətən ${change > 0 ? "+" : "−"}${Math.abs(Math.round(change))}% dəyişib: yoxlayın.`);
+  }
   return out;
 }

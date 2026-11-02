@@ -1223,6 +1223,10 @@ export const employeeDocuments = sqliteTable(
     docNumber: text("doc_number").notNull().default(""),
     docDate: text("doc_date").notNull().default(""),
     expires: text("expires").notNull().default(""),
+    // The employee confirms a document made in the program: when, and the hash of the text confirmed.
+    ackRequired: integer("ack_required").notNull().default(0),
+    ackAt: text("ack_at").notNull().default(""),
+    ackHash: text("ack_hash").notNull().default(""),
     name: text("name").notNull(),
     type: text("type").notNull(),
     data: text("data").notNull(),

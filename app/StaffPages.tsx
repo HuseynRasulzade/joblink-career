@@ -940,6 +940,7 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
   const [adding, setAdding] = useState(false);
   const [making, setMaking] = useState<RequestRow | null>(null);
   const [filter, setFilter] = useState<"new" | "all">("new");
+  const [stats, setStats] = useState<{ answered: number; waiting: number; overdue: number; averageHours: number | null } | null>(null);
   const notifyRef = useRef(notify);
   const countRef = useRef(onCount);
   useEffect(() => {
@@ -947,9 +948,10 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
     countRef.current = onCount;
   });
   const load = useCallback(() => {
-    request<{ requests: RequestRow[] }>("company/applications")
+    request<{ requests: RequestRow[]; stats?: { answered: number; waiting: number; overdue: number; averageHours: number | null } }>("company/applications")
       .then((r) => {
         setRows(r.requests);
+        setStats(r.stats || null);
         countRef.current(r.requests.filter((x) => x.status === "new").length);
       })
       .catch((error) => notifyRef.current((error as Error).message));
@@ -1004,6 +1006,12 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
           </button>
         </div>
       </div>
+      {stats && (
+        <p className="muted">
+          Son 90 gün: {stats.answered} ərizə cavablandırılıb{stats.averageHours !== null ? `, orta cavab müddəti ${stats.averageHours < 48 ? `${stats.averageHours} saat` : `${Math.round(stats.averageHours / 24)} gün`}` : ""}; gözləyən {stats.waiting}
+          {stats.overdue > 0 && <b className="danger-text"> · 3 gündən çox gözləyən {stats.overdue}</b>}.
+        </p>
+      )}
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>

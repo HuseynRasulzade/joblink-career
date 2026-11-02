@@ -21,6 +21,7 @@ export default function HrDocsPanel({ employee, notify }: { employee: Employee; 
   const today = new Date().toISOString().slice(0, 10);
   const [company, setCompany] = useState<DocCompany>({ name: "", voen: "", address: "", director: "" });
   const [kind, setKind] = useState<DocKind>("contract");
+  const [needAck, setNeedAck] = useState(false);
   const [o, setO] = useState<DocOptions>({ ...EMPTY_DOC_OPTIONS, date: today, changeFrom: today });
   useEffect(() => {
     void Promise.all([get<{ company: { name: string } | null }>("company/me"), get<{ details: { legalName: string; voen: string; director: string; legalAddress: string; phone: string } }>("company/profile")])
@@ -69,7 +70,7 @@ export default function HrDocsPanel({ employee, notify }: { employee: Employee; 
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeId: employee.id, ...SAVE_AS[kind], number: o.number, date: o.date, title: doc.title, text }),
+        body: JSON.stringify({ employeeId: employee.id, ...SAVE_AS[kind], number: o.number, date: o.date, title: doc.title, text, requireAck: needAck }),
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(data.error || "Saxlanılmadı.");
@@ -133,6 +134,7 @@ export default function HrDocsPanel({ employee, notify }: { employee: Employee; 
         <button type="button" className="primary" onClick={print}><Printer size={14} /> Çap</button>
         <button type="button" className="secondary" onClick={word}>Word (.doc)</button>
         <button type="button" className="secondary" onClick={() => void keep()}>İşçinin qovluğuna saxla</button>
+        <label className="check"><input type="checkbox" checked={needAck} onChange={(e) => setNeedAck(e.target.checked)} /> İşçi “İş yerim”də oxuyub təsdiq etsin</label>
       </div>
       <div className="hr-doc-preview">
         <h4>{doc.title}</h4>

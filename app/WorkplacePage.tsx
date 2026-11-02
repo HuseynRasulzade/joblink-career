@@ -4,7 +4,7 @@ import { Send, Trash2 } from "lucide-react";
 import { ORDER_KINDS, UNPAID_REASONS } from "@/lib/orders";
 import { OTHER_REQUEST, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { Field } from "./components";
-import { ExitInterview, MyAssets, MyLeave } from "./WorkplaceExtras";
+import { DocsToSign, ExitInterview, MyAssets, MyLeave } from "./WorkplaceExtras";
 import { MyEngage, MyPerformance, MyShifts, MyTraining, MyTrips } from "./WorkplaceGrowth";
 import { monthLabel, payslipHtml, type SlipData } from "@/lib/payslip-html";
 
@@ -54,7 +54,7 @@ const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slic
 export default function WorkplacePage({ notify }: { notify: Notify }) {
   const [places, setPlaces] = useState<Workplace[] | null>(null);
   const [current, setCurrent] = useState("");
-  const [tab, setTab] = useState<"info" | "letters" | "pay" | "leave" | "assets" | "exit" | "perf" | "training" | "shifts" | "trips" | "engage">("letters");
+  const [tab, setTab] = useState<"info" | "letters" | "pay" | "leave" | "assets" | "exit" | "perf" | "training" | "shifts" | "trips" | "engage" | "docs">("letters");
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -122,6 +122,9 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
               <button type="button" role="tab" aria-selected={tab === "engage"} className={tab === "engage" ? "primary" : "ghost"} onClick={() => setTab("engage")}>
                 Elanlar və sorğular
               </button>
+              <button type="button" role="tab" aria-selected={tab === "docs"} className={tab === "docs" ? "primary" : "ghost"} onClick={() => setTab("docs")}>
+                Sənədlər
+              </button>
               <button type="button" role="tab" aria-selected={tab === "info"} className={tab === "info" ? "primary" : "ghost"} onClick={() => setTab("info")}>
                 Məlumatlarım
               </button>
@@ -136,6 +139,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
                 <div><dt>Məzuniyyət</dt><dd>{place.vacation.remaining} gün qalıb (qazanılıb {place.vacation.accrued}, istifadə {place.vacation.used})</dd></div>
               </dl>
             )}
+            {tab === "docs" && <DocsToSign key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "perf" && <MyPerformance key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "training" && <MyTraining key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "shifts" && <MyShifts key={place.id} employeeId={place.id} notify={notify} />}
@@ -154,7 +158,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
   );
 }
 
-type SlipMonth = { month: string; gross: number; net: number; toPay: number; advances: number; paid: number; outstanding: number; benefit: number };
+type SlipMonth = { month: string; gross: number; net: number; toPay: number; advances: number; paid: number; outstanding: number; benefit: number; explain?: string[] };
 const azn = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AZN`;
 
 // The employee's pay slips: the months the company has approved, what was paid and what is still owed.
@@ -199,7 +203,7 @@ function Payslips({ employeeId, notify }: { employeeId: string; notify: Notify }
               <td>{m.advances ? azn(m.advances) : "—"}</td>
               <td>{azn(m.paid)}</td>
               <td>{m.outstanding > 0 ? <b>{azn(m.outstanding)}</b> : "ödənilib"}</td>
-              <td><button type="button" onClick={() => void print(m.month)}>Vərəqə / çap</button></td>
+              <td><button type="button" onClick={() => void print(m.month)}>Vərəqə / çap</button>{m.explain && m.explain.length > 0 && <details><summary>Nə dəyişib?</summary><ul>{m.explain.map((t, i) => <li key={i}>{t}</li>)}</ul></details>}</td>
             </tr>
           ))}
         </tbody>
