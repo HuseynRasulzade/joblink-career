@@ -34,7 +34,7 @@ type Payment = { id: string; kind: "advance" | "salary" | "vacation" | "benefit"
 const KIND_LABEL: Record<Payment["kind"], string> = { advance: "Avans", salary: "Əmək haqqı", vacation: "Məzuniyyət haqqı", benefit: "Sosial sığorta müavinəti", extra: "Digər ödəniş" };
 type Row = {
   employeeId: string; name: string; position: string; department: string; status: string; monthlySalary: number; weekHours: number; iban: string; bankName: string; card: string; payMethod: string; fin: string; ssn: string; startDate: string; sector: string; benefit: string; section: string; salaryType: string; lastPaid: string;
-  taxReduction: number; hours: { days: number; worked: number; overtime: number; restDay: number; night: number }; warnings: string[]; recurring: { id: string; type: string; label: string; amount: number }[]; carries: { label: string; amount: number; from: string }[]; annual: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null; inputs: Inputs; result: Result; advances: number; salaryPaid: number; vacationDue: number; vacationPaid: number; vacationOutstanding: number; benefitDue: number; benefitPaid: number; benefitOutstanding: number; extraPaid: number; outstanding: number; availableAdvance: number;
+  taxReduction: number; hours: { days: number; worked: number; overtime: number; restDay: number; night: number }; hoursSource: "daily" | "month" | "none"; hoursWaiting: number; nightPercent: number; warnings: string[]; recurring: { id: string; type: string; label: string; amount: number }[]; carries: { label: string; amount: number; from: string }[]; annual: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null; inputs: Inputs; result: Result; advances: number; salaryPaid: number; vacationDue: number; vacationPaid: number; vacationOutstanding: number; benefitDue: number; benefitPaid: number; benefitOutstanding: number; extraPaid: number; outstanding: number; availableAdvance: number;
   earnedToDate: number; payments: Payment[];
 };
 type Sheet = {
@@ -138,7 +138,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           </a>
           {sheet?.status !== "approved" && (
             <button type="button" className="secondary" onClick={() => setImporting(true)}>
-              Excel-dən əlavə və saatlar
+              Excel-dən əlavə və tutulma
             </button>
           )}
           {sheet?.status === "approved" && (
@@ -390,14 +390,15 @@ function InputsModal({ month, row, notify, onClose, onSaved }: { month: string; 
     <Modal title={`${row.name}: əlavələr və tutulmalar`} onClose={onClose}>
       <div className="offer-composer">
         <p className="muted">Maaş: {azn(row.monthlySalary)} · saatlıq: {azn(row.result.hourly)} (aylıq maaş / aylıq norma saatı).</p>
+        <p className="muted">
+          Saatlar Davamiyyət → Saat uçotundan gəlir{row.hoursSource === "daily" ? " (gündəlik qeydlər)" : row.hoursSource === "month" ? " (ay yekunu)" : ": bu ay üçün saat yazılmayıb"}
+          {row.hoursSource !== "none" ? `: artıq iş ${row.hours.overtime} saat, istirahət/bayram günü ${row.hours.restDay} saat, gecə ${row.hours.night} saat` : ""}.
+          {row.hoursWaiting > 0 ? ` ${row.hoursWaiting} saat artıq iş əmr/təsdiq gözləyir və hələ hesablanmır.` : ""} Gecə əlavəsi ({row.nightPercent}%) işçi kartındadır. Dəyişmək üçün həmin yerlərə keçin.
+        </p>
         <div className="form-grid">
           {num("bonus", "Mükafat (AZN)")}
           {num("allowance", "Əlavə (AZN)")}
-          {num("overtimeHours", "İş vaxtından artıq saat (2 qat, Əmək M. 165)", 0.5)}
-          {num("restDayHours", "İstirahət/bayram günü işlənən saat (164)", 0.5)}
           <label className="check-row"><input type="checkbox" checked={form.restDayWithinNorm} onChange={(e) => setForm({ ...form, restDayWithinNorm: e.target.checked })} /> İş aylıq norma çərçivəsindədir (1 qat; normadan artıqdırsa 2 qat)</label>
-          {num("nightHours", "Gecə saatı (22:00–06:00)", 0.5)}
-          {num("nightPercent", "Gecə əlavəsi (%) — müqavilədə")}
           <Field label="E-bülleten (xəstəlik vərəqəsi) nömrəsi — sığorta müavinəti olduqda"><input value={form.benefitDoc || ""} maxLength={40} onChange={(e) => setForm({ ...form, benefitDoc: e.target.value })} /></Field>
         </div>
         <h4>Digər tutulmalar (Əmək M. 175–176)</h4>

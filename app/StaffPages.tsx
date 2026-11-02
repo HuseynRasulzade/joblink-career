@@ -4,7 +4,7 @@ import { Download, FileSpreadsheet, Plus, Printer, Trash2, Upload } from "lucide
 import { buildEmployeeOffer, buildOrder, leaveDays, orderNumber, ORDER_KINDS, UNPAID_REASONS, unpaidReason, type OrderField, type OrderInput, type OrderKind } from "@/lib/orders";
 import { employeePay, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 import { readSheetRows } from "@/lib/question-file";
-import { parseHoursRows } from "@/lib/hours";
+import { parseHoursRows, parseHoursTotals } from "@/lib/hours";
 import { parseAssetRows } from "@/lib/assets";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "@/lib/staff-import";
 import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
@@ -37,7 +37,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 const azn = (value: number) => `${value.toLocaleString("az-AZ", { maximumFractionDigits: 2 })} AZN`;
 
 // ---------- Excel file: template and import ----------
-export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles" | "payroll" | "hours" | "assets";
+export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles" | "payroll" | "hours" | "hourtotals" | "assets";
 const SHEET_META: Record<SheetKind, { title: string; endpoint: string; done: (r: SheetResult) => string }> = {
   employees: { title: "İşçiləri Excel faylından əlavə et", endpoint: "company/employees/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən işçi yadda saxlanıldı.` },
   staff: { title: "Ştat cədvəlini Excel faylından əlavə et", endpoint: "company/staff/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən ştat sətri yadda saxlanıldı.` },
@@ -45,8 +45,9 @@ const SHEET_META: Record<SheetKind, { title: string; endpoint: string; done: (r:
   attendance: { title: "Davamiyyət qeydlərini Excel faylından yüklə", endpoint: "company/attendance/import", done: (r) => `${r.applied ?? 0} sətir tətbiq olundu (${r.days ?? 0} gün qeyd edildi).` },
   calendar: { title: "Şirkət təqvimini Excel faylından yüklə", endpoint: "company/calendar/import", done: (r) => `${r.applied ?? 0} gün təqvimdə yeniləndi.` },
   assets: { title: "Şirkət əmlakını Excel faylından yüklə", endpoint: "company/assets/import", done: (r) => `${r.created} əmlak anbara əlavə olundu.` },
+  hourtotals: { title: "Ay yekunu saatlarını Excel faylından yüklə (artıq iş, istirahət günü, gecə)", endpoint: "company/hours/totals-import", done: (r) => `${r.applied ?? 0} işçinin ay yekunu yeniləndi.` },
   hours: { title: "İşlənən saatları Excel faylından yüklə", endpoint: "company/hours/import", done: (r) => `${r.applied ?? 0} günün saatı yeniləndi.` },
-  payroll: { title: "Ayın əmək haqqı məlumatlarını Excel faylından yüklə", endpoint: "company/payroll/inputs-import", done: (r) => `${r.applied ?? 0} işçinin əlavə, saat və tutulma məlumatı yeniləndi.` },
+  payroll: { title: "Ayın əlavə və tutulmalarını Excel faylından yüklə", endpoint: "company/payroll/inputs-import", done: (r) => `${r.applied ?? 0} işçinin mükafat, əlavə və tutulma məlumatı yeniləndi.` },
   profiles: { title: "Şəxsi məlumatları Excel faylından yüklə", endpoint: "company/employees/profile-import", done: (r) => `${r.applied ?? 0} işçinin şəxsi məlumatı yeniləndi.` },
 };
 type SheetResult = { created: number; updated?: number; existing?: number; applied?: number; days?: number; pending?: boolean; issues?: { line: number; reason: string }[] };
@@ -80,8 +81,9 @@ function previewOf(kind: SheetKind, rows: unknown[]): { head: string[]; body: st
   if (kind === "attendance") return { head: ["Ad Soyad", "Başlama", "Bitmə", "Səbəb", "Qeyd"], body: list.map((r) => [str(r.name), str(r.from), str(r.to), codeName(String(r.code)), str(r.note)]) };
   if (kind === "calendar") return { head: ["Tarix", "Növ", "Ad"], body: list.map((r) => [str(r.day), KIND_NAME[String(r.kind)] || str(r.kind), str(r.label)]) };
   if (kind === "assets") return { head: ["Ad", "Kateqoriya", "Seriya", "İnventar №", "Dəyər"], body: list.map((r) => [str(r.name), str(r.category), str(r.serial), str(r.inventoryNo), str(r.value)]) };
+  if (kind === "hourtotals") return { head: ["Ad Soyad / FİN", "Ay", "Artıq iş", "İstirahət günü", "Gecə"], body: list.map((r) => [str(r.name), str(r.month), str(r.overtime), str(r.restDay), str(r.night)]) };
   if (kind === "hours") return { head: ["Ad Soyad", "Tarix", "Saat", "Gecə saatı"], body: list.map((r) => [str(r.name), str(r.day), str(r.hours), str(r.night)]) };
-  if (kind === "payroll") return { head: ["Ad Soyad", "Mükafat", "Əlavə", "Artıq iş saatı", "Tutulma"], body: list.map((r) => [str(r.name), str(r.bonus), str(r.allowance), str(r.overtimeHours), r.deductionAmount ? `${str(r.deductionLabel)}: ${str(r.deductionAmount)}` : "—"]) };
+  if (kind === "payroll") return { head: ["Ad Soyad", "Mükafat", "Əlavə", "Tutulma"], body: list.map((r) => [str(r.name), str(r.bonus), str(r.allowance), r.deductionAmount ? `${str(r.deductionLabel)}: ${str(r.deductionAmount)}` : "—"]) };
   return { head: ["Ad Soyad", "E-poçt", "Doldurulan sahə sayı"], body: list.map((r) => [str(r.name), str(r.email), String(Object.keys((r.profile as object) || {}).length)]) };
 }
 
@@ -104,9 +106,9 @@ export function SheetImport({
   const template = SHEET_TEMPLATES[kind];
   const parsed = useMemo(() => {
     if (!rows) return null;
-    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows, payroll: parsePayrollRows, hours: parseHoursRows, assets: parseAssetRows }[kind];
+    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows, payroll: parsePayrollRows, hours: parseHoursRows, hourtotals: (r: string[][]) => parseHoursTotals(r, (extra?.month as string) || ""), assets: parseAssetRows }[kind];
     return parse(rows) as { rows: unknown[]; issues: { line: number; reason: string }[] };
-  }, [rows, kind]);
+  }, [rows, kind, extra]);
   async function pick(file: File | undefined) {
     if (!file) return;
     try {
@@ -1789,6 +1791,7 @@ export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notif
         <Field label="Güzəşt hansı tarixdən tətbiq olunur"><input type="date" value={profile.taxBenefitFrom} onChange={(e) => set("taxBenefitFrom", e.target.value)} /></Field>
         <label className="check-row"><input type="checkbox" checked={profile.dependents3} onChange={(e) => set("dependents3", e.target.checked)} /> Himayəsində azı 3 nəfər var (gündüz təhsilli 23 yaşınadək tələbələr daxil) — 50 AZN (102.5)</label>
         <label>Əvvəlki sosial sığorta stajı (ay) — xəstəlik/analıq müavinəti üçün cəmi ən azı 6 ay lazımdır<input type="number" min={0} max={720} value={profile.insuranceBefore} onChange={(e) => set("insuranceBefore", Math.max(0, Number(e.target.value) || 0))} /></label>
+        <Field label="Gecə əlavəsi (%) — müqavilədə yazılıbsa; 22:00–06:00 saatlarına tətbiq olunur"><input type="number" min={0} max={100} step="0.5" value={profile.nightPercent || ""} onChange={(e) => set("nightPercent", Number(e.target.value) || 0)} /></Field>
         <ManagerSelect employeeId={employeeId} value={profile.managerId} onChange={(v) => set("managerId", v)} />
         <label className="check-row"><input type="checkbox" checked={profile.mainJob} onChange={(e) => set("mainJob", e.target.checked)} /> Bu, işçinin əsas iş yeridir (əmək kitabçası burada saxlanılır)</label>
       </div>

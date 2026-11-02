@@ -218,3 +218,14 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - 7. Ödəniş sənədinin layihəsi: bank hesabı «avtomatik hazırla» rejimindədirsə layihə avans və maaş günü bank bölməsi açılanda yaranır; gündəlik cron xatırlatma göndərir. Cron özü layihə yaratmır, çünki hesablama serverin sorğu qatındadır.
 - 8. Vergi parametrləri: cədvəldə banner göstərir (minimum əmək haqqı, gəlir vergisi, DSMF, tibbi və işsizlik sığortası); mühasib ildə bir dəfə «Yoxladım, təsdiq edirəm» basır, təsdiq audit jurnalına yazılır.
 - 10. Şifrələmə: kod hazırdır; `DATA_KEY` secret-ini yalnız sahib qoya bilər.
+
+## 15. Saat uçotunun birləşdirilməsi (2026-11-02)
+
+- **Saat yalnız bir yerdə yazılır: Davamiyyət → Saat uçotu.** Əmək haqqı pəncərəsindən artıq iş, istirahət günü, gecə saatı və gecə əlavəsi sahələri çıxarıldı; orada yalnız oxunan xülasə qalır (mənbə, saatlar, gözləyən saat).
+- **İki rejim:** gündəlik (gün üzrə saat və giriş-çıxış) və ay yekunu (işçi üçün ayda bir rəqəm). Eyni ay üçün gündəlik qeyd varsa yalnız o sayılır, ikisi toplanmır; ay yekunu gündəlik qeyd olan aya yazılmır.
+- **Excel:** «gündəlik saat» və «ay yekunu» ayrı faylla yüklənir. Əmək haqqı Excel-i yalnız mükafat, əlavə və tutulmanı yükləyir; saat sütunları olarsa xəbərdarlıq verilir.
+- **FİN ilə eyniləşdirmə:** davamiyyət, saat (gündəlik və ay yekunu) və əmək haqqı Excel-ində «FİN» sütunu varsa işçi yalnız FİN ilə tapılır; eyni adlı iki işçi dəqiq ayrılır. FİN işçi kartında yazılmalıdır.
+- **Gecə əlavəsi faizi** işçi kartına köçdü (köhnə rəqəm hələ yazılıbsa ehtiyat kimi işləyir).
+- **Artıq iş əmri:** imzalanmış «artıq işə cəlb» və «istirahət günü işə cəlb» əmri həmin günlərin saatını təsdiqləyir (ayarda təsdiq qaydası açıqdırsa).
+- **Əmrsiz məzuniyyət:** davamiyyətdə əllə işarələnmiş və əmri olmayan məzuniyyət/icazə günləri üçün xəbərdarlıq.
+- **Köçürmə:** təsdiqlənməmiş aylarda əmək haqqı pəncərəsində yazılmış saatlar ay yekunu kimi köçürüldü (təsdiqlənmiş statusla); təsdiqlənmiş aylar donmuş nəticədən oxunur və dəyişmir.

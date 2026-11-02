@@ -27,16 +27,18 @@ function findHeader<K extends string>(rows: string[][], aliases: Aliases<K>, mus
       const index = keys.findIndex((key, col) => aliases[field].includes(key) && ![...map.values()].includes(col));
       if (index >= 0) map.set(field, index);
     }
-    if (map.has(must as K)) return { index: i, map };
+    if (must.split("|").some((m) => map.has(m as K))) return { index: i, map };
   }
   return null;
 }
+// The FİN code on an identity card: seven letters and digits.
+export const finOf = (text: string) => String(text || "").toUpperCase().replace(/\s+/g, "").slice(0, 10);
 const cell = (row: string[], map: Map<string, number>, field: string) => String(row[map.get(field) ?? -1] ?? "").trim();
 const blank = (row: string[]) => !row.some((c) => String(c ?? "").trim());
 
 // ── Attendance ──────────────────────────────────────────────────────────────
 
-export type AttendanceImportRow = { line: number; name: string; email: string; from: string; to: string; code: string; note: string };
+export type AttendanceImportRow = { line: number; name: string; email: string; fin: string; from: string; to: string; code: string; note: string };
 
 // "XS", "Xəstəlik", "Xəstəlik (xəstəlik vərəqəsi)" and the code id all name the same mark.
 export function matchAttendanceCode(text: string): string {
@@ -50,9 +52,10 @@ export function matchAttendanceCode(text: string): string {
   return loose?.id || "";
 }
 
-const ATTENDANCE_ALIASES: Aliases<"name" | "email" | "from" | "to" | "date" | "code" | "note"> = {
+const ATTENDANCE_ALIASES: Aliases<"name" | "email" | "fin" | "from" | "to" | "date" | "code" | "note"> = {
   name: ["ad soyad", "isci", "isci adi", "ad", "full name", "name", "employee"],
   email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
   from: ["baslama tarixi", "baslanqic", "baslanqic tarixi", "tarixden", "tarix dan", "from", "start"],
   to: ["bitme tarixi", "son tarix", "tarixe qeder", "tarixedek", "tarixe kimi", "to", "end"],
   date: ["tarix", "gun", "date"],
@@ -61,8 +64,8 @@ const ATTENDANCE_ALIASES: Aliases<"name" | "email" | "from" | "to" | "date" | "c
 };
 
 export function parseAttendanceRows(rows: string[][], limit = 1000): { rows: AttendanceImportRow[]; issues: RowIssue[] } {
-  const header = findHeader(rows, ATTENDANCE_ALIASES, "name");
-  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  const header = findHeader(rows, ATTENDANCE_ALIASES, "name|fin");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” və ya “FİN” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
   if (!header.map.has("code")) return { rows: [], issues: [{ line: header.index + 1, reason: "“Səbəb” sütunu tapılmadı (məsələn: Əmək məzuniyyəti, Xəstəlik)." }] };
   const out: AttendanceImportRow[] = [];
   const issues: RowIssue[] = [];
@@ -74,9 +77,10 @@ export function parseAttendanceRows(rows: string[][], limit = 1000): { rows: Att
       issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} sətir yüklənir.` });
       break;
     }
-    const name = cell(row, header.map, "name").slice(0, 120);
+    const fin = finOf(cell(row, header.map, "fin"));
+    const name = cell(row, header.map, "name").slice(0, 120) || fin;
     if (name.length < 2) {
-      issues.push({ line, reason: "Ad Soyad yoxdur." });
+      issues.push({ line, reason: "Ad Soyad və ya FİN yoxdur." });
       continue;
     }
     const fromText = cell(row, header.map, "from") || cell(row, header.map, "date");
@@ -101,7 +105,7 @@ export function parseAttendanceRows(rows: string[][], limit = 1000): { rows: Att
       issues.push({ line, reason: `Səbəb tanınmadı: “${codeText}”. “Təlimat” vərəqindəki adlardan birini yazın.` });
       continue;
     }
-    out.push({ line, name, email: cell(row, header.map, "email").slice(0, 160), from, to, code, note: cell(row, header.map, "note").slice(0, 200) });
+    out.push({ line, name, email: cell(row, header.map, "email").slice(0, 160), fin, from, to, code, note: cell(row, header.map, "note").slice(0, 200) });
   }
   return { rows: out, issues };
 }
@@ -188,6 +192,7 @@ const PROFILE_ALIASES: Aliases<"name" | "email" | ProfileField> = {
   taxBenefitFrom: ["guzest baslama tarixi", "guzest tarixi"],
   dependents3: ["himayesinde 3 nefer", "himayesinde en azi 3 nefer", "himaye 3"],
   managerId: [],
+  nightPercent: ["gece elavesi", "gece faizi", "gece %"],
   insuranceBefore: ["evvelki sigorta stajı", "evvelki sigorta staji", "sigorta staji", "sigorta stajı ay"],
   mainJob: ["esas is yeri", "emek kitabcasi burada"],
   soleParent: ["usagi tekbasina boyudur", "tekvalideyn", "tek valideyn"],
@@ -290,6 +295,7 @@ export function parseProfileRows(rows: string[][], limit = 500): { rows: Profile
       else if (field === "childrenUnder14") raw.childrenUnder14 = Math.round(parseNumberCell(text));
       else if (field === "hasDisabledChild" || field === "soleParent" || field === "disabilityWar" || field === "dependents3") raw[field] = yes(text);
       else if (field === "insuranceBefore") raw.insuranceBefore = Math.round(parseNumberCell(text));
+      else if (field === "nightPercent") raw.nightPercent = parseNumberCell(text);
       else if (field === "mainJob") raw.mainJob = !["xeyr", "no", "0", "false", "yox"].includes(fold(text));
       else if (field === "disabledChildren") raw.disabledChildren = Math.round(parseNumberCell(text));
       else if (field === "disability") raw.disability = disabilityOf(text);
@@ -315,10 +321,17 @@ export function parseProfileRows(rows: string[][], limit = 500): { rows: Profile
 
 // ── Finding the employee of a row ──────────────────────────────────────────
 
-export type EmployeeRef = { id: string; name: string; email: string };
+export type EmployeeRef = { id: string; name: string; email: string; fin?: string };
 
-// By e-mail when the row has one, otherwise by name; two employees with one name need the e-mail.
-export function matchEmployee(list: EmployeeRef[], row: { name: string; email: string }): { id: string } | { error: string } {
+// By the FİN code of the identity card when the row has one (it tells two people with one name apart), then by e-mail, then by name.
+export function matchEmployee(list: EmployeeRef[], row: { name: string; email: string; fin?: string }): { id: string } | { error: string } {
+  const fin = finOf(row.fin || "");
+  if (fin) {
+    const byFin = list.filter((e) => finOf(e.fin || "") === fin);
+    if (byFin.length === 1) return { id: byFin[0].id };
+    if (byFin.length > 1) return { error: `${row.name}: FİN ${fin} ilə ${byFin.length} işçi var — kartları yoxlayın.` };
+    return { error: `${row.name}: FİN ${fin} ilə işçi tapılmadı (işçi kartında FİN yazılıb?).` };
+  }
   const email = fold(row.email);
   if (email) {
     const byEmail = list.find((e) => fold(e.email) === email);
@@ -332,11 +345,12 @@ export function matchEmployee(list: EmployeeRef[], row: { name: string; email: s
 
 // ── Pay inputs of a month: bonus, allowance, extra hours and one deduction per row ──────────
 
-export type PayrollImportRow = { line: number; name: string; email: string; bonus: number; allowance: number; overtimeHours: number; restDayHours: number; nightHours: number; nightPercent: number; deductionLabel: string; deductionAmount: number; deductionKind: "general" | "writ" | "alimony"; note: string; present: string[] };
-type PayrollField = "name" | "email" | "bonus" | "allowance" | "overtimeHours" | "restDayHours" | "nightHours" | "nightPercent" | "deductionLabel" | "deductionAmount" | "deductionKind" | "note";
+export type PayrollImportRow = { line: number; name: string; email: string; fin: string; bonus: number; allowance: number; overtimeHours: number; restDayHours: number; nightHours: number; nightPercent: number; deductionLabel: string; deductionAmount: number; deductionKind: "general" | "writ" | "alimony"; note: string; present: string[] };
+type PayrollField = "name" | "email" | "fin" | "bonus" | "allowance" | "overtimeHours" | "restDayHours" | "nightHours" | "nightPercent" | "deductionLabel" | "deductionAmount" | "deductionKind" | "note";
 const PAYROLL_ALIASES: Aliases<PayrollField> = {
   name: ["ad soyad", "isci", "isci adi", "ad", "full name", "name", "employee"],
   email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
   bonus: ["mukafat", "bonus"],
   allowance: ["elave", "elaveler", "allowance"],
   overtimeHours: ["artiq is saati", "artiq is", "overtime", "is vaxtindan artiq saat"],
@@ -349,12 +363,13 @@ const PAYROLL_ALIASES: Aliases<PayrollField> = {
   note: ["qeyd", "izah", "note"],
 };
 export function parsePayrollRows(rows: string[][], limit = 500): { rows: PayrollImportRow[]; issues: RowIssue[] } {
-  const header = findHeader(rows, PAYROLL_ALIASES, "name");
-  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  const header = findHeader(rows, PAYROLL_ALIASES, "name|fin");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” və ya “FİN” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
   const numeric: PayrollField[] = ["bonus", "allowance", "overtimeHours", "restDayHours", "nightHours", "nightPercent", "deductionAmount"];
   if (!numeric.concat(["deductionLabel"]).some((f) => header.map.has(f))) return { rows: [], issues: [{ line: header.index + 1, reason: "Ad Soyad-dan başqa heç bir sütun tapılmadı (Mükafat, Əlavə, Artıq iş saatı, Tutulma …)." }] };
   const out: PayrollImportRow[] = [];
   const issues: RowIssue[] = [];
+  let hoursIgnored = false;
   for (let i = header.index + 1; i < rows.length; i++) {
     const row = rows[i] || [];
     if (blank(row)) continue;
@@ -363,9 +378,10 @@ export function parsePayrollRows(rows: string[][], limit = 500): { rows: Payroll
       issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} işçi yüklənir.` });
       break;
     }
-    const name = cell(row, header.map, "name").slice(0, 120);
+    const fin = finOf(cell(row, header.map, "fin"));
+    const name = cell(row, header.map, "name").slice(0, 120) || fin;
     if (name.length < 2) {
-      issues.push({ line, reason: "Ad Soyad yoxdur." });
+      issues.push({ line, reason: "Ad Soyad və ya FİN yoxdur." });
       continue;
     }
     const values: Record<string, number> = {};
@@ -391,12 +407,15 @@ export function parsePayrollRows(rows: string[][], limit = 500): { rows: Payroll
       issues.push({ line, reason: `${name}: gecə əlavəsi 100%-dən çox ola bilməz.` });
       continue;
     }
+    if (values.overtimeHours || values.restDayHours || values.nightHours || values.nightPercent) hoursIgnored = true;
     out.push({
-      line, name, email: cell(row, header.map, "email").slice(0, 160),
+      line, name, email: cell(row, header.map, "email").slice(0, 160), fin,
       bonus: values.bonus, allowance: values.allowance, overtimeHours: values.overtimeHours, restDayHours: values.restDayHours, nightHours: values.nightHours, nightPercent: values.nightPercent,
       deductionLabel: cell(row, header.map, "deductionLabel").slice(0, 120), deductionAmount: values.deductionAmount, deductionKind, note: cell(row, header.map, "note").slice(0, 300),
       present: [...header.map.keys()],
     });
   }
+  // The hours and the night supplement moved: hours go to Davamiyyət → Saat uçotu, the supplement to the employee card.
+  if (hoursIgnored) issues.push({ line: header.index + 1, reason: "Saat və gecə əlavəsi sütunları burada yüklənmir (Davamiyyət → Saat uçotu və işçi kartı); mükafat, əlavə və tutulma yükləndi." });
   return { rows: out, issues };
 }

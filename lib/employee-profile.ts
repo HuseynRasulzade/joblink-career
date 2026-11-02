@@ -31,6 +31,7 @@ export type EmployeeProfile = {
   taxBenefitDoc: string;
   taxBenefitFrom: string;
   dependents3: boolean; // supports at least three people (Tax Code 102.5)
+  nightPercent: number; // night work supplement in percent, from the contract
   managerId: string; // the direct manager (an employee card): leave applications go to them first
   insuranceBefore: number; // months of social insurance record before this job (the benefit needs 6 months in all)
   mainJob: boolean; // the main workplace (work book is kept here); tax reductions apply only there (102.8)
@@ -55,7 +56,7 @@ export const EMPTY_PROFILE: EmployeeProfile = {
   idIssuedBy: "", idIssuedDate: "", idExpires: "", address: "", registeredAddress: "", maritalStatus: "",
   childrenUnder14: 0, hasDisabledChild: false, soleParent: false, disability: "", disabilityDegree: "", disabilityWar: false,
   disabilityDoc: "", disabilityUntil: "", disabledChildren: 0, careDependent: "", taxBenefit: "", taxBenefitDoc: "", taxBenefitFrom: "",
-  dependents3: false, managerId: "", insuranceBefore: 0, mainJob: true, ssn: "", voen: "", iban: "", bankName: "", bankCode: "", accountNumber: "", cardNumber: "", cardHolder: "", payMethod: "",
+  dependents3: false, managerId: "", nightPercent: 0, insuranceBefore: 0, mainJob: true, ssn: "", voen: "", iban: "", bankName: "", bankCode: "", accountNumber: "", cardNumber: "", cardHolder: "", payMethod: "",
   educationLevel: "", militaryStatus: "", emergencyName: "", emergencyPhone: "",
 };
 
@@ -149,6 +150,7 @@ export function normalizeProfile(input: unknown): ProfileResult {
     taxBenefitFrom: dates("taxBenefitFrom", "Güzəştin başlama tarixi"),
     dependents3: raw.dependents3 === true,
     managerId: text(raw.managerId, 100),
+    nightPercent: Math.max(0, Math.min(100, Math.round((Number(raw.nightPercent) || 0) * 10) / 10)),
     insuranceBefore: Math.max(0, Math.min(720, Math.round(Number(raw.insuranceBefore) || 0))),
     mainJob: raw.mainJob === false ? false : true,
     ssn: text(raw.ssn, 20),

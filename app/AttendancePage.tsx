@@ -34,6 +34,7 @@ type SheetEmployee = {
   summary: AttendanceSummary;
   weekHours: number;
   weekReason: string;
+  noOrder?: string[];
 };
 type Sheet = {
   month: string;
@@ -118,6 +119,11 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
       {!sheet.years.includes(year) && (
         <div className="notice" role="status">
           {year}-ci il üçün Ramazan və Qurban bayramı günləri hələ daxil edilməyib (Nazirlər Kabinetinin qərarı ilə bildirilir). Bu günləri aşağıdakı “Şirkət təqvimi”ndə qeyri-iş günü kimi əlavə edin.
+        </div>
+      )}
+      {sheet.employees.some((e) => (e.noOrder || []).length > 0) && (
+        <div className="notice" role="status">
+          Əmri olmayan məzuniyyət/icazə günləri var (əmr imzalananda günlər özü işarələnir): {sheet.employees.filter((e) => (e.noOrder || []).length > 0).map((e) => `${e.name} — ${e.noOrder!.length} gün`).join("; ")}. Əmr hazırlayın və ya qeydi yoxlayın.
         </div>
       )}
       <div className="admin-table-wrap" style={{ overflowX: "auto" }}>

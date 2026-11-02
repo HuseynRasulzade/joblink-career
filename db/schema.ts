@@ -1012,6 +1012,34 @@ export const attendanceHours = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.companyId, t.employeeId, t.day] }), index("attendance_hours_day").on(t.companyId, t.day)],
 );
+// Month totals of extra, rest-day and night hours, for companies that keep the tabel as one figure per month.
+export const attendanceHoursMonth = sqliteTable(
+  "attendance_hours_month",
+  {
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    month: text("month").notNull(),
+    overtime: real("overtime").notNull().default(0),
+    restDay: real("rest_day").notNull().default(0),
+    night: real("night").notNull().default(0),
+    status: text("status").notNull().default(""),
+    note: text("note").notNull().default(""),
+    updated: text("updated").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.employeeId, t.month] })],
+);
+// Days an employee was called to extra or rest-day work by a signed order: those hours count without a further approval.
+export const overtimeOrders = sqliteTable(
+  "overtime_orders",
+  {
+    companyId: text("company_id").notNull(),
+    employeeId: text("employee_id").notNull(),
+    day: text("day").notNull(),
+    orderId: text("order_id").notNull(),
+    orderNumber: text("order_number").notNull().default(""),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.employeeId, t.day] })],
+);
 // The annual leave schedule: a stretch of leave proposed by HR or by the employee, then approved.
 export const leaveSchedule = sqliteTable(
   "leave_schedule",

@@ -387,7 +387,7 @@ import { EXIT_QUESTIONS, OFFBOARDING_ITEMS, checklistProgress, cleanAnswers as c
 import { ASSET_CATEGORIES, ASSET_STATUS, assetActHtml, parseAssetRows } from "@/lib/assets";
 import { daysLeft, deadlinesOf } from "@/lib/hr-deadlines";
 import { STATUS_TEXT as LEAVE_STATUS, monthlyLoad, planLeave, scheduleWarnings, type ScheduleEntry } from "@/lib/leave-schedule";
-import { dailyNorm, parseHoursRows, summarizeHours, type HoursByDay } from "@/lib/hours";
+import { chooseHours, dailyNorm, parseHoursRows, parseHoursTotals, summarizeHours, type HoursByDay } from "@/lib/hours";
 import { DEFAULT_CLOCK, bakuNow, earlyLeaveMinutes, hoursFromClock, lateMinutes, validTime as validClockTime, type ClockRules } from "@/lib/clock";
 import { BENEFIT_CAP_FACTOR, BENEFIT_MIN_INSURANCE_MONTHS, MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
@@ -7413,6 +7413,8 @@ async function route(request: Request) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) throw new HttpError(400, "Ayı düzgün seçin (YYYY-AA).");
     return { raw, year: Number(raw.slice(0, 4)), month: Number(raw.slice(5, 7)) };
   };
+  // Marks that rest on an order of the employer (sickness rests on the e-certificate, not on an order).
+  const ORDER_REQUIRED = new Set(["annual", "addleave", "creative", "unpaid", "study", "maternity", "childcare", "paternity", "donor", "medical", "summons", "military", "downtime", "remote", "trip"]);
   const attendanceData = async () => {
     const { raw, year, month } = attendanceMonth();
     const first = `${raw}-01`;
@@ -7454,6 +7456,8 @@ async function route(request: Request) {
         weekHours: week.hours,
         weekReason: week.hours < 40 ? (can(memberRole, "personal-data", memberGrants) ? week.reason : "qısaldılmış iş vaxtı (Əmək Məcəlləsi, 91-ci maddə)") : "",
         summary: summarizeAttendance(days, mine, employed, week.hours),
+        // Leave marked by hand: the days no order stands behind (a signed order writes "Əmr № …" into the note).
+        noOrder: Object.entries(mine).filter(([day, code]) => ORDER_REQUIRED.has(code) && !(notes.get(p.id)?.[day] || "").startsWith("Əmr")).map(([day]) => day),
       };
     });
     return { month: raw, days, employees, overrides: overrides.results };
@@ -7539,6 +7543,12 @@ async function route(request: Request) {
     return ok({ ok: true });
   }
   // ---- The employee's own profile: link with a code, see the workplace, write applications to the company ----
+  // The people an Excel row can mean, with the FİN code of the identity card (it tells two people with one name apart).
+  const employeeRefs = async () => {
+    const rows = (await db.prepare("SELECT id,name,email,profile FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; name: string; email: string; profile: string }>()).results;
+    const opened = await revealAll(rows);
+    return rows.map((r) => ({ id: r.id, name: r.name, email: r.email, fin: opened.get(r.id)?.fin || "" }));
+  };
   // Leave kinds that take the employee away from work: they go to the direct manager first and are checked for clashes.
   const AWAY_KINDS = ["vacation", "addleave", "creative", "study", "unpaid", "childcare", "maternity", "paternity", "donor", "medical", "remote", "postpone", "extendleave"];
   const AWAY_CODES = ["annual", "addleave", "creative", "unpaid", "study", "maternity", "childcare", "paternity", "donor", "medical", "sick", "injury", "trip", "summons", "military", "downtime"];
@@ -8312,11 +8322,17 @@ async function route(request: Request) {
     const hoursBy = new Map<string, HoursByDay>();
     // With the approval rule on, extra and rest-day hours count only when the employer has approved them (arts. 99, 105).
     const overtimeApproval = rateRows.find((r) => r.key === "overtime_approval")?.value === "1";
-    const dayInfo = new Map(days.map((d) => [d.date, d]));
-    const approvedHours = new Set<string>();
+    const approvedBy = new Map<string, Set<string>>();
+    const approveDay = (employeeId: string, day: string) => approvedBy.set(employeeId, (approvedBy.get(employeeId) || new Set()).add(day));
+    const monthTotals = new Map((await db.prepare("SELECT employee_id,overtime,rest_day,night,status FROM attendance_hours_month WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ employee_id: string; overtime: number; rest_day: number; night: number; status: string }>()).results.map((r) => [r.employee_id, { overtime: r.overtime, restDay: r.rest_day, night: r.night, status: r.status }]));
+    const orderedEmployees = new Set<string>();
+    for (const o of (await db.prepare("SELECT employee_id,day FROM overtime_orders WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<{ employee_id: string; day: string }>()).results) {
+      approveDay(o.employee_id, o.day);
+      orderedEmployees.add(o.employee_id);
+    }
     for (const h of (await db.prepare("SELECT employee_id,day,hours,night_hours,overtime_status FROM attendance_hours WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<{ employee_id: string; day: string; hours: number; night_hours: number; overtime_status: string }>()).results) {
       hoursBy.set(h.employee_id, (hoursBy.get(h.employee_id) || new Map()).set(h.day, { hours: h.hours, night: h.night_hours }));
-      if (h.overtime_status === "approved") approvedHours.add(`${h.employee_id}|${h.day}`);
+      if (h.overtime_status === "approved") approveDay(h.employee_id, h.day);
     }
     const withStanding = (manual: PayInputs, employeeId: string): PayInputs => {
       const adds = recurring.filter((r) => r.employee_id === employeeId && r.type === "addition").reduce((t, r) => t + r.amount_cents / 100, 0);
@@ -8375,19 +8391,9 @@ async function route(request: Request) {
       const benefitPaid = sumOf(["benefit"]);
       const extraPaid = sumOf(["extra"]);
       const inputsOf = inputBy.get(p.id) || { ...EMPTY_INPUTS };
-      const countedHours = (() => {
-        const raw = hoursBy.get(p.id);
-        if (!raw || !overtimeApproval) return raw;
-        const out: HoursByDay = new Map();
-        for (const [day, e] of raw) {
-          if (approvedHours.has(`${p.id}|${day}`)) { out.set(day, e); continue; }
-          const info = dayInfo.get(day);
-          const hours = !info || info.off !== "" ? 0 : Math.min(e.hours, dailyNorm(week.hours, info.short));
-          out.set(day, { hours, night: Math.min(e.night, hours) });
-        }
-        return out;
-      })();
-      const hoursAuto = countedHours ? summarizeHours(days, countedHours, week.hours) : { days: 0, worked: 0, overtime: 0, restDay: 0, night: 0 };
+      // One source: the daily entries of Saat uçotu when there are any, otherwise its month total. The two are never added.
+      const chosen = chooseHours({ days, daily: hoursBy.get(p.id), total: monthTotals.get(p.id), weekHours: week.hours, needsApproval: overtimeApproval, approvedDays: approvedBy.get(p.id) || new Set(), totalCoveredByOrder: orderedEmployees.has(p.id) });
+      const hoursAuto = chosen.summary;
       const vacationOf = (date: string) => isVacationCode(marksOf.get(date) || "");
       const vacation = vacationCalendarDays(days, vacationOf);
       const insuredOf = (date: string) => isInsuredCode(marksOf.get(date) || "");
@@ -8435,8 +8441,8 @@ async function route(request: Request) {
       }
       const base = { monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: (() => {
           const merged = withStanding(inputsOf, p.id);
-          // Typed hours win; otherwise the tracked ones count.
-          return { ...merged, overtimeHours: merged.overtimeHours || hoursAuto.overtime, restDayHours: merged.restDayHours || hoursAuto.restDay, nightHours: merged.nightHours || hoursAuto.night };
+          // The hours come only from Saat uçotu; the night supplement is a term of the contract, kept on the employee card.
+          return { ...merged, overtimeHours: hoursAuto.overtime, restDayHours: hoursAuto.restDay, nightHours: hoursAuto.night, nightPercent: Number(profile.nightPercent) || merged.nightPercent };
         })(), annual, insured, leaveCompensation };
       const result = frozen?.rows?.find((r) => r.employeeId === p.id)?.result || computePay({ ...base, advances });
       const upTo = month === Number(todayIso.slice(5, 7)) && year === Number(todayIso.slice(0, 4)) ? behind : todayIso > `${monthRaw}-31` ? statuses.length : 0;
@@ -8477,6 +8483,9 @@ async function route(request: Request) {
         warnings: [...payWarnings({ gross: pay?.gross || 0, weekHours: week.hours, workedAll: result.workedDays + result.paidLeaveDays >= result.normDays && result.normDays > 0, hasIban: !!profile.iban || !!profile.cardNumber, cashPay: profile.payMethod === "cash", advanceExcess: result.advanceExcess, earned: result.gross, previousEarned: previousGross.get(p.id) }), ...(result.benefitCalendarDays > 0 && !inputsOf.benefitDoc ? ["Xəstəlik/analıq günləri var, e-bülleten nömrəsi yazılmayıb (əlavələr və tutulmalar pəncərəsində)."] : [])],
         inputs: inputsOf,
         hours: hoursAuto,
+        hoursSource: chosen.source,
+        nightPercent: Number(profile.nightPercent) || inputsOf.nightPercent || 0,
+        hoursWaiting: chosen.waiting,
         recurring: recurring.filter((x) => x.employee_id === p.id).map((x) => ({ id: x.id, type: x.type, label: x.label, amount: x.amount_cents / 100 })),
         carries: carries.filter((x) => x.employee_id === p.id).map((x) => ({ label: x.label, amount: x.amount_cents / 100, from: x.from_month })),
         result,
@@ -8551,6 +8560,9 @@ async function route(request: Request) {
     ]);
     const days = monthDays(year, month, overrides.results);
     const clock = await clockSettings(id);
+    const totalRows = (await db.prepare("SELECT employee_id,overtime,rest_day,night,status,note FROM attendance_hours_month WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ employee_id: string; overtime: number; rest_day: number; night: number; status: string; note: string }>()).results;
+    const orderRows = (await db.prepare("SELECT employee_id,day,order_number FROM overtime_orders WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, `${monthRaw}-01`, `${monthRaw}-31`).all<{ employee_id: string; day: string; order_number: string }>()).results;
+    const orderOf = new Map(orderRows.map((o) => [`${o.employee_id}|${o.day}`, o.order_number || "—"]));
     const todayBaku = bakuNow().date;
     const by = new Map<string, HoursByDay>();
     for (const e of entries.results) by.set(e.employee_id, (by.get(e.employee_id) || new Map()).set(e.day, { hours: e.hours, night: e.night_hours }));
@@ -8566,8 +8578,13 @@ async function route(request: Request) {
         entries: entries.results.filter((e) => e.employee_id === p.id).map((e) => {
           const info = dayOf.get(e.day);
           const norm = info && info.off === "" ? dailyNorm(weeklyHours(parseProfile(p.profile), `${monthRaw}-01`).hours, info.short) : 0;
-          return { day: e.day, hours: e.hours, night: e.night_hours, note: e.note, clockIn: e.clock_in, clockOut: e.clock_out, source: e.source, late: e.clock_in ? lateMinutes(e.clock_in, clock.rules) : 0, early: e.clock_out ? earlyLeaveMinutes(e.clock_out, clock.rules) : 0, extra: Math.round((info && info.off !== "" ? e.hours : Math.max(0, e.hours - norm)) * 100) / 100, overtimeStatus: e.overtime_status };
+          return { day: e.day, hours: e.hours, night: e.night_hours, note: e.note, clockIn: e.clock_in, clockOut: e.clock_out, source: e.source, late: e.clock_in ? lateMinutes(e.clock_in, clock.rules) : 0, early: e.clock_out ? earlyLeaveMinutes(e.clock_out, clock.rules) : 0, extra: Math.round((info && info.off !== "" ? e.hours : Math.max(0, e.hours - norm)) * 100) / 100, overtimeStatus: e.overtime_status || (orderOf.has(`${p.id}|${e.day}`) ? "approved" : ""), order: orderOf.get(`${p.id}|${e.day}`) || "" };
         }),
+        mode: entries.results.some((e) => e.employee_id === p.id) ? "daily" : totalRows.some((t) => t.employee_id === p.id) ? "month" : "none",
+        total: (() => {
+          const t = totalRows.find((x) => x.employee_id === p.id);
+          return t ? { overtime: t.overtime, restDay: t.rest_day, night: t.night, status: t.status || (orderRows.some((o) => o.employee_id === p.id) ? "approved" : ""), note: t.note } : null;
+        })(),
         // Working days already behind us with no hours written: the timekeeper has to look at them.
         missing: entries.results.some((e) => e.employee_id === p.id) || by.size ? days.filter((d) => d.off === "" && d.date < todayBaku && !(by.get(p.id) || new Map()).has(d.date)).map((d) => d.date) : [],
       })),
@@ -8633,12 +8650,87 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "attendance-settings", "hours", `${start}–${end}, artıq iş təsdiqi: ${b.overtimeApproval ? "bəli" : "xeyr"}`);
     return ok({ ok: true });
   }
+  // Month totals: one figure per month for extra, rest-day and night hours (used when the month has no daily entries).
+  if (request.method === "POST" && path === "company/hours/month-save") {
+    requirePermission("salaries", "Saat uçotunu yalnız davamiyyət icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    const monthRaw = str(b.month, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthRaw)) throw new HttpError(400, "Ayı düzgün seçin.");
+    if (await payrollLocked(monthRaw)) throw new HttpError(409, "Bu ay təsdiqlənib: saatlar dəyişdirilmir.");
+    const employee = await db.prepare("SELECT id FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(str(b.employeeId, 100), id).first<{ id: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const daily = await db.prepare("SELECT COUNT(*) AS n FROM attendance_hours WHERE company_id=? AND employee_id=? AND day BETWEEN ? AND ?").bind(id, employee.id, `${monthRaw}-01`, `${monthRaw}-31`).first<{ n: number }>();
+    if (Number(daily?.n) > 0) throw new HttpError(409, "Bu işçinin həmin ay üçün gündəlik saatı var: ay yekunu yalnız gündəlik qeyd olmayanda sayılır. Əvvəl gündəlik qeydləri silin.");
+    const num = (v: unknown) => Math.round(Math.max(0, Math.min(400, Number(v) || 0)) * 100) / 100;
+    const overtime = num(b.overtime);
+    const restDay = num(b.restDay);
+    const night = num(b.night);
+    if (!overtime && !restDay && !night) await db.prepare("DELETE FROM attendance_hours_month WHERE company_id=? AND employee_id=? AND month=?").bind(id, employee.id, monthRaw).run();
+    else
+      await db
+        .prepare("INSERT INTO attendance_hours_month(company_id,employee_id,month,overtime,rest_day,night,status,note,updated) VALUES(?,?,?,?,?,?,'',?,?) ON CONFLICT(company_id,employee_id,month) DO UPDATE SET overtime=excluded.overtime,rest_day=excluded.rest_day,night=excluded.night,status='',note=excluded.note,updated=excluded.updated")
+        .bind(id, employee.id, monthRaw, overtime, restDay, night, str(b.note, 200), new Date().toISOString())
+        .run();
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/hours/month-approve") {
+    requirePermission("salaries", "Artıq işi yalnız davamiyyət icazəsi olan şəxs təsdiq edə bilər.");
+    const b = await jsonBody(request);
+    const monthRaw = str(b.month, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthRaw)) throw new HttpError(400, "Ayı düzgün seçin.");
+    if (await payrollLocked(monthRaw)) throw new HttpError(409, "Bu ay təsdiqlənib: artıq iş dəyişdirilmir.");
+    const status = b.status === "approved" ? "approved" : b.status === "rejected" ? "rejected" : "";
+    const res = await db.prepare("UPDATE attendance_hours_month SET status=?,updated=? WHERE company_id=? AND employee_id=? AND month=?").bind(status, new Date().toISOString(), id, str(b.employeeId, 100), monthRaw).run();
+    if (!res.meta.changes) throw new HttpError(404, "Bu ay üçün yekun saat qeydi yoxdur.");
+    await companyAudit(db, id, userId, "overtime-decision", str(b.employeeId, 100), `${monthRaw} (ay yekunu): ${status || "gözləyir"}`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/hours/totals-import") {
+    requirePermission("salaries", "Saat uçotunu yalnız davamiyyət icazəsi olan şəxs yükləyə bilər.");
+    const b = await jsonBody(request);
+    const defaultMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(str(b.month, 7)) ? str(b.month, 7) : "";
+    const parsed = parseHoursTotals((Array.isArray(b.rows) ? b.rows : []).slice(0, 1001).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])), defaultMonth);
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda sətir tapılmadı.");
+    const people = await employeeRefs();
+    const locked = new Set((await db.prepare("SELECT month FROM payroll_runs WHERE company_id=? AND status='approved'").bind(id).all<{ month: string }>()).results.map((r) => r.month));
+    const dailyHave = new Set((await db.prepare("SELECT DISTINCT employee_id||'|'||substr(day,1,7) AS k FROM attendance_hours WHERE company_id=?").bind(id).all<{ k: string }>()).results.map((r) => r.k));
+    const issues = [...parsed.issues];
+    const statements: D1PreparedStatement[] = [];
+    const now = new Date().toISOString();
+    let applied = 0;
+    for (const row of parsed.rows) {
+      if (locked.has(row.month)) {
+        issues.push({ line: row.line, reason: `${row.name}: ${row.month} ayı təsdiqlənib.` });
+        continue;
+      }
+      const found = matchEmployee(people, { name: row.name, email: row.email, fin: row.fin });
+      if ("error" in found) {
+        issues.push({ line: row.line, reason: found.error });
+        continue;
+      }
+      if (dailyHave.has(`${found.id}|${row.month}`)) {
+        issues.push({ line: row.line, reason: `${row.name}: ${row.month} üçün gündəlik saat var, ay yekunu yüklənmədi.` });
+        continue;
+      }
+      statements.push(
+        !row.overtime && !row.restDay && !row.night
+          ? db.prepare("DELETE FROM attendance_hours_month WHERE company_id=? AND employee_id=? AND month=?").bind(id, found.id, row.month)
+          : db
+              .prepare("INSERT INTO attendance_hours_month(company_id,employee_id,month,overtime,rest_day,night,status,note,updated) VALUES(?,?,?,?,?,?,'',?,?) ON CONFLICT(company_id,employee_id,month) DO UPDATE SET overtime=excluded.overtime,rest_day=excluded.rest_day,night=excluded.night,status='',note=excluded.note,updated=excluded.updated")
+              .bind(id, found.id, row.month, row.overtime, row.restDay, row.night, row.note, now),
+      );
+      applied++;
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "hours-totals-imported", "", `${applied} sətir`);
+    return ok({ ok: true, applied, created: applied, issues });
+  }
   if (request.method === "POST" && path === "company/hours/import") {
     requirePermission("salaries", "Saat uçotunu yalnız davamiyyət icazəsi olan şəxs yükləyə bilər.");
     const b = await jsonBody(request);
     const parsed = parseHoursRows((Array.isArray(b.rows) ? b.rows : []).slice(0, 3001).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
     if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda sətir tapılmadı.");
-    const people = (await db.prepare("SELECT id,name,email FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; name: string; email: string }>()).results;
+    const people = await employeeRefs();
     const locked = new Set((await db.prepare("SELECT month FROM payroll_runs WHERE company_id=? AND status='approved'").bind(id).all<{ month: string }>()).results.map((r) => r.month));
     const issues = [...parsed.issues];
     const statements: D1PreparedStatement[] = [];
@@ -8649,7 +8741,7 @@ async function route(request: Request) {
         issues.push({ line: row.line, reason: `${row.name}: ${row.day.slice(0, 7)} ayı təsdiqlənib.` });
         continue;
       }
-      const found = matchEmployee(people, { name: row.name, email: row.email });
+      const found = matchEmployee(people, { name: row.name, email: row.email, fin: row.fin });
       if ("error" in found) {
         issues.push({ line: row.line, reason: found.error });
         continue;
@@ -10293,14 +10385,14 @@ async function route(request: Request) {
     if (await payrollLocked(monthRaw)) throw new HttpError(409, "Bu ay təsdiqlənib: dəyişmək üçün əvvəlcə təsdiqi geri çəkin (direktor).");
     const parsed = parsePayrollRows((Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
     if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda sətir tapılmadı.");
-    const people = (await db.prepare("SELECT id,name,email FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; name: string; email: string }>()).results;
+    const people = await employeeRefs();
     const existing = new Map((await db.prepare("SELECT employee_id,data FROM payroll_inputs WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ employee_id: string; data: string }>()).results.map((r) => [r.employee_id, r.data]));
     const issues = [...parsed.issues];
     const statements: D1PreparedStatement[] = [];
     const now = new Date().toISOString();
     let applied = 0;
     for (const row of parsed.rows) {
-      const found = matchEmployee(people, { name: row.name, email: row.email });
+      const found = matchEmployee(people, { name: row.name, email: row.email, fin: row.fin });
       if ("error" in found) {
         issues.push({ line: row.line, reason: found.error });
         continue;
@@ -10316,10 +10408,6 @@ async function route(request: Request) {
         ...current,
         bonus: has("bonus") ? row.bonus : current.bonus,
         allowance: has("allowance") ? row.allowance : current.allowance,
-        overtimeHours: has("overtimeHours") ? row.overtimeHours : current.overtimeHours,
-        restDayHours: has("restDayHours") ? row.restDayHours : current.restDayHours,
-        nightHours: has("nightHours") ? row.nightHours : current.nightHours,
-        nightPercent: has("nightPercent") ? row.nightPercent : current.nightPercent,
         note: has("note") && row.note ? row.note : current.note,
         deductions: has("deductionAmount") ? (row.deductionAmount > 0 ? [...current.deductions.filter((d) => d.label !== row.deductionLabel), { label: row.deductionLabel, amount: row.deductionAmount, kind: row.deductionKind }] : current.deductions) : current.deductions,
       };
@@ -10592,13 +10680,6 @@ async function route(request: Request) {
   // ---- Excel: attendance marks, calendar days, personal data ----
   const sheetRows = (value: unknown) =>
     (Array.isArray(value) ? value : []).slice(0, 1001).map((row: unknown) => (Array.isArray(row) ? row.map((c) => String(c ?? "")) : []));
-  const employeeRefs = async () =>
-    (
-      await db
-        .prepare("SELECT id,name,email FROM company_employees WHERE company_id=? AND status<>'removed'")
-        .bind(id)
-        .all<{ id: string; name: string; email: string }>()
-    ).results;
   if (request.method === "POST" && path === "company/attendance/import") {
     requirePermission("salaries", "Davamiyyəti yalnız davamiyyət icazəsi olan şəxs yükləyə bilər.");
     const b = await jsonBody(request);
@@ -10646,7 +10727,7 @@ async function route(request: Request) {
     const statements: D1PreparedStatement[] = [];
     let applied = 0;
     for (const row of parsed.rows) {
-      const found = matchEmployee(people, row);
+      const found = matchEmployee(people, { name: row.name, email: row.email });
       if ("error" in found) {
         issues.push({ line: row.line, reason: found.error });
         continue;
@@ -10856,6 +10937,18 @@ async function route(request: Request) {
     const range = order.input as { from?: string; to?: string; number?: string };
     if (flow.status === "signed" && leaveCode && /^\d{4}-\d{2}-\d{2}$/.test(range.from || "") && /^\d{4}-\d{2}-\d{2}$/.test(range.to || "") && (range.to as string) >= (range.from as string))
       marked = await markAttendance(order.employeeId, range.from as string, range.to as string, leaveCode, `Əmr № ${order.number}`);
+    // A signed order for extra or rest-day work approves the hours of those days (arts. 99, 105).
+    if (flow.status === "signed" && (order.kind === "overtime" || order.kind === "restday") && /^\d{4}-\d{2}-\d{2}$/.test(range.from || "")) {
+      const from = range.from as string;
+      const to = /^\d{4}-\d{2}-\d{2}$/.test(range.to || "") && (range.to as string) >= from && order.kind === "overtime" ? (range.to as string) : from;
+      const length = Math.min(62, Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1);
+      const statements: D1PreparedStatement[] = [];
+      for (let i = 0; i < length; i++) {
+        const day = new Date(Date.parse(`${from}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
+        statements.push(db.prepare("INSERT OR REPLACE INTO overtime_orders(company_id,employee_id,day,order_id,order_number) VALUES(?,?,?,?,?)").bind(id, order.employeeId, day, order.id, String(order.number || "")));
+      }
+      for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    }
     return ok({ ok: true, signed: flow.status === "signed", marked });
   }
   // A signer who wants a change sends the order back, with the reason, to the person before them.

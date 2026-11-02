@@ -5,7 +5,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "assets";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "assets";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -98,15 +98,16 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
     columns: [
       { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. Eyni adlı iki işçi varsa e-poçt sütunu da əlavə edin." },
       { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "FİN", required: false, format: "7 simvol", description: "Şəxsiyyət vəsiqəsindəki FİN kodu. Yazılırsa işçi yalnız FİN ilə tapılır (eyni adlı iki işçini dəqiq ayırır); işçi kartında FİN olmalıdır." },
       { header: "Başlama tarixi", required: true, format: DATE, description: "Qeydin ilk günü." },
       { header: "Bitmə tarixi", required: false, format: DATE, description: "Qeydin son günü. Boşdursa yalnız başlama günüdür." },
       { header: "Səbəb", required: true, format: "Mətn", description: "Davamiyyət növü: adı və ya qısa kodu. “Sil” yazsanız həmin günlərin qeydi silinir.", values: codes },
       { header: "Qeyd", required: false, format: "Mətn", description: "Məsələn xəstəlik vərəqəsinin və ya əmrin nömrəsi." },
     ],
     examples: [
-      ["Aysel Məmmədova", "", "2026-03-16", "2026-03-27", "Əmək məzuniyyəti", "Əmr № 12"],
-      ["Orxan Əliyev", "", "2026-03-02", "2026-03-03", "Xəstəlik", "Vərəqə XV-123"],
-      ["Nigar Quliyeva", "", "2026-03-10", "", "Ezamiyyətdə", "Gəncə"],
+      ["Aysel Məmmədova", "", "", "2026-03-16", "2026-03-27", "Əmək məzuniyyəti", "Əmr № 12"],
+      ["Orxan Əliyev", "", "", "2026-03-02", "2026-03-03", "Xəstəlik", "Vərəqə XV-123"],
+      ["Nigar Quliyeva", "", "", "2026-03-10", "", "Ezamiyyətdə", "Gəncə"],
     ],
     rules: ["Qeyd bütün günlərə yazılır; istirahət və bayram günləri tabeldə ayrıca görünür.", "Bir sətirdə ən çox 366 gün olar.", "İşçi siyahısında tapılmayan ad yüklənmir və hesabatda göstərilir."],
   },
@@ -127,26 +128,23 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
     rules: ["Rəsmi bayramlar və köçürmələr artıq təqvimdədir; yalnız şirkətin ondan fərqli günlərini yazın.", "Bir dəfəyə ən çox 400 gün yüklənir."],
   },
   payroll: {
-    title: "Ayın əmək haqqı məlumatları (mükafat, əlavə, saat, tutulma)",
+    title: "Ayın əmək haqqı məlumatları (mükafat, əlavə, tutulma)",
     file: "emek-haqqi-numune.xlsx",
     sheet: "Əmək haqqı",
     columns: [
       { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. Eyni adlı iki işçi varsa e-poçt əlavə edin." },
       { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "FİN", required: false, format: "7 simvol", description: "Şəxsiyyət vəsiqəsindəki FİN kodu. Yazılırsa işçi yalnız FİN ilə tapılır (eyni adlı iki işçini dəqiq ayırır); işçi kartında FİN olmalıdır." },
       { header: "Mükafat", required: false, format: "AZN", description: "Ayın mükafatı." },
       { header: "Əlavə", required: false, format: "AZN", description: "Əlavə ödəniş (iş şəraiti, staj və s.)." },
-      { header: "Artıq iş saatı", required: false, format: "Saat", description: "İş vaxtından artıq işlənən saat (2 qat, Əmək M. 165)." },
-      { header: "İstirahət günü saatı", required: false, format: "Saat", description: "İstirahət və bayram günlərində işlənən saat (md. 164)." },
-      { header: "Gecə saatı", required: false, format: "Saat", description: "22:00–06:00 arası işlənən saat." },
-      { header: "Gecə əlavəsi", required: false, format: "% (0–100)", description: "Müqavilədəki gecə əlavəsinin faizi." },
       { header: "Tutulma adı", required: false, format: "Mətn", description: "Tutulmanın adı və səbəbi (məsələn kredit, icra sənədi)." },
       { header: "Tutulma məbləği", required: false, format: "AZN", description: "Tutulacaq məbləğ; qanuni həddən (20/50/70%) artıq hissə növbəti aya keçir." },
       { header: "Tutulma növü", required: false, format: "Mətn", description: "Ümumi, İcra sənədi və ya Aliment.", values: "Ümumi; İcra sənədi; Aliment" },
       { header: "Qeyd", required: false, format: "Mətn", description: "Ayın qeydi." },
     ],
     examples: [
-      ["Aysel Məmmədova", "", 150, 50, 6, 0, 0, 0, "Bank krediti", 100, "Ümumi", "Rüblük mükafat"],
-      ["Orxan Əliyev", "", 0, 0, 0, 8, 12, 20, "", 0, "", ""],
+      ["Aysel Məmmədova", "", "", 150, 50, "Bank krediti", 100, "Ümumi", "Rüblük mükafat"],
+      ["Orxan Əliyev", "", "", 0, 0, "", 0, "", ""],
     ],
     rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Fayl seçilmiş ayın məlumatlarını əvəz edir: yalnız faylda adı olan işçilərin həmin ay üçün əl ilə yazılmış əlavə və saatları yenilənir.", "Təsdiqlənmiş ay dəyişdirilmir.", "Hər işçi üçün bir tutulma yazılır; bir neçə tutulma üçün işçi kartında “Əlavə / tutulma” və ya təkrarlanan maddələrdən istifadə edin."],
   },
@@ -157,16 +155,37 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
     columns: [
       { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. Eyni adlı iki işçi varsa e-poçt əlavə edin." },
       { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "FİN", required: false, format: "7 simvol", description: "Şəxsiyyət vəsiqəsindəki FİN kodu. Yazılırsa işçi yalnız FİN ilə tapılır (eyni adlı iki işçini dəqiq ayırır); işçi kartında FİN olmalıdır." },
       { header: "Tarix", required: true, format: DATE, description: "İşlənən gün." },
       { header: "Saat", required: true, format: "0–24", description: "Həmin gün işlənən ümumi saat (0 yazılsa həmin günün qeydi silinir)." },
       { header: "Gecə saatı", required: false, format: "0–24", description: "Bunlardan 22:00–06:00 arası işlənən saat." },
       { header: "Qeyd", required: false, format: "Mətn", description: "İstəyə görə izah." },
     ],
     examples: [
-      ["Aysel Məmmədova", "", "2026-03-16", 10, 0, "Hesabat dövrü"],
-      ["Orxan Əliyev", "", "2026-03-21", 6, 2, "Şənbə növbəsi"],
+      ["Aysel Məmmədova", "", "", "2026-03-16", 10, 0, "Hesabat dövrü"],
+      ["Orxan Əliyev", "", "", "2026-03-21", 6, 2, "Şənbə növbəsi"],
     ],
     rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "İş günündə gündəlik normadan (həftəlik saat / 5; bayram qabağı gün 1 saat az) artıq saat avtomatik artıq iş sayılır; istirahət və bayram günündə işlənən bütün saat istirahət günü işi sayılır.", "Təsdiqlənmiş aya aid sətirlər yüklənmir.", "Əmək haqqı cədvəlində əl ilə yazılmış saat varsa, o üstünlük təşkil edir."],
+  },
+  hourtotals: {
+    title: "İşlənən saatlar (ay yekunu)",
+    file: "saat-ay-yekunu-numune.xlsx",
+    sheet: "Ay yekunu",
+    columns: [
+      { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. FİN yazılıbsa, ad boş ola bilər." },
+      { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "FİN", required: false, format: "7 simvol", description: "Şəxsiyyət vəsiqəsindəki FİN kodu. Yazılırsa işçi yalnız FİN ilə tapılır; işçi kartında FİN olmalıdır." },
+      { header: "Ay", required: true, format: "2026-03 və ya 03.2026", description: "Saatların aid olduğu ay." },
+      { header: "Artıq iş saatı", required: false, format: "Saat", description: "İş vaxtından artıq işlənən saat (2 qat, Əmək M. 165)." },
+      { header: "İstirahət günü saatı", required: false, format: "Saat", description: "İstirahət və bayram günlərində işlənən saat (md. 164)." },
+      { header: "Gecə saatı", required: false, format: "Saat", description: "22:00–06:00 arası işlənən saat." },
+      { header: "Qeyd", required: false, format: "Mətn", description: "İstəyə görə izah." },
+    ],
+    examples: [
+      ["Aysel Məmmədova", "", "", "2026-03", 6, 0, 0, "Hesabat dövrü"],
+      ["Orxan Əliyev", "", "", "2026-03", 0, 8, 12, "Növbəli iş"],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Ay yekunu yalnız həmin ay üçün gündəlik saatı olmayan işçilərə yazılır: gündəlik qeyd varsa, yalnız o sayılır, ikisi toplanmır.", "Fayl həmin işçi və ay üçün əvvəlki yekunu əvəz edir; hamısı 0 yazılsa yekun silinir."],
   },
   assets: {
     title: "Şirkət əmlakı (aktivlər)",

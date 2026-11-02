@@ -18,9 +18,9 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 }
 
 type Summary = { days: number; worked: number; overtime: number; restDay: number; night: number };
-type Entry = { day: string; hours: number; night: number; note: string; clockIn: string; clockOut: string; source: string; late: number; early: number; extra: number; overtimeStatus: string };
+type Entry = { day: string; hours: number; night: number; note: string; clockIn: string; clockOut: string; source: string; late: number; early: number; extra: number; overtimeStatus: string; order: string };
 type Settings = { start: string; end: string; breakMinutes: number; graceMinutes: number; overtimeApproval: boolean; selfClock: boolean };
-type Person = { id: string; name: string; position: string; department: string; weekHours: number; summary: Summary; entries: Entry[]; missing: string[] };
+type Person = { id: string; name: string; position: string; department: string; weekHours: number; summary: Summary; entries: Entry[]; missing: string[]; mode: "daily" | "month" | "none"; total: { overtime: number; restDay: number; night: number; status: string; note: string } | null };
 type Data = { month: string; settings: Settings; days: { date: string; off: string; short: boolean; label: string }[]; employees: Person[] };
 const OFF: Record<string, string> = { weekend: "istirahət", holiday: "bayram", transfer: "köçürülmüş istirahət", company: "şirkət istirahəti" };
 const dmy = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
@@ -33,6 +33,8 @@ export default function HoursPanel({ notify }: { notify: Notify }) {
   const [importing, setImporting] = useState(false);
   const [setup, setSetup] = useState(false);
   const [journal, setJournal] = useState(false);
+  const [totalsImport, setTotalsImport] = useState(false);
+  const [monthEdit, setMonthEdit] = useState<Person | null>(null);
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -52,33 +54,37 @@ export default function HoursPanel({ notify }: { notify: Notify }) {
         <div className="admin-actions">
           <button type="button" className="secondary" onClick={() => setJournal(true)}>Giriş-çıxış jurnalı</button>
           <button type="button" className="secondary" onClick={() => setSetup(true)}>Ayarlar</button>
-          <button type="button" className="secondary" onClick={() => setImporting(true)}>Excel-dən yüklə</button>
+          <button type="button" className="secondary" onClick={() => setImporting(true)}>Excel: gündəlik saat</button>
+          <button type="button" className="secondary" onClick={() => setTotalsImport(true)}>Excel: ay yekunu</button>
         </div>
       </div>
-      <p className="muted">Hər gün işlənən saat yazılır. İş günündə gündəlik normadan (həftəlik saat ÷ 5, bayram qabağı 1 saat az) artıq saat artıq iş, istirahət və bayram günündə bütün saat istirahət günü işi sayılır; gecə saatı ayrıca yazılır. Hesablama əmək haqqı cədvəlinə özü düşür (əl ilə yazılmış saat üstündür).</p>
+      <p className="muted">
+        Saat yalnız burada yazılır; əmək haqqı hesablaması onu buradan götürür. İki yol var: <b>gündəlik</b> (giriş-çıxış və ya gün üzrə saat) və <b>ay yekunu</b> (işçi üçün ayda bir rəqəm). Eyni ay üçün gündəlik qeyd varsa yalnız o sayılır, ikisi toplanmır. İş günündə gündəlik normadan (həftəlik saat ÷ 5, bayram qabağı 1 saat az) artıq saat artıq iş, istirahət və bayram günündə bütün saat istirahət günü işi sayılır; gecə saatı ayrıca göstərilir. Gecə əlavəsinin faizi işçi kartındadır. «Ayarlar»da artıq iş təsdiqi açıqdırsa, artıq saatlar imzalanmış əmr (artıq işə cəlb / istirahət günü işə cəlb) və ya təsdiq olmadan əmək haqqına düşmür.
+      </p>
       {!data ? (
         <p className="muted">Yüklənir…</p>
       ) : (
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>
-              <tr><th>İşçi</th><th>Qeydli gün</th><th>İşlənən saat</th><th>Artıq iş</th><th>İstirahət/bayram günü</th><th>Gecə</th><th>Gecikmə</th><th>Boş gün</th><th></th></tr>
+              <tr><th>İşçi</th><th>Mənbə</th><th>Qeydli gün</th><th>İşlənən saat</th><th>Artıq iş</th><th>İstirahət/bayram günü</th><th>Gecə</th><th>Gecikmə</th><th>Boş gün</th><th></th></tr>
             </thead>
             <tbody>
               {data.employees.map((p) => (
                 <tr key={p.id}>
                   <td><b>{p.name}</b><small className="skill-description">{[p.position, p.department].filter(Boolean).join(" · ")}{p.weekHours < 40 ? ` · ${p.weekHours} saatlıq həftə` : ""}</small></td>
+                  <td>{p.mode === "daily" ? "Gündəlik" : p.mode === "month" ? <span>Ay yekunu{p.total && p.total.status !== "approved" && data.settings.overtimeApproval ? <small className="skill-description">təsdiq gözləyir</small> : null}</span> : "—"}</td>
                   <td>{p.summary.days}</td>
                   <td>{p.summary.worked}</td>
-                  <td>{p.summary.overtime || "—"}</td>
-                  <td>{p.summary.restDay || "—"}</td>
-                  <td>{p.summary.night || "—"}</td>
+                  <td>{(p.mode === "month" ? p.total?.overtime : p.summary.overtime) || "—"}</td>
+                  <td>{(p.mode === "month" ? p.total?.restDay : p.summary.restDay) || "—"}</td>
+                  <td>{(p.mode === "month" ? p.total?.night : p.summary.night) || "—"}</td>
                   <td>{p.entries.filter((e) => e.late).length ? `${p.entries.filter((e) => e.late).length} gün / ${p.entries.reduce((t, e) => t + e.late, 0)} dəq` : "—"}</td>
                   <td>{p.missing.length ? <span title={p.missing.join(", ")}>{p.missing.length}</span> : "—"}</td>
-                  <td><button type="button" onClick={() => setEdit(p)}>Saatlar</button></td>
+                  <td className="admin-actions"><button type="button" onClick={() => setEdit(p)}>Gündəlik</button><button type="button" className="ghost" onClick={() => setMonthEdit(p)}>Ay yekunu</button></td>
                 </tr>
               ))}
-              {!data.employees.length && <tr><td colSpan={9}><p className="admin-empty">İşçi yoxdur.</p></td></tr>}
+              {!data.employees.length && <tr><td colSpan={10}><p className="admin-empty">İşçi yoxdur.</p></td></tr>}
             </tbody>
           </table>
         </div>
@@ -86,6 +92,8 @@ export default function HoursPanel({ notify }: { notify: Notify }) {
       {edit && data && <DayHours month={month} person={edit} days={data.days} notify={notify} onClose={() => setEdit(null)} onSaved={load} />}
       {setup && data && <ClockSettings settings={data.settings} notify={notify} onClose={() => setSetup(false)} onSaved={load} />}
       {journal && data && <Journal data={data} notify={notify} onClose={() => setJournal(false)} onSaved={load} />}
+      {monthEdit && <MonthTotal month={month} person={monthEdit} notify={notify} onClose={() => setMonthEdit(null)} onSaved={load} />}
+      {totalsImport && <SheetImport kind="hourtotals" extra={{ month }} notify={notify} onClose={() => setTotalsImport(false)} onDone={load} />}
       {importing && <SheetImport kind="hours" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
     </div>
   );
@@ -183,6 +191,14 @@ function Journal({ data, notify, onClose, onSaved }: { data: Data; notify: Notif
       notify((error as Error).message);
     }
   }
+  async function decideMonth(employeeId: string, status: string) {
+    try {
+      await request("company/hours/month-approve", { employeeId, month: data.month, status });
+      onSaved();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   return (
     <Modal title={`Giriş-çıxış jurnalı (${data.month})`} onClose={onClose}>
       <div className="offer-composer">
@@ -199,7 +215,7 @@ function Journal({ data, notify, onClose, onSaved }: { data: Data; notify: Notif
                   <td>{[e.late ? `${e.late} dəq gecikmə` : "", e.early ? `${e.early} dəq tez çıxış` : ""].filter(Boolean).join(" · ") || "—"}</td>
                   <td>
                     {e.extra > 0 ? (
-                      <span>{e.extra} saat {e.overtimeStatus === "approved" ? "· təsdiqlənib" : e.overtimeStatus === "rejected" ? "· rədd edilib" : "· gözləyir"}{" "}
+                      <span>{e.extra} saat {e.overtimeStatus === "approved" ? (e.order ? `· əmr № ${e.order} əsasında` : "· təsdiqlənib") : e.overtimeStatus === "rejected" ? "· rədd edilib" : "· gözləyir"}{" "}
                         {e.overtimeStatus !== "approved" && <button type="button" onClick={() => void decide(p.id, e.day, "approved")}>Təsdiq</button>}{" "}
                         {e.overtimeStatus !== "rejected" && <button type="button" className="ghost" onClick={() => void decide(p.id, e.day, "rejected")}>Rədd</button>}
                       </span>
@@ -211,7 +227,66 @@ function Journal({ data, notify, onClose, onSaved }: { data: Data; notify: Notif
             </tbody>
           </table>
         </div>
+        {data.employees.some((p) => p.mode === "month" && p.total && (p.total.overtime > 0 || p.total.restDay > 0)) && (
+          <>
+            <h4>Ay yekunu ilə yazılmış artıq iş</h4>
+            <table className="admin-table">
+              <thead><tr><th>İşçi</th><th>Artıq iş</th><th>İstirahət günü</th><th>Vəziyyət</th></tr></thead>
+              <tbody>
+                {data.employees.filter((p) => p.mode === "month" && p.total && (p.total.overtime > 0 || p.total.restDay > 0)).map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.name}</td><td>{p.total!.overtime}</td><td>{p.total!.restDay}</td>
+                    <td>
+                      {p.total!.status === "approved" ? "təsdiqlənib" : p.total!.status === "rejected" ? "rədd edilib" : "gözləyir"}{" "}
+                      {p.total!.status !== "approved" && <button type="button" onClick={() => void decideMonth(p.id, "approved")}>Təsdiq</button>}{" "}
+                      {p.total!.status !== "rejected" && <button type="button" className="ghost" onClick={() => void decideMonth(p.id, "rejected")}>Rədd</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
         {data.settings.overtimeApproval && <p className="muted">Təsdiq qaydası açıqdır: təsdiqlənməyən artıq iş və istirahət günü saatları əmək haqqına düşmür.</p>}
+      </div>
+    </Modal>
+  );
+}
+
+function MonthTotal({ month, person, notify, onClose, onSaved }: { month: string; person: Person; notify: Notify; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ overtime: person.total?.overtime || 0, restDay: person.total?.restDay || 0, night: person.total?.night || 0, note: person.total?.note || "" });
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try {
+      await request("company/hours/month-save", { employeeId: person.id, month, ...form });
+      notify("Ay yekunu saxlanıldı.");
+      onSaved();
+      onClose();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const num = (key: "overtime" | "restDay" | "night", label: string) => (
+    <Field label={label}><input type="number" min={0} max={400} step={0.5} value={form[key] || ""} onChange={(e) => setForm({ ...form, [key]: Number(e.target.value) })} /></Field>
+  );
+  return (
+    <Modal title={`${person.name}: ay yekunu (${month})`} onClose={onClose}>
+      <div className="offer-composer">
+        {person.mode === "daily" ? (
+          <p className="muted">Bu işçinin həmin ay üçün gündəlik saatı var: yalnız o sayılır. Ay yekunu yazmaq üçün əvvəl gündəlik qeydləri silin.</p>
+        ) : (
+          <>
+            <p className="muted">Gündəlik qeyd yoxdursa, ayın artıq iş, istirahət günü və gecə saatları bir rəqəmlə yazılır.</p>
+            {num("overtime", "Artıq iş saatı (2 qat, Əmək M. 165)")}
+            {num("restDay", "İstirahət və bayram günü işlənən saat (164)")}
+            {num("night", "Gecə saatı (22:00–06:00)")}
+            <Field label="Qeyd"><input value={form.note} maxLength={200} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
+            <button type="button" className="primary" disabled={busy} onClick={() => void save()}>Yadda saxla</button>
+          </>
+        )}
       </div>
     </Modal>
   );
