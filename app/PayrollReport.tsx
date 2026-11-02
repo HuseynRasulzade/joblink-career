@@ -11,11 +11,12 @@ type Month = {
   advance: number; salary: number; vacation: number; benefit: number; extra: number; outstanding: number; benefitDue: number; benefitOutstanding: number; employeeOwes: number; lastPaid: string; reversed: number;
 };
 type Pay = { month: string; paidOn: string; kind: string; label: string; title: string; amount: number; method: string; note: string; batchId: string; reversed: boolean; reverseReason: string; reversedBy: string };
+type Op = { month: string; monthStatus: string; date: string; type: string; title: string; amount: number; balance: number; counts: boolean; note: string };
 type Employee = {
   employeeId: string; name: string; position: string; department: string; section: string; fin: string; iban: string; startDate: string;
   gross: number; tax: number; insurance: number; net: number; deductions: number; deductionsAsked: number; due: number; dueApproved: number; vacation: number; benefitDue: number; employerCost: number; lines: Record<string, number>;
   paid: Record<string, number>; paidTotal: number; companyOwes: number; pendingOwes: number; benefitOwes: number; employeeOwes: number; balance: number;
-  months: Month[]; payments: Pay[];
+  months: Month[]; payments: Pay[]; ops: Op[];
 };
 type Report = {
   from: string; to: string; approvedOnly: boolean; months: { month: string; status: string }[]; employees: Employee[];
@@ -87,6 +88,7 @@ export default function PayrollReport({ initialMonth, notify }: { initialMonth: 
           return `<div class="emp"><h2>${esc(e.name)} <small>${esc([e.fin, e.position, e.department].filter(Boolean).join(" · "))}</small></h2>
             <p>Hesablanıb ${azn(e.gross)} → vergi ${azn(e.tax)}, sığorta ${azn(e.insurance)}${e.deductions ? `, tutulmalar ${azn(e.deductions)}` : ""} → ödəniləcək ${azn(e.due)} · ödənilib ${azn(e.paidTotal)} · <b>${state(e)}: ${azn(Math.abs(e.balance))}</b></p>
             <table><thead><tr><th>Ay</th><th>Gün</th><th>Gross</th><th>Gəlir vergisi</th><th>Sığorta</th><th>Tutulma</th><th>Ödəniləcək</th><th>Avans</th><th>Maaş/məzuniyyət</th><th>Müavinət/digər</th><th>Qalıq</th></tr></thead><tbody>${months}</tbody></table>
+            <table><thead><tr><th>Ay</th><th>Tarix</th><th>Əməliyyat</th><th>Məbləğ</th><th>Qalıq</th></tr></thead><tbody>${e.ops.filter((op) => op.type !== "info").map((op) => `<tr class="${op.monthStatus === "approved" ? "" : "draft"}"><td>${op.month}${op.monthStatus === "approved" ? "" : " (layihə)"}</td><td>${dmy(op.date)}</td><td style="text-align:left">${esc(op.title)}${op.note ? `<br><small>${esc(op.note)}</small>` : ""}</td><td>${op.amount < 0 ? "−" : "+"} ${azn(Math.abs(op.amount))}</td><td>${op.monthStatus === "approved" ? azn(op.balance) : "—"}</td></tr>`).join("")}</tbody></table>
             ${pays ? `<table><thead><tr><th>Tarix</th><th>Ödənişin növü</th><th>Ay</th><th>Üsul</th><th>Qeyd</th><th>Məbləğ</th></tr></thead><tbody>${pays}</tbody></table>` : "<p><small>Bu dövrdə ödəniş yoxdur.</small></p>"}</div>`;
         })
         .join("");
@@ -185,6 +187,8 @@ export default function PayrollReport({ initialMonth, notify }: { initialMonth: 
                           ) : <p className="muted">Bu dövrdə ödəniş yoxdur.</p>}
                         </div>
                       </div>
+                      <h4>Hər ayın əməliyyatları</h4>
+                      <Journal ops={e.ops} />
                       <h4>Aylar üzrə</h4>
                       <table className="admin-table">
                         <thead><tr><th>Ay</th><th>Gün</th><th>Gross</th><th>Gəlir vergisi</th><th>Sığorta</th><th>Tutulma</th><th>Ödəniləcək</th><th>Avans</th><th>Maaş</th><th>Məzuniyyət</th><th>Müavinət</th><th>Digər</th><th>Qalıq</th></tr></thead>
@@ -229,6 +233,40 @@ export default function PayrollReport({ initialMonth, notify }: { initialMonth: 
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+const OP_MARK: Record<string, string> = { accrual: "Hesablama", tax: "Vergi", insurance: "Sığorta", deduction: "Tutulma", benefit: "Müavinət", payment: "Ödəniş", reversal: "Geri çəkmə", info: "Qeyd" };
+// Everything that happened in an employee's account, month by month, with what the company owes after each line.
+function Journal({ ops }: { ops: Op[] }) {
+  const months = [...new Set(ops.map((o) => o.month))];
+  if (!ops.length) return <p className="muted">Bu dövrdə əməliyyat yoxdur.</p>;
+  return (
+    <div className="journal">
+      {months.map((m) => {
+        const list = ops.filter((o) => o.month === m);
+        const draft = list[0]?.monthStatus !== "approved";
+        return (
+          <details key={m} open={!draft}>
+            <summary><b>{m}</b>{draft ? " (layihə)" : ""} <small className="skill-description">{list.filter((o) => o.type !== "info").length} əməliyyat{!draft ? ` · ayın sonunda şirkətin borcu ${azn(list[list.length - 1].balance)}` : ""}</small></summary>
+            <table className="admin-table">
+              <thead><tr><th>Tarix</th><th>Əməliyyat</th><th>Təsvir</th><th>Məbləğ</th><th>Qalıq</th></tr></thead>
+              <tbody>
+                {list.map((o, i) => (
+                  <tr key={i} className={o.type === "reversal" ? "payment-reversed" : undefined}>
+                    <td>{dmy(o.date)}</td>
+                    <td>{OP_MARK[o.type] || o.type}</td>
+                    <td>{o.title}{o.note && <small className="skill-description">{o.note}</small>}</td>
+                    <td>{o.type === "info" ? "—" : `${o.amount < 0 ? "−" : "+"} ${azn(Math.abs(o.amount))}`}</td>
+                    <td>{draft || o.type === "info" ? "—" : azn(o.balance)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        );
+      })}
     </div>
   );
 }

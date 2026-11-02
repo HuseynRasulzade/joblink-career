@@ -138,7 +138,7 @@ const PATH_PERMISSION: [RegExp, CompanyPermission][] = [
   [/^company\/payroll(\/|$)/, "payroll"],
   [/^company\/hr-report(\/|$)/, "payroll"],
   [/^company\/hours(\/|$)/, "attendance"],
-  [/^company\/(leave-schedule|offboarding|assets)(\/|$)/, "employees"],
+  [/^company\/(leave-schedule|offboarding|assets|performance|training|shifts|trips|announcements|surveys)(\/|$)/, "employees"],
   [/^company\/doc-registry(\/|$)/, "documents"],
   [/^company\/(orders|order-signers|applications)(\/|$)/, "orders"],
   [/^company\/(attendance|calendar)(\/|$)/, "attendance"],

@@ -376,6 +376,10 @@ import { maskCard, normalizeProfile, parseProfile, validIban } from "@/lib/emplo
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
 import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
 import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, payWarnings, isVacationCode, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
+import { RATING_TEXT, bandOf, cleanScore, cycleScore } from "@/lib/performance";
+import { shiftHours, validTime } from "@/lib/shifts";
+import { STATUS_TEXT as TRIP_STATUS, settleTrip, tripDays } from "@/lib/trips";
+import { cleanQuestions, cleanSurveyAnswers, enps, ENPS_QUESTIONS, type SurveyQuestion } from "@/lib/survey";
 import { EXIT_QUESTIONS, OFFBOARDING_ITEMS, checklistProgress, cleanAnswers as cleanExitAnswers, cleanChecklist } from "@/lib/offboarding";
 import { ASSET_CATEGORIES, ASSET_STATUS, assetActHtml, parseAssetRows } from "@/lib/assets";
 import { daysLeft, deadlinesOf } from "@/lib/hr-deadlines";
@@ -1968,6 +1972,11 @@ async function route(request: Request) {
         .prepare("INSERT INTO employee_salary_history(id,company_id,employee_id,effective_from,salary_cents,salary_type,note,created_by,created) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,effective_from) DO UPDATE SET salary_cents=excluded.salary_cents,salary_type=excluded.salary_type,note=excluded.note")
         .bind(crypto.randomUUID(), id, employeeId, effective, cents, type === "net" ? "net" : "gross", note, actor, now);
     return [...(has || oldCents <= 0 ? [] : [insert("0000-01-01", oldCents, oldType, "Əvvəlki maaş")]), insert(day, newCents, newType, "")];
+  };
+  const tripView = (t: TripRow, name: string, expenses: { id: string; label: string; amount_cents: number; day: string }[]) => {
+    const days = tripDays(t.start_date, t.end_date);
+    const calc = settleTrip({ dailyCents: t.daily_cents, days, expensesCents: expenses.reduce((sum, e) => sum + e.amount_cents, 0), advanceCents: t.advance_cents });
+    return { id: t.id, employeeId: t.employee_id, name, destination: t.destination, purpose: t.purpose, start: t.start_date, end: t.end_date, days, daily: t.daily_cents / 100, advance: t.advance_cents / 100, status: t.status, statusText: TRIP_STATUS[t.status] || t.status, requestedBy: t.requested_by, decidedBy: t.decided_by_name, expenses: expenses.map((e) => ({ id: e.id, label: e.label, amount: e.amount_cents / 100, day: e.day })), calc: { perDiem: calc.perDiem / 100, expenses: calc.expenses / 100, total: calc.total / 100, advance: calc.advance / 100, balance: calc.balance / 100 }, settled: t.settled_cents / 100 };
   };
   // Who looked at pay and personal data: kept in the audit log, once per person and subject within a quarter of an hour.
   const auditView = async (action: string, target = "", detail = "") => {
@@ -7614,6 +7623,157 @@ async function route(request: Request) {
     await notify(db, { userId: employee.company_id, type: "employee", title: `${employee.name} çıxış müsahibəsini doldurdu`, body: "Cavablar çıxış prosesi bölməsindədir.", link: "hr-people-ops" }).catch(() => undefined);
     return ok({ ok: true });
   }
+  // ── The employee's own growth: goals and review, training, shifts, trips, announcements and surveys ──
+  const tellCompany = async (companyId: string, title: string, body: string, link: string) => {
+    await notify(db, { userId: companyId, type: "employee", title, body, link }).catch(() => undefined);
+  };
+  if (request.method === "GET" && path === "employee/performance") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const cycle = await db.prepare("SELECT id,name,start_date,end_date,status FROM perf_cycles WHERE company_id=? ORDER BY (status='open') DESC,start_date DESC LIMIT 1").bind(employee.company_id).first<{ id: string; name: string; start_date: string; end_date: string; status: string }>();
+    if (!cycle) return ok({ cycle: null, goals: [], review: null, rating: RATING_TEXT });
+    const [goals, review] = await Promise.all([
+      db.prepare("SELECT id,title,target,weight,progress,self_note,manager_note,score,proposed_by FROM perf_goals WHERE company_id=? AND cycle_id=? AND employee_id=? ORDER BY created").bind(employee.company_id, cycle.id, employee.id).all<{ id: string; title: string; target: string; weight: number; progress: number; self_note: string; manager_note: string; score: number | null; proposed_by: string }>(),
+      db.prepare("SELECT self_score,self_comment,manager_score,manager_comment,reviewer_name,status,acknowledged_at FROM perf_reviews WHERE cycle_id=? AND employee_id=?").bind(cycle.id, employee.id).first<{ self_score: number | null; self_comment: string; manager_score: number | null; manager_comment: string; reviewer_name: string; status: string; acknowledged_at: string }>(),
+    ]);
+    const result = cycleScore(goals.results.map((g) => ({ weight: g.weight, progress: g.progress, score: g.score })));
+    return ok({
+      cycle: { id: cycle.id, name: cycle.name, start: cycle.start_date, end: cycle.end_date, status: cycle.status },
+      goals: goals.results.map((g) => ({ id: g.id, title: g.title, target: g.target, weight: g.weight, progress: g.progress, selfNote: g.self_note, managerNote: g.manager_note, score: g.score, proposedBy: g.proposed_by })),
+      goalScore: result.score,
+      review: review ? { selfScore: review.self_score, selfComment: review.self_comment, managerScore: review.manager_score, managerComment: review.manager_comment, reviewer: review.reviewer_name, status: review.status, acknowledgedAt: review.acknowledged_at } : null,
+      rating: RATING_TEXT,
+    });
+  }
+  if (request.method === "POST" && path === "employee/performance/goal") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const cycle = await db.prepare("SELECT id,status FROM perf_cycles WHERE id=? AND company_id=?").bind(str(b.cycleId, 100), employee.company_id).first<{ id: string; status: string }>();
+    if (!cycle || cycle.status !== "open") throw new HttpError(409, "Açıq dövr yoxdur.");
+    const title = str(b.title, 200);
+    if (title.length < 3) throw new HttpError(400, "Məqsədi yazın.");
+    const count = Number((await db.prepare("SELECT COUNT(*) AS n FROM perf_goals WHERE company_id=? AND cycle_id=? AND employee_id=?").bind(employee.company_id, cycle.id, employee.id).first<{ n: number }>())?.n || 0);
+    if (count >= 12) throw new HttpError(409, "Ən çox 12 məqsəd yazılır.");
+    await db.prepare("INSERT INTO perf_goals(id,company_id,cycle_id,employee_id,title,target,weight,proposed_by,created) VALUES(?,?,?,?,?,?,1,'employee',?)").bind(crypto.randomUUID(), employee.company_id, cycle.id, employee.id, title, str(b.target, 300), new Date().toISOString()).run();
+    await tellCompany(employee.company_id, `${employee.name} məqsəd təklif etdi`, title, "hr-growth");
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "employee/performance/progress") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const res = await db.prepare("UPDATE perf_goals SET progress=?,self_note=? WHERE id=? AND company_id=? AND employee_id=? AND cycle_id IN (SELECT id FROM perf_cycles WHERE company_id=? AND status='open')").bind(Math.max(0, Math.min(100, Math.round(Number(b.progress) || 0))), str(b.note, 500), str(b.goalId, 100), employee.company_id, employee.id, employee.company_id).run();
+    if (!res.meta.changes) throw new HttpError(404, "Məqsəd tapılmadı və ya dövr bağlanıb.");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "employee/performance/self") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const cycle = await db.prepare("SELECT id,status FROM perf_cycles WHERE id=? AND company_id=?").bind(str(b.cycleId, 100), employee.company_id).first<{ id: string; status: string }>();
+    if (!cycle || cycle.status !== "open") throw new HttpError(409, "Açıq dövr yoxdur.");
+    const score = cleanScore(b.selfScore);
+    if (score === null) throw new HttpError(400, "Özünüqiyməti 1–5 arası seçin.");
+    await db.prepare("INSERT INTO perf_reviews(id,company_id,cycle_id,employee_id,self_score,self_comment,status,updated) VALUES(?,?,?,?,?,?,'self-done',?) ON CONFLICT(cycle_id,employee_id) DO UPDATE SET self_score=excluded.self_score,self_comment=excluded.self_comment,status=CASE WHEN perf_reviews.status='manager-done' THEN perf_reviews.status ELSE 'self-done' END,updated=excluded.updated").bind(crypto.randomUUID(), employee.company_id, cycle.id, employee.id, score, str(b.comment, 1000), new Date().toISOString()).run();
+    await tellCompany(employee.company_id, `${employee.name} özünüqiymətləndirməni doldurdu`, `Özünüqiymət: ${score} / 5`, "hr-growth");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "employee/performance/ack") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const res = await db.prepare("UPDATE perf_reviews SET status='acknowledged',acknowledged_at=? WHERE cycle_id=? AND employee_id=? AND company_id=? AND status='manager-done'").bind(new Date().toISOString(), str(b.cycleId, 100), employee.id, employee.company_id).run();
+    if (!res.meta.changes) throw new HttpError(404, "Təsdiq ediləcək qiymətləndirmə yoxdur.");
+    await tellCompany(employee.company_id, `${employee.name} qiymətləndirmə ilə tanış oldu`, "İşçi qiymətləndirməni təsdiqlədi.", "hr-growth");
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "employee/training") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const rows = await db.prepare("SELECT t.id,t.title,t.provider,t.kind,t.start_date,t.end_date,t.hours,t.status AS training_status,p.status,p.result FROM training_participants p JOIN trainings t ON t.id=p.training_id WHERE p.company_id=? AND p.employee_id=? ORDER BY t.start_date DESC").bind(employee.company_id, employee.id).all<{ id: string; title: string; provider: string; kind: string; start_date: string; end_date: string; hours: number; training_status: string; status: string; result: string }>();
+    return ok({ items: rows.results.map((r) => ({ id: r.id, title: r.title, provider: r.provider, kind: r.kind, start: r.start_date, end: r.end_date, hours: r.hours, trainingStatus: r.training_status, status: r.status, result: r.result })) });
+  }
+  if (request.method === "POST" && path === "employee/training/respond") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const status = b.status === "declined" ? "declined" : "attending";
+    const res = await db.prepare("UPDATE training_participants SET status=? WHERE training_id=? AND employee_id=? AND company_id=? AND status IN ('invited','attending','declined')").bind(status, str(b.trainingId, 100), employee.id, employee.company_id).run();
+    if (!res.meta.changes) throw new HttpError(404, "Dəvət tapılmadı.");
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "employee/shifts") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const from = new Date().toISOString().slice(0, 10);
+    const to = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
+    const rows = await db.prepare("SELECT a.day,t.name,t.start_time,t.end_time FROM shift_assignments a JOIN shift_types t ON t.id=a.shift_id WHERE a.company_id=? AND a.employee_id=? AND a.day BETWEEN ? AND ? ORDER BY a.day").bind(employee.company_id, employee.id, from, to).all<{ day: string; name: string; start_time: string; end_time: string }>();
+    return ok({ items: rows.results.map((r) => ({ day: r.day, name: r.name, start: r.start_time, end: r.end_time })) });
+  }
+  if (request.method === "GET" && path === "employee/trips") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const [trips, expenses] = await Promise.all([
+      db.prepare("SELECT id,employee_id,destination,purpose,start_date,end_date,daily_cents,advance_cents,status,requested_by,decided_by_name,settled_cents FROM trips WHERE company_id=? AND employee_id=? ORDER BY start_date DESC LIMIT 50").bind(employee.company_id, employee.id).all<TripRow>(),
+      db.prepare("SELECT id,trip_id,label,amount_cents,day FROM trip_expenses WHERE company_id=? AND trip_id IN (SELECT id FROM trips WHERE company_id=? AND employee_id=?)").bind(employee.company_id, employee.company_id, employee.id).all<{ id: string; trip_id: string; label: string; amount_cents: number; day: string }>(),
+    ]);
+    return ok({ trips: trips.results.map((t) => tripView(t, employee.name, expenses.results.filter((e) => e.trip_id === t.id))) });
+  }
+  if (request.method === "POST" && path === "employee/trips/request") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const start = str(b.start, 10);
+    const end = str(b.end, 10);
+    if (!tripDays(start, end)) throw new HttpError(400, "Tarixləri düzgün yazın.");
+    const destination = str(b.destination, 160);
+    if (destination.length < 2) throw new HttpError(400, "Təyinat yerini yazın.");
+    await db.prepare("INSERT INTO trips(id,company_id,employee_id,destination,purpose,start_date,end_date,status,requested_by,created) VALUES(?,?,?,?,?,?,?,'requested','employee',?)").bind(crypto.randomUUID(), employee.company_id, employee.id, destination, str(b.purpose, 300), start, end, new Date().toISOString()).run();
+    await tellCompany(employee.company_id, `${employee.name} ezamiyyət sorğusu göndərdi`, `${destination}, ${start} – ${end}`, "hr-growth");
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "employee/trips/expense") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const trip = await db.prepare("SELECT id,status FROM trips WHERE id=? AND company_id=? AND employee_id=?").bind(str(b.tripId, 100), employee.company_id, employee.id).first<{ id: string; status: string }>();
+    if (!trip || !["approved", "reported"].includes(trip.status)) throw new HttpError(409, "Xərc yalnız təsdiqlənmiş ezamiyyətə yazılır.");
+    const amount = Math.round((Number(b.amount) || 0) * 100);
+    if (!(amount > 0) || amount > 100_000_000) throw new HttpError(400, "Məbləği düzgün yazın.");
+    const label = str(b.label, 160);
+    if (label.length < 2) throw new HttpError(400, "Xərcin adını yazın.");
+    await db.prepare("INSERT INTO trip_expenses(id,trip_id,company_id,label,amount_cents,day) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), trip.id, employee.company_id, label, amount, /^\d{4}-\d{2}-\d{2}$/.test(str(b.day, 10)) ? str(b.day, 10) : "").run();
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "employee/trips/report") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const res = await db.prepare("UPDATE trips SET status='reported' WHERE id=? AND company_id=? AND employee_id=? AND status='approved'").bind(str(b.tripId, 100), employee.company_id, employee.id).run();
+    if (!res.meta.changes) throw new HttpError(404, "Hesabat veriləcək ezamiyyət tapılmadı.");
+    await tellCompany(employee.company_id, `${employee.name} ezamiyyət hesabatını verdi`, "Hesablaşma üçün Ezamiyyətlər bölməsinə baxın.", "hr-growth");
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "employee/engage") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const today = new Date().toISOString().slice(0, 10);
+    const [news, surveys] = await Promise.all([
+      db.prepare("SELECT id,title,body,audience,pinned,expires,author,created FROM announcements WHERE company_id=? ORDER BY pinned DESC,created DESC LIMIT 40").bind(employee.company_id).all<{ id: string; title: string; body: string; audience: string; pinned: number; expires: string; author: string; created: string }>(),
+      db.prepare("SELECT id,title,questions,anonymous FROM surveys WHERE company_id=? AND status='open' ORDER BY created DESC").bind(employee.company_id).all<{ id: string; title: string; questions: string; anonymous: number }>(),
+    ]);
+    const digest = async (surveyId: string) => {
+      const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${surveyId}:${userId}`)));
+      return [...bytes].map((x) => x.toString(16).padStart(2, "0")).join("");
+    };
+    const open: { id: string; title: string; anonymous: boolean; questions: unknown }[] = [];
+    for (const sv of surveys.results) {
+      const done = await db.prepare("SELECT 1 AS n FROM survey_responses WHERE survey_id=? AND respondent=?").bind(sv.id, await digest(sv.id)).first();
+      if (!done) open.push({ id: sv.id, title: sv.title, anonymous: !!sv.anonymous, questions: JSON.parse(sv.questions || "[]") });
+    }
+    return ok({ news: news.results.filter((n) => (!n.audience || n.audience === employee.department) && (!n.expires || n.expires >= today)).map((n) => ({ id: n.id, title: n.title, body: n.body, pinned: !!n.pinned, author: n.author, created: n.created })), surveys: open });
+  }
+  if (request.method === "POST" && path === "employee/survey/respond") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const survey = await db.prepare("SELECT id,questions,anonymous FROM surveys WHERE id=? AND company_id=? AND status='open'").bind(str(b.surveyId, 100), employee.company_id).first<{ id: string; questions: string; anonymous: number }>();
+    if (!survey) throw new HttpError(404, "Sorğu tapılmadı və ya bağlanıb.");
+    const answers = cleanSurveyAnswers(JSON.parse(survey.questions || "[]") as SurveyQuestion[], b.answers);
+    if (!Object.keys(answers).length) throw new HttpError(400, "Ən azı bir suala cavab verin.");
+    const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${survey.id}:${userId}`)));
+    const respondent = [...bytes].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const res = await db.prepare("INSERT OR IGNORE INTO survey_responses(id,survey_id,company_id,respondent,employee_id,department,answers,created) VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), survey.id, employee.company_id, respondent, survey.anonymous ? "" : employee.id, employee.department, JSON.stringify(answers), new Date().toISOString()).run();
+    if (!res.meta.changes) throw new HttpError(409, "Bu sorğuya artıq cavab vermisiniz.");
+    return ok({ ok: true }, 201);
+  }
   // The employee's own pay slips: only months the company has approved, and only the employee's own figures.
   const approvedSlipOf = async (employee: { id: string; company_id: string }, month: string) => {
     const run = await db.prepare("SELECT snapshot,approved_at FROM payroll_runs WHERE company_id=? AND month=? AND status='approved'").bind(employee.company_id, month).first<{ snapshot: string; approved_at: string }>();
@@ -8489,6 +8649,450 @@ async function route(request: Request) {
     return ok({ items: rows.results.map((r) => ({ id: r.id, name: r.name, serial: r.serial, inventoryNo: r.inventory_no, issuedOn: r.issued_on, returnedOn: r.returned_on })) });
   }
 
+  // ── Performance: cycles, goals, the employee's own view and the manager's score ──
+  const dateOk = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+  if (request.method === "GET" && path === "company/performance") {
+    requirePermission("salaries", "Performans bölməsini yalnız kadr işçisi görə bilər.");
+    const cycles = (await db.prepare("SELECT id,name,start_date,end_date,status FROM perf_cycles WHERE company_id=? ORDER BY start_date DESC LIMIT 30").bind(id).all<{ id: string; name: string; start_date: string; end_date: string; status: string }>()).results;
+    const wanted = str(requestUrl.searchParams.get("cycle"), 100) || cycles[0]?.id || "";
+    const people = (await db.prepare("SELECT id,name,position,department FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY department,name").bind(id).all<{ id: string; name: string; position: string; department: string }>()).results;
+    let rows: unknown[] = [];
+    if (wanted) {
+      const [goals, reviews] = await Promise.all([
+        db.prepare("SELECT id,employee_id,title,target,weight,progress,self_note,manager_note,score,proposed_by FROM perf_goals WHERE company_id=? AND cycle_id=? ORDER BY created").bind(id, wanted).all<{ id: string; employee_id: string; title: string; target: string; weight: number; progress: number; self_note: string; manager_note: string; score: number | null; proposed_by: string }>(),
+        db.prepare("SELECT employee_id,self_score,self_comment,manager_score,manager_comment,reviewer_name,status,acknowledged_at FROM perf_reviews WHERE company_id=? AND cycle_id=?").bind(id, wanted).all<{ employee_id: string; self_score: number | null; self_comment: string; manager_score: number | null; manager_comment: string; reviewer_name: string; status: string; acknowledged_at: string }>(),
+      ]);
+      rows = people.map((p) => {
+        const mine = goals.results.filter((g) => g.employee_id === p.id);
+        const review = reviews.results.find((r) => r.employee_id === p.id);
+        const result = cycleScore(mine.map((g) => ({ weight: g.weight, progress: g.progress, score: g.score })));
+        return {
+          ...p,
+          goals: mine.map((g) => ({ id: g.id, title: g.title, target: g.target, weight: g.weight, progress: g.progress, selfNote: g.self_note, managerNote: g.manager_note, score: g.score, proposedBy: g.proposed_by })),
+          goalScore: result.score, band: bandOf(review?.manager_score ?? result.score),
+          review: review ? { selfScore: review.self_score, selfComment: review.self_comment, managerScore: review.manager_score, managerComment: review.manager_comment, reviewer: review.reviewer_name, status: review.status, acknowledgedAt: review.acknowledged_at } : null,
+        };
+      });
+    }
+    return ok({ cycles: cycles.map((c) => ({ id: c.id, name: c.name, start: c.start_date, end: c.end_date, status: c.status })), cycle: wanted, rating: RATING_TEXT, employees: rows });
+  }
+  if (request.method === "POST" && path === "company/performance/cycle") {
+    requirePermission("salaries", "Dövrü yalnız kadr işçisi yarada bilər.");
+    const b = await jsonBody(request);
+    const name = str(b.name, 120);
+    if (name.length < 3) throw new HttpError(400, "Dövrün adını yazın.");
+    if (!dateOk(str(b.start, 10)) || !dateOk(str(b.end, 10)) || str(b.end, 10) < str(b.start, 10)) throw new HttpError(400, "Tarixləri düzgün yazın.");
+    const status = b.status === "closed" ? "closed" : "open";
+    if (str(b.id, 100)) await db.prepare("UPDATE perf_cycles SET name=?,start_date=?,end_date=?,status=? WHERE id=? AND company_id=?").bind(name, str(b.start, 10), str(b.end, 10), status, str(b.id, 100), id).run();
+    else await db.prepare("INSERT INTO perf_cycles(id,company_id,name,start_date,end_date,status,created) VALUES(?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, name, str(b.start, 10), str(b.end, 10), status, new Date().toISOString()).run();
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "company/performance/goal") {
+    requirePermission("salaries", "Məqsədi yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const cycle = await db.prepare("SELECT id,status FROM perf_cycles WHERE id=? AND company_id=?").bind(str(b.cycleId, 100), id).first<{ id: string; status: string }>();
+    const employee = await db.prepare("SELECT id FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(str(b.employeeId, 100), id).first<{ id: string }>();
+    if (!cycle || !employee) throw new HttpError(404, "Dövr və ya işçi tapılmadı.");
+    if (cycle.status === "closed") throw new HttpError(409, "Dövr bağlanıb.");
+    const title = str(b.title, 200);
+    if (title.length < 3) throw new HttpError(400, "Məqsədi yazın.");
+    const weight = Math.max(1, Math.min(10, Math.round(Number(b.weight) || 1)));
+    const count = Number((await db.prepare("SELECT COUNT(*) AS n FROM perf_goals WHERE company_id=? AND cycle_id=? AND employee_id=?").bind(id, cycle.id, employee.id).first<{ n: number }>())?.n || 0);
+    if (str(b.id, 100)) {
+      await db.prepare("UPDATE perf_goals SET title=?,target=?,weight=? WHERE id=? AND company_id=?").bind(title, str(b.target, 300), weight, str(b.id, 100), id).run();
+      return ok({ ok: true });
+    }
+    if (count >= 12) throw new HttpError(409, "Bir işçi üçün ən çox 12 məqsəd yazılır.");
+    await db.prepare("INSERT INTO perf_goals(id,company_id,cycle_id,employee_id,title,target,weight,created) VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, cycle.id, employee.id, title, str(b.target, 300), weight, new Date().toISOString()).run();
+    await tellEmployee(employee.id, "Sizə yeni məqsəd yazıldı", title);
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "company/performance/goal/delete") {
+    requirePermission("salaries", "Məqsədi yalnız kadr işçisi silə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM perf_goals WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/performance/goal-score") {
+    requirePermission("salaries", "Qiymətləndirməni yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const res = await db.prepare("UPDATE perf_goals SET score=?,manager_note=? WHERE id=? AND company_id=?").bind(cleanScore(b.score), str(b.note, 500), str(b.id, 100), id).run();
+    if (!res.meta.changes) throw new HttpError(404, "Məqsəd tapılmadı.");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/performance/review") {
+    requirePermission("salaries", "Qiymətləndirməni yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const cycle = await db.prepare("SELECT id FROM perf_cycles WHERE id=? AND company_id=?").bind(str(b.cycleId, 100), id).first<{ id: string }>();
+    const employee = await db.prepare("SELECT id,name FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(str(b.employeeId, 100), id).first<{ id: string; name: string }>();
+    if (!cycle || !employee) throw new HttpError(404, "Dövr və ya işçi tapılmadı.");
+    const score = cleanScore(b.managerScore);
+    if (score === null) throw new HttpError(400, "Ümumi qiyməti 1–5 arası seçin.");
+    const now = new Date().toISOString();
+    await db
+      .prepare("INSERT INTO perf_reviews(id,company_id,cycle_id,employee_id,manager_score,manager_comment,reviewer_name,status,updated) VALUES(?,?,?,?,?,?,?,'manager-done',?) ON CONFLICT(cycle_id,employee_id) DO UPDATE SET manager_score=excluded.manager_score,manager_comment=excluded.manager_comment,reviewer_name=excluded.reviewer_name,status='manager-done',acknowledged_at='',updated=excluded.updated")
+      .bind(crypto.randomUUID(), id, cycle.id, employee.id, score, str(b.managerComment, 1000), await requesterName(), now)
+      .run();
+    await companyAudit(db, id, userId, "performance-reviewed", employee.id, `${employee.name}: ${score}`);
+    await tellEmployee(employee.id, "Performans qiymətləndirməniz hazırdır", `Ümumi qiymət: ${score} / 5 — ${RATING_TEXT[score]}. İş yerim → Performans bölməsində tanış olub təsdiqləyin.`);
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "company/performance/export") {
+    requirePermission("salaries", "Hesabatı yalnız kadr işçisi yükləyə bilər.");
+    const cycleId = str(requestUrl.searchParams.get("cycle"), 100);
+    const cycle = await db.prepare("SELECT name FROM perf_cycles WHERE id=? AND company_id=?").bind(cycleId, id).first<{ name: string }>();
+    if (!cycle) throw new HttpError(404, "Dövr tapılmadı.");
+    const [goals, reviews, people] = await Promise.all([
+      db.prepare("SELECT employee_id,title,target,weight,progress,score,manager_note FROM perf_goals WHERE company_id=? AND cycle_id=? ORDER BY created").bind(id, cycleId).all<{ employee_id: string; title: string; target: string; weight: number; progress: number; score: number | null; manager_note: string }>(),
+      db.prepare("SELECT employee_id,self_score,manager_score,manager_comment,reviewer_name,status FROM perf_reviews WHERE company_id=? AND cycle_id=?").bind(id, cycleId).all<{ employee_id: string; self_score: number | null; manager_score: number | null; manager_comment: string; reviewer_name: string; status: string }>(),
+      db.prepare("SELECT id,name,position,department FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; name: string; position: string; department: string }>(),
+    ]);
+    const by = new Map(people.results.map((p) => [p.id, p]));
+    const summary: (string | number)[][] = people.results.filter((p) => goals.results.some((g) => g.employee_id === p.id) || reviews.results.some((r) => r.employee_id === p.id)).map((p) => {
+      const r = reviews.results.find((x) => x.employee_id === p.id);
+      const c = cycleScore(goals.results.filter((g) => g.employee_id === p.id).map((g) => ({ weight: g.weight, progress: g.progress, score: g.score })));
+      return [p.name, p.position, p.department, c.score ?? "", r?.self_score ?? "", r?.manager_score ?? "", bandOf(r?.manager_score ?? c.score), r?.reviewer_name || "", r?.manager_comment || "", r?.status || ""];
+    });
+    const goalRows: (string | number)[][] = goals.results.map((g) => [by.get(g.employee_id)?.name || "", g.title, g.target, g.weight, g.progress, g.score ?? "", g.manager_note]);
+    const book = createXlsxBook([
+      { name: "Nəticələr", headers: ["İşçi", "Vəzifə", "Departament", "Məqsədlər üzrə orta", "Özünüqiymət", "Rəhbər qiyməti", "Dərəcə", "Qiymətləndirən", "Rəy", "Vəziyyət"], rows: summary },
+      { name: "Məqsədlər", headers: ["İşçi", "Məqsəd", "Hədəf", "Çəki", "İcra %", "Qiymət", "Rəhbərin qeydi"], rows: goalRows },
+    ]);
+    return new Response(Uint8Array.from(book).buffer, { headers: { "Cache-Control": "private, no-store", "Content-Disposition": `attachment; filename="performans-${cycleId.slice(0, 8)}.xlsx"`, "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } });
+  }
+
+  // ── Training plan and budget ──
+  const trainingYear = () => (/^\d{4}$/.test(str(requestUrl.searchParams.get("year"), 4)) ? str(requestUrl.searchParams.get("year"), 4) : String(new Date().getUTCFullYear()));
+  if (request.method === "GET" && path === "company/training") {
+    requirePermission("salaries", "Təlim planını yalnız kadr işçisi görə bilər.");
+    const year = trainingYear();
+    const [list, parts, budget, people] = await Promise.all([
+      db.prepare("SELECT id,title,provider,kind,start_date,end_date,hours,cost_cents,status,note FROM trainings WHERE company_id=? AND (start_date LIKE ? OR start_date='') ORDER BY start_date").bind(id, `${year}-%`).all<{ id: string; title: string; provider: string; kind: string; start_date: string; end_date: string; hours: number; cost_cents: number; status: string; note: string }>(),
+      db.prepare("SELECT training_id,employee_id,status,result FROM training_participants WHERE company_id=?").bind(id).all<{ training_id: string; employee_id: string; status: string; result: string }>(),
+      db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key=?").bind(id, `training_budget_${year}`).first<{ value: string }>(),
+      db.prepare("SELECT id,name,department FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY name").bind(id).all<{ id: string; name: string; department: string }>(),
+    ]);
+    const names = new Map(people.results.map((p) => [p.id, p.name]));
+    const spent = list.results.filter((t) => t.status !== "cancelled").reduce((sum, t) => sum + t.cost_cents, 0) / 100;
+    const hoursBy = new Map<string, number>();
+    for (const t of list.results) if (t.status === "done") for (const p of parts.results.filter((x) => x.training_id === t.id && x.status === "completed")) hoursBy.set(p.employee_id, (hoursBy.get(p.employee_id) || 0) + t.hours);
+    return ok({
+      year,
+      budget: Number(budget?.value || 0) / 100,
+      spent,
+      trainings: list.results.map((t) => ({ id: t.id, title: t.title, provider: t.provider, kind: t.kind, start: t.start_date, end: t.end_date, hours: t.hours, cost: t.cost_cents / 100, status: t.status, note: t.note, participants: parts.results.filter((p) => p.training_id === t.id).map((p) => ({ employeeId: p.employee_id, name: names.get(p.employee_id) || "", status: p.status, result: p.result })) })),
+      employees: people.results.map((p) => ({ id: p.id, name: p.name, department: p.department, hours: hoursBy.get(p.id) || 0 })),
+    });
+  }
+  if (request.method === "POST" && path === "company/training/save") {
+    requirePermission("salaries", "Təlimi yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const title = str(b.title, 200);
+    if (title.length < 3) throw new HttpError(400, "Təlimin adını yazın.");
+    const start = dateOk(str(b.start, 10)) ? str(b.start, 10) : "";
+    const end = dateOk(str(b.end, 10)) ? str(b.end, 10) : start;
+    if (start && end < start) throw new HttpError(400, "Bitmə tarixi başlanğıcdan əvvəl ola bilməz.");
+    const kind = ["internal", "external", "online"].includes(str(b.kind, 10)) ? str(b.kind, 10) : "external";
+    const status = ["planned", "done", "cancelled"].includes(str(b.status, 10)) ? str(b.status, 10) : "planned";
+    const values = [title, str(b.provider, 120), kind, start, end, Math.max(0, Math.min(2000, Math.round(Number(b.hours) || 0))), Math.max(0, Math.round((Number(b.cost) || 0) * 100)), status, str(b.note, 300)];
+    if (str(b.id, 100)) await db.prepare("UPDATE trainings SET title=?,provider=?,kind=?,start_date=?,end_date=?,hours=?,cost_cents=?,status=?,note=? WHERE id=? AND company_id=?").bind(...values, str(b.id, 100), id).run();
+    else await db.prepare("INSERT INTO trainings(id,company_id,title,provider,kind,start_date,end_date,hours,cost_cents,status,note,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, ...values, new Date().toISOString()).run();
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "company/training/participants") {
+    requirePermission("salaries", "İştirakçıları yalnız kadr işçisi seçə bilər.");
+    const b = await jsonBody(request);
+    const training = await db.prepare("SELECT id,title,start_date FROM trainings WHERE id=? AND company_id=?").bind(str(b.trainingId, 100), id).first<{ id: string; title: string; start_date: string }>();
+    if (!training) throw new HttpError(404, "Təlim tapılmadı.");
+    const wanted = new Set<string>((Array.isArray(b.employeeIds) ? (b.employeeIds as unknown[]) : []).map((x) => String(x)).slice(0, 500));
+    const valid = new Set((await db.prepare("SELECT id FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string }>()).results.map((r) => r.id));
+    const current = new Set((await db.prepare("SELECT employee_id FROM training_participants WHERE training_id=?").bind(training.id).all<{ employee_id: string }>()).results.map((r) => r.employee_id));
+    const added = [...wanted].filter((e) => valid.has(e) && !current.has(e));
+    const removed = [...current].filter((e) => !wanted.has(e));
+    const statements = [
+      ...added.map((e) => db.prepare("INSERT INTO training_participants(training_id,company_id,employee_id,status) VALUES(?,?,?,'invited')").bind(training.id, id, e)),
+      ...removed.map((e) => db.prepare("DELETE FROM training_participants WHERE training_id=? AND employee_id=?").bind(training.id, e)),
+    ];
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    for (const e of added) await tellEmployee(e, "Təlimə dəvət olundunuz", `${training.title}${training.start_date ? ` (${training.start_date})` : ""}. İş yerim → Təlimlərim bölməsində cavab verin.`);
+    return ok({ ok: true, added: added.length, removed: removed.length });
+  }
+  if (request.method === "POST" && path === "company/training/result") {
+    requirePermission("salaries", "Nəticəni yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const status = ["invited", "attending", "completed", "declined"].includes(str(b.status, 12)) ? str(b.status, 12) : "invited";
+    const res = await db.prepare("UPDATE training_participants SET status=?,result=? WHERE training_id=? AND employee_id=? AND company_id=?").bind(status, str(b.result, 200), str(b.trainingId, 100), str(b.employeeId, 100), id).run();
+    if (!res.meta.changes) throw new HttpError(404, "İştirakçı tapılmadı.");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/training/delete") {
+    requirePermission("salaries", "Təlimi yalnız kadr işçisi silə bilər.");
+    const b = await jsonBody(request);
+    await db.batch([db.prepare("DELETE FROM training_participants WHERE training_id=? AND company_id=?").bind(str(b.id, 100), id), db.prepare("DELETE FROM trainings WHERE id=? AND company_id=?").bind(str(b.id, 100), id)]);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/training/budget") {
+    requirePermission("salaries", "Büdcəni yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const year = str(b.year, 4);
+    if (!/^\d{4}$/.test(year)) throw new HttpError(400, "İli düzgün seçin.");
+    await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, `training_budget_${year}`, String(Math.max(0, Math.round((Number(b.amount) || 0) * 100)))).run();
+    return ok({ ok: true });
+  }
+
+  // ── Shifts ──
+  const addDay = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  if (request.method === "GET" && path === "company/shifts") {
+    requirePermission("salaries", "Növbə qrafikini yalnız kadr işçisi görə bilər.");
+    const from = dateOk(str(requestUrl.searchParams.get("from"), 10)) ? str(requestUrl.searchParams.get("from"), 10) : new Date().toISOString().slice(0, 10);
+    const to = addDay(from, 13);
+    const [types, assigned, people] = await Promise.all([
+      db.prepare("SELECT id,name,start_time,end_time FROM shift_types WHERE company_id=? ORDER BY start_time").bind(id).all<{ id: string; name: string; start_time: string; end_time: string }>(),
+      db.prepare("SELECT employee_id,day,shift_id FROM shift_assignments WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, from, to).all<{ employee_id: string; day: string; shift_id: string }>(),
+      db.prepare("SELECT id,name,department FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY department,name").bind(id).all<{ id: string; name: string; department: string }>(),
+    ]);
+    return ok({
+      from, to,
+      types: types.results.map((t) => ({ id: t.id, name: t.name, start: t.start_time, end: t.end_time, ...shiftHours(t.start_time, t.end_time) })),
+      employees: people.results,
+      assignments: assigned.results.map((a) => ({ employeeId: a.employee_id, day: a.day, shiftId: a.shift_id })),
+    });
+  }
+  if (request.method === "POST" && path === "company/shifts/type") {
+    requirePermission("salaries", "Növbə növünü yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const name = str(b.name, 60);
+    if (name.length < 2) throw new HttpError(400, "Növbənin adını yazın.");
+    if (!validTime(str(b.start, 5)) || !validTime(str(b.end, 5))) throw new HttpError(400, "Saatı SS:DD formasında yazın.");
+    if (str(b.id, 100)) await db.prepare("UPDATE shift_types SET name=?,start_time=?,end_time=? WHERE id=? AND company_id=?").bind(name, str(b.start, 5), str(b.end, 5), str(b.id, 100), id).run();
+    else {
+      const count = Number((await db.prepare("SELECT COUNT(*) AS n FROM shift_types WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0);
+      if (count >= 20) throw new HttpError(409, "Ən çox 20 növbə növü saxlanılır.");
+      await db.prepare("INSERT INTO shift_types(id,company_id,name,start_time,end_time,created) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), id, name, str(b.start, 5), str(b.end, 5), new Date().toISOString()).run();
+    }
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "company/shifts/type/delete") {
+    requirePermission("salaries", "Növbə növünü yalnız kadr işçisi silə bilər.");
+    const b = await jsonBody(request);
+    const used = await db.prepare("SELECT 1 AS n FROM shift_assignments WHERE company_id=? AND shift_id=? LIMIT 1").bind(id, str(b.id, 100)).first();
+    if (used) throw new HttpError(409, "Bu növbə qrafikdə istifadə olunur: əvvəl qrafikdən silin.");
+    await db.prepare("DELETE FROM shift_types WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/shifts/assign") {
+    requirePermission("salaries", "Növbə qrafikini yalnız kadr işçisi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const from = str(b.from, 10);
+    const to = str(b.to, 10) || from;
+    if (!dateOk(from) || !dateOk(to) || to < from) throw new HttpError(400, "Tarixləri düzgün yazın.");
+    if ((Date.parse(to) - Date.parse(from)) / 86_400_000 > 62) throw new HttpError(400, "Bir dəfəyə ən çox 63 gün təyin olunur.");
+    const shiftId = str(b.shiftId, 100);
+    if (shiftId && !(await db.prepare("SELECT 1 AS n FROM shift_types WHERE id=? AND company_id=?").bind(shiftId, id).first())) throw new HttpError(404, "Növbə növü tapılmadı.");
+    const valid = new Set((await db.prepare("SELECT id FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).all<{ id: string }>()).results.map((r) => r.id));
+    const ids = (Array.isArray(b.employeeIds) ? (b.employeeIds as unknown[]) : [b.employeeId]).map((x) => String(x ?? "")).filter((x) => valid.has(x)).slice(0, 300);
+    if (!ids.length) throw new HttpError(400, "İşçi seçin.");
+    const statements: D1PreparedStatement[] = [];
+    for (let day = from; day <= to; day = addDay(day, 1)) {
+      const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
+      if (b.weekdaysOnly === true && (weekday === 0 || weekday === 6)) continue;
+      for (const e of ids) statements.push(shiftId ? db.prepare("INSERT INTO shift_assignments(company_id,employee_id,day,shift_id) VALUES(?,?,?,?) ON CONFLICT(company_id,employee_id,day) DO UPDATE SET shift_id=excluded.shift_id").bind(id, e, day, shiftId) : db.prepare("DELETE FROM shift_assignments WHERE company_id=? AND employee_id=? AND day=?").bind(id, e, day));
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    return ok({ ok: true, days: statements.length });
+  }
+  if (request.method === "POST" && path === "company/shifts/copy") {
+    requirePermission("salaries", "Növbə qrafikini yalnız kadr işçisi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const from = str(b.from, 10);
+    const to = str(b.to, 10);
+    if (!dateOk(from) || !dateOk(to)) throw new HttpError(400, "Tarixləri düzgün yazın.");
+    const source = await db.prepare("SELECT employee_id,day,shift_id FROM shift_assignments WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, from, addDay(from, 6)).all<{ employee_id: string; day: string; shift_id: string }>();
+    const offset = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+    const statements = source.results.map((a) => db.prepare("INSERT INTO shift_assignments(company_id,employee_id,day,shift_id) VALUES(?,?,?,?) ON CONFLICT(company_id,employee_id,day) DO UPDATE SET shift_id=excluded.shift_id").bind(id, a.employee_id, addDay(a.day, offset), a.shift_id));
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    return ok({ ok: true, copied: statements.length });
+  }
+  // The shifts worked become the hours of the days (night part included) for the payroll.
+  if (request.method === "POST" && path === "company/shifts/to-hours") {
+    requirePermission("salaries", "Saatları yalnız kadr işçisi köçürə bilər.");
+    const b = await jsonBody(request);
+    const from = str(b.from, 10);
+    const to = str(b.to, 10);
+    if (!dateOk(from) || !dateOk(to) || to < from) throw new HttpError(400, "Tarixləri düzgün yazın.");
+    const [assigned, types, locked] = await Promise.all([
+      db.prepare("SELECT employee_id,day,shift_id FROM shift_assignments WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, from, to).all<{ employee_id: string; day: string; shift_id: string }>(),
+      db.prepare("SELECT id,start_time,end_time FROM shift_types WHERE company_id=?").bind(id).all<{ id: string; start_time: string; end_time: string }>(),
+      db.prepare("SELECT month FROM payroll_runs WHERE company_id=? AND status='approved'").bind(id).all<{ month: string }>(),
+    ]);
+    const lockedMonths = new Set(locked.results.map((r) => r.month));
+    const length = new Map(types.results.map((t) => [t.id, shiftHours(t.start_time, t.end_time)]));
+    const now = new Date().toISOString();
+    const statements: D1PreparedStatement[] = [];
+    for (const a of assigned.results) {
+      const h = length.get(a.shift_id);
+      if (!h || lockedMonths.has(a.day.slice(0, 7))) continue;
+      statements.push(db.prepare("INSERT INTO attendance_hours(company_id,employee_id,day,hours,night_hours,note,updated) VALUES(?,?,?,?,?,?,?) ON CONFLICT(company_id,employee_id,day) DO UPDATE SET hours=excluded.hours,night_hours=excluded.night_hours,note=excluded.note,updated=excluded.updated").bind(id, a.employee_id, a.day, h.hours, h.night, "Növbə qrafikindən", now));
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "shifts-to-hours", "", `${from} – ${to}: ${statements.length} gün`);
+    return ok({ ok: true, days: statements.length });
+  }
+
+  // ── Business trips ──
+  type TripRow = { id: string; employee_id: string; destination: string; purpose: string; start_date: string; end_date: string; daily_cents: number; advance_cents: number; status: string; requested_by: string; decided_by_name: string; settled_cents: number };
+  if (request.method === "GET" && path === "company/trips") {
+    requirePermission("salaries", "Ezamiyyətləri yalnız kadr işçisi görə bilər.");
+    const [trips, expenses, people] = await Promise.all([
+      db.prepare("SELECT id,employee_id,destination,purpose,start_date,end_date,daily_cents,advance_cents,status,requested_by,decided_by_name,settled_cents FROM trips WHERE company_id=? ORDER BY start_date DESC LIMIT 300").bind(id).all<TripRow>(),
+      db.prepare("SELECT id,trip_id,label,amount_cents,day FROM trip_expenses WHERE company_id=?").bind(id).all<{ id: string; trip_id: string; label: string; amount_cents: number; day: string }>(),
+      db.prepare("SELECT id,name FROM company_employees WHERE company_id=? AND status<>'removed' ORDER BY name").bind(id).all<{ id: string; name: string }>(),
+    ]);
+    const names = new Map(people.results.map((p) => [p.id, p.name]));
+    return ok({ employees: people.results, trips: trips.results.map((t) => tripView(t, names.get(t.employee_id) || "", expenses.results.filter((e) => e.trip_id === t.id))) });
+  }
+  if (request.method === "POST" && path === "company/trips/save") {
+    requirePermission("salaries", "Ezamiyyəti yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const employee = await db.prepare("SELECT id,name FROM company_employees WHERE id=? AND company_id=? AND status IN ('active','leave')").bind(str(b.employeeId, 100), id).first<{ id: string; name: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    const start = str(b.start, 10);
+    const end = str(b.end, 10);
+    if (!tripDays(start, end)) throw new HttpError(400, "Tarixləri düzgün yazın.");
+    const destination = str(b.destination, 160);
+    if (destination.length < 2) throw new HttpError(400, "Təyinat yerini yazın.");
+    const values = [destination, str(b.purpose, 300), start, end, Math.max(0, Math.round((Number(b.daily) || 0) * 100)), Math.max(0, Math.round((Number(b.advance) || 0) * 100))];
+    const tripId = crypto.randomUUID();
+    await db.prepare("INSERT INTO trips(id,company_id,employee_id,destination,purpose,start_date,end_date,daily_cents,advance_cents,status,requested_by,decided_by_name,created) VALUES(?,?,?,?,?,?,?,?,?,?,'hr',?,?)").bind(tripId, id, employee.id, ...values, b.approve === true ? "approved" : "requested", b.approve === true ? await requesterName() : "", new Date().toISOString()).run();
+    if (b.approve === true) await tellEmployee(employee.id, "Ezamiyyətiniz təsdiqləndi", `${destination}, ${start} – ${end}.`);
+    return ok({ ok: true, id: tripId }, 201);
+  }
+  if (request.method === "POST" && path === "company/trips/decide") {
+    requirePermission("salaries", "Ezamiyyəti yalnız kadr işçisi təsdiqləyə bilər.");
+    const b = await jsonBody(request);
+    const t = await db.prepare("SELECT id,employee_id,destination,start_date,end_date,status FROM trips WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<{ id: string; employee_id: string; destination: string; start_date: string; end_date: string; status: string }>();
+    if (!t) throw new HttpError(404, "Ezamiyyət tapılmadı.");
+    if (t.status !== "requested") throw new HttpError(409, "Bu ezamiyyət artıq həll olunub.");
+    const approve = b.decision === "approve";
+    await db.prepare("UPDATE trips SET status=?,decided_by_name=?,daily_cents=CASE WHEN ? THEN ? ELSE daily_cents END,advance_cents=CASE WHEN ? THEN ? ELSE advance_cents END WHERE id=? AND company_id=?").bind(approve ? "approved" : "rejected", await requesterName(), approve && b.daily !== undefined ? 1 : 0, Math.max(0, Math.round((Number(b.daily) || 0) * 100)), approve && b.advance !== undefined ? 1 : 0, Math.max(0, Math.round((Number(b.advance) || 0) * 100)), t.id, id).run();
+    await tellEmployee(t.employee_id, approve ? "Ezamiyyətiniz təsdiqləndi" : "Ezamiyyət sorğunuz rədd edildi", `${t.destination}, ${t.start_date} – ${t.end_date}${str(b.note, 300) ? `. ${str(b.note, 300)}` : ""}`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/trips/expense") {
+    requirePermission("salaries", "Xərci yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const t = await db.prepare("SELECT id,status FROM trips WHERE id=? AND company_id=?").bind(str(b.tripId, 100), id).first<{ id: string; status: string }>();
+    if (!t) throw new HttpError(404, "Ezamiyyət tapılmadı.");
+    if (t.status === "settled") throw new HttpError(409, "Ezamiyyətlə hesablaşılıb.");
+    if (b.remove === true) {
+      await db.prepare("DELETE FROM trip_expenses WHERE id=? AND trip_id=? AND company_id=?").bind(str(b.expenseId, 100), t.id, id).run();
+      return ok({ ok: true });
+    }
+    const amount = Math.round((Number(b.amount) || 0) * 100);
+    if (!(amount > 0) || amount > 100_000_000) throw new HttpError(400, "Məbləği düzgün yazın.");
+    const label = str(b.label, 160);
+    if (label.length < 2) throw new HttpError(400, "Xərcin adını yazın.");
+    await db.prepare("INSERT INTO trip_expenses(id,trip_id,company_id,label,amount_cents,day) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), t.id, id, label, amount, dateOk(str(b.day, 10)) ? str(b.day, 10) : "").run();
+    return ok({ ok: true }, 201);
+  }
+  // Settling: what is owed to the employee becomes a payment of the month; what is left of the advance is taken back.
+  if (request.method === "POST" && path === "company/trips/settle") {
+    requirePermission("salaries", "Ezamiyyətlə yalnız əmək haqqı icazəsi olan şəxs hesablaşa bilər.");
+    const b = await jsonBody(request);
+    const t = await db.prepare("SELECT id,employee_id,destination,start_date,end_date,daily_cents,advance_cents,status,requested_by,decided_by_name,settled_cents,purpose FROM trips WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<TripRow>();
+    if (!t) throw new HttpError(404, "Ezamiyyət tapılmadı.");
+    if (t.status === "settled") throw new HttpError(409, "Artıq hesablaşılıb.");
+    if (t.status === "requested" || t.status === "rejected") throw new HttpError(409, "Ezamiyyət təsdiqlənməyib.");
+    const expenses = (await db.prepare("SELECT id,label,amount_cents,day FROM trip_expenses WHERE trip_id=? AND company_id=?").bind(t.id, id).all<{ id: string; label: string; amount_cents: number; day: string }>()).results;
+    const calc = settleTrip({ dailyCents: t.daily_cents, days: tripDays(t.start_date, t.end_date), expensesCents: expenses.reduce((sum, e) => sum + e.amount_cents, 0), advanceCents: t.advance_cents });
+    const now = new Date().toISOString();
+    const statements = [db.prepare("UPDATE trips SET status='settled',settled_cents=? WHERE id=? AND company_id=?").bind(calc.balance, t.id, id)];
+    if (calc.balance > 0)
+      statements.push(db.prepare("INSERT INTO payroll_payments(id,company_id,employee_id,month,kind,amount_cents,paid_on,method,note,title,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, t.employee_id, now.slice(0, 7), "extra", calc.balance, now.slice(0, 10), "bank", `Ezamiyyət ${t.start_date} – ${t.end_date}`, `Ezamiyyət: ${t.destination}`, userId, now));
+    await db.batch(statements);
+    await companyAudit(db, id, userId, "trip-settled", t.employee_id, `${t.destination}: ${calc.balance / 100} AZN`);
+    await tellEmployee(t.employee_id, "Ezamiyyətlə hesablaşıldı", calc.balance > 0 ? `${(calc.balance / 100).toFixed(2)} AZN sizə ödənildi.` : calc.balance < 0 ? `Avansın ${(-calc.balance / 100).toFixed(2)} AZN artıq hissəsi geri qaytarılmalıdır.` : "Avans xərclərə bərabər oldu.");
+    return ok({ ok: true, balance: calc.balance / 100 });
+  }
+
+  // ── Announcements and surveys ──
+  if (request.method === "GET" && path === "company/announcements") {
+    requirePermission("salaries", "Elanları yalnız kadr işçisi görə bilər.");
+    const rows = await db.prepare("SELECT id,title,body,audience,pinned,expires,author,created FROM announcements WHERE company_id=? ORDER BY pinned DESC,created DESC LIMIT 100").bind(id).all<{ id: string; title: string; body: string; audience: string; pinned: number; expires: string; author: string; created: string }>();
+    const departments = (await db.prepare("SELECT DISTINCT department FROM company_employees WHERE company_id=? AND status IN ('active','leave') AND department<>''").bind(id).all<{ department: string }>()).results.map((r) => r.department);
+    return ok({ departments, items: rows.results.map((r) => ({ id: r.id, title: r.title, body: r.body, audience: r.audience, pinned: !!r.pinned, expires: r.expires, author: r.author, created: r.created })) });
+  }
+  if (request.method === "POST" && path === "company/announcements/save") {
+    requirePermission("salaries", "Elanı yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const title = str(b.title, 160);
+    const body = str(b.body, 3000);
+    if (title.length < 3 || body.length < 3) throw new HttpError(400, "Başlıq və mətni yazın.");
+    const expires = dateOk(str(b.expires, 10)) ? str(b.expires, 10) : "";
+    if (str(b.id, 100)) await db.prepare("UPDATE announcements SET title=?,body=?,audience=?,pinned=?,expires=? WHERE id=? AND company_id=?").bind(title, body, str(b.audience, 120), b.pinned === true ? 1 : 0, expires, str(b.id, 100), id).run();
+    else {
+      await db.prepare("INSERT INTO announcements(id,company_id,title,body,audience,pinned,expires,author,created) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, title, body, str(b.audience, 120), b.pinned === true ? 1 : 0, expires, await requesterName(), new Date().toISOString()).run();
+      if (b.notify === true) {
+        const audience = str(b.audience, 120);
+        const rows = (await db.prepare("SELECT id,department FROM company_employees WHERE company_id=? AND status IN ('active','leave') AND user_id<>''").bind(id).all<{ id: string; department: string }>()).results.filter((r) => !audience || r.department === audience);
+        await tellPayroll(rows.map((r) => r.id), `Elan: ${title}`, body.slice(0, 200));
+      }
+    }
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "company/announcements/delete") {
+    requirePermission("salaries", "Elanı yalnız kadr işçisi silə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM announcements WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "company/surveys") {
+    requirePermission("salaries", "Sorğuları yalnız kadr işçisi görə bilər.");
+    const surveys = (await db.prepare("SELECT id,title,kind,questions,anonymous,status,created FROM surveys WHERE company_id=? ORDER BY created DESC LIMIT 50").bind(id).all<{ id: string; title: string; kind: string; questions: string; anonymous: number; status: string; created: string }>()).results;
+    const responses = (await db.prepare("SELECT survey_id,department,answers FROM survey_responses WHERE company_id=?").bind(id).all<{ survey_id: string; department: string; answers: string }>()).results;
+    const size = Number((await db.prepare("SELECT COUNT(*) AS n FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).first<{ n: number }>())?.n || 0);
+    return ok({
+      employees: size,
+      surveys: surveys.map((sv) => {
+        const questions = parseJson<SurveyQuestion[]>(sv.questions, []);
+        const mine = responses.filter((r) => r.survey_id === sv.id).map((r) => ({ department: r.department, answers: parseJson<Record<string, string>>(r.answers, {}) }));
+        const scaleOf = (q: SurveyQuestion) => {
+          const values = mine.map((m) => Number(m.answers[q.id])).filter((n) => Number.isFinite(n));
+          return values.length ? Math.round((values.reduce((t, n) => t + n, 0) / values.length) * 100) / 100 : null;
+        };
+        const nps = questions.find((q) => q.kind === "scale10");
+        // A department is shown only when at least 5 people of it answered, so nobody can be picked out.
+        const byDepartment = nps ? [...new Set(mine.map((m) => m.department).filter(Boolean))].map((d) => ({ department: d, ...enps(mine.filter((m) => m.department === d).map((m) => Number(m.answers[nps.id]))) })).filter((d) => d.count >= 5) : [];
+        return {
+          id: sv.id, title: sv.title, kind: sv.kind, anonymous: !!sv.anonymous, status: sv.status, created: sv.created, questions, responses: mine.length,
+          enps: nps ? enps(mine.map((m) => Number(m.answers[nps.id]))) : null, byDepartment,
+          averages: questions.filter((q) => q.kind === "scale5" || q.kind === "scale10").map((q) => ({ id: q.id, label: q.label, average: scaleOf(q) })),
+          yesno: questions.filter((q) => q.kind === "yesno").map((q) => ({ id: q.id, label: q.label, yes: mine.filter((m) => m.answers[q.id] === "yes").length, no: mine.filter((m) => m.answers[q.id] === "no").length })),
+          comments: mine.length >= 5 ? questions.filter((q) => q.kind === "text").map((q) => ({ id: q.id, label: q.label, items: mine.map((m) => m.answers[q.id]).filter(Boolean).slice(0, 50) })) : [],
+        };
+      }),
+    });
+  }
+  if (request.method === "POST" && path === "company/surveys/save") {
+    requirePermission("salaries", "Sorğunu yalnız kadr işçisi yarada bilər.");
+    const b = await jsonBody(request);
+    const title = str(b.title, 160);
+    if (title.length < 3) throw new HttpError(400, "Sorğunun adını yazın.");
+    const kind = b.kind === "custom" ? "custom" : "enps";
+    const questions = kind === "enps" ? ENPS_QUESTIONS : cleanQuestions(b.questions);
+    if (!questions.length) throw new HttpError(400, "Ən azı bir sual yazın.");
+    const surveyId = crypto.randomUUID();
+    await db.prepare("INSERT INTO surveys(id,company_id,title,kind,questions,anonymous,status,created) VALUES(?,?,?,?,?,?,'open',?)").bind(surveyId, id, title, kind, JSON.stringify(questions), b.anonymous === false ? 0 : 1, new Date().toISOString()).run();
+    await tellPayroll(null, `Yeni sorğu: ${title}`, "Fikrinizi bildirmək üçün İş yerim → Elanlar və sorğular bölməsinə baxın.");
+    return ok({ ok: true, id: surveyId }, 201);
+  }
+  if (request.method === "POST" && path === "company/surveys/close") {
+    requirePermission("salaries", "Sorğunu yalnız kadr işçisi bağlaya bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("UPDATE surveys SET status=? WHERE id=? AND company_id=?").bind(b.reopen === true ? "open" : "closed", str(b.id, 100), id).run();
+    return ok({ ok: true });
+  }
+
   // ── HR and pay-fund report: headcount, plan, budget against the actual fund, vacation liability and turnover per department ──
   const hrFundReport = async () => {
     const year = (/^\d{4}$/.test(str(requestUrl.searchParams.get("year"), 4)) ? str(requestUrl.searchParams.get("year"), 4) : new Date().toISOString().slice(0, 4));
@@ -8631,7 +9235,10 @@ async function route(request: Request) {
     if (list.length > 12) throw new HttpError(400, "Hesabat ən çox 12 ay üçün hazırlanır.");
     return { from, to, list };
   };
+  const METHOD_LABEL: Record<string, string> = { bank: "bank", card: "kart", cash: "nağd", other: "digər" };
   const PAY_LABEL: Record<string, string> = { advance: "Avans", salary: "Əmək haqqı", vacation: "Məzuniyyət haqqı", benefit: "Sosial sığorta müavinəti", extra: "Digər ödəniş" };
+  // One line of an employee's account: what happened in a month and what the company owes after it.
+  type LedgerOp = { month: string; monthStatus: string; date: string; type: string; title: string; amount: number; balance: number; counts: boolean; note: string };
   const settlementReport = async () => {
     const { from, to, list } = reportMonths();
     const approvedOnly = requestUrl.searchParams.get("approvedOnly") === "1";
@@ -8649,6 +9256,7 @@ async function route(request: Request) {
       paid: Record<string, number>; companyOwes: number; pendingOwes: number; benefitOwes: number; employeeOwes: number;
       months: MonthRow[];
       payments: { month: string; paidOn: string; kind: string; label: string; title: string; amount: number; method: string; note: string; batchId: string; reversed: boolean; reverseReason: string; reversedBy: string }[];
+      ops: LedgerOp[];
     };
     const by = new Map<string, Acc>();
     const status: { month: string; status: string }[] = [];
@@ -8661,7 +9269,7 @@ async function route(request: Request) {
       status.push({ month: m, status: sheet.status });
       for (const r of sheet.rows) {
         const x = r.result;
-        const a: Acc = by.get(r.employeeId) || { employeeId: r.employeeId, name: r.name, position: r.position, department: r.department, section: r.section, fin: r.fin, iban: r.iban, startDate: r.startDate, gross: 0, tax: 0, insurance: 0, net: 0, deductions: 0, deductionsAsked: 0, due: 0, dueApproved: 0, vacation: 0, benefitDue: 0, employerCost: 0, lines: {}, paid: { advance: 0, salary: 0, vacation: 0, benefit: 0, extra: 0 }, companyOwes: 0, pendingOwes: 0, benefitOwes: 0, employeeOwes: 0, months: [], payments: [] };
+        const a: Acc = by.get(r.employeeId) || { employeeId: r.employeeId, name: r.name, position: r.position, department: r.department, section: r.section, fin: r.fin, iban: r.iban, startDate: r.startDate, gross: 0, tax: 0, insurance: 0, net: 0, deductions: 0, deductionsAsked: 0, due: 0, dueApproved: 0, vacation: 0, benefitDue: 0, employerCost: 0, lines: {}, paid: { advance: 0, salary: 0, vacation: 0, benefit: 0, extra: 0 }, companyOwes: 0, pendingOwes: 0, benefitOwes: 0, employeeOwes: 0, months: [], payments: [], ops: [] };
         const applied = x.otherDeductions.reduce((t, d) => t + d.applied, 0);
         const asked = x.otherDeductions.reduce((t, d) => t + d.amount, 0);
         const live = r.payments.filter((p) => !p.reversed);
@@ -8698,7 +9306,35 @@ async function route(request: Request) {
           outstanding: r.outstanding, benefitDue: r.benefitDue, benefitOutstanding: r.benefitOutstanding, employeeOwes: x.advanceExcess, lastPaid: r.lastPaid, reversed: r.payments.filter((p) => p.reversed).length,
         });
         for (const p of r.payments) a.payments.push({ month: m, paidOn: p.paidOn, kind: p.kind, label: PAY_LABEL[p.kind] || p.kind, title: p.title, amount: p.amount, method: p.method, note: p.note, batchId: p.batchId, reversed: p.reversed, reverseReason: p.reverseReason, reversedBy: p.reversedBy });
+        // The account of the month: what was earned, what was taken off, what was paid and taken back.
+        const monthEnd = `${m}-${String(new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).getUTCDate()).padStart(2, "0")}`;
+        const push = (date: string, type: string, title: string, amount: number, counts: boolean, note = "") => {
+          if (Math.abs(amount) >= 0.005 || type === "info") a.ops.push({ month: m, monthStatus: sheet.status, date, type, title, amount: Math.round(amount * 100) / 100, balance: 0, counts, note });
+        };
+        for (const l of x.lines) push(monthEnd, "accrual", `${l.label} (${l.article})`, l.amount, true);
+        push(monthEnd, "tax", "Gəlir vergisi", -x.incomeTax, true, x.taxReduction ? `vergi güzəşti ${x.taxReduction} AZN` : "");
+        push(monthEnd, "insurance", "DSMF (işçi payı)", -x.employeeSocial, true);
+        push(monthEnd, "insurance", "İşsizlik sığortası (işçi)", -x.employeeUnemployment, true);
+        push(monthEnd, "insurance", "İcbari tibbi sığorta (işçi)", -x.employeeMedical, true);
+        for (const d of x.otherDeductions) push(monthEnd, "deduction", `Tutulma: ${d.label || "digər"}`, -d.applied, true, d.applied < d.amount ? `tələb ${d.amount} AZN, həddə görə ${d.applied} AZN tutuldu, qalıq növbəti aya keçir` : "");
+        if (r.benefitDue > 0) push(monthEnd, "benefit", "Sosial sığorta müavinəti (xəstəlik/analıq, ayrıca)", r.benefitDue, true);
+        for (const c of r.carries) push(monthEnd, "info", `Əvvəlki aydan keçən tutulma: ${c.label} (${c.from})`, 0, false, `${c.amount} AZN növbəti hesablamaya daxil edilib`);
+        for (const pay of [...r.payments].sort((p1, p2) => p1.paidOn.localeCompare(p2.paidOn))) {
+          const name = `${PAY_LABEL[pay.kind] || pay.kind}${pay.title ? `: ${pay.title}` : ""} (${METHOD_LABEL[pay.method] || pay.method || "—"})`;
+          const note = [pay.batchId ? "bank sənədi" : "", pay.note].filter(Boolean).join(" · ");
+          const inPool = pay.kind !== "extra";
+          push(pay.paidOn, "payment", name, -pay.amount, inPool, inPool ? note : `${note ? `${note} · ` : ""}borca təsir etmir`);
+          if (pay.reversed) push(pay.paidOn, "reversal", `Geri çəkildi: ${name}`, pay.amount, inPool, `${pay.reverseReason} (${pay.reversedBy})`);
+        }
         by.set(r.employeeId, a);
+      }
+    }
+    // Running balance per employee, month after month: positive is what the company owes.
+    for (const a of by.values()) {
+      let running = 0;
+      for (const op of a.ops) {
+        if (op.counts && op.monthStatus === "approved") running = Math.round((running + op.amount) * 100) / 100;
+        op.balance = running;
       }
     }
     const employees = [...by.values()]
@@ -8754,6 +9390,8 @@ async function route(request: Request) {
       });
       return [e.name, e.fin, ...cells, e.due, money(e.paid.advance + e.paid.salary + e.paid.vacation), e.companyOwes];
     });
+    const TYPE_TEXT: Record<string, string> = { accrual: "Hesablama", tax: "Vergi", insurance: "Sığorta", deduction: "Tutulma", benefit: "Müavinət", payment: "Ödəniş", reversal: "Geri çəkmə", info: "Qeyd" };
+    const journal: (string | number)[][] = report.employees.flatMap((e) => e.ops.map((op): (string | number)[] => [e.name, e.fin, op.month, op.monthStatus === "approved" ? "Təsdiqlənib" : "Layihə", /^\d{4}-\d{2}-\d{2}$/.test(op.date) ? op.date : "", TYPE_TEXT[op.type] || op.type, op.title, op.type === "info" ? "" : op.amount, op.monthStatus === "approved" ? op.balance : "", op.counts ? "" : "borca təsir etmir", op.note]));
     await companyAudit(db, id, userId, "payroll-report-exported", detailed ? "monthly" : "summary", `${report.from} – ${report.to}`);
     const sheets = [
       { name: "İşçilər üzrə yekun", headers: ["№", "Ad Soyad", "FİN", "Vəzifə", "Departament", "Şöbə", "Hesablanıb (gross)", "Gəlir vergisi", "Sığorta (işçi)", "Net", "Digər tutulmalar", "Ödəniləcək cəmi", "o cümlədən məzuniyyət haqqı", "Müavinət (ayrıca)", "Ödənilib: avans", "Ödənilib: əmək haqqı", "Ödənilib: məzuniyyət", "Ödənilib: müavinət", "Ödənilib: digər", "Cəmi ödənilib", "Şirkətin borcu (təsdiqlənmiş aylar, əmək haqqı)", "Şirkətin borcu (müavinət)", "Gözlənilən (təsdiqlənməmiş aylar)", "İşçinin şirkətə borcu", "Xalis qalıq (+ şirkət borclu, − işçi borclu)", "Vəziyyət"], rows: summary },
@@ -8761,6 +9399,7 @@ async function route(request: Request) {
         ? [
             { name: "Aylar üzrə (ətraflı)", headers: monthlyHeaders, rows: monthly },
             { name: "Ay matrisi", headers: matrixHeaders, rows: matrix },
+            { name: "Əməliyyatlar jurnalı", headers: ["İşçi", "FİN", "Ay", "Ayın vəziyyəti", "Tarix", "Əməliyyat", "Təsvir", "Məbləğ (+ borc artır, − azalır)", "Şirkətin borcu (qalıq)", "Təsir", "Qeyd"], rows: journal },
           ]
         : []),
       { name: "Ödənişlər (nəyə görə)", headers: ["Tarix", "Ay", "Ad Soyad", "FİN", "Ödənişin növü", "Ödənişin adı", "Məbləğ (AZN)", "Üsul", "Qeyd", "Mənbə", "Vəziyyət"], rows: payments },

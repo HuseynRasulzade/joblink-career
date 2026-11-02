@@ -1074,6 +1074,61 @@ export const assetAssignments = sqliteTable(
   },
   (t) => [index("asset_assignments_employee").on(t.companyId, t.employeeId), index("asset_assignments_asset").on(t.assetId)],
 );
+// Small per-company settings (the training budget and the like).
+export const hrSettings = sqliteTable("hr_settings", { companyId: text("company_id").notNull(), key: text("key").notNull(), value: text("value").notNull().default("") }, (t) => [primaryKey({ columns: [t.companyId, t.key] })]);
+// Performance: a cycle, the goals set in it and the review of each employee.
+export const perfCycles = sqliteTable("perf_cycles", { id: text("id").primaryKey(), companyId: text("company_id").notNull(), name: text("name").notNull(), startDate: text("start_date").notNull(), endDate: text("end_date").notNull(), status: text("status").notNull().default("open"), created: text("created").notNull() }, (t) => [index("perf_cycles_company").on(t.companyId)]);
+export const perfGoals = sqliteTable(
+  "perf_goals",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), cycleId: text("cycle_id").notNull(), employeeId: text("employee_id").notNull(), title: text("title").notNull(), target: text("target").notNull().default(""), weight: integer("weight").notNull().default(1), progress: integer("progress").notNull().default(0), selfNote: text("self_note").notNull().default(""), managerNote: text("manager_note").notNull().default(""), score: integer("score"), proposedBy: text("proposed_by").notNull().default("hr"), created: text("created").notNull() },
+  (t) => [index("perf_goals_cycle").on(t.companyId, t.cycleId, t.employeeId)],
+);
+export const perfReviews = sqliteTable(
+  "perf_reviews",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), cycleId: text("cycle_id").notNull(), employeeId: text("employee_id").notNull(), selfScore: integer("self_score"), selfComment: text("self_comment").notNull().default(""), managerScore: integer("manager_score"), managerComment: text("manager_comment").notNull().default(""), reviewerName: text("reviewer_name").notNull().default(""), status: text("status").notNull().default("open"), acknowledgedAt: text("acknowledged_at").notNull().default(""), updated: text("updated").notNull() },
+  (t) => [uniqueIndex("perf_reviews_one").on(t.cycleId, t.employeeId)],
+);
+// Training plan: courses and who takes part.
+export const trainings = sqliteTable(
+  "trainings",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), provider: text("provider").notNull().default(""), kind: text("kind").notNull().default("external"), startDate: text("start_date").notNull().default(""), endDate: text("end_date").notNull().default(""), hours: integer("hours").notNull().default(0), costCents: integer("cost_cents").notNull().default(0), status: text("status").notNull().default("planned"), note: text("note").notNull().default(""), created: text("created").notNull() },
+  (t) => [index("trainings_company").on(t.companyId, t.startDate)],
+);
+export const trainingParticipants = sqliteTable(
+  "training_participants",
+  { trainingId: text("training_id").notNull(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), status: text("status").notNull().default("invited"), result: text("result").notNull().default("") },
+  (t) => [primaryKey({ columns: [t.trainingId, t.employeeId] }), index("training_participants_employee").on(t.companyId, t.employeeId)],
+);
+// Shifts: the kinds of shift and who works which on a day.
+export const shiftTypes = sqliteTable("shift_types", { id: text("id").primaryKey(), companyId: text("company_id").notNull(), name: text("name").notNull(), startTime: text("start_time").notNull(), endTime: text("end_time").notNull(), created: text("created").notNull() }, (t) => [index("shift_types_company").on(t.companyId)]);
+export const shiftAssignments = sqliteTable(
+  "shift_assignments",
+  { companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), day: text("day").notNull(), shiftId: text("shift_id").notNull() },
+  (t) => [primaryKey({ columns: [t.companyId, t.employeeId, t.day] }), index("shift_assignments_day").on(t.companyId, t.day)],
+);
+// Business trips and their expenses.
+export const trips = sqliteTable(
+  "trips",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), destination: text("destination").notNull(), purpose: text("purpose").notNull().default(""), startDate: text("start_date").notNull(), endDate: text("end_date").notNull(), dailyCents: integer("daily_cents").notNull().default(0), advanceCents: integer("advance_cents").notNull().default(0), status: text("status").notNull().default("requested"), requestedBy: text("requested_by").notNull().default("hr"), decidedByName: text("decided_by_name").notNull().default(""), settledCents: integer("settled_cents").notNull().default(0), created: text("created").notNull() },
+  (t) => [index("trips_company").on(t.companyId, t.employeeId)],
+);
+export const tripExpenses = sqliteTable("trip_expenses", { id: text("id").primaryKey(), tripId: text("trip_id").notNull(), companyId: text("company_id").notNull(), label: text("label").notNull(), amountCents: integer("amount_cents").notNull(), day: text("day").notNull().default("") }, (t) => [index("trip_expenses_trip").on(t.tripId)]);
+// Announcements to the staff and surveys (with eNPS).
+export const announcements = sqliteTable(
+  "announcements",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), body: text("body").notNull(), audience: text("audience").notNull().default(""), pinned: integer("pinned").notNull().default(0), expires: text("expires").notNull().default(""), author: text("author").notNull().default(""), created: text("created").notNull() },
+  (t) => [index("announcements_company").on(t.companyId, t.created)],
+);
+export const surveys = sqliteTable(
+  "surveys",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), kind: text("kind").notNull().default("enps"), questions: text("questions").notNull().default("[]"), anonymous: integer("anonymous").notNull().default(1), status: text("status").notNull().default("open"), created: text("created").notNull() },
+  (t) => [index("surveys_company").on(t.companyId, t.status)],
+);
+export const surveyResponses = sqliteTable(
+  "survey_responses",
+  { id: text("id").primaryKey(), surveyId: text("survey_id").notNull(), companyId: text("company_id").notNull(), respondent: text("respondent").notNull(), employeeId: text("employee_id").notNull().default(""), department: text("department").notNull().default(""), answers: text("answers").notNull().default("{}"), created: text("created").notNull() },
+  (t) => [uniqueIndex("survey_responses_one").on(t.surveyId, t.respondent)],
+);
 // Draft until the director approves the staff plan; after that changes need the director.
 export const staffPlanState = sqliteTable("staff_plan_state", {
   companyId: text("company_id").primaryKey(),
