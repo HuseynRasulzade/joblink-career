@@ -598,12 +598,42 @@ export const PATERNITY_LEAVE_DAYS = 14; // art. 125.4
 // Social Protection Fund states for the temporary disability benefit; check it against the current law before use.
 export const SICK_BENEFIT_PERCENT = 100;
 export const MATERNITY_BENEFIT_PERCENT = 100;
-export type InsuranceBenefit = Cited<{ months: number; averageMonthly: number; dailyRate: number; days: number; percent: number; benefitDaily: number; amount: number }>;
-export function insuranceBenefit(monthlyEarnings: number[], calendarDays: number, percent: number, kind: "sick" | "maternity"): InsuranceBenefit {
+// Law on Social Insurance, art. 6: the right to the sickness and the pregnancy-and-birth benefit belongs to those with at
+// least 6 months of insurance record; the monthly benefit cannot be above 25 times the minimum labour pension.
+export const BENEFIT_MIN_INSURANCE_MONTHS = 6;
+export const BENEFIT_CAP_FACTOR = 25;
+export type InsuranceBenefit = Cited<{
+  months: number; averageMonthly: number; dailyRate: number; days: number; percent: number; benefitDaily: number;
+  calculated: number; // before the monthly cap
+  amount: number; // what is paid: nothing without the insurance record, otherwise the calculation within the cap
+  eligible: boolean | null; // null when the insurance record was not given
+  cap: number | null; // the monthly maximum, null when the minimum pension was not given
+  capped: boolean;
+}>;
+export function insuranceBenefit(
+  monthlyEarnings: number[],
+  calendarDays: number,
+  percent: number,
+  kind: "sick" | "maternity",
+  limits: { insuranceMonths?: number | null; minPension?: number | null } = {},
+): InsuranceBenefit {
   const avg = averageMonthlyForLeave(monthlyEarnings);
   const share = Math.max(0, Math.min(100, Number(percent) || 0));
   const days = Math.max(0, Math.floor(pos(calendarDays)));
   const daily = r2((avg.dailyRate * share) / 100);
+  const calculated = r2(avg.dailyRate * (share / 100) * days);
+  const eligible = limits.insuranceMonths === null || limits.insuranceMonths === undefined ? null : limits.insuranceMonths >= BENEFIT_MIN_INSURANCE_MONTHS;
+  const cap = limits.minPension && limits.minPension > 0 ? r2(limits.minPension * BENEFIT_CAP_FACTOR) : null;
+  const capped = cap !== null && calculated > cap;
+  const notes = [
+    "Müavinət son 12 ayın sığorta haqqı ödənilmiş orta aylıq əmək haqqından (÷ 30,4) təqvim günlərinə görə hesablanır; bayram və istirahət günləri də daxildir.",
+    `Müavinətin faizi (${share}%) Sosial Sığorta Qanununda göstərilmir: onu müvafiq qanunvericilik aktına görə ayarlarda yazın.`,
+    "Müavinət məcburi sosial sığorta haqqı hesablanan gəlirə daxil deyil (md. 15) və adətən sığortaçı tərəfindən nağdsız, birbaşa sığortaolunana ödənilir (md. 17).",
+  ];
+  if (eligible === false) notes.unshift(`Sığorta stajı ${BENEFIT_MIN_INSURANCE_MONTHS} aydan azdır: müavinət almaq hüququ yoxdur (md. 6).`);
+  if (eligible === null) notes.unshift(`Müavinət almaq üçün ən azı ${BENEFIT_MIN_INSURANCE_MONTHS} ay sosial sığorta stajı lazımdır (md. 6): stajı yazın.`);
+  if (cap === null) notes.push(`Aylıq maksimal həddi (minimum əmək pensiyasının ${BENEFIT_CAP_FACTOR} mislindən çox ola bilməz, md. 6) hesablamaq üçün minimum pensiyanın məbləğini yazın.`);
+  else if (capped) notes.push(`Hesablanan ${calculated} AZN aylıq həddi (${cap} AZN = ${BENEFIT_CAP_FACTOR} × ${limits.minPension}) aşır: həddə endirildi.`);
   return {
     months: avg.months,
     averageMonthly: avg.averageMonthly,
@@ -611,13 +641,13 @@ export function insuranceBenefit(monthlyEarnings: number[], calendarDays: number
     days,
     percent: share,
     benefitDaily: daily,
-    amount: r2(avg.dailyRate * (share / 100) * days),
-    articles: kind === "sick" ? ["Sosial Sığorta Qanunu: müvəqqəti əmək qabiliyyətsizliyi müavinəti"] : ["Əmək M. 125", "Sosial Sığorta Qanunu: hamiləlik və doğuş müavinəti"],
-    notes: [
-      "Müavinət son 12 ayın sığorta haqqı ödənilmiş orta aylıq əmək haqqından (÷ 30,4) təqvim günlərinə görə hesablanır; bayram və istirahət günləri də daxildir.",
-      `Müavinətin faizi (${share}%) və ilk günlərin kim tərəfindən ödənilməsi qanunda dəyişə bilər: cari mətnlə yoxlayın.`,
-      "Müavinət əmək haqqına daxil deyil; sosial sığorta orqanı ilə hesablaşma ayrıca aparılır.",
-    ],
+    calculated,
+    amount: eligible === false ? 0 : capped && cap !== null ? cap : calculated,
+    eligible,
+    cap,
+    capped,
+    articles: kind === "sick" ? ["Sosial Sığorta Qanunu, md. 6, 15, 17"] : ["Əmək M. 125", "Sosial Sığorta Qanunu, md. 6, 15, 17"],
+    notes,
   };
 }
 

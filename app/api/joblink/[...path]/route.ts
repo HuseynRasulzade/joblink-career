@@ -388,7 +388,7 @@ import { ASSET_CATEGORIES, ASSET_STATUS, assetActHtml, parseAssetRows } from "@/
 import { daysLeft, deadlinesOf } from "@/lib/hr-deadlines";
 import { STATUS_TEXT as LEAVE_STATUS, monthlyLoad, planLeave, scheduleWarnings, type ScheduleEntry } from "@/lib/leave-schedule";
 import { parseHoursRows, summarizeHours, type HoursByDay } from "@/lib/hours";
-import { MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
+import { BENEFIT_CAP_FACTOR, BENEFIT_MIN_INSURANCE_MONTHS, MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
@@ -8098,13 +8098,16 @@ async function route(request: Request) {
     for (const m of marks.results) markBy.set(m.employee_id, (markBy.get(m.employee_id) || new Map()).set(m.day, m.code));
     const inputBy = new Map(inputs.results.map((r) => [r.employee_id, (() => { try { return cleanInputs(JSON.parse(r.data)); } catch { return { ...EMPTY_INPUTS }; } })()]));
     // The share of the average pay paid as sickness and maternity benefit: the company sets what the law says.
-    const rateRows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('benefit_sick_percent','benefit_maternity_percent')").bind(id).all<{ key: string; value: string }>()).results;
+    const rateRows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('benefit_sick_percent','benefit_maternity_percent','benefit_min_pension','benefit_payer')").bind(id).all<{ key: string; value: string }>()).results;
     const rateOf = (key: string, fallback: number) => {
       const n = Number(rateRows.find((r) => r.key === key)?.value);
       return Number.isFinite(n) && n >= 0 && n <= 100 && rateRows.some((r) => r.key === key) ? n : fallback;
     };
     const sickPercent = rateOf("benefit_sick_percent", SICK_BENEFIT_PERCENT);
     const maternityPercent = rateOf("benefit_maternity_percent", MATERNITY_BENEFIT_PERCENT);
+    // Art. 6: the monthly benefit is at most 25 times the minimum labour pension (entered by the company); art. 17: the insurer pays it directly unless the company says it pays.
+    const minPension = Math.max(0, Number(rateRows.find((r) => r.key === "benefit_min_pension")?.value) || 0);
+    const benefitPayer = rateRows.find((r) => r.key === "benefit_payer")?.value === "employer" ? "employer" : "insurer";
     // Standing additions and deductions of the month, and what the previous month could not deduct.
     const recurring = (await db.prepare("SELECT id,employee_id,type,label,amount_cents,deduction_kind FROM payroll_recurring WHERE company_id=? AND from_month<=? AND (to_month='' OR to_month>=?)").bind(id, monthRaw, monthRaw).all<{ id: string; employee_id: string; type: string; label: string; amount_cents: number; deduction_kind: string }>()).results;
     const carries = (await db.prepare("SELECT id,employee_id,label,amount_cents,deduction_kind,from_month FROM payroll_carry WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ id: string; employee_id: string; label: string; amount_cents: number; deduction_kind: string; from_month: string }>()).results;
@@ -8181,7 +8184,7 @@ async function route(request: Request) {
       const insuredDays = vacationCalendarDays(days, insuredOf, true);
       let annual: { mask: boolean[]; calendarDays: number; averageMonthly: number } | undefined;
       let annualInfo: { months: number; estimated: boolean; averageMonthly: number; calendarDays: number } | null = null;
-      let insured: { averageMonthly: number; calendarDays: number; percent: number } | undefined;
+      let insured: { averageMonthly: number; calendarDays: number; percent: number; eligible?: boolean | null; cap?: number | null } | undefined;
       const leaving = p.status === "left" && (p.end_date || "").startsWith(monthRaw);
       let leaveCompensation: { days: number; averageMonthly: number } | undefined;
       if (vacation.workingDays > 0 || insuredDays.workingDays > 0 || leaving) {
@@ -8209,7 +8212,15 @@ async function route(request: Request) {
         }
         if (insuredDays.workingDays > 0) {
           const maternity = [...marksOf.values()].includes("maternity");
-          insured = { averageMonthly: avg, calendarDays: insuredDays.calendarDays, percent: maternity ? maternityPercent : sickPercent };
+          // Art. 6: at least 6 months of insurance record (months here plus the record before this job).
+          let eligible: boolean | null = null;
+          if (p.start_date) {
+            const from = new Date(`${p.start_date}T00:00:00Z`);
+            const to = new Date(`${monthRaw}-01T00:00:00Z`);
+            const here = Math.max(0, (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + to.getUTCMonth() - from.getUTCMonth() - (to.getUTCDate() < from.getUTCDate() ? 1 : 0));
+            eligible = here + Math.max(0, Number(profile.insuranceBefore) || 0) >= BENEFIT_MIN_INSURANCE_MONTHS;
+          }
+          insured = { averageMonthly: avg, calendarDays: insuredDays.calendarDays, percent: maternity ? maternityPercent : sickPercent, eligible, cap: minPension > 0 ? minPension * BENEFIT_CAP_FACTOR : null };
         }
       }
       const base = { monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: (() => {
@@ -8227,7 +8238,8 @@ async function route(request: Request) {
       const vacationDue = result.gross > 0 ? Math.round(((result.net * vacationLine) / result.gross) * 100) / 100 : 0;
       const vacationOutstanding = Math.max(0, Math.min(Math.round((vacationDue - vacationPaid) * 100) / 100, outstanding));
       const benefitDue = result.benefitAmount || 0;
-      const benefitOutstanding = Math.max(0, Math.round((benefitDue - benefitPaid) * 100) / 100);
+      // Paid by the insurer directly (art. 17) unless the company pays it itself: then nothing is owed through payroll.
+      const benefitOutstanding = benefitPayer === "employer" ? Math.max(0, Math.round((benefitDue - benefitPaid) * 100) / 100) : 0;
       return {
         employeeId: p.id,
         name: p.name,
@@ -8280,7 +8292,7 @@ async function route(request: Request) {
       status: run?.status || "draft",
       approvedBy: run?.approved_by_name || "",
       approvedAt: run?.approved_at || "",
-      settings: { advanceDay, payDay, dualThreshold: (settings?.dual_threshold || 0) / 100, benefitSick: sickPercent, benefitMaternity: maternityPercent, problem: scheduleProblem(advanceDay, payDay) },
+      settings: { advanceDay, payDay, dualThreshold: (settings?.dual_threshold || 0) / 100, benefitSick: sickPercent, benefitMaternity: maternityPercent, benefitMinPension: minPension, benefitPayer: benefitPayer, problem: scheduleProblem(advanceDay, payDay) },
       schedule: { advanceDate, payDate },
       workingDays: working.length,
       rows,
@@ -10155,6 +10167,15 @@ async function route(request: Request) {
       await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, key, String(wanted)).run();
       await companyAudit(db, id, userId, "benefit-rate-set", key, `${wanted}%`);
     }
+    for (const [field, key] of [["benefitMinPension", "benefit_min_pension"], ["benefitPayer", "benefit_payer"]] as const) {
+      if (b[field] === undefined) continue;
+      const wanted = field === "benefitPayer" ? (b[field] === "employer" ? "employer" : "insurer") : String(Math.max(0, Math.round((Number(b[field]) || 0) * 100) / 100));
+      const old = await db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key=?").bind(id, key).first<{ value: string }>();
+      if (wanted === (old?.value ?? (field === "benefitPayer" ? "insurer" : "0"))) continue;
+      if (!canAct("approve-director")) throw new HttpError(403, "Bu ayarı yalnız direktor və ya hesab sahibi dəyişə bilər.");
+      await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, key, wanted).run();
+      await companyAudit(db, id, userId, "benefit-setting-set", key, wanted);
+    }
     await db
       .prepare("INSERT INTO payroll_settings(company_id,advance_day,pay_day,dual_threshold,updated) VALUES(?,?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET advance_day=excluded.advance_day,pay_day=excluded.pay_day,dual_threshold=excluded.dual_threshold,updated=excluded.updated")
       .bind(id, advanceDay, payDay, dual, new Date().toISOString())
@@ -10187,6 +10208,7 @@ async function route(request: Request) {
     } else {
       if (sheet.status !== "approved") throw new HttpError(409, "Ödənişi qeyd etməzdən əvvəl ayı təsdiqləyin.");
       if (kind === "benefit") {
+        if (row.benefitOutstanding <= 0 && row.benefitDue > 0) throw new HttpError(409, "Müavinət sığortaçı tərəfindən birbaşa ödənilir (Sosial Sığorta Qanunu, md. 17). Şirkət özü ödəyirsə, ayarlarda «Müavinəti şirkət ödəyir» seçin.");
         if (amount > row.benefitOutstanding + 0.005) throw new HttpError(409, `Bu işçiyə ödəniləcək müavinət qalığı ${row.benefitOutstanding} AZN-dir.`);
       } else if (kind === "vacation") {
         if (amount > row.vacationOutstanding + 0.005) throw new HttpError(409, `Ödənilməmiş məzuniyyət haqqı ${row.vacationOutstanding} AZN-dir.`);

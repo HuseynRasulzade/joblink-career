@@ -187,6 +187,7 @@ const PROFILE_ALIASES: Aliases<"name" | "email" | ProfileField> = {
   taxBenefitDoc: ["guzest sened", "guzest senedi", "guzest sened nomresi"],
   taxBenefitFrom: ["guzest baslama tarixi", "guzest tarixi"],
   dependents3: ["himayesinde 3 nefer", "himayesinde en azi 3 nefer", "himaye 3"],
+  insuranceBefore: ["evvelki sigorta stajı", "evvelki sigorta staji", "sigorta staji", "sigorta stajı ay"],
   mainJob: ["esas is yeri", "emek kitabcasi burada"],
   soleParent: ["usagi tekbasina boyudur", "tekvalideyn", "tek valideyn"],
   address: ["faktiki unvan", "unvan", "yasayis unvani"],
@@ -287,6 +288,7 @@ export function parseProfileRows(rows: string[][], limit = 500): { rows: Profile
       else if (field === "maritalStatus") raw.maritalStatus = marital(text);
       else if (field === "childrenUnder14") raw.childrenUnder14 = Math.round(parseNumberCell(text));
       else if (field === "hasDisabledChild" || field === "soleParent" || field === "disabilityWar" || field === "dependents3") raw[field] = yes(text);
+      else if (field === "insuranceBefore") raw.insuranceBefore = Math.round(parseNumberCell(text));
       else if (field === "mainJob") raw.mainJob = !["xeyr", "no", "0", "false", "yox"].includes(fold(text));
       else if (field === "disabledChildren") raw.disabledChildren = Math.round(parseNumberCell(text));
       else if (field === "disability") raw.disability = disabilityOf(text);

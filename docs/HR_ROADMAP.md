@@ -131,3 +131,10 @@ Qiymətləndirmə: ✅ var · 🟡 qismən · ❌ yoxdur. Əmək: S (1–2 gün)
 | Rəy yoxlaması | Kadr əməliyyatları → Rəy yoxlaması |
 | Vakansiya paylaşma | Vakansiyalarım → Paylaş; açıq vakansiyaların XML lenti: `/jobs/feed.xml` |
 | Hələ edilməyib | Birbaşa bank API, hüquqi e-imza və dövlət sistemində qeydiyyat, holdinq görünüşü |
+
+## 8. Sosial Sığorta Qanunu tətbiqi
+
+- Md. 6: müavinət üçün ən azı 6 ay sığorta stajı (işdə keçən ay + profildə «əvvəlki sığorta stajı»); staj çatmırsa müavinət 0.
+- Md. 6 / Əmək Pensiyaları Qanunu md. 6-1: aylıq müavinət ≤ 25 × minimum əmək pensiyası. Pensiyanın məbləği qanun mətnində yoxdur, ayarlarda daxil edilir.
+- Md. 17: müavinəti sığortaçı birbaşa ödəyir; defolt rejim «sığortaçı». Şirkət ödəyirsə ayarlarda «şirkət ödəyir» seçilir, onda ödəniş/bank reyestri açılır.
+- Faiz qanunda yoxdur: şirkət ayarıdır.

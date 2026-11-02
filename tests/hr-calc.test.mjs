@@ -176,3 +176,17 @@ test("insurance benefit is a share of the 12-month average per calendar day", ()
   assert.equal(b.amount, 300);
   assert.equal(insuranceBenefit(Array(12).fill(912), 10, 60, "maternity").amount, 180);
 });
+
+test("the benefit follows the 6-month record and the monthly cap of the law", () => {
+  const earnings = Array(12).fill(3040); // 3040 / 30,4 = 100 AZN a day
+  assert.equal(insuranceBenefit(earnings, 10, 100, "sick", { insuranceMonths: 4 }).amount, 0);
+  assert.equal(insuranceBenefit(earnings, 10, 100, "sick", { insuranceMonths: 8 }).eligible, true);
+  const open = insuranceBenefit(earnings, 10, 100, "sick", { insuranceMonths: 8 });
+  assert.equal(open.amount, 1000);
+  assert.equal(open.cap, null);
+  const capped = insuranceBenefit(earnings, 30, 100, "maternity", { insuranceMonths: 12, minPension: 100 });
+  assert.equal(capped.cap, 2500);
+  assert.equal(capped.capped, true);
+  assert.equal(capped.amount, 2500);
+  assert.equal(insuranceBenefit(earnings, 10, 100, "sick").eligible, null);
+});

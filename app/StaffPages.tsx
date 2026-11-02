@@ -1784,6 +1784,7 @@ export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notif
         {text("taxBenefitDoc", "Güzəşti təsdiq edən sənəd (nömrə, tarix)")}
         <Field label="Güzəşt hansı tarixdən tətbiq olunur"><input type="date" value={profile.taxBenefitFrom} onChange={(e) => set("taxBenefitFrom", e.target.value)} /></Field>
         <label className="check-row"><input type="checkbox" checked={profile.dependents3} onChange={(e) => set("dependents3", e.target.checked)} /> Himayəsində azı 3 nəfər var (gündüz təhsilli 23 yaşınadək tələbələr daxil) — 50 AZN (102.5)</label>
+        <label>Əvvəlki sosial sığorta stajı (ay) — xəstəlik/analıq müavinəti üçün cəmi ən azı 6 ay lazımdır<input type="number" min={0} max={720} value={profile.insuranceBefore} onChange={(e) => set("insuranceBefore", Math.max(0, Number(e.target.value) || 0))} /></label>
         <label className="check-row"><input type="checkbox" checked={profile.mainJob} onChange={(e) => set("mainJob", e.target.checked)} /> Bu, işçinin əsas iş yeridir (əmək kitabçası burada saxlanılır)</label>
       </div>
       <p>
