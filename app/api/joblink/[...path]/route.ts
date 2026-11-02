@@ -387,7 +387,8 @@ import { EXIT_QUESTIONS, OFFBOARDING_ITEMS, checklistProgress, cleanAnswers as c
 import { ASSET_CATEGORIES, ASSET_STATUS, assetActHtml, parseAssetRows } from "@/lib/assets";
 import { daysLeft, deadlinesOf } from "@/lib/hr-deadlines";
 import { STATUS_TEXT as LEAVE_STATUS, monthlyLoad, planLeave, scheduleWarnings, type ScheduleEntry } from "@/lib/leave-schedule";
-import { parseHoursRows, summarizeHours, type HoursByDay } from "@/lib/hours";
+import { dailyNorm, parseHoursRows, summarizeHours, type HoursByDay } from "@/lib/hours";
+import { DEFAULT_CLOCK, bakuNow, earlyLeaveMinutes, hoursFromClock, lateMinutes, validTime as validClockTime, type ClockRules } from "@/lib/clock";
 import { BENEFIT_CAP_FACTOR, BENEFIT_MIN_INSURANCE_MONTHS, MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
@@ -7538,6 +7539,17 @@ async function route(request: Request) {
     return ok({ ok: true });
   }
   // ---- The employee's own profile: link with a code, see the workplace, write applications to the company ----
+  const clockSettings = async (companyId: string) => {
+    const rows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('work_start','work_end','break_minutes','grace_minutes','overtime_approval','self_clock')").bind(companyId).all<{ key: string; value: string }>()).results;
+    const get = (k: string) => rows.find((r) => r.key === k)?.value;
+    const rules: ClockRules = {
+      start: validClockTime(get("work_start") || "") ? get("work_start")! : DEFAULT_CLOCK.start,
+      end: validClockTime(get("work_end") || "") ? get("work_end")! : DEFAULT_CLOCK.end,
+      breakMinutes: get("break_minutes") !== undefined && Number.isFinite(Number(get("break_minutes"))) ? Number(get("break_minutes")) : DEFAULT_CLOCK.breakMinutes,
+      graceMinutes: get("grace_minutes") !== undefined && Number.isFinite(Number(get("grace_minutes"))) ? Number(get("grace_minutes")) : DEFAULT_CLOCK.graceMinutes,
+    };
+    return { rules, overtimeApproval: get("overtime_approval") === "1", selfClock: get("self_clock") !== "0" };
+  };
   const ownWorkplace = async (employeeId: string) => {
     if (accountRole === "company") throw new HttpError(403, "İşçi profili yalnız şəxsi hesab üçündür.");
     const row = await db
@@ -7710,6 +7722,45 @@ async function route(request: Request) {
     const to = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
     const rows = await db.prepare("SELECT a.day,t.name,t.start_time,t.end_time FROM shift_assignments a JOIN shift_types t ON t.id=a.shift_id WHERE a.company_id=? AND a.employee_id=? AND a.day BETWEEN ? AND ? ORDER BY a.day").bind(employee.company_id, employee.id, from, to).all<{ day: string; name: string; start_time: string; end_time: string }>();
     return ok({ items: rows.results.map((r) => ({ day: r.day, name: r.name, start: r.start_time, end: r.end_time })) });
+  }
+  // The employee marks arrival and departure; the server stamps the time (Baku time), the hours follow from it.
+  if (request.method === "GET" && path === "employee/clock") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const now = bakuNow();
+    const setting = await clockSettings(employee.company_id);
+    const rows = await db.prepare("SELECT day,hours,clock_in,clock_out,overtime_status FROM attendance_hours WHERE company_id=? AND employee_id=? AND day>=? ORDER BY day DESC LIMIT 14").bind(employee.company_id, employee.id, new Date(Date.now() - 20 * 86_400_000).toISOString().slice(0, 10)).all<{ day: string; hours: number; clock_in: string; clock_out: string; overtime_status: string }>();
+    return ok({
+      enabled: setting.selfClock,
+      today: now.date,
+      now: now.time,
+      start: setting.rules.start,
+      end: setting.rules.end,
+      items: rows.results.map((r) => ({ day: r.day, hours: r.hours, clockIn: r.clock_in, clockOut: r.clock_out, late: r.clock_in ? lateMinutes(r.clock_in, setting.rules) : 0, early: r.clock_out ? earlyLeaveMinutes(r.clock_out, setting.rules) : 0, overtimeStatus: r.overtime_status })),
+    });
+  }
+  if (request.method === "POST" && path === "employee/clock") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const setting = await clockSettings(employee.company_id);
+    if (!setting.selfClock) throw new HttpError(403, "Şirkət giriş-çıxış qeydini işçilər üçün açmayıb.");
+    const now = bakuNow();
+    const locked = (await db.prepare("SELECT status FROM payroll_runs WHERE company_id=? AND month=?").bind(employee.company_id, now.date.slice(0, 7)).first<{ status: string }>())?.status === "approved";
+    if (locked) throw new HttpError(409, "Bu ay təsdiqlənib: giriş-çıxış qeydi artıq dəyişmir. HR ilə əlaqə saxlayın.");
+    const current = await db.prepare("SELECT clock_in,clock_out,source FROM attendance_hours WHERE company_id=? AND employee_id=? AND day=?").bind(employee.company_id, employee.id, now.date).first<{ clock_in: string; clock_out: string; source: string }>();
+    const stamp = new Date().toISOString();
+    if (b.action === "in") {
+      if (current?.clock_in) throw new HttpError(409, `Bu gün giriş artıq ${current.clock_in}-də qeyd olunub.`);
+      await db.prepare("INSERT INTO attendance_hours(company_id,employee_id,day,hours,night_hours,note,updated,clock_in,clock_out,source) VALUES(?,?,?,0,0,'',?,?,'','self') ON CONFLICT(company_id,employee_id,day) DO UPDATE SET clock_in=excluded.clock_in,updated=excluded.updated,source='self'").bind(employee.company_id, employee.id, now.date, stamp, now.time).run();
+      return ok({ ok: true, time: now.time, late: lateMinutes(now.time, setting.rules) });
+    }
+    if (b.action === "out") {
+      if (!current?.clock_in) throw new HttpError(409, "Əvvəlcə giriş qeyd edin.");
+      if (current.clock_out) throw new HttpError(409, `Bu gün çıxış artıq ${current.clock_out}-də qeyd olunub.`);
+      const calc = hoursFromClock(current.clock_in, now.time, setting.rules.breakMinutes);
+      await db.prepare("UPDATE attendance_hours SET clock_out=?,hours=?,night_hours=?,updated=? WHERE company_id=? AND employee_id=? AND day=?").bind(now.time, calc?.hours || 0, calc?.night || 0, stamp, employee.company_id, employee.id, now.date).run();
+      return ok({ ok: true, time: now.time, hours: calc?.hours || 0 });
+    }
+    throw new HttpError(400, "Əməliyyat «giriş» və ya «çıxış» olmalıdır.");
   }
   if (request.method === "GET" && path === "employee/trips") {
     const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
@@ -8098,7 +8149,7 @@ async function route(request: Request) {
     for (const m of marks.results) markBy.set(m.employee_id, (markBy.get(m.employee_id) || new Map()).set(m.day, m.code));
     const inputBy = new Map(inputs.results.map((r) => [r.employee_id, (() => { try { return cleanInputs(JSON.parse(r.data)); } catch { return { ...EMPTY_INPUTS }; } })()]));
     // The share of the average pay paid as sickness and maternity benefit: the company sets what the law says.
-    const rateRows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('benefit_sick_percent','benefit_maternity_percent','benefit_min_pension','benefit_payer')").bind(id).all<{ key: string; value: string }>()).results;
+    const rateRows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('benefit_sick_percent','benefit_maternity_percent','benefit_min_pension','benefit_payer','overtime_approval')").bind(id).all<{ key: string; value: string }>()).results;
     const rateOf = (key: string, fallback: number) => {
       const n = Number(rateRows.find((r) => r.key === key)?.value);
       return Number.isFinite(n) && n >= 0 && n <= 100 && rateRows.some((r) => r.key === key) ? n : fallback;
@@ -8113,8 +8164,14 @@ async function route(request: Request) {
     const carries = (await db.prepare("SELECT id,employee_id,label,amount_cents,deduction_kind,from_month FROM payroll_carry WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ id: string; employee_id: string; label: string; amount_cents: number; deduction_kind: string; from_month: string }>()).results;
     // Hours worked on each day, when the company keeps them: extra, rest-day and night hours come from here.
     const hoursBy = new Map<string, HoursByDay>();
-    for (const h of (await db.prepare("SELECT employee_id,day,hours,night_hours FROM attendance_hours WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<{ employee_id: string; day: string; hours: number; night_hours: number }>()).results)
+    // With the approval rule on, extra and rest-day hours count only when the employer has approved them (arts. 99, 105).
+    const overtimeApproval = rateRows.find((r) => r.key === "overtime_approval")?.value === "1";
+    const dayInfo = new Map(days.map((d) => [d.date, d]));
+    const approvedHours = new Set<string>();
+    for (const h of (await db.prepare("SELECT employee_id,day,hours,night_hours,overtime_status FROM attendance_hours WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<{ employee_id: string; day: string; hours: number; night_hours: number; overtime_status: string }>()).results) {
       hoursBy.set(h.employee_id, (hoursBy.get(h.employee_id) || new Map()).set(h.day, { hours: h.hours, night: h.night_hours }));
+      if (h.overtime_status === "approved") approvedHours.add(`${h.employee_id}|${h.day}`);
+    }
     const withStanding = (manual: PayInputs, employeeId: string): PayInputs => {
       const adds = recurring.filter((r) => r.employee_id === employeeId && r.type === "addition").reduce((t, r) => t + r.amount_cents / 100, 0);
       const deds = [
@@ -8177,7 +8234,19 @@ async function route(request: Request) {
       const benefitPaid = sumOf(["benefit"]);
       const extraPaid = sumOf(["extra"]);
       const inputsOf = inputBy.get(p.id) || { ...EMPTY_INPUTS };
-      const hoursAuto = hoursBy.has(p.id) ? summarizeHours(days, hoursBy.get(p.id)!, week.hours) : { days: 0, worked: 0, overtime: 0, restDay: 0, night: 0 };
+      const countedHours = (() => {
+        const raw = hoursBy.get(p.id);
+        if (!raw || !overtimeApproval) return raw;
+        const out: HoursByDay = new Map();
+        for (const [day, e] of raw) {
+          if (approvedHours.has(`${p.id}|${day}`)) { out.set(day, e); continue; }
+          const info = dayInfo.get(day);
+          const hours = !info || info.off !== "" ? 0 : Math.min(e.hours, dailyNorm(week.hours, info.short));
+          out.set(day, { hours, night: Math.min(e.night, hours) });
+        }
+        return out;
+      })();
+      const hoursAuto = countedHours ? summarizeHours(days, countedHours, week.hours) : { days: 0, worked: 0, overtime: 0, restDay: 0, night: 0 };
       const vacationOf = (date: string) => isVacationCode(marksOf.get(date) || "");
       const vacation = vacationCalendarDays(days, vacationOf);
       const insuredOf = (date: string) => isInsuredCode(marksOf.get(date) || "");
@@ -8337,19 +8406,29 @@ async function route(request: Request) {
     const [people, overrides, entries] = await Promise.all([
       db.prepare("SELECT id,name,position,department,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY department,name").bind(id).all<{ id: string; name: string; position: string; department: string; profile: string }>(),
       db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, `${monthRaw}-01`, `${monthRaw}-31`).all<CalendarOverride>(),
-      db.prepare("SELECT employee_id,day,hours,night_hours,note FROM attendance_hours WHERE company_id=? AND day BETWEEN ? AND ? ORDER BY day").bind(id, `${monthRaw}-01`, `${monthRaw}-31`).all<{ employee_id: string; day: string; hours: number; night_hours: number; note: string }>(),
+      db.prepare("SELECT employee_id,day,hours,night_hours,note,clock_in,clock_out,overtime_status,source FROM attendance_hours WHERE company_id=? AND day BETWEEN ? AND ? ORDER BY day").bind(id, `${monthRaw}-01`, `${monthRaw}-31`).all<{ employee_id: string; day: string; hours: number; night_hours: number; note: string; clock_in: string; clock_out: string; overtime_status: string; source: string }>(),
     ]);
     const days = monthDays(year, month, overrides.results);
+    const clock = await clockSettings(id);
+    const todayBaku = bakuNow().date;
     const by = new Map<string, HoursByDay>();
     for (const e of entries.results) by.set(e.employee_id, (by.get(e.employee_id) || new Map()).set(e.day, { hours: e.hours, night: e.night_hours }));
+    const dayOf = new Map(days.map((d) => [d.date, d]));
     return ok({
       month: monthRaw,
+      settings: { start: clock.rules.start, end: clock.rules.end, breakMinutes: clock.rules.breakMinutes, graceMinutes: clock.rules.graceMinutes, overtimeApproval: clock.overtimeApproval, selfClock: clock.selfClock },
       days: days.map((d) => ({ date: d.date, off: d.off, short: d.short, label: d.label })),
       employees: people.results.map((p) => ({
         id: p.id, name: p.name, position: p.position, department: p.department,
         weekHours: weeklyHours(parseProfile(p.profile), `${monthRaw}-01`).hours,
         summary: summarizeHours(days, by.get(p.id) || new Map(), weeklyHours(parseProfile(p.profile), `${monthRaw}-01`).hours),
-        entries: entries.results.filter((e) => e.employee_id === p.id).map((e) => ({ day: e.day, hours: e.hours, night: e.night_hours, note: e.note })),
+        entries: entries.results.filter((e) => e.employee_id === p.id).map((e) => {
+          const info = dayOf.get(e.day);
+          const norm = info && info.off === "" ? dailyNorm(weeklyHours(parseProfile(p.profile), `${monthRaw}-01`).hours, info.short) : 0;
+          return { day: e.day, hours: e.hours, night: e.night_hours, note: e.note, clockIn: e.clock_in, clockOut: e.clock_out, source: e.source, late: e.clock_in ? lateMinutes(e.clock_in, clock.rules) : 0, early: e.clock_out ? earlyLeaveMinutes(e.clock_out, clock.rules) : 0, extra: Math.round((info && info.off !== "" ? e.hours : Math.max(0, e.hours - norm)) * 100) / 100, overtimeStatus: e.overtime_status };
+        }),
+        // Working days already behind us with no hours written: the timekeeper has to look at them.
+        missing: entries.results.some((e) => e.employee_id === p.id) || by.size ? days.filter((d) => d.off === "" && d.date < todayBaku && !(by.get(p.id) || new Map()).has(d.date)).map((d) => d.date) : [],
       })),
     });
   }
@@ -8361,16 +8440,56 @@ async function route(request: Request) {
     if (await payrollLocked(day.slice(0, 7))) throw new HttpError(409, "Bu ay təsdiqlənib: saatlar dəyişdirilmir.");
     const employee = await db.prepare("SELECT id FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(str(b.employeeId, 100), id).first<{ id: string }>();
     if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
-    const hours = Math.round((Number(b.hours) || 0) * 100) / 100;
-    const night = Math.round((Number(b.night) || 0) * 100) / 100;
+    const clockIn = str(b.clockIn, 5);
+    const clockOut = str(b.clockOut, 5);
+    if ((clockIn && !validClockTime(clockIn)) || (clockOut && !validClockTime(clockOut))) throw new HttpError(400, "Saatı SS:DD formatında yazın.");
+    if (!!clockIn !== !!clockOut) throw new HttpError(400, "Giriş və çıxış saatını birlikdə yazın.");
+    let hours = Math.round((Number(b.hours) || 0) * 100) / 100;
+    let night = Math.round((Number(b.night) || 0) * 100) / 100;
+    if (clockIn && clockOut && !hours) {
+      const calc = hoursFromClock(clockIn, clockOut, (await clockSettings(id)).rules.breakMinutes);
+      hours = calc?.hours || 0;
+      night = calc?.night || 0;
+    }
     if (hours < 0 || hours > 24) throw new HttpError(400, "Saat 0–24 arası olmalıdır.");
     if (night < 0 || night > hours) throw new HttpError(400, "Gecə saatı işlənən saatdan çox ola bilməz.");
     if (hours === 0) await db.prepare("DELETE FROM attendance_hours WHERE company_id=? AND employee_id=? AND day=?").bind(id, employee.id, day).run();
     else
       await db
-        .prepare("INSERT INTO attendance_hours(company_id,employee_id,day,hours,night_hours,note,updated) VALUES(?,?,?,?,?,?,?) ON CONFLICT(company_id,employee_id,day) DO UPDATE SET hours=excluded.hours,night_hours=excluded.night_hours,note=excluded.note,updated=excluded.updated")
-        .bind(id, employee.id, day, hours, night, str(b.note, 200), new Date().toISOString())
+        .prepare("INSERT INTO attendance_hours(company_id,employee_id,day,hours,night_hours,note,updated,clock_in,clock_out,source) VALUES(?,?,?,?,?,?,?,?,?,'manual') ON CONFLICT(company_id,employee_id,day) DO UPDATE SET hours=excluded.hours,night_hours=excluded.night_hours,note=excluded.note,updated=excluded.updated,clock_in=excluded.clock_in,clock_out=excluded.clock_out,source='manual'")
+        .bind(id, employee.id, day, hours, night, str(b.note, 200), new Date().toISOString(), clockIn, clockOut)
         .run();
+    return ok({ ok: true });
+  }
+  // Extra work and work on a rest day need the employer's decision (arts. 99, 105): approve or reject a day.
+  if (request.method === "POST" && path === "company/hours/approve") {
+    requirePermission("salaries", "Artıq işi yalnız davamiyyət icazəsi olan şəxs təsdiq edə bilər.");
+    const b = await jsonBody(request);
+    const day = str(b.day, 10);
+    const status = b.status === "approved" ? "approved" : b.status === "rejected" ? "rejected" : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new HttpError(400, "Tarixi düzgün yazın.");
+    if (await payrollLocked(day.slice(0, 7))) throw new HttpError(409, "Bu ay təsdiqlənib: artıq iş dəyişdirilmir.");
+    const res = await db.prepare("UPDATE attendance_hours SET overtime_status=?,updated=? WHERE company_id=? AND employee_id=? AND day=?").bind(status, new Date().toISOString(), id, str(b.employeeId, 100), day).run();
+    if (!res.meta.changes) throw new HttpError(404, "Bu gün üçün saat qeydi yoxdur.");
+    await companyAudit(db, id, userId, "overtime-decision", str(b.employeeId, 100), `${day}: ${status || "gözləyir"}`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/hours/settings") {
+    requirePermission("salaries", "Davamiyyət ayarlarını yalnız davamiyyət icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    const put = async (key: string, value: string) => {
+      await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, key, value).run();
+    };
+    const start = str(b.start, 5);
+    const end = str(b.end, 5);
+    if (!validClockTime(start) || !validClockTime(end)) throw new HttpError(400, "İş başlama və bitmə saatını SS:DD formatında yazın.");
+    await put("work_start", start);
+    await put("work_end", end);
+    await put("break_minutes", String(Math.max(0, Math.min(240, Math.round(Number(b.breakMinutes) || 0)))));
+    await put("grace_minutes", String(Math.max(0, Math.min(120, Math.round(Number(b.graceMinutes) || 0)))));
+    await put("overtime_approval", b.overtimeApproval ? "1" : "0");
+    await put("self_clock", b.selfClock === false ? "0" : "1");
+    await companyAudit(db, id, userId, "attendance-settings", "hours", `${start}–${end}, artıq iş təsdiqi: ${b.overtimeApproval ? "bəli" : "xeyr"}`);
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/hours/import") {

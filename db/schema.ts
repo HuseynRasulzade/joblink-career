@@ -1000,6 +1000,10 @@ export const attendanceHours = sqliteTable(
     nightHours: real("night_hours").notNull().default(0),
     note: text("note").notNull().default(""),
     updated: text("updated").notNull(),
+    clockIn: text("clock_in").notNull().default(""),
+    clockOut: text("clock_out").notNull().default(""),
+    overtimeStatus: text("overtime_status").notNull().default(""),
+    source: text("source").notNull().default("manual"),
   },
   (t) => [primaryKey({ columns: [t.companyId, t.employeeId, t.day] }), index("attendance_hours_day").on(t.companyId, t.day)],
 );

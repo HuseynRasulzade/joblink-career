@@ -11,7 +11,7 @@ Qiymətləndirmə: ✅ var · 🟡 qismən · ❌ yoxdur. Əmək: S (1–2 gün)
 | İşə qəbul (vakansiya, namizəd, müsahibə, test, təklif) | ✅ | Vakansiyalar, namizəd axını, istedad bazası, müsahibə, testlər, iş təklifi, təsdiq zənciri, AI köməkçi. Çatmır: bir neçə sayta eyni anda yerləşdirmə, referal proqramı, rəy yoxlaması |
 | İşçi kartı və şəxsi iş | ✅ | Şəxsi məlumatlar, vəsiqə, əlillik və vergi güzəşti, bank/kart, sənəd qovluğu, əmrlər, müqavilə şablonları, işçi profili qoşulması. Çatmır: sənəd müddəti xatırlatması (tibbi baxış, sertifikat), təşkilat sxemi, işçi şəkli |
 | Ştat cədvəli və struktur | ✅ | Plan, kilid və direktor təsdiqi, vəzifə və şöbə kataloqu, maaş həddi, ştat dərəcəsi. Çatmır: ştat dəyişikliyi tarixçəsinin qrafik görüntüsü, vəzifə təlimatları (iş təsviri) |
-| Davamiyyət | 🟡 | Gün üzrə qeyd, Excel idxalı, qısaldılmış həftə. Çatmır: giriş-çıxış saatı, növbə və qrafik, artıq iş təsdiqi, avtomatik saat hesabı |
+| Davamiyyət | ✅ | Gün üzrə qeyd, Excel idxalı, qısaldılmış həftə, giriş-çıxış saatı, işçinin özünün qeydi, gecikmə jurnalı, artıq iş təsdiqi, saatların əmək haqqına avtomatik keçməsi, növbələr. Çatmır: məkan yoxlaması, turniket inteqrasiyası |
 | Məzuniyyət və icazə | 🟡 | Əmrlər, işçi ərizəsi, qalıq, məzuniyyət haqqı (md. 140). Çatmır: illik məzuniyyət qrafiki, rəhbər təsdiqi ilə sorğu axını, üst-üstə düşmə yoxlaması, ezamiyyət və xərc hesabatı |
 | Əmək haqqı | ✅ | Hesablama, avans, vergi güzəşti, müavinətlər, ödənişlər və geri çəkmə, bank sənədi və ikinci təsdiq, hesablaşma hesabatı, haqq-hesab vərəqəsi, işçiyə bildiriş. Çatmır: bölmə 2-də |
 | Hesabatlar | ✅ | İşçi axını, dövriyyə, kadr və fond hesabatı, hesablaşma hesabatı. Çatmır: qrafiklər, proqnoz, plan-fakt xəbərdarlığı |
@@ -188,3 +188,11 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 ### Platforma admini
 - Şirkət bazalarının məxfilik girişi üçün ayrıca baxış jurnalı var (audit); şirkət daxili HR məlumatlarına admin girişinin məhdudlaşdırılması ayrıca qərardır.
 - Ödəniş/paket tərəfi mövcuddur; real kart ödənişi inteqrasiyası xarici müqavilə tələb edir.
+
+## 11. Davamiyyət tamamlandı (2026-11-02)
+
+- Giriş-çıxış saatı: tabel məsulu gün üzrə vaxt yazır, saat avtomatik hesablanır (nahar fasiləsi çıxılır, gecə 22:00–06:00).
+- İşçi «İş yerim → Giriş-çıxış»da «Gəldim/Getdim» basır; vaxtı server (Bakı vaxtı) yazır.
+- Gecikmə və tez çıxış (icazə müddəti ayarlıdır), boş qalmış iş günləri, Giriş-çıxış jurnalı.
+- Artıq iş təsdiqi: ayar açıqdırsa təsdiqlənməyən artıq iş və istirahət günü saatı əmək haqqına düşmür (md. 99, 105).
+- Hələ yoxdur: coğrafi məkan yoxlaması, turniket/biometrik cihaz inteqrasiyası, rəhbərin yalnız öz şöbəsi üzrə təsdiqi.

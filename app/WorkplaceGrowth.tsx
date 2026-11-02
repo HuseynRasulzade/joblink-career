@@ -121,6 +121,40 @@ export function MyTraining({ employeeId, notify }: { employeeId: string; notify:
   );
 }
 
+type ClockData = { enabled: boolean; today: string; now: string; start: string; end: string; items: { day: string; hours: number; clockIn: string; clockOut: string; late: number; early: number; overtimeStatus: string }[] };
+// Arrival and departure: the server stamps the time, so nothing can be typed in.
+export function MyClock({ employeeId, notify }: { employeeId: string; notify: Notify }) {
+  const [data, load] = useLoad<ClockData>(`employee/clock?employeeId=${employeeId}`, notify);
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  const today = data.items.find((i) => i.day === data.today);
+  return (
+    <div className="offer-composer">
+      {data.enabled ? (
+        <div className="admin-actions">
+          <button type="button" className="primary" disabled={!!today?.clockIn} onClick={() => void act(notify, load, "employee/clock", { employeeId, action: "in" }, "Giriş qeyd olundu.")}>Gəldim</button>
+          <button type="button" disabled={!today?.clockIn || !!today?.clockOut} onClick={() => void act(notify, load, "employee/clock", { employeeId, action: "out" }, "Çıxış qeyd olundu.")}>Getdim</button>
+          <small className="skill-description">Bakı vaxtı {data.now} · iş saatı {data.start} – {data.end}{today?.clockIn ? ` · bu gün giriş ${today.clockIn}${today.clockOut ? `, çıxış ${today.clockOut}` : ""}` : ""}</small>
+        </div>
+      ) : (
+        <p className="muted">Şirkətiniz giriş-çıxışı sizin üçün açmayıb: saatları tabel məsulu yazır.</p>
+      )}
+      {data.items.length > 0 && (
+        <table className="admin-table">
+          <thead><tr><th>Tarix</th><th>Giriş</th><th>Çıxış</th><th>Saat</th><th>Qeyd</th></tr></thead>
+          <tbody>
+            {data.items.map((i) => (
+              <tr key={i.day}>
+                <td>{dmy(i.day)}</td><td>{i.clockIn || "—"}</td><td>{i.clockOut || "—"}</td><td>{i.hours || "—"}</td>
+                <td>{[i.late ? `${i.late} dəq gecikmə` : "", i.early ? `${i.early} dəq tez çıxış` : "", i.overtimeStatus === "approved" ? "artıq iş təsdiqlənib" : i.overtimeStatus === "rejected" ? "artıq iş rədd edilib" : ""].filter(Boolean).join(" · ") || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 export function MyShifts({ employeeId, notify }: { employeeId: string; notify: Notify }) {
   const [data] = useLoad<{ items: { day: string; name: string; start: string; end: string }[] }>(`employee/shifts?employeeId=${employeeId}`, notify);
   if (!data) return <p className="muted">Yüklənir…</p>;
