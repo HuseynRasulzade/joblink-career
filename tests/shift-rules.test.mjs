@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkShifts, patternDays } from "../lib/shift-rules.ts";
+import { checkCoverage, checkShifts, patternDays, shiftLength } from "../lib/shift-rules.ts";
 
 const day = { start: "09:00", end: "18:00" };
 const night = { start: "22:00", end: "06:00" };
@@ -27,4 +27,16 @@ test("seven days in a row are flagged once", () => {
 test("a pattern lays work and rest days", () => {
   assert.deepEqual(patternDays("2026-03-01", "2026-03-08", 2, 2), ["2026-03-01", "2026-03-02", "2026-03-05", "2026-03-06"]);
   assert.deepEqual(patternDays("2026-03-01", "2026-03-04", 1, 1, 1), ["2026-03-02", "2026-03-04"]);
+});
+
+test("a department below its minimum on a planned day is flagged", () => {
+  const staff = [{ id: "a", department: "Ops" }, { id: "b", department: "Ops" }, { id: "c", department: "Ops" }];
+  const assigned = new Map([["a", new Set(["2026-03-02", "2026-03-03"])], ["b", new Set(["2026-03-02"])]]);
+  const away = new Map([["b", new Map([["2026-03-02", "sick"]])]]);
+  const w = checkCoverage({ days: ["2026-03-02", "2026-03-03", "2026-03-04"], staff, assigned, away, minByDepartment: new Map([["Ops", 2]]) });
+  assert.deepEqual(w.map((x) => x.day), ["2026-03-02", "2026-03-03"]); // 03-04 has no shift planned at all
+});
+test("shift length passes midnight", () => {
+  assert.equal(shiftLength("09:00", "18:00"), 9);
+  assert.equal(shiftLength("22:00", "06:00"), 8);
 });

@@ -1158,7 +1158,7 @@ export const announcements = sqliteTable(
 );
 export const surveys = sqliteTable(
   "surveys",
-  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), kind: text("kind").notNull().default("enps"), questions: text("questions").notNull().default("[]"), anonymous: integer("anonymous").notNull().default(1), status: text("status").notNull().default("open"), created: text("created").notNull() },
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), kind: text("kind").notNull().default("enps"), questions: text("questions").notNull().default("[]"), anonymous: integer("anonymous").notNull().default(1), status: text("status").notNull().default("open"), created: text("created").notNull(), repeatMonths: integer("repeat_months").notNull().default(0), seriesId: text("series_id").notNull().default("") },
   (t) => [index("surveys_company").on(t.companyId, t.status)],
 );
 export const surveyResponses = sqliteTable(
@@ -1607,4 +1607,17 @@ export const profileChanges = sqliteTable(
   "profile_changes",
   { id: text("id").primaryKey(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), field: text("field").notNull(), payload: text("payload").notNull(), status: text("status").notNull().default("new"), reason: text("reason").notNull().default(""), decidedByName: text("decided_by_name").notNull().default(""), decidedAt: text("decided_at").notNull().default(""), created: text("created").notNull() },
   (t) => [index("profile_changes_company").on(t.companyId, t.status, t.created)],
+);
+
+// Two employees agree to swap their shifts on a day; HR or the manager approves.
+export const shiftSwaps = sqliteTable(
+  "shift_swaps",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), day: text("day").notNull(), fromEmployee: text("from_employee").notNull(), toEmployee: text("to_employee").notNull(), note: text("note").notNull().default(""), status: text("status").notNull().default("asked"), decidedByName: text("decided_by_name").notNull().default(""), created: text("created").notNull() },
+  (t) => [index("shift_swaps_company").on(t.companyId, t.status, t.day)],
+);
+// Feedback of colleagues about a person in a performance cycle (a light 360° round).
+export const perfFeedback = sqliteTable(
+  "perf_feedback",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), cycleId: text("cycle_id").notNull(), subjectId: text("subject_id").notNull(), giverId: text("giver_id").notNull(), status: text("status").notNull().default("asked"), score: integer("score"), comment: text("comment").notNull().default(""), created: text("created").notNull(), answered: text("answered").notNull().default("") },
+  (t) => [uniqueIndex("perf_feedback_one").on(t.cycleId, t.subjectId, t.giverId)],
 );

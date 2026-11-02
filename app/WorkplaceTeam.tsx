@@ -21,9 +21,10 @@ type Team = {
   people: { id: string; name: string; position: string; department: string; away: string }[];
   requests: { id: string; employeeId: string; name: string; position: string; label: string; from: string; to: string; reason: string; status: string; note: string; decidedAt: string; checks: string[]; balance: number | null }[];
   away: { name: string; from: string; to: string; code: string }[];
-  perf: { cycleId: string; name: string; end: string; people: { employeeId: string; name: string; selfScore: number | null; managerScore: number | null; managerComment: string; status: string; goals: { title: string; weight: number; progress: number; score: number | null }[] }[] } | null;
+  perf: { cycleId: string; name: string; end: string; people: { employeeId: string; name: string; selfScore: number | null; managerScore: number | null; managerComment: string; status: string; feedback: { asked: number; count: number; average: number | null; comments: string[] } | null; goals: { title: string; weight: number; progress: number; score: number | null }[] }[] } | null;
   trips: { id: string; employeeId: string; name: string; destination: string; purpose: string; start: string; end: string; abroad: boolean; waiting: boolean }[];
   shifts: { employeeId: string; name: string; day: string; shift: string; start: string; end: string }[];
+  swaps: { id: string; day: string; from: string; to: string; fromShift: string; toShift: string; note: string }[];
 };
 
 // The direct manager's page: leave applications of their people wait here before HR draws the order up.
@@ -55,6 +56,30 @@ export default function MyTeam({ employeeId, notify }: { employeeId: string; not
     try {
       await request("employee/team/trip", { employeeId, tripId, decision, note: notes[tripId] || "" });
       notify(decision === "approve" ? "Ezamiyyət təsdiq edildi: HR-a göndərildi." : "Ezamiyyət rədd edildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  // Colleagues of the same team are asked what they think of one person.
+  async function askFeedback(personId: string, cycleId: string) {
+    const colleagues = data!.people.filter((p) => p.id !== personId).map((p) => p.id);
+    if (!colleagues.length) {
+      notify("Rəy soruşmaq üçün komandada başqa işçi yoxdur.");
+      return;
+    }
+    try {
+      const r = await request<{ asked: number }>("employee/team/feedback-request", { employeeId, personId, cycleId, giverIds: colleagues });
+      notify(r.asked ? `${r.asked} kolleqadan rəy istənildi.` : "Bu kolleqalardan rəy artıq istənilib.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function swapDecide(id: string, approve: boolean) {
+    try {
+      await request("employee/team/swap", { employeeId, id, approve });
+      notify(approve ? "Növbələr dəyişdirildi." : "Sorğu rədd edildi.");
       load();
     } catch (error) {
       notify((error as Error).message);
@@ -121,12 +146,13 @@ export default function MyTeam({ employeeId, notify }: { employeeId: string; not
         <>
           <h4>Performans: {data.perf.name} (son tarix {dmy(data.perf.end)})</h4>
           <table className="admin-table">
-            <thead><tr><th>İşçi</th><th>Özünüqiymət</th><th>Məqsədlər</th><th>Sizin qiymətiniz (1–5)</th><th></th></tr></thead>
+            <thead><tr><th>İşçi</th><th>Özünüqiymət</th><th>Kolleqa rəyi</th><th>Məqsədlər</th><th>Sizin qiymətiniz (1–5)</th><th></th></tr></thead>
             <tbody>
               {data.perf.people.map((p) => (
                 <tr key={p.employeeId}>
                   <td>{p.name}</td>
                   <td>{p.selfScore ?? "—"}</td>
+                  <td>{p.feedback && p.feedback.asked > 0 ? `${p.feedback.average ?? "—"} (${p.feedback.count}/${p.feedback.asked})` : "—"}{p.feedback?.comments.slice(0, 3).map((c, i) => <small key={i} className="skill-description">“{c}”</small>)}</td>
                   <td>{p.goals.length ? p.goals.map((g) => `${g.title} (${g.progress}%)`).join("; ") : "—"}</td>
                   <td>
                     <select aria-label={`${p.name}: qiymət`} value={scores[p.employeeId] ?? String(p.managerScore ?? "")} onChange={(e) => setScores({ ...scores, [p.employeeId]: e.target.value })}>
@@ -135,11 +161,25 @@ export default function MyTeam({ employeeId, notify }: { employeeId: string; not
                     </select>
                     <input aria-label={`${p.name}: rəy`} placeholder="Rəy" defaultValue={p.managerComment} onChange={(e) => setComments({ ...comments, [p.employeeId]: e.target.value })} />
                   </td>
-                  <td><button type="button" disabled={!(scores[p.employeeId] || p.managerScore)} onClick={() => void review(p.employeeId, data.perf!.cycleId, p.managerComment, p.managerScore)}>{p.status === "open" ? "Qiymətləndir" : "Yenilə"}</button></td>
+                  <td className="admin-actions"><button type="button" className="ghost" onClick={() => void askFeedback(p.employeeId, data.perf!.cycleId)}>Kolleqa rəyi soruş</button><button type="button" disabled={!(scores[p.employeeId] || p.managerScore)} onClick={() => void review(p.employeeId, data.perf!.cycleId, p.managerComment, p.managerScore)}>{p.status === "open" ? "Qiymətləndir" : "Yenilə"}</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </>
+      )}
+      {data.swaps.length > 0 && (
+        <>
+          <h4>Növbə dəyişdirmə sorğuları</h4>
+          {data.swaps.map((s) => (
+            <div key={s.id} className="bank-batch">
+              <b>{dmy(s.day)}</b> <small className="skill-description">{s.from} ({s.fromShift || "—"}) ↔ {s.to} ({s.toShift || "—"}){s.note ? ` · ${s.note}` : ""} · kolleqa razıdır</small>
+              <div className="admin-actions">
+                <button type="button" className="primary" onClick={() => void swapDecide(s.id, true)}>Təsdiq</button>
+                <button type="button" className="ghost" onClick={() => void swapDecide(s.id, false)}>Rədd</button>
+              </div>
+            </div>
+          ))}
         </>
       )}
       {data.shifts.length > 0 && (

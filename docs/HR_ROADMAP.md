@@ -251,3 +251,14 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - Təlim müqaviləsi (təlimdən sonra işləmə öhdəliyi).
 - Elana fayl əlavəsi, şərh, dövri (aylıq) sorğuların planlanması.
 - Holdinq (qrup) girişi, bankla birbaşa köçürmə, hüquqi e-imza, mobil push, turniket/GPS: xarici müqavilə, açar və ya ayrıca qərar tələb edir.
+
+## 17. İnkişaf və kommunikasiya: ikinci mərhələ (2026-11-03)
+
+- **Növbə qrafiki səhifəsi anlaşıqlı oldu:** bölmənin başında nə üçün olduğu yazılır; növbə növü yoxdursa «Standart növbələri yarat» düyməsi 4 növbə (Səhər, Gündüz, Axşam, Gecə) yaradır; növbələr rənglidir; hər işçinin iki həftəlik saat cəmi göstərilir (40 saatdan çox qırmızı); «Çap» düyməsi.
+- **Departament üzrə minimum işçi sayı** («Qaydalar»da): planlanmış gündə departamentdə növbədə kifayət qədər adam yoxdursa xəbərdarlıq.
+- **Növbə dəyişdirmə:** işçi kolleqaya xahiş göndərir → kolleqa razı olur → rəhbər («Komandam») və ya HR təsdiq edir → iki növbə yerini dəyişir.
+- **Kolleqa rəyi (360°):** HR və ya rəhbər seçilmiş kolleqalardan rəy istəyir; kolleqa 1–5 qiymət və qısa mətn yazır; yalnız orta qiymət və adsız mətnlər görünür (HR, rəhbər).
+- **Təkrarlanan sorğular:** sorğu aylıq/rüblük/illik təkrarlana bilər; gündəlik iş vaxtı çatanda köhnə dövrü bağlayıb yenisini açır və işçilərə bildiriş göndərir.
+- Hər hissənin başında nə üçün olduğu və necə işlədiyi qısaca yazılıb.
+
+**Hələ edilməyib:** ezamiyyət qəbzlərinin faylı, rəsmi gündəlik normanın avtomatik hesabı, təlim müqaviləsi, bacarıq matrisi, qiymətin maaş artımına bağlanması, elana fayl və şərh.

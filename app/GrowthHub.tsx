@@ -11,6 +11,14 @@ const TABS = [
   { id: "engage", label: "Elanlar və sorğular" },
 ] as const;
 
+const ABOUT: Record<(typeof TABS)[number]["id"], string> = {
+  performance: "Dövr açın, hər işçiyə məqsəd yazın. İşçi icranı və özünüqiyməti doldurur, rəhbər və kolleqalar rəy verir, sonda işçi nəticə ilə tanış olub təsdiq edir. Rəhbər öz komandasını «İş yerim → Komandam»dan qiymətləndirə bilər.",
+  training: "Təlimləri planlayın, büdcəni izləyin, iştirakçıları seçin. Sertifikatın müddəti və vəzifə üzrə məcburi təlimlər izlənir, müddət bitəndə xəbərdarlıq gəlir.",
+  shifts: "Növbə ilə işləyən işçilər üçün kimin hansı gün hansı saatda işlədiyini planlayın. Qrafik məzuniyyət, istirahət və minimum işçi sayı qaydalarına görə yoxlanılır; saatlar əmək haqqına keçir.",
+  trips: "İşçi və ya HR ezamiyyət sorğusu yaradır, rəhbər və HR təsdiqləyir, işçi xərc hesabatı verir, hesablaşma əmək haqqında «digər ödəniş» kimi qeyd olunur.",
+  engage: "Şirkət elanları (oxu təsdiqi ilə) və anonim sorğular (eNPS və öz sualları, təkrarlanan ola bilər). İşçilər onları «İş yerim»də görür.",
+};
+
 // Growth and communication: appraisal, training, shifts, business trips, announcements and surveys.
 export default function GrowthHub({ notify }: { notify: Notify }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("performance");
@@ -23,6 +31,7 @@ export default function GrowthHub({ notify }: { notify: Notify }) {
           </button>
         ))}
       </div>
+      <p className="muted">{ABOUT[tab]}</p>
       {tab === "performance" && <Performance notify={notify} />}
       {tab === "training" && <Training notify={notify} />}
       {tab === "shifts" && <Shifts notify={notify} />}

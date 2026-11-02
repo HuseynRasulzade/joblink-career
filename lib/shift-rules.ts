@@ -1,7 +1,7 @@
 // Checks of a shift schedule: a shift on a day the employee is away, too short a rest between two shifts and too many
 // days in a row. They are warnings for the planner; the limits are settings of the company.
 export type ShiftTimes = { start: string; end: string };
-export type ShiftWarning = { employeeId: string; day: string; kind: "away" | "rest" | "streak"; text: string };
+export type ShiftWarning = { employeeId: string; day: string; kind: "away" | "rest" | "streak" | "cover"; text: string };
 
 const minutes = (t: string) => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(t || "");
@@ -51,4 +51,34 @@ export function patternDays(from: string, to: string, work: number, rest: number
   const out: string[] = [];
   for (let day = from, i = 0; day <= to; day = addDay(day, 1), i++) if (((i + Math.max(0, offset)) % (w + r)) < w) out.push(day);
   return out;
+}
+
+// Enough people at work: for every day on which any shift is planned, a department with a minimum has to have that
+// many people on a shift who are not away. Days with no shift at all are not judged (nothing is planned yet).
+export function checkCoverage(input: {
+  days: string[];
+  staff: { id: string; department: string }[];
+  assigned: Map<string, Set<string>>; // employee -> days with a shift
+  away: Map<string, Map<string, string>>;
+  minByDepartment: Map<string, number>;
+}): ShiftWarning[] {
+  const out: ShiftWarning[] = [];
+  const dmy = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
+  for (const day of input.days) {
+    if (![...input.assigned.values()].some((set) => set.has(day))) continue;
+    for (const [department, min] of input.minByDepartment) {
+      if (!(min > 0)) continue;
+      const working = input.staff.filter((p) => p.department === department && input.assigned.get(p.id)?.has(day) && !input.away.get(p.id)?.has(day)).length;
+      if (working < min) out.push({ employeeId: "", day, kind: "cover", text: `${department}: ${dmy(day)} tarixində növbədə ${working} nəfər var, ən azı ${min} nəfər lazımdır.` });
+    }
+  }
+  return out;
+}
+
+// Hours of a shift (it may end after midnight).
+export function shiftLength(start: string, end: string) {
+  const a = minutes(start);
+  let b = minutes(end);
+  if (b <= a) b += 1440;
+  return Math.round(((b - a) / 60) * 100) / 100;
 }

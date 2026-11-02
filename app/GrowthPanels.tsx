@@ -96,7 +96,7 @@ export function Performance({ notify }: { notify: Notify }) {
       ) : <p className="admin-empty">Hələ dövr yoxdur. “Yeni dövr” ilə başlayın.</p>}
       {meet && <OneOnOneModal person={data.employees.find((p) => p.id === meet)!} notify={notify} onClose={() => setMeet("")} />}
       {creating && <CycleForm notify={notify} onClose={() => setCreating(false)} onSaved={load} />}
-      {person && current && <PersonReview person={person} cycleId={current.id} closed={current.status === "closed"} rating={data.rating} notify={notify} onClose={() => setOpen("")} onChanged={load} />}
+      {person && current && <PersonReview person={person} colleagues={data.employees} cycleId={current.id} closed={current.status === "closed"} rating={data.rating} notify={notify} onClose={() => setOpen("")} onChanged={load} />}
     </div>
   );
 }
@@ -116,9 +116,11 @@ function CycleForm({ notify, onClose, onSaved }: { notify: Notify; onClose: () =
     </Modal>
   );
 }
-function PersonReview({ person, cycleId, closed, rating, notify, onClose, onChanged }: { person: PerfPerson; cycleId: string; closed: boolean; rating: Record<string, string>; notify: Notify; onClose: () => void; onChanged: () => void }) {
+function PersonReview({ person, colleagues, cycleId, closed, rating, notify, onClose, onChanged }: { person: PerfPerson; colleagues: { id: string; name: string }[]; cycleId: string; closed: boolean; rating: Record<string, string>; notify: Notify; onClose: () => void; onChanged: () => void }) {
   const [goal, setGoal] = useState({ title: "", target: "", weight: 1 });
   const [review, setReview] = useState({ score: String(person.review?.managerScore || ""), comment: person.review?.managerComment || "" });
+  const [feedback, loadFeedback] = useLoad<{ asked: number; count: number; average: number | null; comments: string[] }>(`company/performance/feedback?cycleId=${cycleId}&employeeId=${person.id}`, notify);
+  const [givers, setGivers] = useState<string[]>([]);
   return (
     <Modal title={`${person.name}: məqsədlər və qiymətləndirmə`} onClose={onClose}>
       <div className="offer-composer">
@@ -157,6 +159,22 @@ function PersonReview({ person, cycleId, closed, rating, notify, onClose, onChan
         </div>
         {!closed && <button type="button" className="primary" disabled={!review.score} onClick={() => void run(notify, onChanged, "company/performance/review", { cycleId, employeeId: person.id, managerScore: review.score, managerComment: review.comment }, "Qiymətləndirmə göndərildi.")}>Qiymətləndirməni göndər</button>}
         {person.review?.acknowledgedAt && <p className="muted">İşçi {dmy(person.review.acknowledgedAt.slice(0, 10))} tarixində tanış olub.</p>}
+        <h4>Kolleqa rəyi (360°)</h4>
+        <p className="muted">Seçilən kolleqalardan bu işçi barədə 1–5 qiymət və qısa rəy istənilir. Rəylər adsız toplanır: yalnız orta qiymət və mətnlər görünür.</p>
+        {feedback && feedback.asked > 0 && (
+          <p>Soruşulub: {feedback.asked} · cavab verib: {feedback.count}{feedback.average !== null ? ` · orta qiymət: ${feedback.average} / 5` : ""}</p>
+        )}
+        {feedback?.comments.map((c, i) => <small key={i} className="skill-description">“{c}”</small>)}
+        {!closed && (
+          <>
+            <div className="hours-grid" style={{ maxHeight: 160, overflowY: "auto" }}>
+              {colleagues.filter((p) => p.id !== person.id).map((p) => (
+                <label key={p.id} className="check-row"><input type="checkbox" checked={givers.includes(p.id)} onChange={(e) => setGivers(e.target.checked ? [...givers, p.id] : givers.filter((x) => x !== p.id))} /> {p.name}</label>
+              ))}
+            </div>
+            <button type="button" className="secondary" disabled={!givers.length} onClick={async () => { if (await run(notify, loadFeedback, "company/performance/feedback-request", { cycleId, employeeId: person.id, giverIds: givers }, "Rəy sorğusu göndərildi.")) setGivers([]); }}>Rəy soruş</button>
+          </>
+        )}
       </div>
     </Modal>
   );
@@ -267,7 +285,10 @@ function Participants({ training, employees, notify, onClose, onChanged }: { tra
 }
 
 // ---------- Shifts ----------
-type ShiftData = { rules: { minRestHours: number; maxConsecutive: number }; warnings: { employeeId: string; day: string; kind: string; text: string }[]; from: string; to: string; types: { id: string; name: string; start: string; end: string; hours: number; night: number }[]; employees: { id: string; name: string; department: string }[]; assignments: { employeeId: string; day: string; shiftId: string }[] };
+type ShiftSwap = { id: string; day: string; from: string; to: string; fromShift: string; toShift: string; note: string; status: string; statusText: string };
+type ShiftData = { departments: string[]; swaps: ShiftSwap[]; rules: { minRestHours: number; maxConsecutive: number; cover: Record<string, number> }; warnings: { employeeId: string; day: string; kind: string; text: string }[]; from: string; to: string; types: { id: string; name: string; start: string; end: string; hours: number; night: number }[]; employees: { id: string; name: string; department: string }[]; assignments: { employeeId: string; day: string; shiftId: string }[] };
+const SHIFT_COLORS = ["#cfe8ff", "#ffe7b3", "#d6f5d6", "#e5d4f7", "#ffd4d4", "#d4f1f4"];
+const WEEKDAY = ["B", "B.e", "Ç.a", "Ç", "C.a", "C", "Ş"];
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 const mondayOf = (iso: string) => {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -279,11 +300,22 @@ export function Shifts({ notify }: { notify: Notify }) {
   const [data, load] = useLoad<ShiftData>(`company/shifts?from=${from}`, notify);
   const [type, setType] = useState<{ id?: string; name: string; start: string; end: string } | null>(null);
   const [pattern, setPattern] = useState<{ shiftId: string; from: string; to: string; work: number; rest: number; offset: number; ids: string[] } | null>(null);
-  const [rules, setRules] = useState<{ minRestHours: number; maxConsecutive: number } | null>(null);
+  const [rules, setRules] = useState<{ minRestHours: number; maxConsecutive: number; cover: Record<string, number> } | null>(null);
   const [assignWarnings, setAssignWarnings] = useState<string[]>([]);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const days = Array.from({ length: 14 }, (_, i) => addDays(data.from, i));
   const at = (employeeId: string, day: string) => data.assignments.find((a) => a.employeeId === employeeId && a.day === day)?.shiftId || "";
+  const view = data;
+  // Hours of the shifts of one week (a week above 40 hours is shown in red: it is extra work).
+  const weekHours = (employeeId: string, offset: number) => Math.round(days.slice(offset, offset + 7).reduce((sum, d) => sum + (view.types.find((t) => t.id === at(employeeId, d))?.hours || 0), 0) * 10) / 10;
+  function printGrid() {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const esc = (v: string) => v.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c] as string);
+    w.document.write(`<html><head><title>Növbə qrafiki</title><style>body{font-family:sans-serif;font-size:12px}table{border-collapse:collapse}td,th{border:1px solid #999;padding:3px 6px;text-align:center}td:first-child{text-align:left}</style></head><body><h3>Növbə qrafiki ${dmy(view.from)} – ${dmy(view.to)}</h3><table><tr><th>İşçi</th>${days.map((d) => `<th>${d.slice(8, 10)}.${d.slice(5, 7)}</th>`).join("")}</tr>${view.employees.map((p) => `<tr><td>${esc(p.name)}</td>${days.map((d) => `<td>${esc(view.types.find((t) => t.id === at(p.id, d))?.name || "")}</td>`).join("")}</tr>`).join("")}</table><p>${view.types.map((t) => `${esc(t.name)}: ${t.start}–${t.end}`).join(" · ")}</p></body></html>`);
+    w.document.close();
+    w.print();
+  }
   return (
     <div className="company-page">
       <div className="section-heading">
@@ -295,37 +327,67 @@ export function Shifts({ notify }: { notify: Notify }) {
         <div className="admin-actions">
           <button type="button" className="secondary" onClick={() => void run(notify, load, "company/shifts/copy", { from: data.from, to: addDays(data.from, 7) }, "Birinci həftə ikinci həftəyə köçürüldü.")}>1-ci həftəni 2-ciyə köçür</button>
           <button type="button" className="secondary" onClick={() => window.confirm("Bu iki həftənin növbələri işlənən saat kimi yazılsın? (Əmək haqqında artıq iş və gecə saatı bundan hesablanır.)") && void run(notify, load, "company/shifts/to-hours", { from: data.from, to: data.to }, "Növbələr saat uçotuna köçürüldü.")}>Saat uçotuna köçür</button>
+          <button type="button" className="secondary" onClick={printGrid}>Çap</button>
           <button type="button" className="secondary" onClick={() => setRules(data.rules)}>Qaydalar</button>
           <button type="button" className="secondary" disabled={!data.types.length} onClick={() => setPattern({ shiftId: data.types[0]?.id || "", from: data.from, to: data.to, work: 2, rest: 2, offset: 0, ids: [] })}>Dövrü şablon</button>
           <button type="button" className="primary" onClick={() => setType({ name: "", start: "09:00", end: "18:00" })}>+ Növbə növü</button>
         </div>
       </div>
-      <p className="muted">
-        Növbə növləri: {data.types.map((t) => (
-          <button key={t.id} type="button" className="text-button" onClick={() => setType({ id: t.id, name: t.name, start: t.start, end: t.end })}>{t.name} {t.start}–{t.end} ({t.hours} saat{t.night ? `, gecə ${t.night}` : ""}) </button>
-        ))}
-        {!data.types.length && "hələ yoxdur — əvvəl növbə növü əlavə edin."}
-      </p>
+      <div className="notice" role="note">
+        <b>Bu nə üçündür?</b> Növbə ilə işləyən işçilər (mağaza, zavod, kafe, mühafizə, klinika) üçün kimin hansı gün hansı saatda işləyəcəyini planlayırsınız. İşçi öz növbəsini «İş yerim → Növbəm»də görür və kolleqa ilə dəyişdirməyi xahiş edə bilər. Plan hazır olanda «Saat uçotuna köçür» saatları yazır, əmək haqqında gecə və artıq iş saatı özü hesablanır. Qrafik məzuniyyət, xəstəlik və istirahət qaydaları ilə yoxlanılır. Normal 9–18 iş rejimi olan işçilər üçün növbə lazım deyil.
+      </div>
+      {!data.types.length ? (
+        <div className="notice" role="status">
+          <b>Əvvəlcə növbə növləri lazımdır.</b> Ən çox işlənənləri bir kliklə yaradın (Səhər 08–16, Gündüz 09–18, Axşam 16–24, Gecə 22–06), sonra dəyişə və ya yenisini əlavə edə bilərsiniz.
+          <div className="admin-actions"><button type="button" className="primary" onClick={() => void run(notify, load, "company/shifts/defaults", {}, "Standart növbələr yaradıldı.")}>Standart növbələri yarat</button></div>
+        </div>
+      ) : (
+        <p className="muted">
+          Növbə növləri: {data.types.map((t, n) => (
+            <button key={t.id} type="button" className="text-button" onClick={() => setType({ id: t.id, name: t.name, start: t.start, end: t.end })}><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: SHIFT_COLORS[n % SHIFT_COLORS.length], marginRight: 4 }} />{t.name} {t.start}–{t.end} ({t.hours} saat{t.night ? `, gecə ${t.night}` : ""}) </button>
+          ))}
+        </p>
+      )}
       <div className="admin-table-wrap">
         <table className="admin-table shift-grid">
-          <thead><tr><th>İşçi</th>{days.map((d) => <th key={d}>{d.slice(8, 10)}.{d.slice(5, 7)}</th>)}</tr></thead>
+          <thead><tr><th>İşçi</th>{days.map((d) => <th key={d}>{d.slice(8, 10)}.{d.slice(5, 7)}<small className="skill-description">{WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]}</small></th>)}<th>Saat (1-ci / 2-ci həftə)</th></tr></thead>
           <tbody>
             {data.employees.map((p) => (
               <tr key={p.id}>
                 <td><b>{p.name}</b><small className="skill-description">{p.department}</small></td>
                 {days.map((d) => (
                   <td key={d}>
-                    <select value={at(p.id, d)} aria-label={`${p.name} ${d}`} onChange={async (e) => { try { const r = await request<{ warnings?: { text: string }[] }>("company/shifts/assign", { employeeId: p.id, from: d, shiftId: e.target.value }); setAssignWarnings((r.warnings || []).map((w) => w.text)); load(); } catch (error) { notify((error as Error).message); } }}>
+                    <select value={at(p.id, d)} aria-label={`${p.name} ${d}`} style={{ background: at(p.id, d) ? SHIFT_COLORS[Math.max(0, data.types.findIndex((t) => t.id === at(p.id, d))) % SHIFT_COLORS.length] : undefined }} onChange={async (e) => { try { const r = await request<{ warnings?: { text: string }[] }>("company/shifts/assign", { employeeId: p.id, from: d, shiftId: e.target.value }); setAssignWarnings((r.warnings || []).map((w) => w.text)); load(); } catch (error) { notify((error as Error).message); } }}>
                       <option value="">—</option>
                       {data.types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   </td>
                 ))}
+                <td>{[0, 7].map((w) => { const h = weekHours(p.id, w); return <span key={w} className={h > 40 ? "danger-text" : undefined}>{h}{w === 0 ? " / " : ""}</span>; })}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {data.swaps.length > 0 && (
+        <div className="notice" role="status">
+          <b>Növbə dəyişdirmə sorğuları</b>
+          <table className="admin-table">
+            <thead><tr><th>Tarix</th><th>Kim</th><th>Kimlə</th><th>Vəziyyət</th><th></th></tr></thead>
+            <tbody>
+              {data.swaps.map((s) => (
+                <tr key={s.id}>
+                  <td>{dmy(s.day)}</td><td>{s.from} ({s.fromShift || "—"})</td><td>{s.to} ({s.toShift || "—"})</td><td>{s.statusText}</td>
+                  <td className="admin-actions">
+                    {s.status === "accepted" && <button type="button" className="primary" onClick={() => void run(notify, load, "company/shift-swaps/decide", { id: s.id, approve: true }, "Növbələr dəyişdirildi.")}>Təsdiq</button>}
+                    {(s.status === "accepted" || s.status === "asked") && <button type="button" onClick={() => void run(notify, load, "company/shift-swaps/decide", { id: s.id, approve: false }, "Rədd edildi.")}>Rədd</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       {(assignWarnings.length > 0 || data.warnings.length > 0) && (
         <div className="notice" role="status">
           <b>Qrafikdə diqqət tələb edənlər ({new Set([...assignWarnings, ...data.warnings.map((w) => w.text)]).size}):</b>
@@ -337,6 +399,14 @@ export function Shifts({ notify }: { notify: Notify }) {
           <div className="offer-composer">
             <Field label="İki növbə arasında ən az fasilə (saat) — şirkətin daxili qaydası"><input type="number" min={0} max={24} step={0.5} value={rules.minRestHours} onChange={(e) => setRules({ ...rules, minRestHours: Number(e.target.value) })} /></Field>
             <Field label="Ardıcıl ən çox iş günü (sonra istirahət günü lazımdır)"><input type="number" min={1} max={14} value={rules.maxConsecutive} onChange={(e) => setRules({ ...rules, maxConsecutive: Number(e.target.value) })} /></Field>
+            {data.departments.length > 0 && (
+              <>
+                <h4>Departament üzrə növbədə ən az işçi</h4>
+                {data.departments.map((d) => (
+                  <Field key={d} label={d}><input type="number" min={0} max={500} value={rules.cover[d] || ""} placeholder="yoxdur" onChange={(e) => setRules({ ...rules, cover: { ...rules.cover, [d]: Number(e.target.value) || 0 } })} /></Field>
+                ))}
+              </>
+            )}
             <p className="muted">Qrafik bu həddlərə görə yoxlanır və pozulanda xəbərdarlıq çıxır, təyinatı dayandırmır. Həftədə fasiləsiz istirahət müddəti Əmək Məcəlləsində göstərilib: hüquqşünasla yoxlayın.</p>
             <button type="button" className="primary" onClick={async () => { if (await run(notify, load, "company/shifts/rules", rules, "Qaydalar saxlanıldı.")) setRules(null); }}>Saxla</button>
           </div>
@@ -473,13 +543,13 @@ function TripDetail({ trip, notify, onClose, onChanged }: { trip: Trip; notify: 
 
 // ---------- Announcements and surveys ----------
 type News = { id: string; title: string; body: string; audience: string; pinned: boolean; expires: string; author: string; created: string; requiresAck: boolean; reach: { total: number; read: number; acked: number; waiting: string[] } };
-type SurveyResult = { created: string; id: string; title: string; kind: string; anonymous: boolean; status: string; responses: number; enps: { count: number; promoters: number; passives: number; detractors: number; score: number | null } | null; byDepartment: { department: string; count: number; score: number | null }[]; averages: { id: string; label: string; average: number | null }[]; yesno: { id: string; label: string; yes: number; no: number }[]; comments: { id: string; label: string; items: string[] }[] };
+type SurveyResult = { repeatMonths?: number; created: string; id: string; title: string; kind: string; anonymous: boolean; status: string; responses: number; enps: { count: number; promoters: number; passives: number; detractors: number; score: number | null } | null; byDepartment: { department: string; count: number; score: number | null }[]; averages: { id: string; label: string; average: number | null }[]; yesno: { id: string; label: string; yes: number; no: number }[]; comments: { id: string; label: string; items: string[] }[] };
 
 export function Engage({ notify }: { notify: Notify }) {
   const [news, loadNews] = useLoad<{ departments: string[]; items: News[] }>("company/announcements", notify);
   const [surveys, loadSurveys] = useLoad<{ employees: number; surveys: SurveyResult[] }>("company/surveys", notify);
   const [edit, setEdit] = useState<Record<string, unknown> | null>(null);
-  const [survey, setSurvey] = useState<{ title: string; kind: string; anonymous: boolean; questions: { label: string; kind: string }[] } | null>(null);
+  const [survey, setSurvey] = useState<{ title: string; kind: string; anonymous: boolean; repeatMonths?: number; questions: { label: string; kind: string }[] } | null>(null);
   return (
     <div className="company-page">
       <div className="section-heading"><h4>Elanlar</h4><button type="button" className="primary" onClick={() => setEdit({ title: "", body: "", audience: "", pinned: false, notify: true })}>+ Elan</button></div>
@@ -505,7 +575,7 @@ export function Engage({ notify }: { notify: Notify }) {
       {surveys?.surveys.map((sv) => (
         <div key={sv.id} className="bank-batch">
           <div className="bank-batch-head">
-            <div><b>{sv.title}</b> <small className="skill-description">{sv.status === "open" ? "açıq" : "bağlı"} · {sv.anonymous ? "anonim" : "adlı"} · {sv.responses} / {surveys.employees} cavab</small></div>
+            <div><b>{sv.title}</b> <small className="skill-description">{sv.status === "open" ? "açıq" : "bağlı"} · {sv.anonymous ? "anonim" : "adlı"} · {sv.responses} / {surveys.employees} cavab{sv.repeatMonths ? ` · ${sv.repeatMonths === 12 ? "ildə bir dəfə" : `hər ${sv.repeatMonths} ayda`} təkrarlanır` : ""}</small></div>
             <button type="button" onClick={() => void run(notify, loadSurveys, "company/surveys/close", { id: sv.id, reopen: sv.status !== "open" })}>{sv.status === "open" ? "Bağla" : "Yenidən aç"}</button>
           </div>
           {sv.enps && sv.enps.count > 0 && <p>eNPS: <b>{sv.enps.score}</b> (tərəfdar {sv.enps.promoters}, neytral {sv.enps.passives}, tənqidçi {sv.enps.detractors}){sv.byDepartment.length > 0 && ` · ${sv.byDepartment.map((d) => `${d.department}: ${d.score}`).join(", ")}`}</p>}
@@ -540,6 +610,15 @@ export function Engage({ notify }: { notify: Notify }) {
         <Modal title="Yeni sorğu" onClose={() => setSurvey(null)}>
           <div className="offer-composer">
             <Field label="Ad"><input value={survey.title} onChange={(e) => setSurvey({ ...survey, title: e.target.value })} /></Field>
+            <Field label="Təkrarlansın">
+              <select value={survey.repeatMonths || 0} onChange={(e) => setSurvey({ ...survey, repeatMonths: Number(e.target.value) })}>
+                <option value={0}>Bir dəfə</option>
+                <option value={1}>Hər ay</option>
+                <option value={3}>Hər 3 ayda</option>
+                <option value={6}>Hər 6 ayda</option>
+                <option value={12}>İldə bir dəfə</option>
+              </select>
+            </Field>
             {survey.kind === "enps" ? <p className="muted">Standart suallar: “Şirkəti dostunuza tövsiyə edərdinizmi (0–10)” və səbəb.</p> : (
               <>
                 {survey.questions.map((q, i) => (

@@ -155,15 +155,67 @@ export function MyClock({ employeeId, notify }: { employeeId: string; notify: No
   );
 }
 
+type SwapItem = { id: string; day: string; from: string; fromId: string; to: string; toId: string; fromShift: string; toShift: string; note: string; status: string; statusText: string };
 export function MyShifts({ employeeId, notify }: { employeeId: string; notify: Notify }) {
   const [data] = useLoad<{ items: { day: string; name: string; start: string; end: string }[] }>(`employee/shifts?employeeId=${employeeId}`, notify);
+  const [swaps, loadSwaps] = useLoad<{ items: SwapItem[]; colleagues: { id: string; name: string }[] }>(`employee/shift-swaps?employeeId=${employeeId}`, notify);
+  const [form, setForm] = useState({ day: "", toEmployeeId: "", note: "" });
   if (!data) return <p className="muted">Yüklənir…</p>;
-  if (!data.items.length) return <p className="muted">Növbəti 3 həftə üçün sizə növbə təyin olunmayıb.</p>;
   return (
-    <table className="admin-table">
-      <thead><tr><th>Tarix</th><th>Növbə</th><th>Saat</th></tr></thead>
-      <tbody>{data.items.map((i) => <tr key={i.day}><td>{dmy(i.day)}</td><td>{i.name}</td><td>{i.start} – {i.end}</td></tr>)}</tbody>
-    </table>
+    <div className="offer-composer">
+      {!data.items.length ? (
+        <p className="muted">Növbəti 3 həftə üçün sizə növbə təyin olunmayıb.</p>
+      ) : (
+        <table className="admin-table">
+          <thead><tr><th>Tarix</th><th>Növbə</th><th>Saat</th></tr></thead>
+          <tbody>{data.items.map((i) => <tr key={i.day}><td>{dmy(i.day)}</td><td>{i.name}</td><td>{i.start} – {i.end}</td></tr>)}</tbody>
+        </table>
+      )}
+      {data.items.length > 0 && swaps && (
+        <>
+          <h4>Növbəni kolleqa ilə dəyişdirmək</h4>
+          <p className="muted">Gününüzü və kolleqanı seçin. Kolleqa razı olarsa, rəhbər və ya HR təsdiq edəndə növbələr dəyişir. İkinizin də həmin gün fərqli növbəsi olmalıdır.</p>
+          <div className="form-grid">
+            <Field label="Gün">
+              <select value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })}>
+                <option value="">Seçin</option>
+                {data.items.map((i) => <option key={i.day} value={i.day}>{dmy(i.day)} — {i.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Kolleqa">
+              <select value={form.toEmployeeId} onChange={(e) => setForm({ ...form, toEmployeeId: e.target.value })}>
+                <option value="">Seçin</option>
+                {swaps.colleagues.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Qeyd"><input value={form.note} maxLength={200} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
+          </div>
+          <button type="button" className="primary" disabled={!form.day || !form.toEmployeeId} onClick={async () => { if (await act(notify, loadSwaps, "employee/shift-swaps/request", { employeeId, ...form }, "Sorğu kolleqaya göndərildi.")) setForm({ day: "", toEmployeeId: "", note: "" }); }}>Xahiş göndər</button>
+        </>
+      )}
+      {swaps && swaps.items.length > 0 && (
+        <table className="admin-table">
+          <thead><tr><th>Tarix</th><th>Dəyişdirmə</th><th>Vəziyyət</th><th></th></tr></thead>
+          <tbody>
+            {swaps.items.map((s) => (
+              <tr key={s.id}>
+                <td>{dmy(s.day)}</td>
+                <td>{s.from} ({s.fromShift || "—"}) ↔ {s.to} ({s.toShift || "—"})</td>
+                <td>{s.statusText}</td>
+                <td className="admin-actions">
+                  {s.status === "asked" && s.toId === employeeId && (
+                    <>
+                      <button type="button" className="primary" onClick={() => void act(notify, loadSwaps, "employee/shift-swaps/respond", { employeeId, id: s.id, accept: true }, "Razılığınız qeyd olundu.")}>Razıyam</button>
+                      <button type="button" onClick={() => void act(notify, loadSwaps, "employee/shift-swaps/respond", { employeeId, id: s.id, accept: false }, "İmtina qeyd olundu.")}>İmtina</button>
+                    </>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
 
@@ -287,6 +339,29 @@ export function MyOneOnOnes({ employeeId, notify }: { employeeId: string; notify
           <p><b>Mövzular:</b> {n.topics}</p>
           {n.decisions && <p><b>Qərarlar:</b> {n.decisions}</p>}
           {n.nextStep && <p><b>Növbəti addım:</b> {n.nextStep}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Colleagues asked for feedback about a person: a score and a short comment, shown without the name of the giver.
+export function MyFeedbackRequests({ employeeId, notify }: { employeeId: string; notify: Notify }) {
+  const [data, load] = useLoad<{ items: { id: string; subject: string; cycle: string }[] }>(`employee/feedback?employeeId=${employeeId}`, notify);
+  const [form, setForm] = useState<Record<string, { score: string; comment: string }>>({});
+  if (!data || !data.items.length) return null;
+  return (
+    <div className="offer-composer">
+      <h4>Kolleqa rəyi gözləyənlər</h4>
+      {data.items.map((i) => (
+        <div key={i.id} className="bank-batch">
+          <b>{i.subject}</b> <small className="skill-description">{i.cycle} · rəyiniz adsız göstərilir</small>
+          <select aria-label="Qiymət" value={form[i.id]?.score || ""} onChange={(e) => setForm({ ...form, [i.id]: { score: e.target.value, comment: form[i.id]?.comment || "" } })}>
+            <option value="">Qiymət (1–5)</option>
+            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <input aria-label="Rəy" placeholder="Qısa rəy (güclü tərəfləri, nəyi yaxşılaşdırmaq olar)" maxLength={600} value={form[i.id]?.comment || ""} onChange={(e) => setForm({ ...form, [i.id]: { score: form[i.id]?.score || "", comment: e.target.value } })} />
+          <button type="button" className="primary" disabled={!form[i.id]?.score} onClick={() => void act(notify, load, "employee/feedback/submit", { employeeId, id: i.id, score: Number(form[i.id]?.score), comment: form[i.id]?.comment || "" }, "Rəyiniz qəbul olundu.")}>Göndər</button>
         </div>
       ))}
     </div>

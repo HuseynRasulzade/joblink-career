@@ -388,7 +388,7 @@ import { ASSET_CATEGORIES, ASSET_STATUS, assetActHtml, parseAssetRows } from "@/
 import { daysLeft, deadlinesOf } from "@/lib/hr-deadlines";
 import { STATUS_TEXT as LEAVE_STATUS, monthlyLoad, planLeave, scheduleWarnings, type ScheduleEntry } from "@/lib/leave-schedule";
 import { chooseHours, dailyNorm, parseHoursRows, parseHoursTotals, summarizeHours, type HoursByDay } from "@/lib/hours";
-import { checkShifts, patternDays, AWAY_LABEL as SHIFT_AWAY_LABEL } from "@/lib/shift-rules";
+import { checkCoverage, checkShifts, patternDays, AWAY_LABEL as SHIFT_AWAY_LABEL, type ShiftWarning } from "@/lib/shift-rules";
 import { DEFAULT_CLOCK, bakuNow, earlyLeaveMinutes, hoursFromClock, lateMinutes, validTime as validClockTime, type ClockRules } from "@/lib/clock";
 import { BENEFIT_CAP_FACTOR, BENEFIT_MIN_INSURANCE_MONTHS, MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
@@ -7558,6 +7558,58 @@ async function route(request: Request) {
   const SECRET_FIELDS = new Set(["iban", "accountNumber", "cardNumber"]);
   const changeValue = async (payload: string, field: string) => String(((await reveal(payload)).profile as unknown as Record<string, unknown>)[field] ?? "");
   const maskedValue = (field: string, value: string) => (field === "cardNumber" ? maskCard(value) : SECRET_FIELDS.has(field) && value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value);
+  // Shift swaps: a colleague agrees, then HR or the manager of the one asking approves and the two shifts change places.
+  type SwapRow = { id: string; day: string; from_employee: string; to_employee: string; note: string; status: string; decided_by_name: string; created: string; from_name: string; to_name: string; from_shift: string | null; to_shift: string | null };
+  const SWAP_STATUS: Record<string, string> = { asked: "Kolleqanın cavabını gözləyir", accepted: "Kolleqa razıdır, təsdiq gözləyir", declined: "Kolleqa razı olmadı", approved: "Təsdiqlənib, qrafik dəyişdi", rejected: "Rədd edilib", cancelled: "Ləğv edilib" };
+  const swapSelect = "SELECT s.id,s.day,s.from_employee,s.to_employee,s.note,s.status,s.decided_by_name,s.created,a.name AS from_name,b.name AS to_name,(SELECT t.name FROM shift_assignments x JOIN shift_types t ON t.id=x.shift_id WHERE x.company_id=s.company_id AND x.employee_id=s.from_employee AND x.day=s.day) AS from_shift,(SELECT t.name FROM shift_assignments x JOIN shift_types t ON t.id=x.shift_id WHERE x.company_id=s.company_id AND x.employee_id=s.to_employee AND x.day=s.day) AS to_shift FROM shift_swaps s JOIN company_employees a ON a.id=s.from_employee JOIN company_employees b ON b.id=s.to_employee";
+  const swapView = (r: SwapRow) => ({ id: r.id, day: r.day, from: r.from_name, fromId: r.from_employee, to: r.to_name, toId: r.to_employee, fromShift: r.from_shift || "", toShift: r.to_shift || "", note: r.note, status: r.status, statusText: SWAP_STATUS[r.status] || r.status, decidedBy: r.decided_by_name, created: r.created });
+  const swapList = async () => (await db.prepare(`${swapSelect} WHERE s.company_id=? AND (s.status IN ('asked','accepted') OR s.created>?) ORDER BY s.created DESC LIMIT 60`).bind(id, new Date(Date.now() - 30 * 86_400_000).toISOString()).all<SwapRow>()).results.map(swapView);
+  const applySwap = async (companyId: string, swapId: string, decider: string) => {
+    const swap = await db.prepare("SELECT id,day,from_employee,to_employee FROM shift_swaps WHERE id=? AND company_id=? AND status='accepted'").bind(swapId, companyId).first<{ id: string; day: string; from_employee: string; to_employee: string }>();
+    if (!swap) throw new HttpError(404, "Təsdiq gözləyən dəyişdirmə tapılmadı.");
+    const rows = (await db.prepare("SELECT employee_id,shift_id FROM shift_assignments WHERE company_id=? AND day=? AND employee_id IN (?,?)").bind(companyId, swap.day, swap.from_employee, swap.to_employee).all<{ employee_id: string; shift_id: string }>()).results;
+    const a = rows.find((r) => r.employee_id === swap.from_employee);
+    const b = rows.find((r) => r.employee_id === swap.to_employee);
+    if (!a || !b) throw new HttpError(409, "Qrafik bu arada dəyişib: iki işçinin də həmin gün növbəsi olmalıdır.");
+    await db.batch([
+      db.prepare("UPDATE shift_assignments SET shift_id=? WHERE company_id=? AND employee_id=? AND day=?").bind(b.shift_id, companyId, swap.from_employee, swap.day),
+      db.prepare("UPDATE shift_assignments SET shift_id=? WHERE company_id=? AND employee_id=? AND day=?").bind(a.shift_id, companyId, swap.to_employee, swap.day),
+      db.prepare("UPDATE shift_swaps SET status='approved',decided_by_name=? WHERE id=?").bind(decider, swap.id),
+    ]);
+    for (const e of [swap.from_employee, swap.to_employee]) {
+      const u = await db.prepare("SELECT user_id FROM company_employees WHERE id=?").bind(e).first<{ user_id: string }>();
+      if (u?.user_id) await notify(db, { userId: u.user_id, type: "application", title: "Növbə dəyişdirilməsi təsdiqləndi", body: `${swap.day} tarixli növbələr dəyişdi. İş yerim → Növbəm bölməsinə baxın.`, link: "workplace" }).catch(() => undefined);
+    }
+  };
+  // A light 360° round: colleagues are asked to rate a person in the open cycle; the person sees only the average and unsigned comments.
+  const askFeedback = async (companyId: string, cycleId: string, subjectId: string, giverIds: string[]) => {
+    const valid = new Set((await db.prepare("SELECT id,user_id FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(companyId).all<{ id: string; user_id: string }>()).results.map((r) => r.id));
+    const subject = await db.prepare("SELECT name FROM company_employees WHERE id=? AND company_id=?").bind(subjectId, companyId).first<{ name: string }>();
+    const cycle = await db.prepare("SELECT name FROM perf_cycles WHERE id=? AND company_id=? AND status='open'").bind(cycleId, companyId).first<{ name: string }>();
+    if (!subject || !cycle) throw new HttpError(404, "İşçi və ya açıq dövr tapılmadı.");
+    const givers = [...new Set(giverIds)].filter((g) => g !== subjectId && valid.has(g)).slice(0, 12);
+    if (!givers.length) throw new HttpError(400, "Rəy verəcək kolleqaları seçin.");
+    let added = 0;
+    for (const g of givers) {
+      const res = await db.prepare("INSERT OR IGNORE INTO perf_feedback(id,company_id,cycle_id,subject_id,giver_id,status,created) VALUES(?,?,?,?,?,'asked',?)").bind(crypto.randomUUID(), companyId, cycleId, subjectId, g, new Date().toISOString()).run();
+      if (!res.meta.changes) continue;
+      added++;
+      const u = await db.prepare("SELECT user_id FROM company_employees WHERE id=?").bind(g).first<{ user_id: string }>();
+      if (u?.user_id) await notify(db, { userId: u.user_id, type: "application", title: `Kolleqa rəyi istənilir: ${subject.name}`, body: `${cycle.name}. İş yerim → Performans bölməsində cavab verin (rəyiniz adsız göstərilir).`, link: "workplace" }).catch(() => undefined);
+    }
+    return added;
+  };
+  const feedbackSummary = async (companyId: string, cycleId: string, subjectIds: string[]) => {
+    if (!subjectIds.length) return new Map<string, { asked: number; count: number; average: number | null; comments: string[] }>();
+    const rows = (await db.prepare(`SELECT subject_id,status,score,comment FROM perf_feedback WHERE company_id=? AND cycle_id=? AND subject_id IN (${subjectIds.map(() => "?").join(",")})`).bind(companyId, cycleId, ...subjectIds).all<{ subject_id: string; status: string; score: number | null; comment: string }>()).results;
+    const out = new Map<string, { asked: number; count: number; average: number | null; comments: string[] }>();
+    for (const sid of subjectIds) {
+      const mine = rows.filter((r) => r.subject_id === sid);
+      const done = mine.filter((r) => r.status === "done" && r.score !== null);
+      out.set(sid, { asked: mine.length, count: done.length, average: done.length ? Math.round((done.reduce((t, r) => t + (r.score || 0), 0) / done.length) * 10) / 10 : null, comments: done.map((r) => r.comment).filter(Boolean) });
+    }
+    return out;
+  };
   // The people an Excel row can mean, with the FİN code of the identity card (it tells two people with one name apart).
   const employeeRefs = async () => {
     const rows = (await db.prepare("SELECT id,name,email,profile FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; name: string; email: string; profile: string }>()).results;
@@ -7793,7 +7845,7 @@ async function route(request: Request) {
   if (request.method === "GET" && path === "employee/team") {
     const manager = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
     const people = await teamOf(manager);
-    if (!people.length) return ok({ people: [], requests: [], away: [], perf: null, trips: [], shifts: [] });
+    if (!people.length) return ok({ people: [], requests: [], away: [], perf: null, trips: [], shifts: [], swaps: [] });
     const ids = people.map((p) => p.id);
     const marks = ids.length ? (await db.prepare(`SELECT employee_id,day,code FROM attendance_marks WHERE company_id=? AND employee_id IN (${ids.map(() => "?").join(",")}) AND day BETWEEN ? AND ? AND code IN (${AWAY_CODES.map(() => "?").join(",")}) ORDER BY day`).bind(manager.company_id, ...ids, bakuNow().date, new Date(Date.now() + 45 * 86_400_000).toISOString().slice(0, 10), ...AWAY_CODES).all<{ employee_id: string; day: string; code: string }>()).results : [];
     const reqs = (await db.prepare(`SELECT id,employee_id,kind,data,status,manager_status,manager_name,manager_note,manager_at,created FROM employee_requests WHERE company_id=? AND employee_id IN (${ids.map(() => "?").join(",")}) AND manager_status<>'' ORDER BY CASE manager_status WHEN 'pending' THEN 0 ELSE 1 END, created DESC LIMIT 60`).bind(manager.company_id, ...ids).all<{ id: string; employee_id: string; kind: string; data: string; status: string; manager_status: string; manager_name: string; manager_note: string; manager_at: string; created: string }>()).results;
@@ -7816,9 +7868,11 @@ async function route(request: Request) {
     const goals = cycle ? (await db.prepare(`SELECT employee_id,title,weight,progress,score FROM perf_goals WHERE cycle_id=? AND employee_id IN (${ids.map(() => "?").join(",")})`).bind(cycle.id, ...ids).all<{ employee_id: string; title: string; weight: number; progress: number; score: number | null }>()).results : [];
     const tripRows = (await db.prepare(`SELECT id,employee_id,destination,purpose,start_date,end_date,status,manager_status,abroad FROM trips WHERE company_id=? AND employee_id IN (${ids.map(() => "?").join(",")}) AND (manager_status='pending' OR (status='approved' AND end_date>=?)) ORDER BY start_date LIMIT 40`).bind(manager.company_id, ...ids, today).all<{ id: string; employee_id: string; destination: string; purpose: string; start_date: string; end_date: string; status: string; manager_status: string; abroad: number }>()).results;
     const shiftRows = (await db.prepare(`SELECT a.employee_id,a.day,t.name,t.start_time,t.end_time FROM shift_assignments a JOIN shift_types t ON t.id=a.shift_id WHERE a.company_id=? AND a.employee_id IN (${ids.map(() => "?").join(",")}) AND a.day BETWEEN ? AND ? ORDER BY a.day`).bind(manager.company_id, ...ids, today, new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10)).all<{ employee_id: string; day: string; name: string; start_time: string; end_time: string }>()).results;
+    const feedback = cycle ? await feedbackSummary(manager.company_id, cycle.id, ids) : new Map<string, { asked: number; count: number; average: number | null; comments: string[] }>();
     return ok({
-      perf: cycle ? { cycleId: cycle.id, name: cycle.name, end: cycle.end_date, people: people.map((p) => { const r = reviews.find((x) => x.employee_id === p.id); return { employeeId: p.id, name: p.name, selfScore: r?.self_score ?? null, managerScore: r?.manager_score ?? null, managerComment: r?.manager_comment || "", status: r?.status || "open", goals: goals.filter((g) => g.employee_id === p.id).map((g) => ({ title: g.title, weight: g.weight, progress: g.progress, score: g.score })) }; }) } : null,
+      perf: cycle ? { cycleId: cycle.id, name: cycle.name, end: cycle.end_date, people: people.map((p) => { const r = reviews.find((x) => x.employee_id === p.id); return { feedback: feedback.get(p.id) || null, employeeId: p.id, name: p.name, selfScore: r?.self_score ?? null, managerScore: r?.manager_score ?? null, managerComment: r?.manager_comment || "", status: r?.status || "open", goals: goals.filter((g) => g.employee_id === p.id).map((g) => ({ title: g.title, weight: g.weight, progress: g.progress, score: g.score })) }; }) } : null,
       trips: tripRows.map((t) => ({ id: t.id, employeeId: t.employee_id, name: byId.get(t.employee_id)?.name || "", destination: t.destination, purpose: t.purpose, start: t.start_date, end: t.end_date, abroad: !!t.abroad, waiting: t.manager_status === "pending" })),
+      swaps: (await db.prepare(`${swapSelect} WHERE s.company_id=? AND s.status='accepted' AND s.from_employee IN (${ids.map(() => "?").join(",")}) ORDER BY s.day LIMIT 20`).bind(manager.company_id, ...ids).all<SwapRow>()).results.map(swapView),
       shifts: shiftRows.map((r) => ({ employeeId: r.employee_id, name: byId.get(r.employee_id)?.name || "", day: r.day, shift: r.name, start: r.start_time, end: r.end_time })),
       people: people.map((p) => ({ id: p.id, name: p.name, position: p.position, department: p.department, away: marks.find((m) => m.employee_id === p.id && m.day === today)?.code || "" })),
       requests,
@@ -7850,6 +7904,77 @@ async function route(request: Request) {
     await db.prepare("INSERT INTO profile_changes(id,company_id,employee_id,field,payload,status,created) VALUES(?,?,?,?,?,'new',?)").bind(crypto.randomUUID(), employee.company_id, employee.id, field, await sealProfile({ [field]: value } as unknown as EmployeeProfile, dataKey()), new Date().toISOString()).run();
     await notifyCompanyRoles(db, employee.company_id, "employees", { type: "application", title: `Məlumat dəyişikliyi sorğusu: ${employee.name}`, body: PROFILE_CHANGE_FIELDS[field], link: "hr-orders" }).catch(() => undefined);
     return ok({ ok: true }, 201);
+  }
+  if (request.method === "GET" && path === "employee/shift-swaps") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const rows = (await db.prepare(`${swapSelect} WHERE s.company_id=? AND (s.from_employee=? OR s.to_employee=?) ORDER BY s.created DESC LIMIT 30`).bind(employee.company_id, employee.id, employee.id).all<SwapRow>()).results;
+    const colleagues = (await db.prepare("SELECT id,name FROM company_employees WHERE company_id=? AND status IN ('active','leave') AND id<>? ORDER BY name").bind(employee.company_id, employee.id).all<{ id: string; name: string }>()).results;
+    return ok({ items: rows.map(swapView), colleagues });
+  }
+  if (request.method === "POST" && path === "employee/shift-swaps/request") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const day = str(b.day, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day < new Date().toISOString().slice(0, 10)) throw new HttpError(400, "Keçmiş tarix üçün dəyişdirmə olmur.");
+    const other = await db.prepare("SELECT id,name,user_id FROM company_employees WHERE id=? AND company_id=? AND status IN ('active','leave') AND id<>?").bind(str(b.toEmployeeId, 100), employee.company_id, employee.id).first<{ id: string; name: string; user_id: string }>();
+    if (!other) throw new HttpError(404, "Kolleqa tapılmadı.");
+    const mine = await db.prepare("SELECT shift_id FROM shift_assignments WHERE company_id=? AND employee_id=? AND day=?").bind(employee.company_id, employee.id, day).first<{ shift_id: string }>();
+    const theirs = await db.prepare("SELECT shift_id FROM shift_assignments WHERE company_id=? AND employee_id=? AND day=?").bind(employee.company_id, other.id, day).first<{ shift_id: string }>();
+    if (!mine || !theirs) throw new HttpError(409, "İkinizin də həmin gün növbəsi olmalıdır.");
+    if (mine.shift_id === theirs.shift_id) throw new HttpError(409, "İkinizin növbəsi eynidir: dəyişdirməyə ehtiyac yoxdur.");
+    const open = await db.prepare("SELECT 1 AS n FROM shift_swaps WHERE company_id=? AND day=? AND status IN ('asked','accepted') AND (from_employee IN (?,?) OR to_employee IN (?,?))").bind(employee.company_id, day, employee.id, other.id, employee.id, other.id).first();
+    if (open) throw new HttpError(409, "Bu gün üçün açıq dəyişdirmə sorğusu var.");
+    await db.prepare("INSERT INTO shift_swaps(id,company_id,day,from_employee,to_employee,note,status,created) VALUES(?,?,?,?,?,?,'asked',?)").bind(crypto.randomUUID(), employee.company_id, day, employee.id, other.id, str(b.note, 200), new Date().toISOString()).run();
+    if (other.user_id) await notify(db, { userId: other.user_id, type: "application", title: `${employee.name} növbə dəyişdirməyi xahiş edir`, body: `${day} tarixi. İş yerim → Növbəm bölməsində cavab verin.`, link: "workplace" }).catch(() => undefined);
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "employee/shift-swaps/respond") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const swap = await db.prepare("SELECT id,day,from_employee FROM shift_swaps WHERE id=? AND company_id=? AND to_employee=? AND status='asked'").bind(str(b.id, 100), employee.company_id, employee.id).first<{ id: string; day: string; from_employee: string }>();
+    if (!swap) throw new HttpError(404, "Cavab gözləyən sorğu tapılmadı.");
+    const accept = b.accept === true;
+    await db.prepare("UPDATE shift_swaps SET status=? WHERE id=?").bind(accept ? "accepted" : "declined", swap.id).run();
+    const asker = await db.prepare("SELECT name,user_id,profile FROM company_employees WHERE id=?").bind(swap.from_employee).first<{ name: string; user_id: string; profile: string }>();
+    if (asker?.user_id) await notify(db, { userId: asker.user_id, type: "application", title: accept ? "Kolleqa növbə dəyişdirməyə razıdır" : "Kolleqa növbə dəyişdirməkdən imtina etdi", body: `${swap.day}. ${accept ? "İndi təsdiq gözlənilir." : ""}`, link: "workplace" }).catch(() => undefined);
+    if (accept) {
+      const managerId = parseProfile(asker?.profile || "").managerId;
+      const manager = managerId ? await db.prepare("SELECT user_id FROM company_employees WHERE id=? AND company_id=? AND user_id<>''").bind(managerId, employee.company_id).first<{ user_id: string }>() : null;
+      if (manager) await notify(db, { userId: manager.user_id, type: "application", title: `Növbə dəyişdirmə təsdiqinizi gözləyir: ${asker?.name || ""}`, body: `${swap.day}. İş yerim → Komandam.`, link: "workplace" }).catch(() => undefined);
+      await tellCompany(employee.company_id, "Növbə dəyişdirmə sorğusu təsdiq gözləyir", `${asker?.name || ""} ↔ ${employee.name}, ${swap.day}`, "hr-growth");
+    }
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "employee/team/swap") {
+    const b = await jsonBody(request);
+    const manager = await ownWorkplace(str(b.employeeId, 100));
+    const people = await teamOf(manager);
+    const swap = await db.prepare("SELECT id,from_employee FROM shift_swaps WHERE id=? AND company_id=? AND status='accepted'").bind(str(b.id, 100), manager.company_id).first<{ id: string; from_employee: string }>();
+    if (!swap || !people.some((p) => p.id === swap.from_employee)) throw new HttpError(404, "Bu sorğu sizin təsdiqinizi gözləmir.");
+    if (b.approve === true) await applySwap(manager.company_id, swap.id, manager.name);
+    else await db.prepare("UPDATE shift_swaps SET status='rejected',decided_by_name=? WHERE id=?").bind(manager.name, swap.id).run();
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "employee/feedback") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const rows = (await db.prepare("SELECT f.id,e.name,c.name AS cycle FROM perf_feedback f JOIN company_employees e ON e.id=f.subject_id JOIN perf_cycles c ON c.id=f.cycle_id WHERE f.company_id=? AND f.giver_id=? AND f.status='asked' AND c.status='open' ORDER BY f.created").bind(employee.company_id, employee.id).all<{ id: string; name: string; cycle: string }>()).results;
+    return ok({ items: rows.map((r) => ({ id: r.id, subject: r.name, cycle: r.cycle })) });
+  }
+  if (request.method === "POST" && path === "employee/feedback/submit") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const score = Math.round(Number(b.score));
+    if (!(score >= 1 && score <= 5)) throw new HttpError(400, "Qiyməti 1–5 arası seçin.");
+    const res = await db.prepare("UPDATE perf_feedback SET status='done',score=?,comment=?,answered=? WHERE id=? AND company_id=? AND giver_id=? AND status='asked'").bind(score, str(b.comment, 600), new Date().toISOString(), str(b.id, 100), employee.company_id, employee.id).run();
+    if (!res.meta.changes) throw new HttpError(404, "Cavab gözləyən sorğu tapılmadı.");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "employee/team/feedback-request") {
+    const b = await jsonBody(request);
+    const manager = await ownWorkplace(str(b.employeeId, 100));
+    const person = (await teamOf(manager)).find((p) => p.id === str(b.personId, 100));
+    if (!person) throw new HttpError(404, "İşçi sizin komandanızda deyil.");
+    return ok({ ok: true, asked: await askFeedback(manager.company_id, str(b.cycleId, 100), person.id, Array.isArray(b.giverIds) ? (b.giverIds as unknown[]).map((x) => String(x)) : []) });
   }
   // The manager rates a person of the team in the open performance cycle.
   if (request.method === "POST" && path === "employee/team/review") {
@@ -9392,6 +9517,18 @@ async function route(request: Request) {
     await db.prepare("DELETE FROM one_on_ones WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
     return ok({ ok: true });
   }
+  if (request.method === "POST" && path === "company/performance/feedback-request") {
+    requirePermission("salaries", "Kolleqa rəyini yalnız kadr işçisi istəyə bilər.");
+    const b = await jsonBody(request);
+    const added = await askFeedback(id, str(b.cycleId, 100), str(b.employeeId, 100), Array.isArray(b.giverIds) ? (b.giverIds as unknown[]).map((x) => String(x)) : []);
+    await companyAudit(db, id, userId, "feedback-requested", str(b.employeeId, 100), `${added} kolleqa`);
+    return ok({ ok: true, asked: added }, 201);
+  }
+  if (request.method === "GET" && path === "company/performance/feedback") {
+    requirePermission("salaries", "Kolleqa rəylərini yalnız kadr işçisi görə bilər.");
+    const summary = await feedbackSummary(id, str(requestUrl.searchParams.get("cycleId"), 100), [str(requestUrl.searchParams.get("employeeId"), 100)]);
+    return ok(summary.get(str(requestUrl.searchParams.get("employeeId"), 100)) || { asked: 0, count: 0, average: null, comments: [] });
+  }
   if (request.method === "GET" && path === "company/performance/export") {
     requirePermission("salaries", "Hesabatı yalnız kadr işçisi yükləyə bilər.");
     const cycleId = str(requestUrl.searchParams.get("cycle"), 100);
@@ -9518,9 +9655,11 @@ async function route(request: Request) {
   const addDay = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
   // The limits the schedule is checked against: settings of the company (the rest between shifts is an internal rule).
   const shiftRules = async () => {
-    const rows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('shift_min_rest_hours','shift_max_consecutive')").bind(id).all<{ key: string; value: string }>()).results;
+    const rows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND (key IN ('shift_min_rest_hours','shift_max_consecutive') OR key LIKE 'shift_min_cover:%')").bind(id).all<{ key: string; value: string }>()).results;
     const get = (k: string, d: number) => { const n = Number(rows.find((r) => r.key === k)?.value); return Number.isFinite(n) && rows.some((r) => r.key === k) ? n : d; };
-    return { minRestHours: get("shift_min_rest_hours", 11), maxConsecutive: get("shift_max_consecutive", 6) };
+    const cover: Record<string, number> = {};
+    for (const r of rows) if (r.key.startsWith("shift_min_cover:") && Number(r.value) > 0) cover[r.key.slice("shift_min_cover:".length)] = Number(r.value);
+    return { minRestHours: get("shift_min_rest_hours", 11), maxConsecutive: get("shift_max_consecutive", 6), cover };
   };
   const shiftWarnings = async (from: string, to: string, onlyEmployees?: string[]) => {
     const rules = await shiftRules();
@@ -9539,14 +9678,51 @@ async function route(request: Request) {
     }
     const away = new Map<string, Map<string, string>>();
     for (const m of marks.results) away.set(m.employee_id, (away.get(m.employee_id) || new Map()).set(m.day, m.code));
-    return checkShifts({ assignments, away, names: new Map(people.results.map((p) => [p.id, p.name])), ...rules }).filter((w) => w.day >= from && w.day <= to);
+    const base = checkShifts({ assignments, away, names: new Map(people.results.map((p) => [p.id, p.name])), minRestHours: rules.minRestHours, maxConsecutive: rules.maxConsecutive });
+    // Enough people on every planned day (only for departments with a minimum).
+    let cover: ShiftWarning[] = [];
+    if (Object.keys(rules.cover).length && !onlyEmployees) {
+      const staff = (await db.prepare("SELECT id,department FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).all<{ id: string; department: string }>()).results;
+      const days: string[] = [];
+      for (let d = from; d <= to; d = addDay(d, 1)) days.push(d);
+      const assignedDays = new Map<string, Set<string>>();
+      for (const [emp, byDay] of assignments) assignedDays.set(emp, new Set(byDay.keys()));
+      cover = checkCoverage({ days, staff, assigned: assignedDays, away, minByDepartment: new Map(Object.entries(rules.cover)) });
+    }
+    return [...base, ...cover].filter((w) => w.day >= from && w.day <= to);
   };
+  if (request.method === "POST" && path === "company/shifts/defaults") {
+    requirePermission("salaries", "Növbə növünü yalnız kadr işçisi yarada bilər.");
+    const have = Number((await db.prepare("SELECT COUNT(*) AS n FROM shift_types WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0);
+    if (have > 0) throw new HttpError(409, "Növbə növləri artıq var.");
+    const now = new Date().toISOString();
+    await db.batch([["Səhər", "08:00", "16:00"], ["Gündüz", "09:00", "18:00"], ["Axşam", "16:00", "00:00"], ["Gecə", "22:00", "06:00"]].map(([name, start, end]) => db.prepare("INSERT INTO shift_types(id,company_id,name,start_time,end_time,created) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), id, name, start, end, now)));
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "company/shift-swaps/decide") {
+    requirePermission("salaries", "Növbə dəyişdirməni yalnız kadr işçisi təsdiq edə bilər.");
+    const b = await jsonBody(request);
+    if (b.approve === true) await applySwap(id, str(b.id, 100), await requesterName());
+    else {
+      const res = await db.prepare("UPDATE shift_swaps SET status='rejected',decided_by_name=? WHERE id=? AND company_id=? AND status IN ('asked','accepted')").bind(await requesterName(), str(b.id, 100), id).run();
+      if (!res.meta.changes) throw new HttpError(404, "Sorğu tapılmadı.");
+    }
+    return ok({ ok: true });
+  }
   if (request.method === "POST" && path === "company/shifts/rules") {
     requirePermission("salaries", "Növbə qaydalarını yalnız kadr işçisi dəyişə bilər.");
     const b = await jsonBody(request);
     const put = async (key: string, value: number) => { await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, key, String(value)).run(); };
     await put("shift_min_rest_hours", Math.max(0, Math.min(24, Number(b.minRestHours) || 0)));
     await put("shift_max_consecutive", Math.max(1, Math.min(14, Math.round(Number(b.maxConsecutive) || 6))));
+    // The minimum of people on a shift, per department.
+    const cover = (b.cover && typeof b.cover === "object" ? b.cover : {}) as Record<string, unknown>;
+    for (const [department, value] of Object.entries(cover).slice(0, 100)) {
+      if (!department || department.length > 100) continue;
+      const n = Math.max(0, Math.min(500, Math.round(Number(value) || 0)));
+      if (n > 0) await put(`shift_min_cover:${department}`, n);
+      else await db.prepare("DELETE FROM hr_settings WHERE company_id=? AND key=?").bind(id, `shift_min_cover:${department}`).run();
+    }
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "company/shifts") {
@@ -9565,6 +9741,8 @@ async function route(request: Request) {
       assignments: assigned.results.map((a) => ({ employeeId: a.employee_id, day: a.day, shiftId: a.shift_id })),
       rules: await shiftRules(),
       warnings: await shiftWarnings(from, to),
+      departments: [...new Set(people.results.map((p) => p.department).filter(Boolean))],
+      swaps: await swapList(),
     });
   }
   if (request.method === "POST" && path === "company/shifts/type") {
@@ -9792,7 +9970,7 @@ async function route(request: Request) {
   }
   if (request.method === "GET" && path === "company/surveys") {
     requirePermission("salaries", "Sorğuları yalnız kadr işçisi görə bilər.");
-    const surveys = (await db.prepare("SELECT id,title,kind,questions,anonymous,status,created FROM surveys WHERE company_id=? ORDER BY created DESC LIMIT 50").bind(id).all<{ id: string; title: string; kind: string; questions: string; anonymous: number; status: string; created: string }>()).results;
+    const surveys = (await db.prepare("SELECT id,title,kind,questions,anonymous,status,created,repeat_months FROM surveys WHERE company_id=? ORDER BY created DESC LIMIT 50").bind(id).all<{ repeat_months: number; id: string; title: string; kind: string; questions: string; anonymous: number; status: string; created: string }>()).results;
     const responses = (await db.prepare("SELECT survey_id,department,answers FROM survey_responses WHERE company_id=?").bind(id).all<{ survey_id: string; department: string; answers: string }>()).results;
     const size = Number((await db.prepare("SELECT COUNT(*) AS n FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).first<{ n: number }>())?.n || 0);
     return ok({
@@ -9808,7 +9986,7 @@ async function route(request: Request) {
         // A department is shown only when at least 5 people of it answered, so nobody can be picked out.
         const byDepartment = nps ? [...new Set(mine.map((m) => m.department).filter(Boolean))].map((d) => ({ department: d, ...enps(mine.filter((m) => m.department === d).map((m) => Number(m.answers[nps.id]))) })).filter((d) => d.count >= 5) : [];
         return {
-          id: sv.id, title: sv.title, kind: sv.kind, anonymous: !!sv.anonymous, status: sv.status, created: sv.created, questions, responses: mine.length,
+          id: sv.id, title: sv.title, kind: sv.kind, anonymous: !!sv.anonymous, status: sv.status, created: sv.created, repeatMonths: sv.repeat_months, questions, responses: mine.length,
           enps: nps ? enps(mine.map((m) => Number(m.answers[nps.id]))) : null, byDepartment,
           averages: questions.filter((q) => q.kind === "scale5" || q.kind === "scale10").map((q) => ({ id: q.id, label: q.label, average: scaleOf(q) })),
           yesno: questions.filter((q) => q.kind === "yesno").map((q) => ({ id: q.id, label: q.label, yes: mine.filter((m) => m.answers[q.id] === "yes").length, no: mine.filter((m) => m.answers[q.id] === "no").length })),
@@ -9826,7 +10004,8 @@ async function route(request: Request) {
     const questions = kind === "enps" ? ENPS_QUESTIONS : cleanQuestions(b.questions);
     if (!questions.length) throw new HttpError(400, "Ən azı bir sual yazın.");
     const surveyId = crypto.randomUUID();
-    await db.prepare("INSERT INTO surveys(id,company_id,title,kind,questions,anonymous,status,created) VALUES(?,?,?,?,?,?,'open',?)").bind(surveyId, id, title, kind, JSON.stringify(questions), b.anonymous === false ? 0 : 1, new Date().toISOString()).run();
+    const repeat = [1, 3, 6, 12].includes(Number(b.repeatMonths)) ? Number(b.repeatMonths) : 0;
+    await db.prepare("INSERT INTO surveys(id,company_id,title,kind,questions,anonymous,status,created,repeat_months,series_id) VALUES(?,?,?,?,?,?,'open',?,?,?)").bind(surveyId, id, title, kind, JSON.stringify(questions), b.anonymous === false ? 0 : 1, new Date().toISOString(), repeat, surveyId).run();
     await tellPayroll(null, `Yeni sorğu: ${title}`, "Fikrinizi bildirmək üçün İş yerim → Elanlar və sorğular bölməsinə baxın.");
     return ok({ ok: true, id: surveyId }, 201);
   }
