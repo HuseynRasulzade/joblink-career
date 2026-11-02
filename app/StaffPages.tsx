@@ -1794,6 +1794,7 @@ export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notif
         <label>Əvvəlki sosial sığorta stajı (ay) — xəstəlik/analıq müavinəti üçün cəmi ən azı 6 ay lazımdır<input type="number" min={0} max={720} value={profile.insuranceBefore} onChange={(e) => set("insuranceBefore", Math.max(0, Number(e.target.value) || 0))} /></label>
         <Field label="Gecə əlavəsi (%) — müqavilədə yazılıbsa; 22:00–06:00 saatlarına tətbiq olunur"><input type="number" min={0} max={100} step="0.5" value={profile.nightPercent || ""} onChange={(e) => set("nightPercent", Number(e.target.value) || 0)} /></Field>
         <ManagerSelect employeeId={employeeId} value={profile.managerId} onChange={(v) => set("managerId", v)} />
+        <ManagerSelect employeeId={employeeId} value={profile.deputyId} onChange={(v) => set("deputyId", v)} label="Rəhbərin əvəzedicisi: rəhbər məzuniyyətdə və ya xəstə olanda ərizələr buna gedir (əvəzedicinin «İş yerim» profili qoşulmalıdır)" empty="— yoxdur, rəhbər yoxdursa ərizə HR-a gedir —" />
         <label className="check-row"><input type="checkbox" checked={profile.mainJob} onChange={(e) => set("mainJob", e.target.checked)} /> Bu, işçinin əsas iş yeridir (əmək kitabçası burada saxlanılır)</label>
       </div>
       <p>
@@ -2636,7 +2637,7 @@ function StaffHistory() {
 }
 
 // The direct manager: leave applications of the employee go to this colleague first (the colleague needs a linked "İş yerim").
-function ManagerSelect({ employeeId, value, onChange }: { employeeId: string; value: string; onChange: (id: string) => void }) {
+function ManagerSelect({ employeeId, value, onChange, label, empty }: { employeeId: string; value: string; onChange: (id: string) => void; label?: string; empty?: string }) {
   const [people, setPeople] = useState<{ id: string; name: string; position: string; status: string }[]>([]);
   useEffect(() => {
     request<{ employees: { id: string; name: string; position: string; status: string }[] }>("company/employees")
@@ -2644,9 +2645,9 @@ function ManagerSelect({ employeeId, value, onChange }: { employeeId: string; va
       .catch(() => undefined);
   }, [employeeId]);
   return (
-    <Field label="Birbaşa rəhbər (məzuniyyət və icazə ərizələri əvvəlcə ona gedir; rəhbərin «İş yerim» profili qoşulmalıdır)">
+    <Field label={label || "Birbaşa rəhbər (məzuniyyət və icazə ərizələri əvvəlcə ona gedir; rəhbərin «İş yerim» profili qoşulmalıdır)"}>
       <select value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">— yoxdur, ərizə birbaşa HR-a gedir —</option>
+        <option value="">{empty || "— yoxdur, ərizə birbaşa HR-a gedir —"}</option>
         {people.map((p) => <option key={p.id} value={p.id}>{p.name}{p.position ? ` · ${p.position}` : ""}</option>)}
       </select>
     </Field>

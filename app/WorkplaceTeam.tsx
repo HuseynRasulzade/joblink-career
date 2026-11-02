@@ -24,6 +24,8 @@ type Team = {
   perf: { cycleId: string; name: string; end: string; people: { employeeId: string; name: string; selfScore: number | null; managerScore: number | null; managerComment: string; status: string; feedback: { asked: number; count: number; average: number | null; comments: string[] } | null; goals: { title: string; weight: number; progress: number; score: number | null }[] }[] } | null;
   trips: { id: string; employeeId: string; name: string; destination: string; purpose: string; start: string; end: string; abroad: boolean; waiting: boolean }[];
   shifts: { employeeId: string; name: string; day: string; shift: string; start: string; end: string }[];
+  skills: { skills: { id: string; name: string }[]; cells: { employeeId: string; skillId: string; level: number; target: number }[] };
+  overtime: { personId: string; name: string; kind: "day" | "month"; day: string; extra: number; status: string }[];
   swaps: { id: string; day: string; from: string; to: string; fromShift: string; toShift: string; note: string }[];
 };
 
@@ -71,6 +73,23 @@ export default function MyTeam({ employeeId, notify }: { employeeId: string; not
     try {
       const r = await request<{ asked: number }>("employee/team/feedback-request", { employeeId, personId, cycleId, giverIds: colleagues });
       notify(r.asked ? `${r.asked} kolleqadan rəy istənildi.` : "Bu kolleqalardan rəy artıq istənilib.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function overtimeDecide(personId: string, kind: "day" | "month", day: string, status: "approved" | "rejected") {
+    try {
+      await request("employee/team/overtime", { employeeId, personId, kind, day, status });
+      notify(status === "approved" ? "Artıq iş təsdiq edildi." : "Artıq iş rədd edildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function skillSet(personId: string, skillId: string, level: number) {
+    try {
+      await request("employee/team/skills", { employeeId, personId, skillId, level });
       load();
     } catch (error) {
       notify((error as Error).message);
@@ -168,6 +187,23 @@ export default function MyTeam({ employeeId, notify }: { employeeId: string; not
           </table>
         </>
       )}
+      {data.overtime.length > 0 && (
+        <>
+          <h4>Artıq iş saatları təsdiqinizi gözləyir</h4>
+          <p className="muted">Şirkətdə artıq iş təsdiqi qaydası açıqdırsa, təsdiqlənməyən saatlar əmək haqqına düşmür. Artıq iş əmri varsa saatlar öz-özünə təsdiqlənir.</p>
+          <table className="admin-table">
+            <thead><tr><th>İşçi</th><th>Gün / ay</th><th>Artıq saat</th><th></th></tr></thead>
+            <tbody>
+              {data.overtime.map((o) => (
+                <tr key={`${o.personId}${o.day}${o.kind}`}>
+                  <td>{o.name}</td><td>{o.kind === "month" ? `${o.day} (ay yekunu)` : dmy(o.day)}</td><td>{o.extra}{o.status === "rejected" ? " · rədd edilib" : ""}</td>
+                  <td className="admin-actions"><button type="button" className="primary" onClick={() => void overtimeDecide(o.personId, o.kind, o.day, "approved")}>Təsdiq</button><button type="button" className="ghost" onClick={() => void overtimeDecide(o.personId, o.kind, o.day, "rejected")}>Rədd</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
       {data.swaps.length > 0 && (
         <>
           <h4>Növbə dəyişdirmə sorğuları</h4>
@@ -189,6 +225,32 @@ export default function MyTeam({ employeeId, notify }: { employeeId: string; not
             <thead><tr><th>Tarix</th><th>İşçi</th><th>Növbə</th></tr></thead>
             <tbody>{data.shifts.map((r, i) => <tr key={i}><td>{dmy(r.day)}</td><td>{r.name}</td><td>{r.shift} {r.start}–{r.end}</td></tr>)}</tbody>
           </table>
+        </>
+      )}
+      {data.skills.skills.length > 0 && (
+        <>
+          <h4>Bacarıq matrisi</h4>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead><tr><th>İşçi</th>{data.skills.skills.map((s) => <th key={s.id}>{s.name}</th>)}</tr></thead>
+              <tbody>
+                {data.people.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.name}</td>
+                    {data.skills.skills.map((s) => {
+                      const c = data.skills.cells.find((x) => x.employeeId === p.id && x.skillId === s.id) || { level: 0, target: 0 };
+                      return (
+                        <td key={s.id} style={c.target > c.level ? { background: "#ffd4d4" } : undefined}>
+                          <select aria-label={`${p.name}: ${s.name}`} value={c.level} onChange={(e) => void skillSet(p.id, s.id, Number(e.target.value))}>{["—", "başlanğıc", "işləyə bilir", "yaxşı", "ekspert"].map((l, i) => <option key={l} value={i}>{l}</option>)}</select>
+                          {c.target > 0 && <small className="skill-description">hədəf {c.target}</small>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
       <h4>1:1 görüşlər</h4>

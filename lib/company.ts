@@ -1,5 +1,5 @@
 // Company team: roles, permissions, company details.
-export type CompanyRole = "owner" | "director" | "hr" | "manager" | "recruiter";
+export type CompanyRole = "owner" | "director" | "hr" | "manager" | "recruiter" | "auditor";
 export const COMPANY_ROLES: {
   id: CompanyRole;
   label: string;
@@ -31,6 +31,11 @@ export const COMPANY_ROLES: {
     id: "recruiter",
     label: "Rekruter",
     description: "Namizədlərlə işləyir, vakansiyanı təsdiqə göndərir",
+  },
+  {
+    id: "auditor",
+    label: "Auditor / xarici mühasib (yalnız baxış)",
+    description: "Əmək haqqı, işçilər, davamiyyət, sənədlər və hesabatlara baxır, heç nəyi dəyişə bilmir; şəxsi məlumatları (IBAN, FİN) görmür",
   },
 ];
 export const INVITABLE_ROLES = COMPANY_ROLES.filter(
@@ -102,6 +107,8 @@ const PERMISSIONS: Record<CompanyRole, CompanyPermission[]> = {
   ],
   manager: ["reports"],
   recruiter: [],
+  // Read only: the server refuses every change of a company's data for this role.
+  auditor: ["reports", "payroll", "employees", "staff", "orders", "attendance", "documents", "audit"],
 };
 // Every permission with its group, a line of explanation and whether the owner may give it to one person
 // beyond their role. "team" and the director's approval stay with the roles.
@@ -138,7 +145,7 @@ const PATH_PERMISSION: [RegExp, CompanyPermission][] = [
   [/^company\/payroll(\/|$)/, "payroll"],
   [/^company\/hr-report(\/|$)/, "payroll"],
   [/^company\/hours(\/|$)/, "attendance"],
-  [/^company\/(leave-schedule|offboarding|assets|performance|training|shifts|trips|announcements|surveys|referrals|reference-checks|one-on-ones|today)(\/|$)/, "employees"],
+  [/^company\/(leave-schedule|offboarding|assets|performance|training|shifts|trips|announcements|surveys|referrals|reference-checks|one-on-ones|today|skill-matrix|inbox)(\/|$)/, "employees"],
   [/^company\/profile-changes(\/|$)/, "personal-data"],
   [/^company\/doc-registry(\/|$)/, "documents"],
   [/^company\/(orders|order-signers|applications)(\/|$)/, "orders"],

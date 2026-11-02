@@ -64,6 +64,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const [bank, setBank] = useState(false);
   const [importing, setImporting] = useState(false);
   const [accounts, setAccounts] = useState(false);
+  const [benefits, setBenefits] = useState(false);
   const [view, setView] = useState<"sheet" | "report">("sheet");
   const notifyRef = useRef(notify);
   useEffect(() => {
@@ -146,6 +147,9 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
               Mühasibat jurnalı (1C)
             </button>
           )}
+          <button type="button" className="secondary" onClick={() => setBenefits(true)}>
+            Müavinət uçotu
+          </button>
           <button type="button" className="secondary" onClick={() => setView("report")}>
             Hesablaşma hesabatı
           </button>
@@ -296,6 +300,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       {edit && <InputsModal month={month} row={edit} notify={notify} onClose={() => setEdit(null)} onSaved={load} />}
       {advance && <AdvanceModal month={month} row={advance} schedule={sheet.schedule.advanceDate} notify={notify} onClose={() => setAdvance(null)} onChanged={load} />}
       {paying && <PayModal month={month} row={paying} approved={approved} notify={notify} onClose={() => setPaying(null)} onSaved={load} />}
+      {benefits && <BenefitsModal month={month} notify={notify} onClose={() => setBenefits(false)} />}
       {accounts && <AccountingModal month={month} notify={notify} onClose={() => setAccounts(false)} />}
       {importing && <SheetImport kind="payroll" extra={{ month }} notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {bank && <PayrollBank month={month} notify={notify} onClose={() => setBank(false)} onChanged={load} />}
@@ -654,6 +659,67 @@ function AccountingModal({ month, notify, onClose }: { month: string; notify: No
           <button type="button" className="secondary" onClick={() => void save()}>Kodları saxla</button>
           <a className="primary report-button" href={`/api/joblink/company/payroll/accounting?month=${month}`} download><Download size={14} /> Jurnalı yüklə ({month})</a>
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+type BenefitData = { month: string; payer: string; expected: number; received: number; difference: number; people: { employeeId: string; name: string; days: number; amount: number; doc: string; eligible: boolean | null; capped: boolean }[]; receipts: { id: string; amount: number; receivedOn: string; reference: string; note: string; by: string }[]; months: { month: string; received: number }[] };
+// Sickness and maternity benefits: what the insurer is expected to pay for the month and what has come in.
+function BenefitsModal({ month, notify, onClose }: { month: string; notify: Notify; onClose: () => void }) {
+  const [data, setData] = useState<BenefitData | null>(null);
+  const [form, setForm] = useState({ amount: 0, receivedOn: new Date().toISOString().slice(0, 10), reference: "", note: "" });
+  const load = useCallback(() => {
+    request<BenefitData>(`company/payroll/benefits?month=${month}`).then(setData).catch((error) => notify((error as Error).message));
+  }, [month, notify]);
+  useEffect(load, [load]);
+  async function add() {
+    try {
+      await request("company/payroll/benefits/receipt", { month, ...form });
+      setForm({ ...form, amount: 0, reference: "", note: "" });
+      notify("Daxil olma qeyd edildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  return (
+    <Modal title={`Sosial sığorta müavinəti: ${month}`} onClose={onClose}>
+      <div className="offer-composer">
+        {!data ? <p className="muted">Yüklənir…</p> : (
+          <>
+            <p className="muted">
+              {data.payer === "insurer" ? "Müavinəti sığortaçı birbaşa işçiyə ödəyir (md. 17); burada şirkət tərəfindən alınıb-verilən məbləğ izlənir, məsələn şirkət əvvəlcədən ödəyib sonra sığortaçıdan alırsa." : "Müavinəti şirkət ödəyir; sığortaçıdan geri alınan məbləği buraya yazın."}
+            </p>
+            <div className="staff-kpis">
+              <div className="staff-kpi"><small>Gözlənilən</small><strong>{azn(data.expected)}</strong></div>
+              <div className="staff-kpi"><small>Daxil olub</small><strong>{azn(data.received)}</strong></div>
+              <div className={`staff-kpi ${data.difference > 0.005 ? "" : "staff-kpi-good"}`}><small>Fərq</small><strong>{azn(data.difference)}</strong><span>{data.difference > 0.005 ? "hələ gəlməyib" : data.difference < -0.005 ? "gözləniləndən çox" : "tamdır"}</span></div>
+            </div>
+            <table className="admin-table">
+              <thead><tr><th>İşçi</th><th>Gün</th><th>Məbləğ</th><th>E-bülleten</th></tr></thead>
+              <tbody>
+                {data.people.map((p) => <tr key={p.employeeId}><td>{p.name}</td><td>{p.days}</td><td>{azn(p.amount)}{p.capped ? " (həddə endirilib)" : ""}</td><td>{p.doc || "yazılmayıb"}</td></tr>)}
+                {!data.people.length && <tr><td colSpan={4}><p className="admin-empty">Bu ay müavinət yoxdur.</p></td></tr>}
+              </tbody>
+            </table>
+            <h4>Sığortaçıdan daxil olanlar</h4>
+            <div className="form-grid">
+              <Field label="Məbləğ (AZN)"><input type="number" min={0} step="0.01" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} /></Field>
+              <Field label="Tarix"><input type="date" value={form.receivedOn} onChange={(e) => setForm({ ...form, receivedOn: e.target.value })} /></Field>
+              <Field label="Sənəd / ödəniş nömrəsi"><input value={form.reference} maxLength={80} onChange={(e) => setForm({ ...form, reference: e.target.value })} /></Field>
+              <Field label="Qeyd"><input value={form.note} maxLength={200} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
+            </div>
+            <button type="button" className="primary" disabled={!(form.amount > 0)} onClick={() => void add()}>Daxil olmanı qeyd et</button>
+            {data.receipts.map((r) => (
+              <div key={r.id} className="bank-account">
+                <span>{dmy(r.receivedOn)} · {azn(r.amount)}{r.reference ? ` · ${r.reference}` : ""}{r.note ? ` · ${r.note}` : ""}</span>
+                <button type="button" className="danger" onClick={() => window.confirm("Qeyd silinsin?") && void request("company/payroll/benefits/receipt/delete", { id: r.id }).then(load)}>Sil</button>
+              </div>
+            ))}
+            {data.months.length > 0 && <p className="muted">Son aylar üzrə daxil olan: {data.months.map((m) => `${m.month}: ${azn(m.received)}`).join(" · ")}</p>}
+          </>
+        )}
       </div>
     </Modal>
   );

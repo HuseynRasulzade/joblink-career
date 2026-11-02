@@ -731,3 +731,17 @@ export function finalSettlement(input: {
     ],
   };
 }
+
+// Days of annual leave between two dates: calendar days without the public holidays (art. 114.6), so the same count that
+// vacationDates() uses the other way round.
+export function vacationDaysBetween(from: string, to: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) return 0;
+  const years = new Map<number, ReturnType<typeof daysOff>>();
+  let count = 0;
+  for (let cursor = from, guard = 0; cursor <= to && guard < 400; cursor = addDays(cursor, 1), guard++) {
+    const year = Number(cursor.slice(0, 4));
+    if (!years.has(year)) years.set(year, daysOff(year));
+    if (!years.get(year)!.get(cursor)) count += 1;
+  }
+  return count;
+}

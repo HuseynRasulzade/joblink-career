@@ -1341,10 +1341,10 @@ export default function HrPanel({
               if (kind === "c") {
                 const c = candidates.find((x) => x.id === ref);
                 const applied = applications.find((a) => a.candidateId === ref && a.jobId === selectedJob?.id);
-                return c ? { id: key, profile: c.profile, status: applied?.status, stage: applied?.stage } : null;
+                return c ? { id: key, applicationId: applied?.id, profile: c.profile, status: applied?.status, stage: applied?.stage } : null;
               }
               const a = applications.find((x) => x.id === ref);
-              return a ? { id: key, profile: a.profile, status: a.status, stage: a.stage } : null;
+              return a ? { id: key, applicationId: a.id, profile: a.profile, status: a.status, stage: a.stage } : null;
             })
             .filter((x): x is NonNullable<typeof x> => !!x)}
         />

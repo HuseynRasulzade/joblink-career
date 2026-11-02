@@ -6,7 +6,7 @@ import { OTHER_REQUEST, requestProblems, requestWarnings, type RequestData } fro
 import { Field } from "./components";
 import { DocsToSign, ExitInterview, MyAssets, MyLeave, MyProfileChanges } from "./WorkplaceExtras";
 import MyTeam from "./WorkplaceTeam";
-import { MyClock, MyEngage, MyFeedbackRequests, MyOneOnOnes, MyPerformance, MyReferrals, MyShifts, MyTraining, MyTrips } from "./WorkplaceGrowth";
+import { MyClock, MyEngage, MyFeedbackRequests, MyOneOnOnes, MySkills, MyPerformance, MyReferrals, MyShifts, MyTraining, MyTrips } from "./WorkplaceGrowth";
 import { monthLabel, payslipHtml, type SlipData } from "@/lib/payslip-html";
 
 type Notify = (message: string) => void;
@@ -158,7 +158,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
             )}
             {tab === "referral" && <MyReferrals key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "docs" && <DocsToSign key={place.id} employeeId={place.id} notify={notify} />}
-            {tab === "perf" && <><MyPerformance key={place.id} employeeId={place.id} notify={notify} /><MyFeedbackRequests key={`${place.id}-fb`} employeeId={place.id} notify={notify} /><MyOneOnOnes key={`${place.id}-1on1`} employeeId={place.id} notify={notify} /></>}
+            {tab === "perf" && <><MyPerformance key={place.id} employeeId={place.id} notify={notify} /><MyFeedbackRequests key={`${place.id}-fb`} employeeId={place.id} notify={notify} /><MySkills key={`${place.id}-sk`} employeeId={place.id} notify={notify} /><MyOneOnOnes key={`${place.id}-1on1`} employeeId={place.id} notify={notify} /></>}
             {tab === "training" && <MyTraining key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "team" && <MyTeam key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "clock" && <MyClock key={place.id} employeeId={place.id} notify={notify} />}

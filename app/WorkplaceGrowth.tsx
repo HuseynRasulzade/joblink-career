@@ -257,7 +257,7 @@ export function MyTrips({ employeeId, notify }: { employeeId: string; notify: No
 
 type SurveyQ = { id: string; label: string; kind: "scale10" | "scale5" | "yesno" | "text" };
 export function MyEngage({ employeeId, notify }: { employeeId: string; notify: Notify }) {
-  const [data, load] = useLoad<{ news: { id: string; title: string; body: string; pinned: boolean; author: string; created: string; requiresAck?: boolean; read?: boolean; acked?: boolean }[]; surveys: { id: string; title: string; anonymous: boolean; questions: SurveyQ[] }[] }>(`employee/engage?employeeId=${employeeId}`, notify);
+  const [data, load] = useLoad<{ news: { id: string; title: string; body: string; pinned: boolean; author: string; created: string; requiresAck?: boolean; read?: boolean; acked?: boolean; allowComments?: boolean; comments?: { id: string; author: string; body: string; created: string; mine: boolean; hr: boolean }[] }[]; surveys: { id: string; title: string; anonymous: boolean; questions: SurveyQ[] }[] }>(`employee/engage?employeeId=${employeeId}`, notify);
   const [answers, setAnswers] = useState<Record<string, Record<string, string>>>({});
   if (!data) return <p className="muted">Yüklənir…</p>;
   return (
@@ -287,6 +287,12 @@ export function MyEngage({ employeeId, notify }: { employeeId: string; notify: N
         <div key={n.id} className="bank-batch" onMouseEnter={() => { if (!n.read) void request("employee/announcements/read", { employeeId, id: n.id }).catch(() => undefined); }}>
           <b>{n.pinned ? "📌 " : ""}{n.title}</b> <small className="skill-description">{dmy(n.created.slice(0, 10))} · {n.author}</small>
           <p>{n.body}</p>
+          {n.allowComments && (
+            <div className="offer-composer">
+              {(n.comments || []).map((c) => <small key={c.id} className="skill-description"><b>{c.author}</b>: {c.body}</small>)}
+              <input aria-label="Şərh" placeholder="Şərh yazın və Enter basın" maxLength={600} onKeyDown={(e) => { const el = e.currentTarget; if (e.key === "Enter" && el.value.trim().length >= 2) { const body = el.value.trim(); el.value = ""; void act(notify, load, "employee/announcements/comment", { employeeId, id: n.id, body }, "Şərhiniz əlavə olundu."); } }} />
+            </div>
+          )}
           {n.requiresAck && (n.acked ? <small className="skill-description">Oxuduğunuzu təsdiq etmisiniz.</small> : <button type="button" className="primary" onClick={() => void act(notify, load, "employee/announcements/read", { employeeId, id: n.id, ack: true }, "Təsdiqiniz qeyd olundu.")}>Oxudum, təsdiq edirəm</button>)}
         </div>
       ))}
@@ -364,6 +370,27 @@ export function MyFeedbackRequests({ employeeId, notify }: { employeeId: string;
           <button type="button" className="primary" disabled={!form[i.id]?.score} onClick={() => void act(notify, load, "employee/feedback/submit", { employeeId, id: i.id, score: Number(form[i.id]?.score), comment: form[i.id]?.comment || "" }, "Rəyiniz qəbul olundu.")}>Göndər</button>
         </div>
       ))}
+    </div>
+  );
+}
+
+const SKILL_LEVELS = ["—", "başlanğıc", "işləyə bilir", "yaxşı", "ekspert"];
+// The employee's own skill levels against what the job needs.
+export function MySkills({ employeeId, notify }: { employeeId: string; notify: Notify }) {
+  const [data] = useLoad<{ skills: { id: string; name: string }[]; cells: { skillId: string; level: number; target: number }[] }>(`employee/skills?employeeId=${employeeId}`, notify);
+  if (!data || !data.skills.length || !data.cells.some((c) => c.level || c.target)) return null;
+  return (
+    <div className="offer-composer">
+      <h4>Bacarıqlarım</h4>
+      <table className="admin-table">
+        <thead><tr><th>Bacarıq</th><th>Səviyyəniz</th><th>Vəzifənin tələbi</th></tr></thead>
+        <tbody>
+          {data.skills.map((s) => {
+            const c = data.cells.find((x) => x.skillId === s.id) || { level: 0, target: 0 };
+            return <tr key={s.id}><td>{s.name}</td><td>{SKILL_LEVELS[c.level]}</td><td className={c.target > c.level ? "danger-text" : undefined}>{c.target ? SKILL_LEVELS[c.target] : "—"}{c.target > c.level ? " (inkişaf lazımdır)" : ""}</td></tr>;
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 import { useState } from "react";
-import { Engage, Performance, Shifts, Training, Trips } from "./GrowthPanels";
+import { Engage, Performance, Shifts, SkillMatrix, Training, Trips } from "./GrowthPanels";
 
 type Notify = (message: string) => void;
 const TABS = [
   { id: "performance", label: "Performans" },
+  { id: "skills", label: "Bacarıq matrisi" },
   { id: "training", label: "Təlim" },
   { id: "shifts", label: "Növbə qrafiki" },
   { id: "trips", label: "Ezamiyyət" },
@@ -13,6 +14,7 @@ const TABS = [
 
 const ABOUT: Record<(typeof TABS)[number]["id"], string> = {
   performance: "Dövr açın, hər işçiyə məqsəd yazın. İşçi icranı və özünüqiyməti doldurur, rəhbər və kolleqalar rəy verir, sonda işçi nəticə ilə tanış olub təsdiq edir. Rəhbər öz komandasını «İş yerim → Komandam»dan qiymətləndirə bilər.",
+  skills: "Şirkət üçün vacib bacarıqları əlavə edin, hər işçinin səviyyəsini (0–4) və vəzifənin tələb etdiyi hədəfi yazın. Hədəfdən aşağı xanalar qırmızı görünür: təlim planının əsasıdır. Rəhbər öz komandası üçün də yaza bilər, işçi öz səviyyəsini «İş yerim → Performans»da görür.",
   training: "Təlimləri planlayın, büdcəni izləyin, iştirakçıları seçin. Sertifikatın müddəti və vəzifə üzrə məcburi təlimlər izlənir, müddət bitəndə xəbərdarlıq gəlir.",
   shifts: "Növbə ilə işləyən işçilər üçün kimin hansı gün hansı saatda işlədiyini planlayın. Qrafik məzuniyyət, istirahət və minimum işçi sayı qaydalarına görə yoxlanılır; saatlar əmək haqqına keçir.",
   trips: "İşçi və ya HR ezamiyyət sorğusu yaradır, rəhbər və HR təsdiqləyir, işçi xərc hesabatı verir, hesablaşma əmək haqqında «digər ödəniş» kimi qeyd olunur.",
@@ -33,6 +35,7 @@ export default function GrowthHub({ notify }: { notify: Notify }) {
       </div>
       <p className="muted">{ABOUT[tab]}</p>
       {tab === "performance" && <Performance notify={notify} />}
+      {tab === "skills" && <SkillMatrix notify={notify} />}
       {tab === "training" && <Training notify={notify} />}
       {tab === "shifts" && <Shifts notify={notify} />}
       {tab === "trips" && <Trips notify={notify} />}

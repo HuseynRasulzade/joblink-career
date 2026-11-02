@@ -67,3 +67,11 @@ test("HR endpoints are guarded by the permission of their section", () => {
   assert.equal(permissionForPath("company/salary-calc"), "salaries");
   assert.equal(permissionForPath("company/something-else"), "salaries");
 });
+
+test("the auditor reads pay, people and reports but holds no personal-data or editing permission", async () => {
+  const { can, INVITABLE_ROLES, permissionForPath } = await import("../lib/company.ts");
+  for (const p of ["payroll", "employees", "reports", "attendance", "documents"]) assert.equal(can("auditor", p), true, p);
+  for (const p of ["personal-data", "team", "billing", "approve-director", "publish", "offers", "company-profile"]) assert.equal(can("auditor", p), false, p);
+  assert.ok(INVITABLE_ROLES.includes("auditor"));
+  assert.equal(can("auditor", permissionForPath("company/payroll")), true);
+});

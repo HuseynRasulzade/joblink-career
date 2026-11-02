@@ -190,3 +190,10 @@ test("the benefit follows the 6-month record and the monthly cap of the law", ()
   assert.equal(capped.amount, 2500);
   assert.equal(insuranceBenefit(earnings, 10, 100, "sick").eligible, null);
 });
+
+test("vacation days between two dates leave out the holidays and match vacationDates", () => {
+  const plan = c.vacationDates("2026-04-06", 14);
+  assert.equal(c.vacationDaysBetween(plan.start, plan.end), 14);
+  assert.equal(c.vacationDaysBetween("2026-03-16", "2026-03-27") <= 12, true); // Novruz days are not counted
+  assert.equal(c.vacationDaysBetween("2026-04-10", "2026-04-01"), 0);
+});

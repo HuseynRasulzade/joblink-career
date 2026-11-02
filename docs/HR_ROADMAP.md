@@ -262,3 +262,20 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - Hər hissənin başında nə üçün olduğu və necə işlədiyi qısaca yazılıb.
 
 **Hələ edilməyib:** ezamiyyət qəbzlərinin faylı, rəsmi gündəlik normanın avtomatik hesabı, təlim müqaviləsi, bacarıq matrisi, qiymətin maaş artımına bağlanması, elana fayl və şərh.
+
+## 18. Qalan bəndlərin bağlanması (2026-11-03)
+
+- **Rəhbərin komandası üçün davamiyyət:** «Komandam»da komandanın təsdiq gözləyən artıq iş saatları (gün və ay yekunu) təsdiq/rədd edilir.
+- **Auditor rolu (yalnız baxış):** əmək haqqı, işçilər, davamiyyət, sənəd və hesabatlara baxır; server şirkət məlumatına hər yazını rədd edir; IBAN, FİN, bank və Excel faylları bağlıdır.
+- **Vahid təsdiq pəncərəsi:** «Təsdiqlər» səhifəsində vakansiya/struktur təsdiqlərindən sonra «Digər gözləyən təsdiqlər»: artıq iş, növbə dəyişdirmə, ezamiyyət, məzuniyyət qrafiki (bir kliklə), ödəniş sənədləri və ərizələr (keçidlə).
+- **Müavinət uçotu:** hər ay üçün gözlənilən müavinət (işçi, gün, məbləğ, e-bülleten) və sığortaçıdan daxil olanlar, fərq.
+- **Ödəniş sənədi layihəsi cron ilə:** bank hesabı «avtomatik hazırla» rejimindədirsə gündəlik iş şirkətin sahibi adından 5 dəqiqəlik, dərhal silinən sessiya ilə bank səhifəsini açır, avans/maaş günü layihə hazır olur.
+- **Ezamiyyətdən əmr:** təsdiqlənən ezamiyyət üçün əmr avtomatik yaranır (şöbə rəhbəri və direktor imza üçün), imzalayan yoxdursa günlər «ezamiyyətdə» işarələnir.
+- **Məzuniyyət balansı:** ərizə yazılanda istənilən gün sayı (bayramsız) qalıqla müqayisə olunur; **əvəzedici:** işçi kartında rəhbərin əvəzedicisi seçilir, rəhbər yoxdursa ərizə əvəzedicisinə (yoxdursa HR-a) gedir.
+- **Elana şərh:** işçilər şərh yazır, HR cavab verir və silir.
+- **Təlim öhdəliyi:** təlimdən sonra işləmə müddəti və xərc; çıxış prosesində xəbərdarlıq.
+- **Bacarıq matrisi:** bacarıqlar, işçi səviyyəsi, vəzifə hədəfi, boşluqlar (HR, rəhbər, işçi).
+- **Qiymət → maaş artımı:** qiymətləndirmədən sonra tövsiyə (artım, mükafat, vəzifə, inkişaf planı); artım tarixlə maaş tarixçəsinə tətbiq olunur.
+- **Namizəd müqayisə cədvəli:** müsahibə nəticələri, maaş gözləntisi və diapazon, təcrübə və məcburi sertifikat çatışmazlığı, qısa nəticə, Excel və çap.
+
+**Qərarla edilməyib:** əmək haqqı hesabatı üçün hazır xülasə cədvəli. Hesabat 400 işçi və 12 ay üçün yerli bazada ~0,5 saniyədir; xülasə cədvəli ödəniş geri çəkiləndə, ay açılanda və işçi məlumatı dəyişəndə köhnəlib səhv rəqəm göstərmək riski daşıyır, ölçülmüş problem olmadığı üçün əlavə edilmədi.

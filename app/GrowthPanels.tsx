@@ -46,7 +46,7 @@ async function run(notify: Notify, reload: () => void, path: string, body: Recor
 
 // ---------- Performance ----------
 type Goal = { id: string; title: string; target: string; weight: number; progress: number; selfNote: string; managerNote: string; score: number | null; proposedBy: string };
-type PerfPerson = { id: string; name: string; position: string; department: string; goals: Goal[]; goalScore: number | null; band: string; review: { selfScore: number | null; selfComment: string; managerScore: number | null; managerComment: string; reviewer: string; status: string; acknowledgedAt: string } | null };
+type PerfPerson = { id: string; name: string; position: string; department: string; goals: Goal[]; goalScore: number | null; band: string; review: { selfScore: number | null; selfComment: string; managerScore: number | null; managerComment: string; reviewer: string; status: string; acknowledgedAt: string; raise?: { type: string; percent: number; note: string; applied: string } } | null };
 type PerfData = { cycles: { id: string; name: string; start: string; end: string; status: string }[]; cycle: string; rating: Record<string, string>; employees: PerfPerson[] };
 const REVIEW_STATUS: Record<string, string> = { open: "Başlanmayıb", "self-done": "Özünüqiymət verilib", "manager-done": "Rəhbər qiymətləndirib", acknowledged: "İşçi tanış olub" };
 
@@ -121,6 +121,8 @@ function PersonReview({ person, colleagues, cycleId, closed, rating, notify, onC
   const [review, setReview] = useState({ score: String(person.review?.managerScore || ""), comment: person.review?.managerComment || "" });
   const [feedback, loadFeedback] = useLoad<{ asked: number; count: number; average: number | null; comments: string[] }>(`company/performance/feedback?cycleId=${cycleId}&employeeId=${person.id}`, notify);
   const [givers, setGivers] = useState<string[]>([]);
+  const [advice, setAdvice] = useState({ type: person.review?.raise?.type || "", percent: person.review?.raise?.percent || 0, note: person.review?.raise?.note || "" });
+  const [effective, setEffective] = useState(new Date().toISOString().slice(0, 7) + "-01");
   return (
     <Modal title={`${person.name}: məqsədlər və qiymətləndirmə`} onClose={onClose}>
       <div className="offer-composer">
@@ -159,6 +161,37 @@ function PersonReview({ person, colleagues, cycleId, closed, rating, notify, onC
         </div>
         {!closed && <button type="button" className="primary" disabled={!review.score} onClick={() => void run(notify, onChanged, "company/performance/review", { cycleId, employeeId: person.id, managerScore: review.score, managerComment: review.comment }, "Qiymətləndirmə göndərildi.")}>Qiymətləndirməni göndər</button>}
         {person.review?.acknowledgedAt && <p className="muted">İşçi {dmy(person.review.acknowledgedAt.slice(0, 10))} tarixində tanış olub.</p>}
+        {person.review?.managerScore ? (
+          <>
+            <h4>Qiymətləndirmənin nəticəsi: tövsiyə</h4>
+            <div className="form-grid">
+              <Field label="Tövsiyə">
+                <select value={advice.type} disabled={!!person.review.raise?.applied} onChange={(e) => setAdvice({ ...advice, type: e.target.value })}>
+                  <option value="">Yoxdur</option>
+                  <option value="raise">Maaş artımı</option>
+                  <option value="bonus">Mükafat</option>
+                  <option value="promotion">Vəzifə artımı</option>
+                  <option value="plan">İnkişaf planı</option>
+                </select>
+              </Field>
+              {advice.type === "raise" && <Field label="Artım (%)"><input type="number" min={0} max={100} step="0.5" value={advice.percent || ""} disabled={!!person.review.raise?.applied} onChange={(e) => setAdvice({ ...advice, percent: Number(e.target.value) })} /></Field>}
+              <Field label="Əsaslandırma"><input value={advice.note} maxLength={300} disabled={!!person.review.raise?.applied} onChange={(e) => setAdvice({ ...advice, note: e.target.value })} /></Field>
+            </div>
+            {person.review.raise?.applied ? (
+              <p className="muted">Maaş artımı {dmy(person.review.raise.applied)} tarixindən maaş tarixçəsinə tətbiq olunub.</p>
+            ) : (
+              <div className="admin-actions">
+                <button type="button" className="secondary" onClick={() => void run(notify, onChanged, "company/performance/raise", { cycleId, employeeId: person.id, ...advice }, "Tövsiyə saxlanıldı.")}>Tövsiyəni saxla</button>
+                {person.review.raise?.type === "raise" && person.review.raise.percent > 0 && (
+                  <>
+                    <input type="date" aria-label="Yeni maaşın qüvvəyə minmə tarixi" value={effective} onChange={(e) => setEffective(e.target.value)} />
+                    <button type="button" className="primary" onClick={() => window.confirm(`Maaş ${person.review?.raise?.percent}% artırılsın və ${effective} tarixindən maaş tarixçəsinə yazılsın?`) && void run(notify, onChanged, "company/performance/raise/apply", { cycleId, employeeId: person.id, effectiveFrom: effective }, "Maaş artımı tətbiq olundu.")}>Maaşa tətbiq et</button>
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        ) : null}
         <h4>Kolleqa rəyi (360°)</h4>
         <p className="muted">Seçilən kolleqalardan bu işçi barədə 1–5 qiymət və qısa rəy istənilir. Rəylər adsız toplanır: yalnız orta qiymət və mətnlər görünür.</p>
         {feedback && feedback.asked > 0 && (
@@ -181,8 +214,8 @@ function PersonReview({ person, colleagues, cycleId, closed, rating, notify, onC
 }
 
 // ---------- Training ----------
-type Training = { id: string; title: string; provider: string; kind: string; start: string; end: string; hours: number; cost: number; status: string; note: string; validMonths: number; requiredFor: string; participants: { employeeId: string; name: string; status: string; result: string; certificateNo: string; completedOn: string; validUntil: string }[] };
-type TrainingData = { year: string; budget: number; spent: number; expiring: { employeeId: string; name: string; title: string; validUntil: string; expired: boolean }[]; missing: { trainingId: string; title: string; requiredFor: string; employees: { id: string; name: string }[] }[]; trainings: Training[]; employees: { id: string; name: string; department: string; hours: number }[] };
+type Training = { id: string; title: string; provider: string; kind: string; start: string; end: string; hours: number; cost: number; status: string; note: string; validMonths: number; requiredFor: string; participants: { employeeId: string; name: string; status: string; result: string; certificateNo: string; completedOn: string; validUntil: string; bondMonths: number; bondUntil: string; bondCost: number }[] };
+type TrainingData = { bonds: { employeeId: string; name: string; title: string; until: string; cost: number }[]; year: string; budget: number; spent: number; expiring: { employeeId: string; name: string; title: string; validUntil: string; expired: boolean }[]; missing: { trainingId: string; title: string; requiredFor: string; employees: { id: string; name: string }[] }[]; trainings: Training[]; employees: { id: string; name: string; department: string; hours: number }[] };
 const KIND_TEXT: Record<string, string> = { internal: "Daxili", external: "Xarici", online: "Onlayn", safety: "Əməyin mühafizəsi və təhlükəsizlik" };
 const TSTATUS: Record<string, string> = { planned: "Planlaşdırılıb", done: "Keçirilib", cancelled: "Ləğv edilib" };
 const PSTATUS: Record<string, string> = { invited: "Dəvət olunub", attending: "Gələcək", completed: "Tamamlayıb", declined: "İmtina edib" };
@@ -212,6 +245,12 @@ export function Training({ notify }: { notify: Notify }) {
         <div className="notice" role="status">
           <b>Sertifikatın müddəti bitir və ya bitib ({data.expiring.length}):</b>
           <ul>{data.expiring.slice(0, 12).map((e) => <li key={`${e.employeeId}${e.title}`}>{e.name}: {e.title} — {e.expired ? "müddəti bitib" : "bitir"} {dmy(e.validUntil)}</li>)}</ul>
+        </div>
+      )}
+      {data.bonds.length > 0 && (
+        <div className="notice" role="status">
+          <b>İşləmə öhdəliyi davam edən təlimlər ({data.bonds.length}):</b>
+          <ul>{data.bonds.slice(0, 10).map((b) => <li key={`${b.employeeId}${b.title}`}>{b.name}: {b.title} — {dmy(b.until)}-dək{b.cost ? `, pozulanda ${azn(b.cost)}` : ""}</li>)}</ul>
         </div>
       )}
       {data.missing.length > 0 && (
@@ -542,7 +581,7 @@ function TripDetail({ trip, notify, onClose, onChanged }: { trip: Trip; notify: 
 }
 
 // ---------- Announcements and surveys ----------
-type News = { id: string; title: string; body: string; audience: string; pinned: boolean; expires: string; author: string; created: string; requiresAck: boolean; reach: { total: number; read: number; acked: number; waiting: string[] } };
+type News = { id: string; title: string; body: string; audience: string; pinned: boolean; expires: string; author: string; created: string; requiresAck: boolean; allowComments: boolean; comments: { id: string; author: string; body: string; created: string; hr: boolean }[]; reach: { total: number; read: number; acked: number; waiting: string[] } };
 type SurveyResult = { repeatMonths?: number; created: string; id: string; title: string; kind: string; anonymous: boolean; status: string; responses: number; enps: { count: number; promoters: number; passives: number; detractors: number; score: number | null } | null; byDepartment: { department: string; count: number; score: number | null }[]; averages: { id: string; label: string; average: number | null }[]; yesno: { id: string; label: string; yes: number; no: number }[]; comments: { id: string; label: string; items: string[] }[] };
 
 export function Engage({ notify }: { notify: Notify }) {
@@ -560,6 +599,14 @@ export function Engage({ notify }: { notify: Notify }) {
             <button type="button" className="danger" onClick={() => window.confirm("Elan silinsin?") && void run(notify, loadNews, "company/announcements/delete", { id: n.id })}>Sil</button>
           </div>
           <small className="skill-description">Oxuyub: {n.reach.read} / {n.reach.total}{n.requiresAck ? ` · təsdiq edib: ${n.reach.acked} / ${n.reach.total}` : ""}{n.requiresAck && n.reach.waiting.length > 0 ? ` · gözləyən: ${n.reach.waiting.slice(0, 8).join(", ")}${n.reach.waiting.length > 8 ? "…" : ""}` : ""}</small>
+          {n.allowComments && (
+            <div className="offer-composer">
+              {n.comments.map((c) => (
+                <small key={c.id} className="skill-description">{c.author}: {c.body} <button type="button" className="text-button" onClick={() => void run(notify, loadNews, "company/announcements/comment", { id: n.id, commentId: c.id, remove: true })}>sil</button></small>
+              ))}
+              <input aria-label="Cavab" placeholder="Şərhə cavab yazın və Enter basın" maxLength={600} onKeyDown={(e) => { const el = e.currentTarget; if (e.key === "Enter" && el.value.trim().length >= 2) { const body = el.value.trim(); el.value = ""; void run(notify, loadNews, "company/announcements/comment", { id: n.id, body }, "Cavab yazıldı."); } }} />
+            </div>
+          )}
         </div>
       ))}
       {news && !news.items.length && <p className="muted">Elan yoxdur.</p>}
@@ -600,6 +647,7 @@ export function Engage({ notify }: { notify: Notify }) {
             </div>
             <Field label="Mətn"><textarea rows={4} value={String(edit.body)} onChange={(e) => setEdit({ ...edit, body: e.target.value })} /></Field>
             <label className="check"><input type="checkbox" checked={edit.pinned === true} onChange={(e) => setEdit({ ...edit, pinned: e.target.checked })} /> Yuxarıda saxla</label>
+            <label className="check"><input type="checkbox" checked={edit.allowComments === true} onChange={(e) => setEdit({ ...edit, allowComments: e.target.checked })} /> İşçilər şərh yaza bilsin</label>
             <label className="check"><input type="checkbox" checked={edit.requiresAck === true} onChange={(e) => setEdit({ ...edit, requiresAck: e.target.checked })} /> İşçilər oxuduğunu təsdiq etsin (əmr, qayda, təlimat üçün)</label>
             <label className="check"><input type="checkbox" checked={edit.notify === true} onChange={(e) => setEdit({ ...edit, notify: e.target.checked })} /> İşçilərə bildiriş göndər</label>
             <button type="button" className="primary" onClick={async () => { if (await run(notify, loadNews, "company/announcements/save", edit, "Elan yayımlandı.")) setEdit(null); }}>Yayımla</button>
@@ -649,6 +697,8 @@ function ParticipantResult({ training, p, notify, onChanged }: { training: Train
   const [status, setStatus] = useState(p.status);
   const [certificate, setCertificate] = useState(p.certificateNo);
   const [completedOn, setCompletedOn] = useState(p.completedOn);
+  const [bondMonths, setBondMonths] = useState(p.bondMonths);
+  const [bondCost, setBondCost] = useState(p.bondCost);
   return (
     <div className="bank-account">
       <span>{p.name}</span>
@@ -657,10 +707,13 @@ function ParticipantResult({ training, p, notify, onChanged }: { training: Train
         <>
           <input type="date" value={completedOn} onChange={(e) => setCompletedOn(e.target.value)} aria-label="Tamamlama tarixi" />
           <input placeholder="Sertifikat №" value={certificate} maxLength={60} onChange={(e) => setCertificate(e.target.value)} aria-label="Sertifikat nömrəsi" />
+          <input type="number" min={0} max={120} placeholder="Öhdəlik (ay)" value={bondMonths || ""} onChange={(e) => setBondMonths(Number(e.target.value))} aria-label="Təlimdən sonra işləmə öhdəliyi (ay)" style={{ maxWidth: 110 }} />
+          <input type="number" min={0} placeholder="Təlim xərci" value={bondCost || ""} onChange={(e) => setBondCost(Number(e.target.value))} aria-label="Öhdəlik pozulanda qaytarılan xərc (AZN)" style={{ maxWidth: 110 }} />
         </>
       )}
-      <button type="button" onClick={() => void run(notify, onChanged, "company/training/result", { trainingId: training.id, employeeId: p.employeeId, status, result: p.result, certificateNo: certificate, completedOn }, "Saxlanıldı.")}>Saxla</button>
+      <button type="button" onClick={() => void run(notify, onChanged, "company/training/result", { trainingId: training.id, employeeId: p.employeeId, status, result: p.result, certificateNo: certificate, completedOn, bondMonths, bondCost }, "Saxlanıldı.")}>Saxla</button>
       {p.validUntil && <small className="skill-description">Etibarlıdır: {dmy(p.validUntil)}-dək</small>}
+      {p.bondUntil && <small className="skill-description">İşləmə öhdəliyi: {dmy(p.bondUntil)}-dək{p.bondCost ? ` (pozulanda ${azn(p.bondCost)})` : ""}</small>}
     </div>
   );
 }
@@ -691,5 +744,54 @@ function OneOnOneModal({ person, notify, onClose }: { person: { id: string; name
         {data && !data.items.length && <p className="muted">Qeyd yoxdur.</p>}
       </div>
     </Modal>
+  );
+}
+
+// ---------- Skill matrix ----------
+const LEVELS = ["—", "başlanğıc", "işləyə bilir", "yaxşı", "ekspert"];
+type MatrixData = { employees: { id: string; name: string; position: string; department: string }[]; skills: { id: string; name: string }[]; cells: { employeeId: string; skillId: string; level: number; target: number }[] };
+// Who can do what: a level from 0 to 4 for each skill, against the level the job needs.
+export function SkillMatrix({ notify }: { notify: Notify }) {
+  const [data, load] = useLoad<MatrixData>("company/skill-matrix", notify);
+  const [name, setName] = useState("");
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  const cell = (e: string, s: string) => data.cells.find((c) => c.employeeId === e && c.skillId === s) || { level: 0, target: 0 };
+  const gaps = data.cells.filter((c) => c.target > c.level).length;
+  const set = (employeeId: string, skillId: string, patch: { level?: number; target?: number }) => void run(notify, load, "company/skill-matrix/set", { employeeId, skillId, ...patch });
+  return (
+    <div className="company-page">
+      <div className="section-heading">
+        <div className="admin-actions">
+          <input className="search-input" placeholder="Yeni bacarıq (məs. Excel, xidmət standartı, forklift)" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+          <button type="button" className="primary" disabled={name.trim().length < 2} onClick={async () => { if (await run(notify, load, "company/skill-matrix/skill", { name }, "Bacarıq əlavə olundu.")) setName(""); }}>+ Bacarıq</button>
+        </div>
+        <p className="muted">{data.skills.length ? `${gaps} xanada səviyyə hədəfdən aşağıdır (qırmızı).` : "Əvvəl bu vəzifələr üçün vacib bacarıqları əlavə edin."}</p>
+      </div>
+      {data.skills.length > 0 && (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr><th>İşçi</th>{data.skills.map((s) => <th key={s.id}>{s.name} <button type="button" className="text-button" aria-label={`${s.name} sil`} onClick={() => window.confirm(`«${s.name}» bacarığı bütün işçilərdən silinsin?`) && void run(notify, load, "company/skill-matrix/skill/delete", { id: s.id })}>×</button></th>)}</tr>
+            </thead>
+            <tbody>
+              {data.employees.map((p) => (
+                <tr key={p.id}>
+                  <td><b>{p.name}</b><small className="skill-description">{[p.position, p.department].filter(Boolean).join(" · ")}</small></td>
+                  {data.skills.map((s) => {
+                    const c = cell(p.id, s.id);
+                    return (
+                      <td key={s.id} style={c.target > c.level ? { background: "#ffd4d4" } : undefined}>
+                        <select aria-label={`${p.name}: ${s.name} səviyyə`} value={c.level} onChange={(e) => set(p.id, s.id, { level: Number(e.target.value) })}>{LEVELS.map((l, i) => <option key={l} value={i}>{l}</option>)}</select>
+                        <select aria-label={`${p.name}: ${s.name} hədəf`} value={c.target} onChange={(e) => set(p.id, s.id, { target: Number(e.target.value) })} title="Vəzifənin tələb etdiyi səviyyə">{LEVELS.map((l, i) => <option key={l} value={i}>{i ? `hədəf: ${l}` : "hədəf yoxdur"}</option>)}</select>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

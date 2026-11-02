@@ -102,6 +102,7 @@ import {
 import { ExamList } from "./ExamRoom";
 import { OFFER_STATUS, OfferResponse, type Offer } from "./Offers";
 import { CompareBar, JobComparison } from "./Comparison";
+import HrInbox from "./HrInbox";
 import { LEVEL_NAMES } from "@/lib/role-level";
 import NotificationBell from "./NotificationBell";
 import { JobCertificationList } from "./CertificationPickers";
@@ -2766,6 +2767,7 @@ export default function Joblink() {
                   workforce={<WorkforcePage me={companyMe} notify={notify} />}
                 />
               )}
+              {page === "hr-approvals" && <HrInbox go={go} notify={notify} />}
               {page === "hr-employees" && <EmployeesPage notify={notify} />}
               {page === "hr-orders" && <OrdersRegistry notify={notify} />}
               {page === "hr-payroll" && <PayrollPage notify={notify} />}

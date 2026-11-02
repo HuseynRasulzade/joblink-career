@@ -624,6 +624,13 @@
       "when": 1798570800000,
       "tag": "0088_shift_swaps_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "6",
+      "when": 1798657200000,
+      "tag": "0089_completion_batch",
+      "breakpoints": true
     }
   ]
 }
