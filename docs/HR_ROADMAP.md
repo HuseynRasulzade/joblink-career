@@ -138,3 +138,53 @@ Qiymətləndirmə: ✅ var · 🟡 qismən · ❌ yoxdur. Əmək: S (1–2 gün)
 - Md. 6 / Əmək Pensiyaları Qanunu md. 6-1: aylıq müavinət ≤ 25 × minimum əmək pensiyası. Pensiyanın məbləği qanun mətnində yoxdur, ayarlarda daxil edilir.
 - Md. 17: müavinəti sığortaçı birbaşa ödəyir; defolt rejim «sığortaçı». Şirkət ödəyirsə ayarlarda «şirkət ödəyir» seçilir, onda ödəniş/bank reyestri açılır.
 - Faiz qanunda yoxdur: şirkət ayarıdır.
+
+## 9. Qrup (holdinq) girişi: ən sonda
+
+Qərar: holdinq görünüşü ayrıca yeni **istifadəçi giriş növü** kimi qurulacaq (qrup rəhbəri girişi). Bir giriş bir neçə şirkət hesabına qrup səviyyəsində baxır. Bütün digər işlər bitəndən sonra edilir. Əvvəlcədən lazım olan qərarlar: qrupa hansı şirkət hesabları daxildir, qrup girişi nəyi görür (yalnız icmal/hesabat, yoxsa maaş da), şirkət sahibinin razılığı necə alınır.
+
+## 10. İstifadəçi növləri üzrə uyğunsuzluq və çatışmazlıqlar (2026-11-02)
+
+Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod baxışı. «Yoxlanmalı» işarəsi: kodda təsdiq etmədiyim, test lazım olan bənd.
+
+### Şöbə rəhbəri (rol «manager»)
+- Rolun icazəsi yalnız «hesabatlar»dır. Kadr əməliyyatları (məzuniyyət qrafiki, ezamiyyət, növbə, performans, təlim) «işçilər» icazəsinə bağlıdır; şöbə rəhbəri öz şöbəsinin işçiləri üçün bunları təsdiq edə bilmir.
+- Şöbə üzrə məhdudlaşdırılmış görünüş yoxdur: rəhbər yalnız öz komandasını (davamiyyət, məzuniyyət, ərizələr) görməlidir.
+- Aşağı işçinin ərizəsi/məzuniyyəti/ezamiyyəti əvvəl rəhbərə, sonra HR-a gedən zəncir yoxdur.
+- Performans qiymətləndirməsini rəhbər öz komandası üçün yaza bilmir.
+
+### İşçi («İş yerim»)
+- Şəxsi məlumat dəyişikliyi (ünvan, kart, IBAN) üçün təsdiqli sorğu axını yoxdur; yalnız ümumi ərizə var.
+- Özünüxidmət davamiyyət qeydi (gəliş/gediş, məkan) yoxdur; davamiyyəti HR/tabel məsulu aparır.
+- Hüquqi qüvvəli elektron imza yoxdur; imza «oxudum/təsdiq edirəm» qeydidir.
+- Mobil push bildirişi yoxdur (PWA var, push ayrıca qurulmayıb).
+- Müavinətin faktiki ödənişi (sığortaçıdan) işçi tərəfdə izlənmir.
+
+### HR meneceri
+- Qəbul olunmuş təklifdən avtomatik işçi kartı və əmr yaradılması: yoxlanmalı.
+- Vergi/DSMF aylıq bəyannamə formaları (rəsmi portal formatı) yoxdur; yalnız hesabat və 1C ixracı var.
+- İşə qəbul/ixrac sənədlərinin dövlət reyestrinə (ƏMAS) göndərilməsi yoxdur.
+- HR üçün vahid «bu gün nə etməli» siyahısı (gecikən təsdiqlər, müddəti bitən sənədlər) yalnız hissəvi: xatırlatmalar var, vahid pəncərə yoxdur.
+
+### Mühasib / maliyyə
+- Bank ilə birbaşa köçürmə yoxdur (fayl ixracı + çıxarış uzlaşdırması var).
+- Müavinətin sığortaçıdan əldə edilməsi və şirkətlə uzlaşdırılması üçün ayrıca uçot yoxdur.
+- Yalnız-oxu «xarici auditor/mühasib» rolu yoxdur.
+- Minimum pensiya və müavinət faizi əl ilə daxil edilir; dəyişikliyi izləyən rəsmi mənbə bağlantısı yoxdur.
+
+### Direktor / hesab sahibi
+- Bütün təsdiqlər üçün vahid pəncərə hissəvidir (vakansiya, ödəniş partiyası, struktur ayrı yerlərdə).
+- Şifrələmə açarı (`DATA_KEY`) qoyulmayıb, şəxsi məlumatlar hələ şifrəsizdir; açarın ehtiyat nüsxəsi məsuliyyəti sizdədir.
+- Qrup/holdinq görünüşü: 9-cu bölməyə bax.
+
+### Rekruter
+- Vakansiyanın xarici saytlara avtomatik göndərilməsi yoxdur (lent və paylaşma linki var).
+- Namizəd sənədlərinin (CV, sertifikat) toplu yoxlanması: yoxlanmalı.
+
+### Namizəd (iş axtaran)
+- Namizəd işə qəbul olunanda hesabdan «İş yerim»ə keçid yalnız şirkət bağlantısı ilə olur; avtomatik keçid: yoxlanmalı.
+- Müsahibə vaxtını namizədin özünün seçməsi (boş vaxt cədvəli): yoxlanmalı.
+
+### Platforma admini
+- Şirkət bazalarının məxfilik girişi üçün ayrıca baxış jurnalı var (audit); şirkət daxili HR məlumatlarına admin girişinin məhdudlaşdırılması ayrıca qərardır.
+- Ödəniş/paket tərəfi mövcuddur; real kart ödənişi inteqrasiyası xarici müqavilə tələb edir.
