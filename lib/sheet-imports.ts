@@ -187,6 +187,7 @@ const PROFILE_ALIASES: Aliases<"name" | "email" | ProfileField> = {
   taxBenefitDoc: ["guzest sened", "guzest senedi", "guzest sened nomresi"],
   taxBenefitFrom: ["guzest baslama tarixi", "guzest tarixi"],
   dependents3: ["himayesinde 3 nefer", "himayesinde en azi 3 nefer", "himaye 3"],
+  managerId: [],
   insuranceBefore: ["evvelki sigorta stajı", "evvelki sigorta staji", "sigorta staji", "sigorta stajı ay"],
   mainJob: ["esas is yeri", "emek kitabcasi burada"],
   soleParent: ["usagi tekbasina boyudur", "tekvalideyn", "tek valideyn"],

@@ -825,6 +825,11 @@ export const employeeRequests = sqliteTable(
     createdByName: text("created_by_name").notNull().default(""),
     created: text("created").notNull(),
     updated: text("updated").notNull(),
+    // The direct manager's step: "" when none is needed, then pending / approved.
+    managerStatus: text("manager_status").notNull().default(""),
+    managerName: text("manager_name").notNull().default(""),
+    managerNote: text("manager_note").notNull().default(""),
+    managerAt: text("manager_at").notNull().default(""),
   },
   (t) => [index("employee_requests_company").on(t.companyId, t.status, t.created)],
 );

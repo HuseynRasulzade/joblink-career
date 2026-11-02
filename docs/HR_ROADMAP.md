@@ -12,7 +12,7 @@ Qiymətləndirmə: ✅ var · 🟡 qismən · ❌ yoxdur. Əmək: S (1–2 gün)
 | İşçi kartı və şəxsi iş | ✅ | Şəxsi məlumatlar, vəsiqə, əlillik və vergi güzəşti, bank/kart, sənəd qovluğu, əmrlər, müqavilə şablonları, işçi profili qoşulması. Çatmır: sənəd müddəti xatırlatması (tibbi baxış, sertifikat), təşkilat sxemi, işçi şəkli |
 | Ştat cədvəli və struktur | ✅ | Plan, kilid və direktor təsdiqi, vəzifə və şöbə kataloqu, maaş həddi, ştat dərəcəsi. Çatmır: ştat dəyişikliyi tarixçəsinin qrafik görüntüsü, vəzifə təlimatları (iş təsviri) |
 | Davamiyyət | ✅ | Gün üzrə qeyd, Excel idxalı, qısaldılmış həftə, giriş-çıxış saatı, işçinin özünün qeydi, gecikmə jurnalı, artıq iş təsdiqi, saatların əmək haqqına avtomatik keçməsi, növbələr. Çatmır: məkan yoxlaması, turniket inteqrasiyası |
-| Məzuniyyət və icazə | 🟡 | Əmrlər, işçi ərizəsi, qalıq, məzuniyyət haqqı (md. 140). Çatmır: illik məzuniyyət qrafiki, rəhbər təsdiqi ilə sorğu axını, üst-üstə düşmə yoxlaması, ezamiyyət və xərc hesabatı |
+| Məzuniyyət və icazə | ✅ | Əmrlər, işçi ərizəsi, qalıq, məzuniyyət haqqı (md. 140), illik qrafik, birbaşa rəhbər təsdiqi ("İş yerim → Komandam"), üst-üstə düşmə və şöbə yükü yoxlaması, HR qapısı (rəhbər cavab verməmiş əmr hazırlanmır), ezamiyyət. Çatmır: rəhbərin yoxluğunda əvəzedici, məzuniyyət balansının ərizə zamanı iş günü ilə dəqiq yoxlanması |
 | Əmək haqqı | ✅ | Hesablama, avans, vergi güzəşti, müavinətlər, ödənişlər və geri çəkmə, bank sənədi və ikinci təsdiq, hesablaşma hesabatı, haqq-hesab vərəqəsi, işçiyə bildiriş. Çatmır: bölmə 2-də |
 | Hesabatlar | ✅ | İşçi axını, dövriyyə, kadr və fond hesabatı, hesablaşma hesabatı. Çatmır: qrafiklər, proqnoz, plan-fakt xəbərdarlığı |
 | Performans və inkişaf | ❌ | Məqsəd, qiymətləndirmə dövrü, 360° rəy, 1:1 qeydləri, bacarıq matrisi, təlim planı |
@@ -196,3 +196,11 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - Gecikmə və tez çıxış (icazə müddəti ayarlıdır), boş qalmış iş günləri, Giriş-çıxış jurnalı.
 - Artıq iş təsdiqi: ayar açıqdırsa təsdiqlənməyən artıq iş və istirahət günü saatı əmək haqqına düşmür (md. 99, 105).
 - Hələ yoxdur: coğrafi məkan yoxlaması, turniket/biometrik cihaz inteqrasiyası, rəhbərin yalnız öz şöbəsi üzrə təsdiqi.
+
+## 12. Məzuniyyət və icazə tamamlandı (2026-11-02)
+
+- İşçi kartında «Birbaşa rəhbər» seçilir (rəhbərin «İş yerim» profili qoşulmalıdır). Məzuniyyət və icazə növlü ərizələr əvvəlcə rəhbərə gedir, rəhbər «Komandam» bölməsində təsdiq və ya səbəblə rədd edir.
+- Rəhbər cavab verməyənə qədər HR əmr hazırlaya bilmir; rəhbər rədd edərsə ərizə bağlanır və işçiyə bildiriş gedir.
+- Yoxlamalar (ərizə yazılanda, rəhbərə və HR-a): cədvəldə həmin günlərdə artıq məzuniyyət/xəstəlik qeydi, işçinin başqa açıq ərizəsi, şöbədə eyni vaxtda çox adamın məzuniyyəti.
+- Rəhbər komandasının bu günkü vəziyyətini və növbəti 45 gündə kimin olmayacağını görür.
+- Hələ yoxdur: rəhbər məzuniyyətdə olanda əvəzedici, rəhbərin komandasında davamiyyət/artıq iş təsdiqi.

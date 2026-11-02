@@ -5,6 +5,7 @@ import { ORDER_KINDS, UNPAID_REASONS } from "@/lib/orders";
 import { OTHER_REQUEST, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { Field } from "./components";
 import { DocsToSign, ExitInterview, MyAssets, MyLeave } from "./WorkplaceExtras";
+import MyTeam from "./WorkplaceTeam";
 import { MyClock, MyEngage, MyPerformance, MyReferrals, MyShifts, MyTraining, MyTrips } from "./WorkplaceGrowth";
 import { monthLabel, payslipHtml, type SlipData } from "@/lib/payslip-html";
 
@@ -32,6 +33,7 @@ type Workplace = {
   startDate: string;
   tenure: string;
   vacation: { entitlement: number; accrued: number; used: number; remaining: number };
+  team?: number;
 };
 type Application = {
   id: string;
@@ -41,6 +43,7 @@ type Application = {
   status: "new" | "ordered" | "rejected" | "answered" | "withdrawn";
   statusText: string;
   reply: string;
+  manager?: { status: string; name: string; note: string } | null;
   source: "employee" | "hr";
   orderNumber: string;
   orderStatus: string;
@@ -54,7 +57,7 @@ const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slic
 export default function WorkplacePage({ notify }: { notify: Notify }) {
   const [places, setPlaces] = useState<Workplace[] | null>(null);
   const [current, setCurrent] = useState("");
-  const [tab, setTab] = useState<"info" | "letters" | "pay" | "leave" | "assets" | "exit" | "perf" | "training" | "shifts" | "trips" | "engage" | "docs" | "referral" | "clock">("letters");
+  const [tab, setTab] = useState<"info" | "letters" | "pay" | "leave" | "assets" | "exit" | "perf" | "training" | "shifts" | "trips" | "engage" | "docs" | "referral" | "clock" | "team">("letters");
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -113,6 +116,11 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
               <button type="button" role="tab" aria-selected={tab === "training"} className={tab === "training" ? "primary" : "ghost"} onClick={() => setTab("training")}>
                 Təlimlərim
               </button>
+              {(place.team || 0) > 0 && (
+                <button type="button" role="tab" aria-selected={tab === "team"} className={tab === "team" ? "primary" : "ghost"} onClick={() => setTab("team")}>
+                  Komandam
+                </button>
+              )}
               <button type="button" role="tab" aria-selected={tab === "clock"} className={tab === "clock" ? "primary" : "ghost"} onClick={() => setTab("clock")}>
                 Giriş-çıxış
               </button>
@@ -149,6 +157,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
             {tab === "docs" && <DocsToSign key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "perf" && <MyPerformance key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "training" && <MyTraining key={place.id} employeeId={place.id} notify={notify} />}
+            {tab === "team" && <MyTeam key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "clock" && <MyClock key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "shifts" && <MyShifts key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "trips" && <MyTrips key={place.id} employeeId={place.id} notify={notify} />}
@@ -378,6 +387,7 @@ function Letters({ employeeId, company, notify }: { employeeId: string; company:
                 <td>{a.data.from ? `${dmy(a.data.from)}${a.data.to ? ` – ${dmy(a.data.to)}` : ""}` : "—"}</td>
                 <td>
                   {a.statusText}
+                  {a.manager && <small className="skill-description">{a.manager.status === "pending" ? "Rəhbərin təsdiqini gözləyir" : a.manager.status === "approved" ? `Rəhbər təsdiq etdi (${a.manager.name})` : `Rəhbər rədd etdi (${a.manager.name})`}</small>}
                   {a.status === "ordered" && a.orderNumber && <small className="skill-description">Əmr № {a.orderNumber}</small>}
                 </td>
                 <td>{a.reply || "—"}</td>

@@ -7539,6 +7539,41 @@ async function route(request: Request) {
     return ok({ ok: true });
   }
   // ---- The employee's own profile: link with a code, see the workplace, write applications to the company ----
+  // Leave kinds that take the employee away from work: they go to the direct manager first and are checked for clashes.
+  const AWAY_KINDS = ["vacation", "addleave", "creative", "study", "unpaid", "childcare", "maternity", "paternity", "donor", "medical", "remote", "postpone", "extendleave"];
+  const AWAY_CODES = ["annual", "addleave", "creative", "unpaid", "study", "maternity", "childcare", "paternity", "donor", "medical", "sick", "injury", "trip", "summons", "military", "downtime"];
+  const dataOf = (text: string): { from?: string; to?: string } => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {};
+    }
+  };
+  // What to look at before a leave is approved: clashes with the employee's own leave and with colleagues of the department.
+  const leaveChecks = async (companyId: string, emp: { id: string; department: string }, kind: string, data: { from?: string; to?: string }, selfId = ""): Promise<string[]> => {
+    if (!AWAY_KINDS.includes(kind) || !/^\d{4}-\d{2}-\d{2}$/.test(data.from || "") || !/^\d{4}-\d{2}-\d{2}$/.test(data.to || "")) return [];
+    const from = data.from as string;
+    const to = data.to as string;
+    const out: string[] = [];
+    const marks = await db.prepare(`SELECT COUNT(*) AS n FROM attendance_marks WHERE company_id=? AND employee_id=? AND day BETWEEN ? AND ? AND code IN (${AWAY_CODES.map(() => "?").join(",")})`).bind(companyId, emp.id, from, to, ...AWAY_CODES).first<{ n: number }>();
+    if (Number(marks?.n) > 0) out.push(`Bu tarixlərdə cədvəldə artıq ${marks?.n} gün məzuniyyət/icazə/xəstəlik qeydi var.`);
+    const open = (await db.prepare("SELECT id,employee_id,kind,data FROM employee_requests WHERE company_id=? AND status IN ('new','ordered') AND id<>?").bind(companyId, selfId).all<{ id: string; employee_id: string; kind: string; data: string }>()).results.filter((r) => AWAY_KINDS.includes(r.kind) && !["postpone", "extendleave"].includes(r.kind));
+    const clash = (r: { data: string }) => {
+      const d = dataOf(r.data);
+      return !!d.from && !!d.to && d.from <= to && from <= d.to;
+    };
+    if (open.some((r) => r.employee_id === emp.id && clash(r))) out.push("İşçinin bu tarixlərə düşən başqa açıq ərizəsi və ya əmri var.");
+    if (emp.department && ["vacation", "addleave", "creative"].includes(kind)) {
+      const people = (await db.prepare("SELECT id,name,department FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(companyId).all<{ id: string; name: string; department: string }>()).results;
+      const plan = (await db.prepare("SELECT id,employee_id,start_date,end_date,days,status FROM leave_schedule WHERE company_id=? AND status<>'rejected' AND start_date<=? AND end_date>=?").bind(companyId, to, from).all<{ id: string; employee_id: string; start_date: string; end_date: string; days: number; status: string }>()).results;
+      const others: ScheduleEntry[] = [
+        ...plan.filter((r) => r.employee_id !== emp.id).map((r) => ({ id: r.id, employeeId: r.employee_id, start: r.start_date, end: r.end_date, days: r.days, status: r.status })),
+        ...open.filter((r) => r.employee_id !== emp.id && ["vacation", "addleave", "creative"].includes(r.kind) && clash(r)).map((r) => ({ id: r.id, employeeId: r.employee_id, start: dataOf(r.data).from as string, end: dataOf(r.data).to as string, days: 0, status: "proposed" })),
+      ];
+      out.push(...scheduleWarnings({ employeeId: emp.id, start: from, end: to, days: 0 }, others, people, { remaining: 9999 }).filter((w) => w.includes("eyni vaxtda")));
+    }
+    return out;
+  };
   const clockSettings = async (companyId: string) => {
     const rows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('work_start','work_end','break_minutes','grace_minutes','overtime_approval','self_clock')").bind(companyId).all<{ key: string; value: string }>()).results;
     const get = (k: string) => rows.find((r) => r.key === k)?.value;
@@ -7566,11 +7601,12 @@ async function route(request: Request) {
     const rows = await db
       .prepare(
         `SELECT e.id,e.name,e.position,e.department,e.section,e.start_date,e.status,e.vacation_days,e.vacation_used,c.name AS company,
-          (SELECT COUNT(*) FROM attendance_marks m WHERE m.employee_id=e.id AND m.code='annual') AS annual_marks
+          (SELECT COUNT(*) FROM attendance_marks m WHERE m.employee_id=e.id AND m.code='annual') AS annual_marks,
+          (SELECT COUNT(*) FROM company_employees r WHERE r.company_id=e.company_id AND r.status IN ('active','leave') AND (CASE WHEN json_valid(r.profile) THEN json_extract(r.profile,'$.managerId') END)=e.id) AS team
          FROM company_employees e JOIN accounts c ON c.id=e.company_id WHERE e.user_id=? AND e.status IN ('active','leave') ORDER BY e.start_date DESC`,
       )
       .bind(userId)
-      .all<{ id: string; name: string; position: string; department: string; section: string; start_date: string; status: string; vacation_days: number; vacation_used: number; company: string; annual_marks: number }>();
+      .all<{ id: string; name: string; position: string; department: string; section: string; start_date: string; status: string; vacation_days: number; vacation_used: number; company: string; annual_marks: number; team: number }>();
     const todayIso = new Date().toISOString().slice(0, 10);
     return ok({
       workplaces: rows.results.map((r) => ({
@@ -7582,6 +7618,7 @@ async function route(request: Request) {
         section: r.section,
         startDate: r.start_date,
         status: r.status,
+        team: Number(r.team) || 0,
         tenure: tenure(r.start_date, "", todayIso)?.text || "",
         vacation: vacationBalance({ start: r.start_date, end: "", entitlement: r.vacation_days ?? 21, used: (r.vacation_used ?? 0) + Number(r.annual_marks || 0) }, todayIso),
       })),
@@ -7722,6 +7759,61 @@ async function route(request: Request) {
     const to = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
     const rows = await db.prepare("SELECT a.day,t.name,t.start_time,t.end_time FROM shift_assignments a JOIN shift_types t ON t.id=a.shift_id WHERE a.company_id=? AND a.employee_id=? AND a.day BETWEEN ? AND ? ORDER BY a.day").bind(employee.company_id, employee.id, from, to).all<{ day: string; name: string; start_time: string; end_time: string }>();
     return ok({ items: rows.results.map((r) => ({ day: r.day, name: r.name, start: r.start_time, end: r.end_time })) });
+  }
+  // The direct manager's view: their people, leave applications waiting for them, and who is away.
+  const teamOf = async (manager: { id: string; company_id: string }) => {
+    const rows = (await db.prepare("SELECT id,name,position,department,user_id,profile,vacation_days,vacation_used,start_date FROM company_employees WHERE company_id=? AND status IN ('active','leave') AND id<>?").bind(manager.company_id, manager.id).all<{ id: string; name: string; position: string; department: string; user_id: string; profile: string; vacation_days: number; vacation_used: number; start_date: string }>()).results;
+    return rows.filter((r) => parseProfile(r.profile).managerId === manager.id);
+  };
+  if (request.method === "GET" && path === "employee/team") {
+    const manager = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const people = await teamOf(manager);
+    if (!people.length) return ok({ people: [], requests: [], away: [] });
+    const ids = people.map((p) => p.id);
+    const marks = ids.length ? (await db.prepare(`SELECT employee_id,day,code FROM attendance_marks WHERE company_id=? AND employee_id IN (${ids.map(() => "?").join(",")}) AND day BETWEEN ? AND ? AND code IN (${AWAY_CODES.map(() => "?").join(",")}) ORDER BY day`).bind(manager.company_id, ...ids, bakuNow().date, new Date(Date.now() + 45 * 86_400_000).toISOString().slice(0, 10), ...AWAY_CODES).all<{ employee_id: string; day: string; code: string }>()).results : [];
+    const reqs = (await db.prepare(`SELECT id,employee_id,kind,data,status,manager_status,manager_name,manager_note,manager_at,created FROM employee_requests WHERE company_id=? AND employee_id IN (${ids.map(() => "?").join(",")}) AND manager_status<>'' ORDER BY CASE manager_status WHEN 'pending' THEN 0 ELSE 1 END, created DESC LIMIT 60`).bind(manager.company_id, ...ids).all<{ id: string; employee_id: string; kind: string; data: string; status: string; manager_status: string; manager_name: string; manager_note: string; manager_at: string; created: string }>()).results;
+    const byId = new Map(people.map((p) => [p.id, p]));
+    const today = bakuNow().date;
+    const requests = [];
+    for (const r of reqs) {
+      const p = byId.get(r.employee_id)!;
+      const d = dataOf(r.data);
+      requests.push({
+        id: r.id, employeeId: r.employee_id, name: p.name, position: p.position, kind: r.kind, label: requestKindLabel(r.kind), from: d.from || "", to: d.to || "", reason: (d as { reason?: string }).reason || "",
+        status: r.manager_status, note: r.manager_note, decidedAt: r.manager_at, created: r.created,
+        checks: r.manager_status === "pending" ? await leaveChecks(manager.company_id, { id: p.id, department: p.department }, r.kind, d, r.id) : [],
+        balance: ["vacation", "addleave"].includes(r.kind) ? vacationBalance({ start: p.start_date, end: "", entitlement: p.vacation_days ?? 21, used: p.vacation_used ?? 0 }, today).remaining : null,
+      });
+    }
+    return ok({
+      people: people.map((p) => ({ id: p.id, name: p.name, position: p.position, department: p.department, away: marks.find((m) => m.employee_id === p.id && m.day === today)?.code || "" })),
+      requests,
+      away: marks.reduce<{ name: string; from: string; to: string; code: string }[]>((acc, m) => {
+        const last = acc[acc.length - 1];
+        const name = byId.get(m.employee_id)!.name;
+        if (last && last.name === name && last.code === m.code && Date.parse(m.day) - Date.parse(last.to) <= 3 * 86_400_000) last.to = m.day;
+        else acc.push({ name, from: m.day, to: m.day, code: m.code });
+        return acc;
+      }, []),
+    });
+  }
+  if (request.method === "POST" && path === "employee/team/decide") {
+    const b = await jsonBody(request);
+    const manager = await ownWorkplace(str(b.employeeId, 100));
+    const people = await teamOf(manager);
+    const row = await db.prepare("SELECT id,employee_id,kind,data FROM employee_requests WHERE id=? AND company_id=? AND manager_status='pending' AND status='new'").bind(str(b.requestId, 100), manager.company_id).first<{ id: string; employee_id: string; kind: string; data: string }>();
+    const person = row && people.find((p) => p.id === row.employee_id);
+    if (!row || !person) throw new HttpError(404, "Bu ərizə sizin təsdiqinizi gözləmir.");
+    const approve = b.decision === "approve";
+    const note = str(b.note, 300);
+    if (!approve && note.length < 5) throw new HttpError(400, "Rədd səbəbini yazın.");
+    const now = new Date().toISOString();
+    if (approve) await db.prepare("UPDATE employee_requests SET manager_status='approved',manager_name=?,manager_note=?,manager_at=?,updated=? WHERE id=?").bind(manager.name, note, now, now, row.id).run();
+    else await db.prepare("UPDATE employee_requests SET manager_status='rejected',manager_name=?,manager_note=?,manager_at=?,status='rejected',decision=?,updated=? WHERE id=?").bind(manager.name, note, now, `Birbaşa rəhbər (${manager.name}) razı olmadı: ${note}`, now, row.id).run();
+    await companyAudit(db, manager.company_id, userId, approve ? "manager-approved" : "manager-rejected", person.id, `${person.name}: ${row.kind}`);
+    if (person.user_id) await notify(db, { userId: person.user_id, type: "application", title: approve ? "Rəhbəriniz ərizənizi təsdiq etdi" : "Rəhbəriniz ərizənizlə razılaşmadı", body: approve ? "İndi HR əmri hazırlayır." : note, link: "workplace" }).catch(() => undefined);
+    if (approve) await notifyCompanyRoles(db, manager.company_id, "orders", { type: "application", title: `Rəhbər təsdiqlədi: ${person.name}`, body: requestKindLabel(row.kind), link: "hr-orders" }).catch(() => undefined);
+    return ok({ ok: true });
   }
   // The employee marks arrival and departure; the server stamps the time (Baku time), the hours follow from it.
   if (request.method === "GET" && path === "employee/clock") {
@@ -7998,12 +8090,12 @@ async function route(request: Request) {
     const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
     const rows = await db
       .prepare(
-        `SELECT q.id,q.kind,q.data,q.status,q.decision,q.source,q.created,o.number AS order_number,o.status AS order_status
+        `SELECT q.id,q.kind,q.data,q.status,q.decision,q.source,q.created,q.manager_status,q.manager_name,q.manager_note,o.number AS order_number,o.status AS order_status
          FROM employee_requests q LEFT JOIN employee_orders o ON o.id=q.order_id
          WHERE q.employee_id=? AND q.company_id=? ORDER BY q.created DESC LIMIT 200`,
       )
       .bind(employee.id, employee.company_id)
-      .all<{ id: string; kind: string; data: string; status: string; decision: string; source: string; created: string; order_number: string | null; order_status: string | null }>();
+      .all<{ id: string; kind: string; data: string; status: string; decision: string; source: string; created: string; manager_status: string; manager_name: string; manager_note: string; order_number: string | null; order_status: string | null }>();
     return ok({
       applications: rows.results.map((r) => ({
         id: r.id,
@@ -8019,6 +8111,7 @@ async function route(request: Request) {
         status: r.status,
         statusText: APPLICATION_STATUS_TEXT[r.status] || r.status,
         reply: r.decision,
+        manager: r.manager_status ? { status: r.manager_status, name: r.manager_name, note: r.manager_note } : null,
         source: r.source === "employee" ? "employee" : "hr",
         orderNumber: r.order_number || "",
         orderStatus: r.order_status || "",
@@ -8046,8 +8139,21 @@ async function route(request: Request) {
       .bind(requestId, employee.company_id, employee.id, kind, JSON.stringify(data), userId, employee.name, now, now)
       .run();
     await companyAudit(db, employee.company_id, userId, "application-from-employee", employee.id, `${employee.name}: ${kind}`);
-    await notifyCompanyRoles(db, employee.company_id, "orders", { type: "application", title: `İşçi ərizəsi: ${employee.name}`, body: requestKindLabel(kind), link: "hr-orders" }).catch(() => undefined);
-    return ok({ ok: true, id: requestId, warnings: requestWarnings(kind, data, now.slice(0, 10)) }, 201);
+    // Leave goes to the direct manager first; HR sees it, but draws the order up only after the manager answered.
+    let managerNote = "";
+    if (AWAY_KINDS.includes(kind)) {
+      const mine = await db.prepare("SELECT department,profile FROM company_employees WHERE id=?").bind(employee.id).first<{ department: string; profile: string }>();
+      const managerId = parseProfile(mine?.profile || "").managerId;
+      const manager = managerId && managerId !== employee.id ? await db.prepare("SELECT id,name,user_id FROM company_employees WHERE id=? AND company_id=? AND status IN ('active','leave') AND user_id<>''").bind(managerId, employee.company_id).first<{ id: string; name: string; user_id: string }>() : null;
+      if (manager) {
+        await db.prepare("UPDATE employee_requests SET manager_status='pending' WHERE id=?").bind(requestId).run();
+        await notify(db, { userId: manager.user_id, type: "application", title: `Komandanızdan ərizə: ${employee.name}`, body: requestKindLabel(kind), link: "workplace" }).catch(() => undefined);
+        managerNote = `Ərizə əvvəlcə birbaşa rəhbərinizə (${manager.name}) göndərildi.`;
+      }
+    }
+    const checks = await leaveChecks(employee.company_id, { id: employee.id, department: employee.department }, kind, data, requestId);
+    if (!managerNote) await notifyCompanyRoles(db, employee.company_id, "orders", { type: "application", title: `İşçi ərizəsi: ${employee.name}`, body: requestKindLabel(kind), link: "hr-orders" }).catch(() => undefined);
+    return ok({ ok: true, id: requestId, warnings: [...requestWarnings(kind, data, now.slice(0, 10)), ...checks, ...(managerNote ? [managerNote] : [])] }, 201);
   }
   if (request.method === "POST" && path === "employee/applications/withdraw") {
     const b = await jsonBody(request);
@@ -10645,6 +10751,11 @@ async function route(request: Request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, "Əmrin tarixini yazın.");
     const count = await db.prepare("SELECT COUNT(*) AS n FROM employee_orders WHERE company_id=? AND employee_id=?").bind(id, employee.id).first<{ n: number }>();
     if (Number(count?.n) >= 100) throw new HttpError(409, "Bir işçi üçün ən çox 100 əmr saxlamaq olar.");
+    const gateId = str(b.requestId, 100);
+    if (gateId) {
+      const gate = await db.prepare("SELECT manager_status,manager_name FROM employee_requests WHERE id=? AND company_id=?").bind(gateId, id).first<{ manager_status: string; manager_name: string }>();
+      if (gate?.manager_status === "pending") throw new HttpError(409, "Ərizə hələ birbaşa rəhbərin təsdiqini gözləyir. Rəhbər cavab verəndən sonra əmr hazırlanır.");
+    }
     const input = JSON.stringify(b.input && typeof b.input === "object" ? b.input : {}).slice(0, 8000);
     const now = new Date().toISOString();
     const flow = startFlow(cleanSigners(b.signers), await requesterName(), now);
@@ -10745,6 +10856,7 @@ async function route(request: Request) {
     source: r.source === "employee" ? "employee" : "hr",
     by: r.created_by_name,
     created: r.created,
+    manager: (r as { manager_status?: string }).manager_status ? { status: (r as { manager_status?: string }).manager_status, name: (r as { manager_name?: string }).manager_name || "", note: (r as { manager_note?: string }).manager_note || "" } : null,
     employee: {
       id: r.employee_id,
       name: r.employee_name,
@@ -10762,7 +10874,7 @@ async function route(request: Request) {
     requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs görə bilər.");
     const rows = await db
       .prepare(
-        `SELECT q.id,q.employee_id,q.kind,q.data,q.status,q.order_id,q.decision,q.source,q.created_by_name,q.created,
+        `SELECT q.id,q.employee_id,q.kind,q.data,q.status,q.order_id,q.decision,q.source,q.created_by_name,q.created,q.manager_status,q.manager_name,q.manager_note,e.department AS dept_raw,
           e.name AS employee_name,e.position AS employee_position,e.department AS employee_department,e.section AS employee_section,e.start_date AS employee_start,e.end_date AS employee_end,e.salary_cents AS employee_salary,e.salary_type AS employee_salary_type,e.probation_end AS employee_probation,
           o.number AS order_number,o.status AS order_status
          FROM employee_requests q JOIN company_employees e ON e.id=q.employee_id LEFT JOIN employee_orders o ON o.id=q.order_id
@@ -10781,7 +10893,10 @@ async function route(request: Request) {
       overdue: waiting.filter((t) => Date.now() - Date.parse(t.created) > 3 * 86_400_000).length,
       averageHours: hours.length ? Math.round((hours.reduce((t, h) => t + h, 0) / hours.length) * 10) / 10 : null,
     };
-    return ok({ requests: rows.results.map(requestRow), stats });
+    const list = rows.results.map(requestRow);
+    // Clashes for the applications still open, so HR sees them before the order.
+    const withChecks = await Promise.all(list.slice(0, 80).map(async (r, i) => ({ ...r, checks: r.status === "new" ? await leaveChecks(id, { id: r.employee.id, department: r.employee.department }, r.kind, r.data, r.id) : [], _i: i })));
+    return ok({ requests: [...withChecks.map(({ _i, ...rest }) => rest), ...list.slice(80)], stats });
   }
   if (request.method === "POST" && path === "company/applications/save") {
     requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs qeyd edə bilər.");

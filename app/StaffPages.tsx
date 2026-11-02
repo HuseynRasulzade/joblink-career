@@ -931,6 +931,8 @@ type RequestRow = {
   decision: string;
   by: string;
   created: string;
+  manager?: { status: string; name: string; note: string } | null;
+  checks?: string[];
   employee: OrderEmployee;
 };
 const REQUEST_STATUS: Record<string, string> = { new: "Gözləyir", ordered: "Əmr yaradılıb", rejected: "Rədd edilib", answered: "Cavablandırılıb", withdrawn: "İşçi geri götürüb" };
@@ -1044,6 +1046,8 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
                 </td>
                 <td>
                   {REQUEST_STATUS[row.status]}
+                  {row.manager && <small className="skill-description">{row.manager.status === "pending" ? "Birbaşa rəhbərin təsdiqini gözləyir" : row.manager.status === "approved" ? `Rəhbər təsdiq etdi: ${row.manager.name}${row.manager.note ? ` (${row.manager.note})` : ""}` : `Rəhbər rədd etdi: ${row.manager.name}`}</small>}
+                  {row.status === "new" && (row.checks || []).map((c) => <small key={c} className="skill-description" role="alert">⚠ {c}</small>)}
                   {row.status === "ordered" && <small className="skill-description">№ {row.orderNumber || "—"}</small>}
                   {(row.status === "rejected" || row.status === "answered") && <small className="skill-description">{row.decision}</small>}
                 </td>
@@ -1785,6 +1789,7 @@ export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notif
         <Field label="Güzəşt hansı tarixdən tətbiq olunur"><input type="date" value={profile.taxBenefitFrom} onChange={(e) => set("taxBenefitFrom", e.target.value)} /></Field>
         <label className="check-row"><input type="checkbox" checked={profile.dependents3} onChange={(e) => set("dependents3", e.target.checked)} /> Himayəsində azı 3 nəfər var (gündüz təhsilli 23 yaşınadək tələbələr daxil) — 50 AZN (102.5)</label>
         <label>Əvvəlki sosial sığorta stajı (ay) — xəstəlik/analıq müavinəti üçün cəmi ən azı 6 ay lazımdır<input type="number" min={0} max={720} value={profile.insuranceBefore} onChange={(e) => set("insuranceBefore", Math.max(0, Number(e.target.value) || 0))} /></label>
+        <ManagerSelect employeeId={employeeId} value={profile.managerId} onChange={(v) => set("managerId", v)} />
         <label className="check-row"><input type="checkbox" checked={profile.mainJob} onChange={(e) => set("mainJob", e.target.checked)} /> Bu, işçinin əsas iş yeridir (əmək kitabçası burada saxlanılır)</label>
       </div>
       <p>
@@ -2623,5 +2628,23 @@ function StaffHistory() {
         </tbody>
       </table>
     </div>
+  );
+}
+
+// The direct manager: leave applications of the employee go to this colleague first (the colleague needs a linked "İş yerim").
+function ManagerSelect({ employeeId, value, onChange }: { employeeId: string; value: string; onChange: (id: string) => void }) {
+  const [people, setPeople] = useState<{ id: string; name: string; position: string; status: string }[]>([]);
+  useEffect(() => {
+    request<{ employees: { id: string; name: string; position: string; status: string }[] }>("company/employees")
+      .then((r) => setPeople(r.employees.filter((p) => p.id !== employeeId && (p.status === "active" || p.status === "leave"))))
+      .catch(() => undefined);
+  }, [employeeId]);
+  return (
+    <Field label="Birbaşa rəhbər (məzuniyyət və icazə ərizələri əvvəlcə ona gedir; rəhbərin «İş yerim» profili qoşulmalıdır)">
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— yoxdur, ərizə birbaşa HR-a gedir —</option>
+        {people.map((p) => <option key={p.id} value={p.id}>{p.name}{p.position ? ` · ${p.position}` : ""}</option>)}
+      </select>
+    </Field>
   );
 }
