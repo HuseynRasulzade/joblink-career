@@ -120,3 +120,14 @@ Qiymətləndirmə: ✅ var · 🟡 qismən · ❌ yoxdur. Əmək: S (1–2 gün)
 | Müavinət faizlərinin hüquqi yoxlanması | Sosial Sığorta Qanunu mətni lazımdır |
 | Holdinq (çox şirkətli) görünüşü | Şirkətlər arasında hesab əlaqəsi və icazə modeli lazımdır |
 | Vakansiyaların bir neçə sayta yerləşdirilməsi, referal proqramı, rəy yoxlaması | Xarici saytların müqaviləsi; ayrıca modul kimi planlaşdırılmalıdır |
+
+## 7. Sonrakı mərhələ (2026-11-02)
+
+| Bənd | Vəziyyət |
+|---|---|
+| Müavinət faizləri | Şirkət ayarlarında dəyişdirilir (Əmək haqqı → Ödəniş ayarları, yalnız direktor); qanun mətni gələndə yalnız rəqəm yazılır |
+| Şəxsi məlumatların şifrələməsi | Kod hazırdır (AES-GCM). `DATA_KEY` gizli dəyəri qoyulanda yeni yazılanlar şifrələnir, “Şirkət məlumatları” səhifəsindəki düymə köhnələri şifrələyir. Açar yoxdursa hər şey əvvəlki kimi işləyir |
+| Tövsiyə proqramı | Kadr əməliyyatları → Tövsiyə proqramı; işçi tərəfi İş yerim → Tövsiyə proqramı; bonus ödənişi əmək haqqında “digər ödəniş” |
+| Rəy yoxlaması | Kadr əməliyyatları → Rəy yoxlaması |
+| Vakansiya paylaşma | Vakansiyalarım → Paylaş; açıq vakansiyaların XML lenti: `/jobs/feed.xml` |
+| Hələ edilməyib | Birbaşa bank API, hüquqi e-imza və dövlət sistemində qeydiyyat, holdinq görünüşü |
