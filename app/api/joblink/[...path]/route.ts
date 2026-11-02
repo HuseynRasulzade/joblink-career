@@ -8835,7 +8835,7 @@ async function route(request: Request) {
     const start = dateOk(str(b.start, 10)) ? str(b.start, 10) : "";
     const end = dateOk(str(b.end, 10)) ? str(b.end, 10) : start;
     if (start && end < start) throw new HttpError(400, "Bitmə tarixi başlanğıcdan əvvəl ola bilməz.");
-    const kind = ["internal", "external", "online"].includes(str(b.kind, 10)) ? str(b.kind, 10) : "external";
+    const kind = ["internal", "external", "online", "safety"].includes(str(b.kind, 10)) ? str(b.kind, 10) : "external";
     const status = ["planned", "done", "cancelled"].includes(str(b.status, 10)) ? str(b.status, 10) : "planned";
     const values = [title, str(b.provider, 120), kind, start, end, Math.max(0, Math.min(2000, Math.round(Number(b.hours) || 0))), Math.max(0, Math.round((Number(b.cost) || 0) * 100)), status, str(b.note, 300)];
     if (str(b.id, 100)) await db.prepare("UPDATE trainings SET title=?,provider=?,kind=?,start_date=?,end_date=?,hours=?,cost_cents=?,status=?,note=? WHERE id=? AND company_id=?").bind(...values, str(b.id, 100), id).run();

@@ -79,3 +79,44 @@ Qiymətləndirmə: ✅ var · 🟡 qismən · ❌ yoxdur. Əmək: S (1–2 gün)
 - Bankların birbaşa köçürmə API-si üçün müqavilə və giriş məlumatları.
 - Şirkətin illik məzuniyyət qrafikinin və daxili əmək qaydalarının mövcud formaları.
 - E-imza və dövlət sisteminin istifadə tələbləri.
+
+## 6. İcra vəziyyəti (2026-11-02)
+
+**Edilənlər** (canlı sayt, hər biri API səviyyəsində yoxlanılıb)
+
+| Bənd | Harada |
+|---|---|
+| Maaş tarixçəsi (tarixlə qüvvəyə minən maaş, gün üzrə çəkili hesab) | İşçi kartı → Maaş tarixçəsi |
+| Çıxan işçinin məzuniyyət kompensasiyası əmək haqqında | Əmək haqqı cədvəli (xitam ayı) |
+| Təkrarlanan əlavə və tutulmalar, 176-cı maddə həddindən qalan tutulmanın növbəti aya keçməsi | Əmək haqqı → Əlavə / tutulma |
+| Əmək haqqı məlumatlarının Excel idxalı | Əmək haqqı → Excel-dən əlavə və saatlar |
+| Minimum maaş və ani dəyişiklik (±25%) xəbərdarlıqları | Əmək haqqı cədvəli |
+| Gündəlik xatırlatmalar (avans günü, təsdiqlənməmiş ay, sənəd müddəti) | Cron (gündəlik) |
+| Bank çıxarışı ilə ödənişlərin uyğunlaşdırılması | Əmək haqqı → Bank və ödəniş sənədləri |
+| Saat uçotu (gün üzrə saat, artıq iş, istirahət günü işi, gecə), Excel idxalı | Davamiyyət → Saat uçotu |
+| Baxış jurnalı (kim maaşa və şəxsi məlumata baxıb) | Şirkət audit jurnalı |
+| Məzuniyyət qrafiki, işçi təklifləri, departament yükü, çap | Kadr əməliyyatları |
+| Sənəd reyestri, bitmə tarixləri, hazırlanmış sənədlərin saxlanması və işçinin elektron təsdiqi | Kadr əməliyyatları, İş yerim → Sənədlər |
+| İşdən çıxma siyahısı və çıxış müsahibəsi | Kadr əməliyyatları, İş yerim |
+| Aktivlər (əmlak), təhvil-təslim aktı, Excel idxalı | Kadr əməliyyatları, İş yerim → Əmlakım |
+| Təşkilat sxemi | Kadr əməliyyatları |
+| Performans (dövr, məqsəd, özünüqiymət, rəhbər qiyməti, təsdiq) | İnkişaf və kommunikasiya, İş yerim |
+| Təlim planı, büdcə, iştirakçılar, əməyin mühafizəsi təlimləri | İnkişaf və kommunikasiya, İş yerim |
+| Növbə qrafiki və növbələrin saat uçotuna köçürülməsi | İnkişaf və kommunikasiya, İş yerim |
+| Ezamiyyət: sorğu, təsdiq, xərc hesabatı, hesablaşma | İnkişaf və kommunikasiya, İş yerim |
+| Elanlar və sorğular (eNPS, anonimlik qorunur) | İnkişaf və kommunikasiya, İş yerim |
+| HR tiketləri əvəzinə: mövcud “İşçi ərizələri” + cavab müddəti statistikası | Əmrlər reyestri → İşçi ərizələri |
+| Mühasibat jurnalı (debet/kredit, şirkətin hesab kodları) | Əmək haqqı → Mühasibat jurnalı |
+| “Bu ay nə dəyişib?” izahı | İş yerim → Əmək haqqı |
+| Mobil (PWA) | Əvvəldən var (manifest və service worker) |
+
+**Edilməyənlər və səbəbi**
+
+| Bənd | Səbəb |
+|---|---|
+| Birbaşa bank API və pulun avtomatik köçürülməsi | Bankla korporativ müqavilə və giriş məlumatları lazımdır |
+| Hüquqi qüvvəli e-imza, əmək müqaviləsinin dövlət sistemində qeydiyyatı | Xarici sistem və sertifikat tələb olunur (indiki təsdiq sadə elektron təsdiqdir) |
+| Kart, FİN, IBAN sahələrinin şifrələnməsi | Şifrələmə açarı (gizli dəyər) və bütün oxuma yerlərinin dəyişməsi lazımdır; ayrıca iş kimi planlaşdırılmalıdır |
+| Müavinət faizlərinin hüquqi yoxlanması | Sosial Sığorta Qanunu mətni lazımdır |
+| Holdinq (çox şirkətli) görünüşü | Şirkətlər arasında hesab əlaqəsi və icazə modeli lazımdır |
+| Vakansiyaların bir neçə sayta yerləşdirilməsi, referal proqramı, rəy yoxlaması | Xarici saytların müqaviləsi; ayrıca modul kimi planlaşdırılmalıdır |

@@ -163,7 +163,7 @@ function PersonReview({ person, cycleId, closed, rating, notify, onClose, onChan
 // ---------- Training ----------
 type Training = { id: string; title: string; provider: string; kind: string; start: string; end: string; hours: number; cost: number; status: string; note: string; participants: { employeeId: string; name: string; status: string; result: string }[] };
 type TrainingData = { year: string; budget: number; spent: number; trainings: Training[]; employees: { id: string; name: string; department: string; hours: number }[] };
-const KIND_TEXT: Record<string, string> = { internal: "Daxili", external: "Xarici", online: "Onlayn" };
+const KIND_TEXT: Record<string, string> = { internal: "Daxili", external: "Xarici", online: "Onlayn", safety: "Əməyin mühafizəsi və təhlükəsizlik" };
 const TSTATUS: Record<string, string> = { planned: "Planlaşdırılıb", done: "Keçirilib", cancelled: "Ləğv edilib" };
 const PSTATUS: Record<string, string> = { invited: "Dəvət olunub", attending: "Gələcək", completed: "Tamamlayıb", declined: "İmtina edib" };
 

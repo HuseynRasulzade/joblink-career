@@ -363,3 +363,32 @@ function AssignModal({ asset, employees, onClose, onDone }: { asset: Asset; empl
 export function LeaveExport({ year }: { year: number }) {
   return <a className="secondary report-button" href={`/api/joblink/company/leave-schedule/export?year=${year}`} download><Download size={14} /> Excel</a>;
 }
+
+// ---------- Organisation chart ----------
+type ChartPerson = { id: string; name: string; position: string; department: string; section: string; status: string };
+export function OrgChart({ notify }: { notify: Notify }) {
+  const [data] = useLoad<{ employees: ChartPerson[] }>("company/employees", notify);
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  const people = data.employees.filter((p) => p.status !== "left");
+  const departments = [...new Set(people.map((p) => p.department || "Departamentsiz"))].sort((a, b) => a.localeCompare(b, "az"));
+  return (
+    <div className="company-page org-chart">
+      <p className="muted">Departament → şöbə → işçi. {people.length} işçi, {departments.length} departament.</p>
+      {departments.map((d) => {
+        const inDept = people.filter((p) => (p.department || "Departamentsiz") === d);
+        const sections = [...new Set(inDept.map((p) => p.section || ""))].sort((a, b) => a.localeCompare(b, "az"));
+        return (
+          <details key={d} open className="bank-batch">
+            <summary><b>{d}</b> <small className="skill-description">{inDept.length} nəfər</small></summary>
+            {sections.map((sec) => (
+              <div key={sec} className="org-section">
+                {sec && <b>{sec}</b>}
+                <ul>{inDept.filter((p) => (p.section || "") === sec).map((p) => <li key={p.id}>{p.name} <small className="skill-description">{p.position}</small></li>)}</ul>
+              </div>
+            ))}
+          </details>
+        );
+      })}
+    </div>
+  );
+}

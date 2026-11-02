@@ -6068,3 +6068,5 @@ a svg {
 .hours-day input { width: 100%; }
 .hours-off { background: #f4f1ea; }
 .doc-text { white-space: pre-wrap; font-family: "Times New Roman", serif; background: var(--panel, #fafaf7); border: 1px solid var(--line, #dfe8e3); border-radius: 6px; padding: 10px 12px; max-height: 320px; overflow: auto; }
+.org-section { margin: 6px 0 6px 14px; padding-left: 10px; border-left: 2px solid var(--line, #dfe8e3); }
+.org-section ul { margin: 4px 0 0; padding-left: 16px; }
