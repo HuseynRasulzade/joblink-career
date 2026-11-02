@@ -5,6 +5,7 @@ import { ORDER_KINDS, UNPAID_REASONS } from "@/lib/orders";
 import { OTHER_REQUEST, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { Field } from "./components";
 import { ExitInterview, MyAssets, MyLeave } from "./WorkplaceExtras";
+import { MyEngage, MyPerformance, MyShifts, MyTraining, MyTrips } from "./WorkplaceGrowth";
 import { monthLabel, payslipHtml, type SlipData } from "@/lib/payslip-html";
 
 type Notify = (message: string) => void;
@@ -53,7 +54,7 @@ const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slic
 export default function WorkplacePage({ notify }: { notify: Notify }) {
   const [places, setPlaces] = useState<Workplace[] | null>(null);
   const [current, setCurrent] = useState("");
-  const [tab, setTab] = useState<"info" | "letters" | "pay" | "leave" | "assets" | "exit">("letters");
+  const [tab, setTab] = useState<"info" | "letters" | "pay" | "leave" | "assets" | "exit" | "perf" | "training" | "shifts" | "trips" | "engage">("letters");
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -106,6 +107,21 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
               <button type="button" role="tab" aria-selected={tab === "exit"} className={tab === "exit" ? "primary" : "ghost"} onClick={() => setTab("exit")}>
                 Çıxış müsahibəsi
               </button>
+              <button type="button" role="tab" aria-selected={tab === "perf"} className={tab === "perf" ? "primary" : "ghost"} onClick={() => setTab("perf")}>
+                Performans
+              </button>
+              <button type="button" role="tab" aria-selected={tab === "training"} className={tab === "training" ? "primary" : "ghost"} onClick={() => setTab("training")}>
+                Təlimlərim
+              </button>
+              <button type="button" role="tab" aria-selected={tab === "shifts"} className={tab === "shifts" ? "primary" : "ghost"} onClick={() => setTab("shifts")}>
+                Növbəm
+              </button>
+              <button type="button" role="tab" aria-selected={tab === "trips"} className={tab === "trips" ? "primary" : "ghost"} onClick={() => setTab("trips")}>
+                Ezamiyyətlər
+              </button>
+              <button type="button" role="tab" aria-selected={tab === "engage"} className={tab === "engage" ? "primary" : "ghost"} onClick={() => setTab("engage")}>
+                Elanlar və sorğular
+              </button>
               <button type="button" role="tab" aria-selected={tab === "info"} className={tab === "info" ? "primary" : "ghost"} onClick={() => setTab("info")}>
                 Məlumatlarım
               </button>
@@ -120,6 +136,11 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
                 <div><dt>Məzuniyyət</dt><dd>{place.vacation.remaining} gün qalıb (qazanılıb {place.vacation.accrued}, istifadə {place.vacation.used})</dd></div>
               </dl>
             )}
+            {tab === "perf" && <MyPerformance key={place.id} employeeId={place.id} notify={notify} />}
+            {tab === "training" && <MyTraining key={place.id} employeeId={place.id} notify={notify} />}
+            {tab === "shifts" && <MyShifts key={place.id} employeeId={place.id} notify={notify} />}
+            {tab === "trips" && <MyTrips key={place.id} employeeId={place.id} notify={notify} />}
+            {tab === "engage" && <MyEngage key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "leave" && <MyLeave key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "assets" && <MyAssets key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "exit" && <ExitInterview key={place.id} employeeId={place.id} notify={notify} />}

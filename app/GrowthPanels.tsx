@@ -254,3 +254,253 @@ function Participants({ training, employees, notify, onClose, onChanged }: { tra
     </Modal>
   );
 }
+
+// ---------- Shifts ----------
+type ShiftData = { from: string; to: string; types: { id: string; name: string; start: string; end: string; hours: number; night: number }[]; employees: { id: string; name: string; department: string }[]; assignments: { employeeId: string; day: string; shiftId: string }[] };
+const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+const mondayOf = (iso: string) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return addDays(iso, -((d.getUTCDay() + 6) % 7));
+};
+
+export function Shifts({ notify }: { notify: Notify }) {
+  const [from, setFrom] = useState(mondayOf(new Date().toISOString().slice(0, 10)));
+  const [data, load] = useLoad<ShiftData>(`company/shifts?from=${from}`, notify);
+  const [type, setType] = useState<{ id?: string; name: string; start: string; end: string } | null>(null);
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  const days = Array.from({ length: 14 }, (_, i) => addDays(data.from, i));
+  const at = (employeeId: string, day: string) => data.assignments.find((a) => a.employeeId === employeeId && a.day === day)?.shiftId || "";
+  return (
+    <div className="company-page">
+      <div className="section-heading">
+        <div className="admin-actions">
+          <button type="button" onClick={() => setFrom(addDays(from, -7))}>←</button>
+          <b>{dmy(data.from)} – {dmy(data.to)}</b>
+          <button type="button" onClick={() => setFrom(addDays(from, 7))}>→</button>
+        </div>
+        <div className="admin-actions">
+          <button type="button" className="secondary" onClick={() => void run(notify, load, "company/shifts/copy", { from: data.from, to: addDays(data.from, 7) }, "Birinci həftə ikinci həftəyə köçürüldü.")}>1-ci həftəni 2-ciyə köçür</button>
+          <button type="button" className="secondary" onClick={() => window.confirm("Bu iki həftənin növbələri işlənən saat kimi yazılsın? (Əmək haqqında artıq iş və gecə saatı bundan hesablanır.)") && void run(notify, load, "company/shifts/to-hours", { from: data.from, to: data.to }, "Növbələr saat uçotuna köçürüldü.")}>Saat uçotuna köçür</button>
+          <button type="button" className="primary" onClick={() => setType({ name: "", start: "09:00", end: "18:00" })}>+ Növbə növü</button>
+        </div>
+      </div>
+      <p className="muted">
+        Növbə növləri: {data.types.map((t) => (
+          <button key={t.id} type="button" className="text-button" onClick={() => setType({ id: t.id, name: t.name, start: t.start, end: t.end })}>{t.name} {t.start}–{t.end} ({t.hours} saat{t.night ? `, gecə ${t.night}` : ""}) </button>
+        ))}
+        {!data.types.length && "hələ yoxdur — əvvəl növbə növü əlavə edin."}
+      </p>
+      <div className="admin-table-wrap">
+        <table className="admin-table shift-grid">
+          <thead><tr><th>İşçi</th>{days.map((d) => <th key={d}>{d.slice(8, 10)}.{d.slice(5, 7)}</th>)}</tr></thead>
+          <tbody>
+            {data.employees.map((p) => (
+              <tr key={p.id}>
+                <td><b>{p.name}</b><small className="skill-description">{p.department}</small></td>
+                {days.map((d) => (
+                  <td key={d}>
+                    <select value={at(p.id, d)} aria-label={`${p.name} ${d}`} onChange={(e) => void run(notify, load, "company/shifts/assign", { employeeId: p.id, from: d, shiftId: e.target.value })}>
+                      <option value="">—</option>
+                      {data.types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {type && (
+        <Modal title={type.id ? "Növbə növünü dəyiş" : "Yeni növbə növü"} onClose={() => setType(null)}>
+          <div className="offer-composer">
+            <div className="form-grid">
+              <Field label="Ad"><input value={type.name} onChange={(e) => setType({ ...type, name: e.target.value })} placeholder="Səhər, Gecə…" /></Field>
+              <Field label="Başlama (SS:DD)"><input value={type.start} onChange={(e) => setType({ ...type, start: e.target.value })} /></Field>
+              <Field label="Bitmə (SS:DD)"><input value={type.end} onChange={(e) => setType({ ...type, end: e.target.value })} /></Field>
+            </div>
+            <div className="admin-actions">
+              <button type="button" className="primary" onClick={async () => { if (await run(notify, load, "company/shifts/type", type, "Saxlanıldı.")) setType(null); }}>Saxla</button>
+              {type.id && <button type="button" className="danger" onClick={async () => { if (await run(notify, load, "company/shifts/type/delete", { id: type.id }, "Silindi.")) setType(null); }}>Sil</button>}
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ---------- Business trips ----------
+type Trip = { id: string; employeeId: string; name: string; destination: string; purpose: string; start: string; end: string; days: number; daily: number; advance: number; status: string; statusText: string; requestedBy: string; expenses: { id: string; label: string; amount: number; day: string }[]; calc: { perDiem: number; expenses: number; total: number; advance: number; balance: number }; settled: number };
+
+export function Trips({ notify }: { notify: Notify }) {
+  const [data, load] = useLoad<{ employees: { id: string; name: string }[]; trips: Trip[] }>("company/trips", notify);
+  const [edit, setEdit] = useState<Record<string, unknown> | null>(null);
+  const [open, setOpen] = useState<Trip | null>(null);
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  const current = open ? data.trips.find((t) => t.id === open.id) || null : null;
+  return (
+    <div className="company-page">
+      <div className="section-heading">
+        <p className="muted">Ezamiyyət sorğusu → təsdiq → xərc hesabatı → hesablaşma. Hesablaşmada işçiyə çatan məbləğ əmək haqqındakı “digər ödəniş” kimi qeyd olunur.</p>
+        <button type="button" className="primary" onClick={() => setEdit({ employeeId: data.employees[0]?.id || "", destination: "", purpose: "", start: "", end: "", daily: 0, advance: 0, approve: true })}>+ Ezamiyyət</button>
+      </div>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead><tr><th>İşçi</th><th>Təyinat</th><th>Tarix</th><th>Gündəlik</th><th>Avans</th><th>Vəziyyət</th><th></th></tr></thead>
+          <tbody>
+            {data.trips.map((t) => (
+              <tr key={t.id}>
+                <td>{t.name}{t.requestedBy === "employee" && <small className="skill-description">işçi sorğusu</small>}</td>
+                <td><b>{t.destination}</b><small className="skill-description">{t.purpose}</small></td>
+                <td>{dmy(t.start)} – {dmy(t.end)} ({t.days} gün)</td>
+                <td>{t.daily ? azn(t.daily) : "—"}</td>
+                <td>{t.advance ? azn(t.advance) : "—"}</td>
+                <td>{t.statusText}{t.status === "settled" && <small className="skill-description">{t.settled >= 0 ? `işçiyə ${azn(t.settled)}` : `geri qaytarılmalı ${azn(-t.settled)}`}</small>}</td>
+                <td className="admin-actions">
+                  {t.status === "requested" && <button type="button" className="primary" onClick={() => { const daily = window.prompt("Gündəlik məbləğ (AZN):", String(t.daily || 0)); if (daily === null) return; const advance = window.prompt("Avans (AZN):", String(t.advance || 0)); if (advance === null) return; void run(notify, load, "company/trips/decide", { id: t.id, decision: "approve", daily: Number(daily), advance: Number(advance) }, "Təsdiqləndi."); }}>Təsdiqlə</button>}
+                  {t.status === "requested" && <button type="button" onClick={() => void run(notify, load, "company/trips/decide", { id: t.id, decision: "reject", note: window.prompt("Rədd səbəbi:") || "" }, "Rədd edildi.")}>Rədd et</button>}
+                  {t.status !== "requested" && t.status !== "rejected" && <button type="button" onClick={() => setOpen(t)}>Xərclər və hesablaşma</button>}
+                </td>
+              </tr>
+            ))}
+            {!data.trips.length && <tr><td colSpan={7}><p className="admin-empty">Ezamiyyət yoxdur.</p></td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {edit && (
+        <Modal title="Yeni ezamiyyət" onClose={() => setEdit(null)}>
+          <div className="offer-composer">
+            <div className="form-grid">
+              <Field label="İşçi"><select value={String(edit.employeeId)} onChange={(e) => setEdit({ ...edit, employeeId: e.target.value })}>{data.employees.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+              <Field label="Təyinat"><input value={String(edit.destination)} onChange={(e) => setEdit({ ...edit, destination: e.target.value })} /></Field>
+              <Field label="Məqsəd"><input value={String(edit.purpose)} onChange={(e) => setEdit({ ...edit, purpose: e.target.value })} /></Field>
+              <Field label="Başlanğıc"><input type="date" value={String(edit.start)} onChange={(e) => setEdit({ ...edit, start: e.target.value })} /></Field>
+              <Field label="Bitmə"><input type="date" value={String(edit.end)} onChange={(e) => setEdit({ ...edit, end: e.target.value })} /></Field>
+              <Field label="Gündəlik (AZN)"><input type="number" min={0} value={Number(edit.daily) || ""} onChange={(e) => setEdit({ ...edit, daily: Number(e.target.value) })} /></Field>
+              <Field label="Avans (AZN)"><input type="number" min={0} value={Number(edit.advance) || ""} onChange={(e) => setEdit({ ...edit, advance: Number(e.target.value) })} /></Field>
+            </div>
+            <button type="button" className="primary" onClick={async () => { if (await run(notify, load, "company/trips/save", edit, "Ezamiyyət yaradıldı.")) setEdit(null); }}>Saxla (təsdiqlənmiş)</button>
+          </div>
+        </Modal>
+      )}
+      {current && <TripDetail trip={current} notify={notify} onClose={() => setOpen(null)} onChanged={load} />}
+    </div>
+  );
+}
+function TripDetail({ trip, notify, onClose, onChanged }: { trip: Trip; notify: Notify; onClose: () => void; onChanged: () => void }) {
+  const [form, setForm] = useState({ label: "", amount: 0, day: "" });
+  const settled = trip.status === "settled";
+  return (
+    <Modal title={`Ezamiyyət: ${trip.name} → ${trip.destination}`} onClose={onClose}>
+      <div className="offer-composer">
+        <ul className="payment-history">
+          {trip.expenses.map((e) => (
+            <li key={e.id}>{e.day ? `${dmy(e.day)} — ` : ""}{e.label}: <b>{azn(e.amount)}</b> {!settled && <button type="button" className="text-button" onClick={() => void run(notify, onChanged, "company/trips/expense", { tripId: trip.id, expenseId: e.id, remove: true })}>sil</button>}</li>
+          ))}
+          {!trip.expenses.length && <li className="muted">Xərc yazılmayıb.</li>}
+        </ul>
+        {!settled && (
+          <div className="org-add structure-add">
+            <input className="search-input" placeholder="Xərc (bilet, otel…)" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} />
+            <input className="search-input" type="number" min={0} style={{ maxWidth: 110 }} value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} />
+            <input type="date" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} aria-label="Tarix" />
+            <button type="button" className="secondary" disabled={form.label.trim().length < 2 || !(form.amount > 0)} onClick={async () => { if (await run(notify, onChanged, "company/trips/expense", { tripId: trip.id, ...form })) setForm({ label: "", amount: 0, day: "" }); }}>+ Xərc</button>
+          </div>
+        )}
+        <p>Gündəlik: {azn(trip.calc.perDiem)} ({trip.days} gün) + xərclər {azn(trip.calc.expenses)} = <b>{azn(trip.calc.total)}</b>; verilmiş avans {azn(trip.calc.advance)}.<br />
+          <b>{trip.calc.balance > 0 ? `İşçiyə ödənilməlidir: ${azn(trip.calc.balance)}` : trip.calc.balance < 0 ? `İşçi avansın ${azn(-trip.calc.balance)} hissəsini qaytarmalıdır` : "Hesablaşma bərabərdir"}</b></p>
+        {!settled && <button type="button" className="primary" onClick={async () => { if (window.confirm("Ezamiyyətlə hesablaşılsın?") && (await run(notify, onChanged, "company/trips/settle", { id: trip.id }, "Hesablaşıldı."))) onClose(); }}>Hesablaş</button>}
+      </div>
+    </Modal>
+  );
+}
+
+// ---------- Announcements and surveys ----------
+type News = { id: string; title: string; body: string; audience: string; pinned: boolean; expires: string; author: string; created: string };
+type SurveyResult = { id: string; title: string; kind: string; anonymous: boolean; status: string; responses: number; enps: { count: number; promoters: number; passives: number; detractors: number; score: number | null } | null; byDepartment: { department: string; count: number; score: number | null }[]; averages: { id: string; label: string; average: number | null }[]; yesno: { id: string; label: string; yes: number; no: number }[]; comments: { id: string; label: string; items: string[] }[] };
+
+export function Engage({ notify }: { notify: Notify }) {
+  const [news, loadNews] = useLoad<{ departments: string[]; items: News[] }>("company/announcements", notify);
+  const [surveys, loadSurveys] = useLoad<{ employees: number; surveys: SurveyResult[] }>("company/surveys", notify);
+  const [edit, setEdit] = useState<Record<string, unknown> | null>(null);
+  const [survey, setSurvey] = useState<{ title: string; kind: string; anonymous: boolean; questions: { label: string; kind: string }[] } | null>(null);
+  return (
+    <div className="company-page">
+      <div className="section-heading"><h4>Elanlar</h4><button type="button" className="primary" onClick={() => setEdit({ title: "", body: "", audience: "", pinned: false, notify: true })}>+ Elan</button></div>
+      {news?.items.map((n) => (
+        <div key={n.id} className="bank-batch">
+          <div className="bank-batch-head">
+            <div><b>{n.pinned ? "📌 " : ""}{n.title}</b> <small className="skill-description">{dmy(n.created.slice(0, 10))} · {n.author}{n.audience ? ` · ${n.audience}` : " · hamı"}{n.expires ? ` · ${dmy(n.expires)}-dək` : ""}</small><p>{n.body}</p></div>
+            <button type="button" className="danger" onClick={() => window.confirm("Elan silinsin?") && void run(notify, loadNews, "company/announcements/delete", { id: n.id })}>Sil</button>
+          </div>
+        </div>
+      ))}
+      {news && !news.items.length && <p className="muted">Elan yoxdur.</p>}
+      <div className="section-heading"><h4>Sorğular</h4>
+        <div className="admin-actions">
+          <button type="button" className="secondary" onClick={() => setSurvey({ title: "İşçi bağlılığı sorğusu (eNPS)", kind: "enps", anonymous: true, questions: [] })}>+ eNPS sorğusu</button>
+          <button type="button" className="primary" onClick={() => setSurvey({ title: "", kind: "custom", anonymous: true, questions: [{ label: "", kind: "scale5" }] })}>+ Öz sorğum</button>
+        </div>
+      </div>
+      {surveys?.surveys.map((sv) => (
+        <div key={sv.id} className="bank-batch">
+          <div className="bank-batch-head">
+            <div><b>{sv.title}</b> <small className="skill-description">{sv.status === "open" ? "açıq" : "bağlı"} · {sv.anonymous ? "anonim" : "adlı"} · {sv.responses} / {surveys.employees} cavab</small></div>
+            <button type="button" onClick={() => void run(notify, loadSurveys, "company/surveys/close", { id: sv.id, reopen: sv.status !== "open" })}>{sv.status === "open" ? "Bağla" : "Yenidən aç"}</button>
+          </div>
+          {sv.enps && sv.enps.count > 0 && <p>eNPS: <b>{sv.enps.score}</b> (tərəfdar {sv.enps.promoters}, neytral {sv.enps.passives}, tənqidçi {sv.enps.detractors}){sv.byDepartment.length > 0 && ` · ${sv.byDepartment.map((d) => `${d.department}: ${d.score}`).join(", ")}`}</p>}
+          {sv.averages.map((a) => <p key={a.id}>{a.label}: <b>{a.average ?? "—"}</b></p>)}
+          {sv.yesno.map((a) => <p key={a.id}>{a.label}: bəli {a.yes}, xeyr {a.no}</p>)}
+          {sv.comments.map((c) => c.items.length > 0 && <details key={c.id}><summary>{c.label} ({c.items.length})</summary><ul>{c.items.map((t, i) => <li key={i}>{t}</li>)}</ul></details>)}
+          {sv.responses > 0 && sv.responses < 5 && <small className="muted">Anonimliyi qorumaq üçün şərhlər və departament bölgüsü 5 cavabdan sonra göstərilir.</small>}
+        </div>
+      ))}
+      {edit && (
+        <Modal title="Yeni elan" onClose={() => setEdit(null)}>
+          <div className="offer-composer">
+            <div className="form-grid">
+              <Field label="Başlıq"><input value={String(edit.title)} onChange={(e) => setEdit({ ...edit, title: e.target.value })} /></Field>
+              <Field label="Kimlər üçün">
+                <select value={String(edit.audience)} onChange={(e) => setEdit({ ...edit, audience: e.target.value })}>
+                  <option value="">Bütün işçilər</option>
+                  {news?.departments.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </Field>
+              <Field label="Müddət (boş — müddətsiz)"><input type="date" value={String(edit.expires || "")} onChange={(e) => setEdit({ ...edit, expires: e.target.value })} /></Field>
+            </div>
+            <Field label="Mətn"><textarea rows={4} value={String(edit.body)} onChange={(e) => setEdit({ ...edit, body: e.target.value })} /></Field>
+            <label className="check"><input type="checkbox" checked={edit.pinned === true} onChange={(e) => setEdit({ ...edit, pinned: e.target.checked })} /> Yuxarıda saxla</label>
+            <label className="check"><input type="checkbox" checked={edit.notify === true} onChange={(e) => setEdit({ ...edit, notify: e.target.checked })} /> İşçilərə bildiriş göndər</label>
+            <button type="button" className="primary" onClick={async () => { if (await run(notify, loadNews, "company/announcements/save", edit, "Elan yayımlandı.")) setEdit(null); }}>Yayımla</button>
+          </div>
+        </Modal>
+      )}
+      {survey && (
+        <Modal title="Yeni sorğu" onClose={() => setSurvey(null)}>
+          <div className="offer-composer">
+            <Field label="Ad"><input value={survey.title} onChange={(e) => setSurvey({ ...survey, title: e.target.value })} /></Field>
+            {survey.kind === "enps" ? <p className="muted">Standart suallar: “Şirkəti dostunuza tövsiyə edərdinizmi (0–10)” və səbəb.</p> : (
+              <>
+                {survey.questions.map((q, i) => (
+                  <div key={i} className="org-add structure-add">
+                    <input className="search-input" placeholder="Sual" value={q.label} onChange={(e) => setSurvey({ ...survey, questions: survey.questions.map((x, k) => (k === i ? { ...x, label: e.target.value } : x)) })} />
+                    <select value={q.kind} onChange={(e) => setSurvey({ ...survey, questions: survey.questions.map((x, k) => (k === i ? { ...x, kind: e.target.value } : x)) })}>
+                      <option value="scale5">1–5 qiymət</option>
+                      <option value="scale10">0–10 qiymət</option>
+                      <option value="yesno">Bəli / Xeyr</option>
+                      <option value="text">Mətn</option>
+                    </select>
+                    <button type="button" onClick={() => setSurvey({ ...survey, questions: survey.questions.filter((_, k) => k !== i) })}>×</button>
+                  </div>
+                ))}
+                <button type="button" className="secondary" disabled={survey.questions.length >= 20} onClick={() => setSurvey({ ...survey, questions: [...survey.questions, { label: "", kind: "scale5" }] })}>+ Sual</button>
+              </>
+            )}
+            <label className="check"><input type="checkbox" checked={survey.anonymous} onChange={(e) => setSurvey({ ...survey, anonymous: e.target.checked })} /> Anonim (cavabdeyənin adı saxlanılmır)</label>
+            <button type="button" className="primary" onClick={async () => { if (await run(notify, loadSurveys, "company/surveys/save", survey, "Sorğu yayımlandı.")) setSurvey(null); }}>Yayımla</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
