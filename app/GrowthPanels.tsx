@@ -55,6 +55,7 @@ export function Performance({ notify }: { notify: Notify }) {
   const [data, load] = useLoad<PerfData>(`company/performance?cycle=${cycle}`, notify);
   const [open, setOpen] = useState("");
   const [creating, setCreating] = useState(false);
+  const [meet, setMeet] = useState("");
   if (!data) return <p className="muted">Yüklənir…</p>;
   const current = data.cycles.find((c) => c.id === data.cycle);
   const person = data.employees.find((p) => p.id === open);
@@ -86,13 +87,14 @@ export function Performance({ notify }: { notify: Notify }) {
                   <td>{p.goalScore ?? "—"}</td>
                   <td>{p.review?.managerScore ? `${p.review.managerScore} / 5 · ${p.band}` : "—"}{p.review?.selfScore ? <small className="skill-description">özünüqiymət {p.review.selfScore}</small> : null}</td>
                   <td>{REVIEW_STATUS[p.review?.status || "open"]}</td>
-                  <td><button type="button" onClick={() => setOpen(p.id)}>Aç</button></td>
+                  <td className="admin-actions"><button type="button" onClick={() => setOpen(p.id)}>Aç</button><button type="button" className="ghost" onClick={() => setMeet(p.id)}>1:1</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : <p className="admin-empty">Hələ dövr yoxdur. “Yeni dövr” ilə başlayın.</p>}
+      {meet && <OneOnOneModal person={data.employees.find((p) => p.id === meet)!} notify={notify} onClose={() => setMeet("")} />}
       {creating && <CycleForm notify={notify} onClose={() => setCreating(false)} onSaved={load} />}
       {person && current && <PersonReview person={person} cycleId={current.id} closed={current.status === "closed"} rating={data.rating} notify={notify} onClose={() => setOpen("")} onChanged={load} />}
     </div>
@@ -161,8 +163,8 @@ function PersonReview({ person, cycleId, closed, rating, notify, onClose, onChan
 }
 
 // ---------- Training ----------
-type Training = { id: string; title: string; provider: string; kind: string; start: string; end: string; hours: number; cost: number; status: string; note: string; participants: { employeeId: string; name: string; status: string; result: string }[] };
-type TrainingData = { year: string; budget: number; spent: number; trainings: Training[]; employees: { id: string; name: string; department: string; hours: number }[] };
+type Training = { id: string; title: string; provider: string; kind: string; start: string; end: string; hours: number; cost: number; status: string; note: string; validMonths: number; requiredFor: string; participants: { employeeId: string; name: string; status: string; result: string; certificateNo: string; completedOn: string; validUntil: string }[] };
+type TrainingData = { year: string; budget: number; spent: number; expiring: { employeeId: string; name: string; title: string; validUntil: string; expired: boolean }[]; missing: { trainingId: string; title: string; requiredFor: string; employees: { id: string; name: string }[] }[]; trainings: Training[]; employees: { id: string; name: string; department: string; hours: number }[] };
 const KIND_TEXT: Record<string, string> = { internal: "Daxili", external: "Xarici", online: "Onlayn", safety: "Əməyin mühafizəsi və təhlükəsizlik" };
 const TSTATUS: Record<string, string> = { planned: "Planlaşdırılıb", done: "Keçirilib", cancelled: "Ləğv edilib" };
 const PSTATUS: Record<string, string> = { invited: "Dəvət olunub", attending: "Gələcək", completed: "Tamamlayıb", declined: "İmtina edib" };
@@ -188,6 +190,18 @@ export function Training({ notify }: { notify: Notify }) {
         <div className="staff-kpi"><small>Planlaşdırılan xərc</small><strong>{azn(data.spent)}</strong></div>
         <div className={`staff-kpi ${left >= 0 ? "staff-kpi-good" : ""}`}><small>Qalıq</small><strong>{azn(left)}</strong><span>{data.budget ? (left >= 0 ? "büdcə çərçivəsindədir" : "büdcə aşılıb") : "büdcə yazılmayıb"}</span></div>
       </div>
+      {data.expiring.length > 0 && (
+        <div className="notice" role="status">
+          <b>Sertifikatın müddəti bitir və ya bitib ({data.expiring.length}):</b>
+          <ul>{data.expiring.slice(0, 12).map((e) => <li key={`${e.employeeId}${e.title}`}>{e.name}: {e.title} — {e.expired ? "müddəti bitib" : "bitir"} {dmy(e.validUntil)}</li>)}</ul>
+        </div>
+      )}
+      {data.missing.length > 0 && (
+        <div className="notice" role="status">
+          <b>Məcburi təlimi olmayanlar:</b>
+          <ul>{data.missing.map((m) => <li key={m.trainingId}>{m.title} ({m.requiredFor}): {m.employees.slice(0, 10).map((e) => e.name).join(", ")}{m.employees.length > 10 ? ` və daha ${m.employees.length - 10} nəfər` : ""}</li>)}</ul>
+        </div>
+      )}
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead><tr><th>Təlim</th><th>Tarix</th><th>Saat</th><th>Xərc</th><th>İştirakçı</th><th></th></tr></thead>
@@ -218,6 +232,8 @@ export function Training({ notify }: { notify: Notify }) {
               <Field label="Bitmə"><input type="date" value={edit.end || ""} onChange={(e) => setEdit({ ...edit, end: e.target.value })} /></Field>
               <Field label="Saat"><input type="number" min={0} value={edit.hours ?? ""} onChange={(e) => setEdit({ ...edit, hours: Number(e.target.value) })} /></Field>
               <Field label="Xərc (AZN)"><input type="number" min={0} value={edit.cost ?? ""} onChange={(e) => setEdit({ ...edit, cost: Number(e.target.value) })} /></Field>
+              <Field label="Sertifikatın etibarlılığı (ay; 0 = müddətsiz)"><input type="number" min={0} max={120} value={edit.validMonths ?? ""} onChange={(e) => setEdit({ ...edit, validMonths: Number(e.target.value) })} /></Field>
+              <Field label="Məcburidir: vəzifələr (vergüllə; məs. sürücü, operator)"><input value={edit.requiredFor || ""} onChange={(e) => setEdit({ ...edit, requiredFor: e.target.value })} /></Field>
               <Field label="Vəziyyət"><select value={edit.status || "planned"} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>{Object.entries(TSTATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
             </div>
             <button type="button" className="primary" onClick={async () => { if (await run(notify, load, "company/training/save", { ...edit }, "Saxlanıldı.")) setEdit(null); }}>Saxla</button>
@@ -242,12 +258,7 @@ function Participants({ training, employees, notify, onClose, onChanged }: { tra
         {training.participants.length > 0 && (
           <>
             <h4>Nəticələr</h4>
-            {training.participants.map((p) => (
-              <div key={p.employeeId} className="bank-account">
-                <span>{p.name}</span>
-                <select value={p.status} onChange={(e) => void run(notify, onChanged, "company/training/result", { trainingId: training.id, employeeId: p.employeeId, status: e.target.value, result: p.result })}>{Object.entries(PSTATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-              </div>
-            ))}
+            {training.participants.map((p) => <ParticipantResult key={p.employeeId} training={training} p={p} notify={notify} onChanged={onChanged} />)}
           </>
         )}
       </div>
@@ -256,7 +267,7 @@ function Participants({ training, employees, notify, onClose, onChanged }: { tra
 }
 
 // ---------- Shifts ----------
-type ShiftData = { from: string; to: string; types: { id: string; name: string; start: string; end: string; hours: number; night: number }[]; employees: { id: string; name: string; department: string }[]; assignments: { employeeId: string; day: string; shiftId: string }[] };
+type ShiftData = { rules: { minRestHours: number; maxConsecutive: number }; warnings: { employeeId: string; day: string; kind: string; text: string }[]; from: string; to: string; types: { id: string; name: string; start: string; end: string; hours: number; night: number }[]; employees: { id: string; name: string; department: string }[]; assignments: { employeeId: string; day: string; shiftId: string }[] };
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 const mondayOf = (iso: string) => {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -267,6 +278,9 @@ export function Shifts({ notify }: { notify: Notify }) {
   const [from, setFrom] = useState(mondayOf(new Date().toISOString().slice(0, 10)));
   const [data, load] = useLoad<ShiftData>(`company/shifts?from=${from}`, notify);
   const [type, setType] = useState<{ id?: string; name: string; start: string; end: string } | null>(null);
+  const [pattern, setPattern] = useState<{ shiftId: string; from: string; to: string; work: number; rest: number; offset: number; ids: string[] } | null>(null);
+  const [rules, setRules] = useState<{ minRestHours: number; maxConsecutive: number } | null>(null);
+  const [assignWarnings, setAssignWarnings] = useState<string[]>([]);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const days = Array.from({ length: 14 }, (_, i) => addDays(data.from, i));
   const at = (employeeId: string, day: string) => data.assignments.find((a) => a.employeeId === employeeId && a.day === day)?.shiftId || "";
@@ -281,6 +295,8 @@ export function Shifts({ notify }: { notify: Notify }) {
         <div className="admin-actions">
           <button type="button" className="secondary" onClick={() => void run(notify, load, "company/shifts/copy", { from: data.from, to: addDays(data.from, 7) }, "Birinci həftə ikinci həftəyə köçürüldü.")}>1-ci həftəni 2-ciyə köçür</button>
           <button type="button" className="secondary" onClick={() => window.confirm("Bu iki həftənin növbələri işlənən saat kimi yazılsın? (Əmək haqqında artıq iş və gecə saatı bundan hesablanır.)") && void run(notify, load, "company/shifts/to-hours", { from: data.from, to: data.to }, "Növbələr saat uçotuna köçürüldü.")}>Saat uçotuna köçür</button>
+          <button type="button" className="secondary" onClick={() => setRules(data.rules)}>Qaydalar</button>
+          <button type="button" className="secondary" disabled={!data.types.length} onClick={() => setPattern({ shiftId: data.types[0]?.id || "", from: data.from, to: data.to, work: 2, rest: 2, offset: 0, ids: [] })}>Dövrü şablon</button>
           <button type="button" className="primary" onClick={() => setType({ name: "", start: "09:00", end: "18:00" })}>+ Növbə növü</button>
         </div>
       </div>
@@ -299,7 +315,7 @@ export function Shifts({ notify }: { notify: Notify }) {
                 <td><b>{p.name}</b><small className="skill-description">{p.department}</small></td>
                 {days.map((d) => (
                   <td key={d}>
-                    <select value={at(p.id, d)} aria-label={`${p.name} ${d}`} onChange={(e) => void run(notify, load, "company/shifts/assign", { employeeId: p.id, from: d, shiftId: e.target.value })}>
+                    <select value={at(p.id, d)} aria-label={`${p.name} ${d}`} onChange={async (e) => { try { const r = await request<{ warnings?: { text: string }[] }>("company/shifts/assign", { employeeId: p.id, from: d, shiftId: e.target.value }); setAssignWarnings((r.warnings || []).map((w) => w.text)); load(); } catch (error) { notify((error as Error).message); } }}>
                       <option value="">—</option>
                       {data.types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
@@ -310,6 +326,42 @@ export function Shifts({ notify }: { notify: Notify }) {
           </tbody>
         </table>
       </div>
+      {(assignWarnings.length > 0 || data.warnings.length > 0) && (
+        <div className="notice" role="status">
+          <b>Qrafikdə diqqət tələb edənlər ({new Set([...assignWarnings, ...data.warnings.map((w) => w.text)]).size}):</b>
+          <ul>{[...new Set([...assignWarnings, ...data.warnings.map((w) => w.text)])].slice(0, 15).map((t) => <li key={t}>{t}</li>)}</ul>
+        </div>
+      )}
+      {rules && (
+        <Modal title="Növbə qaydaları" onClose={() => setRules(null)}>
+          <div className="offer-composer">
+            <Field label="İki növbə arasında ən az fasilə (saat) — şirkətin daxili qaydası"><input type="number" min={0} max={24} step={0.5} value={rules.minRestHours} onChange={(e) => setRules({ ...rules, minRestHours: Number(e.target.value) })} /></Field>
+            <Field label="Ardıcıl ən çox iş günü (sonra istirahət günü lazımdır)"><input type="number" min={1} max={14} value={rules.maxConsecutive} onChange={(e) => setRules({ ...rules, maxConsecutive: Number(e.target.value) })} /></Field>
+            <p className="muted">Qrafik bu həddlərə görə yoxlanır və pozulanda xəbərdarlıq çıxır, təyinatı dayandırmır. Həftədə fasiləsiz istirahət müddəti Əmək Məcəlləsində göstərilib: hüquqşünasla yoxlayın.</p>
+            <button type="button" className="primary" onClick={async () => { if (await run(notify, load, "company/shifts/rules", rules, "Qaydalar saxlanıldı.")) setRules(null); }}>Saxla</button>
+          </div>
+        </Modal>
+      )}
+      {pattern && (
+        <Modal title="Dövrü növbə şablonu" onClose={() => setPattern(null)}>
+          <div className="offer-composer">
+            <div className="form-grid">
+              <Field label="Növbə"><select value={pattern.shiftId} onChange={(e) => setPattern({ ...pattern, shiftId: e.target.value })}>{data.types.map((t) => <option key={t.id} value={t.id}>{t.name} {t.start}–{t.end}</option>)}</select></Field>
+              <Field label="Başlanğıc"><input type="date" value={pattern.from} onChange={(e) => setPattern({ ...pattern, from: e.target.value })} /></Field>
+              <Field label="Son"><input type="date" value={pattern.to} onChange={(e) => setPattern({ ...pattern, to: e.target.value })} /></Field>
+              <Field label="Ardıcıl iş günü"><input type="number" min={1} max={14} value={pattern.work} onChange={(e) => setPattern({ ...pattern, work: Number(e.target.value) })} /></Field>
+              <Field label="Ardıcıl istirahət günü"><input type="number" min={0} max={14} value={pattern.rest} onChange={(e) => setPattern({ ...pattern, rest: Number(e.target.value) })} /></Field>
+              <Field label="Şablonun neçənci günündən başlasın (0 = birinci)"><input type="number" min={0} max={27} value={pattern.offset} onChange={(e) => setPattern({ ...pattern, offset: Number(e.target.value) })} /></Field>
+            </div>
+            <div className="admin-table-wrap" style={{ maxHeight: 220, overflowY: "auto" }}>
+              {data.employees.map((p) => (
+                <label key={p.id} className="check-row"><input type="checkbox" checked={pattern.ids.includes(p.id)} onChange={(e) => setPattern({ ...pattern, ids: e.target.checked ? [...pattern.ids, p.id] : pattern.ids.filter((x) => x !== p.id) })} /> {p.name} <small className="skill-description">{p.department}</small></label>
+              ))}
+            </div>
+            <button type="button" className="primary" disabled={!pattern.ids.length || !pattern.shiftId} onClick={async () => { try { const r = await request<{ warnings?: { text: string }[] }>("company/shifts/assign", { employeeIds: pattern.ids, shiftId: pattern.shiftId, from: pattern.from, to: pattern.to, work: pattern.work, rest: pattern.rest, offset: pattern.offset }); setAssignWarnings((r.warnings || []).map((w) => w.text)); notify("Şablon tətbiq olundu."); setPattern(null); load(); } catch (error) { notify((error as Error).message); } }}>Tətbiq et</button>
+          </div>
+        </Modal>
+      )}
       {type && (
         <Modal title={type.id ? "Növbə növünü dəyiş" : "Yeni növbə növü"} onClose={() => setType(null)}>
           <div className="offer-composer">
@@ -330,7 +382,7 @@ export function Shifts({ notify }: { notify: Notify }) {
 }
 
 // ---------- Business trips ----------
-type Trip = { id: string; employeeId: string; name: string; destination: string; purpose: string; start: string; end: string; days: number; daily: number; advance: number; status: string; statusText: string; requestedBy: string; expenses: { id: string; label: string; amount: number; day: string }[]; calc: { perDiem: number; expenses: number; total: number; advance: number; balance: number }; settled: number };
+type Trip = { id: string; employeeId: string; name: string; destination: string; purpose: string; start: string; end: string; days: number; daily: number; advance: number; status: string; statusText: string; requestedBy: string; expenses: { id: string; label: string; amount: number; day: string }[]; abroad?: boolean; manager?: { status: string; name: string; note: string } | null; calc: { perDiem: number; expenses: number; total: number; advance: number; balance: number }; settled: number };
 
 export function Trips({ notify }: { notify: Notify }) {
   const [data, load] = useLoad<{ employees: { id: string; name: string }[]; trips: Trip[] }>("company/trips", notify);
@@ -342,7 +394,10 @@ export function Trips({ notify }: { notify: Notify }) {
     <div className="company-page">
       <div className="section-heading">
         <p className="muted">Ezamiyyət sorğusu → təsdiq → xərc hesabatı → hesablaşma. Hesablaşmada işçiyə çatan məbləğ əmək haqqındakı “digər ödəniş” kimi qeyd olunur.</p>
-        <button type="button" className="primary" onClick={() => setEdit({ employeeId: data.employees[0]?.id || "", destination: "", purpose: "", start: "", end: "", daily: 0, advance: 0, approve: true })}>+ Ezamiyyət</button>
+        <div className="admin-actions">
+          <button type="button" className="secondary" onClick={async () => { try { const n = await request<{ domestic: number; abroad: number }>("company/trips/norms"); const d = window.prompt("Ölkə daxili gündəlik norma (AZN):", String(n.domestic)); if (d === null) return; const a = window.prompt("Xarici ezamiyyət gündəliyi (AZN):", String(n.abroad)); if (a === null) return; await request("company/trips/norms", { domestic: Number(d), abroad: Number(a) }); notify("Gündəlik normalar saxlanıldı."); } catch (error) { notify((error as Error).message); } }}>Gündəlik normalar</button>
+          <button type="button" className="primary" onClick={() => setEdit({ employeeId: data.employees[0]?.id || "", destination: "", purpose: "", start: "", end: "", daily: 0, advance: 0, approve: true, abroad: false })}>+ Ezamiyyət</button>
+        </div>
       </div>
       <div className="admin-table-wrap">
         <table className="admin-table">
@@ -355,10 +410,10 @@ export function Trips({ notify }: { notify: Notify }) {
                 <td>{dmy(t.start)} – {dmy(t.end)} ({t.days} gün)</td>
                 <td>{t.daily ? azn(t.daily) : "—"}</td>
                 <td>{t.advance ? azn(t.advance) : "—"}</td>
-                <td>{t.statusText}{t.status === "settled" && <small className="skill-description">{t.settled >= 0 ? `işçiyə ${azn(t.settled)}` : `geri qaytarılmalı ${azn(-t.settled)}`}</small>}</td>
+                <td>{t.statusText}{t.manager && <small className="skill-description">{t.manager.status === "pending" ? "Rəhbərin təsdiqini gözləyir" : t.manager.status === "approved" ? `Rəhbər təsdiq etdi (${t.manager.name})` : `Rəhbər rədd etdi (${t.manager.name})`}</small>}{t.abroad && <small className="skill-description">xarici ezamiyyət</small>}{t.status === "settled" && <small className="skill-description">{t.settled >= 0 ? `işçiyə ${azn(t.settled)}` : `geri qaytarılmalı ${azn(-t.settled)}`}</small>}</td>
                 <td className="admin-actions">
-                  {t.status === "requested" && <button type="button" className="primary" onClick={() => { const daily = window.prompt("Gündəlik məbləğ (AZN):", String(t.daily || 0)); if (daily === null) return; const advance = window.prompt("Avans (AZN):", String(t.advance || 0)); if (advance === null) return; void run(notify, load, "company/trips/decide", { id: t.id, decision: "approve", daily: Number(daily), advance: Number(advance) }, "Təsdiqləndi."); }}>Təsdiqlə</button>}
-                  {t.status === "requested" && <button type="button" onClick={() => void run(notify, load, "company/trips/decide", { id: t.id, decision: "reject", note: window.prompt("Rədd səbəbi:") || "" }, "Rədd edildi.")}>Rədd et</button>}
+                  {t.status === "requested" && !(t.manager && t.manager.status === "pending") && <button type="button" className="primary" onClick={() => { const daily = window.prompt("Gündəlik məbləğ (AZN):", String(t.daily || 0)); if (daily === null) return; const advance = window.prompt("Avans (AZN):", String(t.advance || 0)); if (advance === null) return; void run(notify, load, "company/trips/decide", { id: t.id, decision: "approve", daily: Number(daily), advance: Number(advance) }, "Təsdiqləndi."); }}>Təsdiqlə</button>}
+                  {t.status === "requested" && !(t.manager && t.manager.status === "pending") && <button type="button" onClick={() => void run(notify, load, "company/trips/decide", { id: t.id, decision: "reject", note: window.prompt("Rədd səbəbi:") || "" }, "Rədd edildi.")}>Rədd et</button>}
                   {t.status !== "requested" && t.status !== "rejected" && <button type="button" onClick={() => setOpen(t)}>Xərclər və hesablaşma</button>}
                 </td>
               </tr>
@@ -379,6 +434,7 @@ export function Trips({ notify }: { notify: Notify }) {
               <Field label="Gündəlik (AZN)"><input type="number" min={0} value={Number(edit.daily) || ""} onChange={(e) => setEdit({ ...edit, daily: Number(e.target.value) })} /></Field>
               <Field label="Avans (AZN)"><input type="number" min={0} value={Number(edit.advance) || ""} onChange={(e) => setEdit({ ...edit, advance: Number(e.target.value) })} /></Field>
             </div>
+            <label className="check"><input type="checkbox" checked={edit.abroad === true} onChange={(e) => setEdit({ ...edit, abroad: e.target.checked })} /> Xarici ezamiyyət (gündəlik boşdursa «Gündəlik normalar»dakı xarici norma işlənir)</label>
             <button type="button" className="primary" onClick={async () => { if (await run(notify, load, "company/trips/save", edit, "Ezamiyyət yaradıldı.")) setEdit(null); }}>Saxla (təsdiqlənmiş)</button>
           </div>
         </Modal>
@@ -416,8 +472,8 @@ function TripDetail({ trip, notify, onClose, onChanged }: { trip: Trip; notify: 
 }
 
 // ---------- Announcements and surveys ----------
-type News = { id: string; title: string; body: string; audience: string; pinned: boolean; expires: string; author: string; created: string };
-type SurveyResult = { id: string; title: string; kind: string; anonymous: boolean; status: string; responses: number; enps: { count: number; promoters: number; passives: number; detractors: number; score: number | null } | null; byDepartment: { department: string; count: number; score: number | null }[]; averages: { id: string; label: string; average: number | null }[]; yesno: { id: string; label: string; yes: number; no: number }[]; comments: { id: string; label: string; items: string[] }[] };
+type News = { id: string; title: string; body: string; audience: string; pinned: boolean; expires: string; author: string; created: string; requiresAck: boolean; reach: { total: number; read: number; acked: number; waiting: string[] } };
+type SurveyResult = { created: string; id: string; title: string; kind: string; anonymous: boolean; status: string; responses: number; enps: { count: number; promoters: number; passives: number; detractors: number; score: number | null } | null; byDepartment: { department: string; count: number; score: number | null }[]; averages: { id: string; label: string; average: number | null }[]; yesno: { id: string; label: string; yes: number; no: number }[]; comments: { id: string; label: string; items: string[] }[] };
 
 export function Engage({ notify }: { notify: Notify }) {
   const [news, loadNews] = useLoad<{ departments: string[]; items: News[] }>("company/announcements", notify);
@@ -433,6 +489,7 @@ export function Engage({ notify }: { notify: Notify }) {
             <div><b>{n.pinned ? "📌 " : ""}{n.title}</b> <small className="skill-description">{dmy(n.created.slice(0, 10))} · {n.author}{n.audience ? ` · ${n.audience}` : " · hamı"}{n.expires ? ` · ${dmy(n.expires)}-dək` : ""}</small><p>{n.body}</p></div>
             <button type="button" className="danger" onClick={() => window.confirm("Elan silinsin?") && void run(notify, loadNews, "company/announcements/delete", { id: n.id })}>Sil</button>
           </div>
+          <small className="skill-description">Oxuyub: {n.reach.read} / {n.reach.total}{n.requiresAck ? ` · təsdiq edib: ${n.reach.acked} / ${n.reach.total}` : ""}{n.requiresAck && n.reach.waiting.length > 0 ? ` · gözləyən: ${n.reach.waiting.slice(0, 8).join(", ")}${n.reach.waiting.length > 8 ? "…" : ""}` : ""}</small>
         </div>
       ))}
       {news && !news.items.length && <p className="muted">Elan yoxdur.</p>}
@@ -442,6 +499,9 @@ export function Engage({ notify }: { notify: Notify }) {
           <button type="button" className="primary" onClick={() => setSurvey({ title: "", kind: "custom", anonymous: true, questions: [{ label: "", kind: "scale5" }] })}>+ Öz sorğum</button>
         </div>
       </div>
+      {surveys && surveys.surveys.filter((sv) => sv.enps && sv.enps.count > 0).length > 1 && (
+        <p className="muted"><b>eNPS dinamikası:</b> {[...surveys.surveys].filter((sv) => sv.enps && sv.enps.count > 0).sort((a, b) => a.created.localeCompare(b.created)).map((sv) => `${dmy(sv.created.slice(0, 10))}: ${sv.enps!.score} (${sv.enps!.count} cavab)`).join(" → ")}</p>
+      )}
       {surveys?.surveys.map((sv) => (
         <div key={sv.id} className="bank-batch">
           <div className="bank-batch-head">
@@ -470,6 +530,7 @@ export function Engage({ notify }: { notify: Notify }) {
             </div>
             <Field label="Mətn"><textarea rows={4} value={String(edit.body)} onChange={(e) => setEdit({ ...edit, body: e.target.value })} /></Field>
             <label className="check"><input type="checkbox" checked={edit.pinned === true} onChange={(e) => setEdit({ ...edit, pinned: e.target.checked })} /> Yuxarıda saxla</label>
+            <label className="check"><input type="checkbox" checked={edit.requiresAck === true} onChange={(e) => setEdit({ ...edit, requiresAck: e.target.checked })} /> İşçilər oxuduğunu təsdiq etsin (əmr, qayda, təlimat üçün)</label>
             <label className="check"><input type="checkbox" checked={edit.notify === true} onChange={(e) => setEdit({ ...edit, notify: e.target.checked })} /> İşçilərə bildiriş göndər</label>
             <button type="button" className="primary" onClick={async () => { if (await run(notify, loadNews, "company/announcements/save", edit, "Elan yayımlandı.")) setEdit(null); }}>Yayımla</button>
           </div>
@@ -502,5 +563,54 @@ export function Engage({ notify }: { notify: Notify }) {
         </Modal>
       )}
     </div>
+  );
+}
+
+function ParticipantResult({ training, p, notify, onChanged }: { training: Training; p: Training["participants"][number]; notify: Notify; onChanged: () => void }) {
+  const [status, setStatus] = useState(p.status);
+  const [certificate, setCertificate] = useState(p.certificateNo);
+  const [completedOn, setCompletedOn] = useState(p.completedOn);
+  return (
+    <div className="bank-account">
+      <span>{p.name}</span>
+      <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label={`${p.name}: vəziyyət`}>{Object.entries(PSTATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+      {status === "completed" && (
+        <>
+          <input type="date" value={completedOn} onChange={(e) => setCompletedOn(e.target.value)} aria-label="Tamamlama tarixi" />
+          <input placeholder="Sertifikat №" value={certificate} maxLength={60} onChange={(e) => setCertificate(e.target.value)} aria-label="Sertifikat nömrəsi" />
+        </>
+      )}
+      <button type="button" onClick={() => void run(notify, onChanged, "company/training/result", { trainingId: training.id, employeeId: p.employeeId, status, result: p.result, certificateNo: certificate, completedOn }, "Saxlanıldı.")}>Saxla</button>
+      {p.validUntil && <small className="skill-description">Etibarlıdır: {dmy(p.validUntil)}-dək</small>}
+    </div>
+  );
+}
+
+type Meeting = { id: string; day: string; topics: string; decisions: string; nextStep: string; shared: boolean; authorKind: string; author: string };
+// HR keeps the notes of one-to-one meetings; a note can be hidden from the employee.
+function OneOnOneModal({ person, notify, onClose }: { person: { id: string; name: string }; notify: Notify; onClose: () => void }) {
+  const [data, load] = useLoad<{ items: Meeting[] }>(`company/one-on-ones?employeeId=${person.id}`, notify);
+  const [form, setForm] = useState({ day: new Date().toISOString().slice(0, 10), topics: "", decisions: "", nextStep: "", shared: true });
+  return (
+    <Modal title={`1:1 görüşlər: ${person.name}`} onClose={onClose}>
+      <div className="offer-composer">
+        <div className="form-grid">
+          <Field label="Tarix"><input type="date" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} /></Field>
+          <Field label="Mövzular"><input value={form.topics} maxLength={2000} onChange={(e) => setForm({ ...form, topics: e.target.value })} /></Field>
+          <Field label="Qərarlar"><input value={form.decisions} maxLength={2000} onChange={(e) => setForm({ ...form, decisions: e.target.value })} /></Field>
+          <Field label="Növbəti addım"><input value={form.nextStep} maxLength={500} onChange={(e) => setForm({ ...form, nextStep: e.target.value })} /></Field>
+        </div>
+        <label className="check"><input type="checkbox" checked={form.shared} onChange={(e) => setForm({ ...form, shared: e.target.checked })} /> İşçi görsün</label>
+        <button type="button" className="primary" disabled={form.topics.trim().length < 3} onClick={async () => { if (await run(notify, load, "company/one-on-ones/save", { employeeId: person.id, ...form }, "Qeyd saxlanıldı.")) setForm({ ...form, topics: "", decisions: "", nextStep: "" }); }}>Saxla</button>
+        {data?.items.map((n) => (
+          <div key={n.id} className="bank-batch">
+            <b>{dmy(n.day)}</b> <small className="skill-description">{n.author} ({n.authorKind === "manager" ? "rəhbər" : "HR"}){n.shared ? "" : " · yalnız rəhbərlər görür"}</small>
+            <p>{n.topics}</p>{n.decisions && <p><b>Qərar:</b> {n.decisions}</p>}{n.nextStep && <p><b>Növbəti:</b> {n.nextStep}</p>}
+            <button type="button" className="danger" onClick={() => window.confirm("Qeyd silinsin?") && void run(notify, load, "company/one-on-ones/delete", { id: n.id })}>Sil</button>
+          </div>
+        ))}
+        {data && !data.items.length && <p className="muted">Qeyd yoxdur.</p>}
+      </div>
+    </Modal>
   );
 }

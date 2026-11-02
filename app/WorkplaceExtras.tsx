@@ -164,3 +164,44 @@ export function DocsToSign({ employeeId, notify }: { employeeId: string; notify:
     </div>
   );
 }
+
+type ChangeData = { fields: Record<string, string>; items: { id: string; label: string; value: string; status: string; reason: string; created: string }[] };
+const CHANGE_STATUS: Record<string, string> = { new: "HR baxır", applied: "Kartınızda yeniləndi", rejected: "Rədd edildi" };
+// The employee asks to change a detail of their own card (bank account, address…); HR approves.
+export function MyProfileChanges({ employeeId, notify }: { employeeId: string; notify: Notify }) {
+  const [data, load] = useLoad<ChangeData>(`employee/profile-changes?employeeId=${employeeId}`, notify);
+  const [field, setField] = useState("iban");
+  const [value, setValue] = useState("");
+  if (!data) return null;
+  async function send() {
+    try {
+      await request("employee/profile-changes", { employeeId, field, value });
+      setValue("");
+      notify("Sorğu HR-a göndərildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  return (
+    <div className="offer-composer">
+      <h4>Məlumatımın dəyişdirilməsi</h4>
+      <p className="muted">Bank hesabı, kart, ünvan və ya yaxın şəxs dəyişibsə yeni məlumatı yazın. HR yoxlayıb təsdiq etdikdən sonra kartınızda yenilənir.</p>
+      <div className="form-grid">
+        <Field label="Nəyi dəyişirsiniz">
+          <select value={field} onChange={(e) => setField(e.target.value)}>
+            {Object.entries(data.fields).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
+        </Field>
+        <Field label="Yeni məlumat"><input value={value} maxLength={200} onChange={(e) => setValue(e.target.value)} /></Field>
+      </div>
+      <button type="button" className="primary" disabled={!value.trim()} onClick={() => void send()}>Sorğu göndər</button>
+      {data.items.length > 0 && (
+        <table className="admin-table">
+          <thead><tr><th>Tarix</th><th>Məlumat</th><th>Yeni dəyər</th><th>Vəziyyət</th></tr></thead>
+          <tbody>{data.items.map((i) => <tr key={i.id}><td>{dmy(i.created.slice(0, 10))}</td><td>{i.label}</td><td>{i.status === "applied" ? "—" : i.value}</td><td>{CHANGE_STATUS[i.status] || i.status}{i.reason ? `: ${i.reason}` : ""}</td></tr>)}</tbody>
+        </table>
+      )}
+    </div>
+  );
+}

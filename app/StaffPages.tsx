@@ -1010,6 +1010,7 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
           </button>
         </div>
       </div>
+      <ProfileChangesPanel notify={notify} />
       {stats && (
         <p className="muted">
           Son 90 gün: {stats.answered} ərizə cavablandırılıb{stats.averageHours !== null ? `, orta cavab müddəti ${stats.averageHours < 48 ? `${stats.averageHours} saat` : `${Math.round(stats.averageHours / 24)} gün`}` : ""}; gözləyən {stats.waiting}
@@ -2649,5 +2650,46 @@ function ManagerSelect({ employeeId, value, onChange }: { employeeId: string; va
         {people.map((p) => <option key={p.id} value={p.id}>{p.name}{p.position ? ` · ${p.position}` : ""}</option>)}
       </select>
     </Field>
+  );
+}
+
+// Requests of employees to change a detail of their own card: HR checks and approves, and the card is updated.
+function ProfileChangesPanel({ notify }: { notify: Notify }) {
+  const [items, setItems] = useState<{ id: string; name: string; label: string; value: string; status: string; reason: string; decidedBy: string; created: string }[] | null>(null);
+  const load = useCallback(() => {
+    request<{ items: NonNullable<typeof items> }>("company/profile-changes").then((r) => setItems(r.items)).catch(() => setItems([]));
+  }, []);
+  useEffect(load, [load]);
+  async function decide(id: string, decision: "approve" | "reject") {
+    let reason = "";
+    if (decision === "reject") {
+      reason = window.prompt("Rədd səbəbi:") || "";
+      if (reason.length < 5) return;
+    }
+    try {
+      await request("company/profile-changes/decide", { id, decision, reason });
+      notify(decision === "approve" ? "Dəyişiklik işçi kartında tətbiq olundu." : "Sorğu rədd edildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  const waiting = (items || []).filter((i) => i.status === "new");
+  if (!waiting.length) return null;
+  return (
+    <div className="notice" role="status">
+      <b>Məlumat dəyişikliyi sorğuları ({waiting.length})</b>
+      <table className="admin-table">
+        <thead><tr><th>İşçi</th><th>Nə dəyişir</th><th>Yeni dəyər</th><th></th></tr></thead>
+        <tbody>
+          {waiting.map((i) => (
+            <tr key={i.id}>
+              <td>{i.name}</td><td>{i.label}</td><td>{i.value}</td>
+              <td className="admin-actions"><button type="button" className="primary" onClick={() => void decide(i.id, "approve")}>Təsdiq, kartı yenilə</button><button type="button" onClick={() => void decide(i.id, "reject")}>Rədd</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

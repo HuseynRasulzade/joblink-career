@@ -1128,12 +1128,12 @@ export const perfReviews = sqliteTable(
 // Training plan: courses and who takes part.
 export const trainings = sqliteTable(
   "trainings",
-  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), provider: text("provider").notNull().default(""), kind: text("kind").notNull().default("external"), startDate: text("start_date").notNull().default(""), endDate: text("end_date").notNull().default(""), hours: integer("hours").notNull().default(0), costCents: integer("cost_cents").notNull().default(0), status: text("status").notNull().default("planned"), note: text("note").notNull().default(""), created: text("created").notNull() },
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), provider: text("provider").notNull().default(""), kind: text("kind").notNull().default("external"), startDate: text("start_date").notNull().default(""), endDate: text("end_date").notNull().default(""), hours: integer("hours").notNull().default(0), costCents: integer("cost_cents").notNull().default(0), status: text("status").notNull().default("planned"), note: text("note").notNull().default(""), created: text("created").notNull(), validMonths: integer("valid_months").notNull().default(0), requiredFor: text("required_for").notNull().default("") },
   (t) => [index("trainings_company").on(t.companyId, t.startDate)],
 );
 export const trainingParticipants = sqliteTable(
   "training_participants",
-  { trainingId: text("training_id").notNull(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), status: text("status").notNull().default("invited"), result: text("result").notNull().default("") },
+  { trainingId: text("training_id").notNull(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), status: text("status").notNull().default("invited"), result: text("result").notNull().default(""), certificateNo: text("certificate_no").notNull().default(""), completedOn: text("completed_on").notNull().default(""), validUntil: text("valid_until").notNull().default("") },
   (t) => [primaryKey({ columns: [t.trainingId, t.employeeId] }), index("training_participants_employee").on(t.companyId, t.employeeId)],
 );
 // Shifts: the kinds of shift and who works which on a day.
@@ -1146,14 +1146,14 @@ export const shiftAssignments = sqliteTable(
 // Business trips and their expenses.
 export const trips = sqliteTable(
   "trips",
-  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), destination: text("destination").notNull(), purpose: text("purpose").notNull().default(""), startDate: text("start_date").notNull(), endDate: text("end_date").notNull(), dailyCents: integer("daily_cents").notNull().default(0), advanceCents: integer("advance_cents").notNull().default(0), status: text("status").notNull().default("requested"), requestedBy: text("requested_by").notNull().default("hr"), decidedByName: text("decided_by_name").notNull().default(""), settledCents: integer("settled_cents").notNull().default(0), created: text("created").notNull() },
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), destination: text("destination").notNull(), purpose: text("purpose").notNull().default(""), startDate: text("start_date").notNull(), endDate: text("end_date").notNull(), dailyCents: integer("daily_cents").notNull().default(0), advanceCents: integer("advance_cents").notNull().default(0), status: text("status").notNull().default("requested"), requestedBy: text("requested_by").notNull().default("hr"), decidedByName: text("decided_by_name").notNull().default(""), settledCents: integer("settled_cents").notNull().default(0), created: text("created").notNull(), abroad: integer("abroad").notNull().default(0), managerStatus: text("manager_status").notNull().default(""), managerName: text("manager_name").notNull().default(""), managerNote: text("manager_note").notNull().default("") },
   (t) => [index("trips_company").on(t.companyId, t.employeeId)],
 );
 export const tripExpenses = sqliteTable("trip_expenses", { id: text("id").primaryKey(), tripId: text("trip_id").notNull(), companyId: text("company_id").notNull(), label: text("label").notNull(), amountCents: integer("amount_cents").notNull(), day: text("day").notNull().default("") }, (t) => [index("trip_expenses_trip").on(t.tripId)]);
 // Announcements to the staff and surveys (with eNPS).
 export const announcements = sqliteTable(
   "announcements",
-  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), body: text("body").notNull(), audience: text("audience").notNull().default(""), pinned: integer("pinned").notNull().default(0), expires: text("expires").notNull().default(""), author: text("author").notNull().default(""), created: text("created").notNull() },
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), body: text("body").notNull(), audience: text("audience").notNull().default(""), pinned: integer("pinned").notNull().default(0), expires: text("expires").notNull().default(""), author: text("author").notNull().default(""), created: text("created").notNull(), requiresAck: integer("requires_ack").notNull().default(0) },
   (t) => [index("announcements_company").on(t.companyId, t.created)],
 );
 export const surveys = sqliteTable(
@@ -1591,4 +1591,20 @@ export const companyCalendar = sqliteTable(
     label: text("label").notNull().default(""),
   },
   (t) => [primaryKey({ columns: [t.companyId, t.day] })],
+);
+
+// Who read an announcement and who confirmed it.
+export const announcementReads = sqliteTable("announcement_reads", { announcementId: text("announcement_id").notNull(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), readAt: text("read_at").notNull(), ackedAt: text("acked_at").notNull().default("") }, (t) => [primaryKey({ columns: [t.announcementId, t.employeeId] })]);
+// One-to-one meetings between an employee and a manager or HR.
+export const oneOnOnes = sqliteTable(
+  "one_on_ones",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), day: text("day").notNull(), topics: text("topics").notNull().default(""), decisions: text("decisions").notNull().default(""), nextStep: text("next_step").notNull().default(""), shared: integer("shared").notNull().default(1), authorKind: text("author_kind").notNull().default("hr"), authorName: text("author_name").notNull().default(""), created: text("created").notNull() },
+  (t) => [index("one_on_ones_employee").on(t.companyId, t.employeeId, t.day)],
+);
+
+// An employee asks to change a detail of their own card (bank account, address…); HR approves and the card is updated.
+export const profileChanges = sqliteTable(
+  "profile_changes",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), field: text("field").notNull(), payload: text("payload").notNull(), status: text("status").notNull().default("new"), reason: text("reason").notNull().default(""), decidedByName: text("decided_by_name").notNull().default(""), decidedAt: text("decided_at").notNull().default(""), created: text("created").notNull() },
+  (t) => [index("profile_changes_company").on(t.companyId, t.status, t.created)],
 );

@@ -45,6 +45,7 @@ import { formatDate } from "@/lib/dates";
 import { certificationById } from "@/lib/certification-catalog";
 import { candidateCertifications } from "@/lib/model";
 import { localizeTree } from "./i18n";
+import HrToday from "./HrToday";
 import { normalizeSkills } from "@/lib/skill-catalog";
 import { skillMatches } from "@/lib/skill-synonyms";
 type Candidate = { id: string; profile: Profile };
@@ -555,6 +556,7 @@ export default function HrPanel({
             </label>
           </div>
           {error && !demo && <div className="notice error">{error}</div>}
+          {page === "hr-overview" && !demo && <HrToday go={go} />}
           {page === "hr-overview" && !demo && attention.length > 0 && (
             <section className="panel" aria-label="Diqqət tələb edənlər">
               <h3>Diqqət tələb edənlər</h3>

@@ -229,3 +229,25 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - **Artıq iş əmri:** imzalanmış «artıq işə cəlb» və «istirahət günü işə cəlb» əmri həmin günlərin saatını təsdiqləyir (ayarda təsdiq qaydası açıqdırsa).
 - **Əmrsiz məzuniyyət:** davamiyyətdə əllə işarələnmiş və əmri olmayan məzuniyyət/icazə günləri üçün xəbərdarlıq.
 - **Köçürmə:** təsdiqlənməmiş aylarda əmək haqqı pəncərəsində yazılmış saatlar ay yekunu kimi köçürüldü (təsdiqlənmiş statusla); təsdiqlənmiş aylar donmuş nəticədən oxunur və dəyişmir.
+
+## 16. İnkişaf və kommunikasiya tamamlanması, işçi sorğuları, «Bu gün» paneli (2026-11-03)
+
+**Edilənlər**
+- Növbə qrafiki: təyinatda məzuniyyət/xəstəlik/ezamiyyət ilə toqquşma, iki növbə arası fasilə və ardıcıl iş günü yoxlaması (xəbərdarlıq, həddlər «Qaydalar»da), dövrü şablon (məs. 2 iş / 2 istirahət).
+- Təlim: sertifikatın etibarlılıq müddəti və nömrəsi, bitən sertifikatların siyahısı, gündəlik cron ilə HR-a xatırlatma, vəzifəyə görə məcburi təlim və onu keçməyənlər, işçi öz sertifikatını görür.
+- Elanlar: «oxudum, təsdiq edirəm» tələbi, kimin oxuduğu/təsdiqlədiyi və gözləyənlər.
+- 1:1 görüş qeydləri (HR və rəhbər yazır, işçiyə görünən və yalnız rəhbərlərə görünən).
+- Rəhbər («İş yerim → Komandam»): komandanın performans qiymətləndirməsi, ezamiyyət sorğusunu təsdiqi/rədd, komandanın növbələri, 1:1 qeydləri.
+- Ezamiyyət: rəhbər təsdiqi mərhələsi, xarici ezamiyyət işarəsi, ölkə daxili/xarici gündəlik normalar (gündəlik boş qalanda tətbiq olunur).
+- eNPS sorğular arası dinamika.
+- İşçinin məlumat dəyişikliyi sorğusu (IBAN, kart, ünvan və s.): HR yoxlayıb təsdiq edəndə kart yenilənir, dəyər şifrələmə açarı varsa şifrəli saxlanır.
+- HR «Bu gün nə etməli» paneli (gözləyən ərizələr, rəhbərdə ilişənlər, bitən sənəd və sertifikatlar, sınaq müddəti, ad günləri, təsdiqlər).
+
+**Hələ edilməyib (səbəbi ilə)**
+- Ezamiyyət qəbzlərinin şəkil/fayl kimi yüklənməsi (fayl anbarı və ölçü qaydaları ayrıca qərar tələb edir).
+- Dövlət gündəlik normasının rəsmi cədvəldən avtomatik hesablanması: normalar şirkətin özü tərəfindən yazılır.
+- Növbələrdə departament üzrə minimum işçi sayı qaydası və işçilər arası növbə dəyişdirmə sorğusu.
+- 360° rəy və bacarıq matrisi, qiymətin maaş artımına bağlanması.
+- Təlim müqaviləsi (təlimdən sonra işləmə öhdəliyi).
+- Elana fayl əlavəsi, şərh, dövri (aylıq) sorğuların planlanması.
+- Holdinq (qrup) girişi, bankla birbaşa köçürmə, hüquqi e-imza, mobil push, turniket/GPS: xarici müqavilə, açar və ya ayrıca qərar tələb edir.

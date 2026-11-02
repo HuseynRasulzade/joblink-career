@@ -80,9 +80,10 @@ export async function runDeadlineReminders(db: D1Database, now = new Date()) {
     .catch(() => ({ results: [] as { company_id: string }[] }));
   for (const { company_id } of companies.results) {
     try {
-      const [people, docs] = await Promise.all([
+      const [people, docs, certs] = await Promise.all([
         db.prepare("SELECT id,name,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(company_id).all<{ id: string; name: string; profile: string }>(),
         db.prepare("SELECT id,employee_id,subtype,name,expires FROM employee_documents WHERE company_id=? AND expires<>''").bind(company_id).all<{ id: string; employee_id: string; subtype: string; name: string; expires: string }>(),
+        db.prepare("SELECT p.training_id,p.employee_id,t.title,p.valid_until FROM training_participants p JOIN trainings t ON t.id=p.training_id WHERE p.company_id=? AND p.valid_until<>''").bind(company_id).all<{ training_id: string; employee_id: string; title: string; valid_until: string }>().catch(() => ({ results: [] as { training_id: string; employee_id: string; title: string; valid_until: string }[] })),
       ]);
       const parsed = people.results.map((p) => {
         let profile: { idExpires?: string; disabilityUntil?: string } = {};
@@ -93,7 +94,7 @@ export async function runDeadlineReminders(db: D1Database, now = new Date()) {
         }
         return { id: p.id, name: p.name, profile };
       });
-      const due = deadlinesOf(parsed, docs.results.map((d) => ({ id: d.id, employeeId: d.employee_id, label: d.subtype || d.name, expires: d.expires })), today, 30);
+      const due = deadlinesOf(parsed, [...docs.results.map((d) => ({ id: d.id, employeeId: d.employee_id, label: d.subtype || d.name, expires: d.expires })), ...certs.results.map((c) => ({ id: `cert-${c.training_id}-${c.employee_id}`, employeeId: c.employee_id, label: `Sertifikat: ${c.title}`, expires: c.valid_until }))], today, 30);
       for (const item of due) {
         const claimed = await db.prepare("INSERT OR IGNORE INTO payroll_reminders(company_id,key,created) VALUES(?,?,?)").bind(company_id, item.key, now.toISOString()).run();
         if (!claimed.meta.changes) continue;

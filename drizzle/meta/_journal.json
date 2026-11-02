@@ -610,6 +610,13 @@
       "when": 1798398000000,
       "tag": "0086_hours_month",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "6",
+      "when": 1798484400000,
+      "tag": "0087_growth_completion",
+      "breakpoints": true
     }
   ]
 }

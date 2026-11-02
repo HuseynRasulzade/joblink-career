@@ -4,9 +4,9 @@ import { Send, Trash2 } from "lucide-react";
 import { ORDER_KINDS, UNPAID_REASONS } from "@/lib/orders";
 import { OTHER_REQUEST, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { Field } from "./components";
-import { DocsToSign, ExitInterview, MyAssets, MyLeave } from "./WorkplaceExtras";
+import { DocsToSign, ExitInterview, MyAssets, MyLeave, MyProfileChanges } from "./WorkplaceExtras";
 import MyTeam from "./WorkplaceTeam";
-import { MyClock, MyEngage, MyPerformance, MyReferrals, MyShifts, MyTraining, MyTrips } from "./WorkplaceGrowth";
+import { MyClock, MyEngage, MyOneOnOnes, MyPerformance, MyReferrals, MyShifts, MyTraining, MyTrips } from "./WorkplaceGrowth";
 import { monthLabel, payslipHtml, type SlipData } from "@/lib/payslip-html";
 
 type Notify = (message: string) => void;
@@ -144,6 +144,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
               </button>
             </div>
             {tab === "info" && (
+              <>
               <dl className="workplace-info">
                 <div><dt>Şirkət</dt><dd>{place.company}</dd></div>
                 <div><dt>Vəzifə</dt><dd>{place.position || "—"}</dd></div>
@@ -152,10 +153,12 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
                 <div><dt>İş stajı</dt><dd>{place.tenure || "—"}</dd></div>
                 <div><dt>Məzuniyyət</dt><dd>{place.vacation.remaining} gün qalıb (qazanılıb {place.vacation.accrued}, istifadə {place.vacation.used})</dd></div>
               </dl>
+              <MyProfileChanges key={`${place.id}-chg`} employeeId={place.id} notify={notify} />
+              </>
             )}
             {tab === "referral" && <MyReferrals key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "docs" && <DocsToSign key={place.id} employeeId={place.id} notify={notify} />}
-            {tab === "perf" && <MyPerformance key={place.id} employeeId={place.id} notify={notify} />}
+            {tab === "perf" && <><MyPerformance key={place.id} employeeId={place.id} notify={notify} /><MyOneOnOnes key={`${place.id}-1on1`} employeeId={place.id} notify={notify} /></>}
             {tab === "training" && <MyTraining key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "team" && <MyTeam key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "clock" && <MyClock key={place.id} employeeId={place.id} notify={notify} />}

@@ -96,7 +96,7 @@ export function MyPerformance({ employeeId, notify }: { employeeId: string; noti
 }
 
 export function MyTraining({ employeeId, notify }: { employeeId: string; notify: Notify }) {
-  const [data, load] = useLoad<{ items: { id: string; title: string; provider: string; kind: string; start: string; end: string; hours: number; trainingStatus: string; status: string; result: string }[] }>(`employee/training?employeeId=${employeeId}`, notify);
+  const [data, load] = useLoad<{ items: { id: string; title: string; provider: string; kind: string; start: string; end: string; hours: number; trainingStatus: string; status: string; result: string; certificateNo: string; validUntil: string }[] }>(`employee/training?employeeId=${employeeId}`, notify);
   if (!data) return <p className="muted">Yüklənir…</p>;
   if (!data.items.length) return <p className="muted">Sizə təlim təyin olunmayıb.</p>;
   const PS: Record<string, string> = { invited: "Dəvət olunub", attending: "İştirak edəcəksiniz", completed: "Tamamlamısınız", declined: "İmtina etmisiniz" };
@@ -109,7 +109,7 @@ export function MyTraining({ employeeId, notify }: { employeeId: string; notify:
             <td><b>{t.title}</b><small className="skill-description">{t.provider}</small></td>
             <td>{dmy(t.start)}{t.end && t.end !== t.start ? ` – ${dmy(t.end)}` : ""}</td>
             <td>{t.hours || "—"}</td>
-            <td>{PS[t.status] || t.status}{t.result && <small className="skill-description">{t.result}</small>}</td>
+            <td>{PS[t.status] || t.status}{t.result && <small className="skill-description">{t.result}</small>}{t.certificateNo && <small className="skill-description">Sertifikat № {t.certificateNo}</small>}{t.validUntil && <small className="skill-description">{t.validUntil < new Date().toISOString().slice(0, 10) ? "Müddəti bitib: " : "Etibarlıdır: "}{dmy(t.validUntil)}</small>}</td>
             <td className="admin-actions">
               {(t.status === "invited" || t.status === "declined") && t.trainingStatus === "planned" && <button type="button" className="primary" onClick={() => void act(notify, load, "employee/training/respond", { employeeId, trainingId: t.id, status: "attending" }, "Cavabınız qeyd olundu.")}>İştirak edəcəm</button>}
               {t.status !== "declined" && t.status !== "completed" && t.trainingStatus === "planned" && <button type="button" onClick={() => void act(notify, load, "employee/training/respond", { employeeId, trainingId: t.id, status: "declined" }, "Cavabınız qeyd olundu.")}>İmtina</button>}
@@ -167,17 +167,17 @@ export function MyShifts({ employeeId, notify }: { employeeId: string; notify: N
   );
 }
 
-type Trip = { id: string; destination: string; purpose: string; start: string; end: string; days: number; daily: number; advance: number; status: string; statusText: string; expenses: { id: string; label: string; amount: number; day: string }[]; calc: { total: number; balance: number }; settled: number };
+type Trip = { manager?: { status: string; name: string; note: string } | null; abroad?: boolean; id: string; destination: string; purpose: string; start: string; end: string; days: number; daily: number; advance: number; status: string; statusText: string; expenses: { id: string; label: string; amount: number; day: string }[]; calc: { total: number; balance: number }; settled: number };
 export function MyTrips({ employeeId, notify }: { employeeId: string; notify: Notify }) {
   const [data, load] = useLoad<{ trips: Trip[] }>(`employee/trips?employeeId=${employeeId}`, notify);
-  const [form, setForm] = useState({ destination: "", purpose: "", start: "", end: "" });
+  const [form, setForm] = useState({ destination: "", purpose: "", start: "", end: "", abroad: false });
   const [expense, setExpense] = useState({ tripId: "", label: "", amount: 0 });
   if (!data) return <p className="muted">Yüklənir…</p>;
   return (
     <div className="offer-composer">
       {data.trips.map((t) => (
         <div key={t.id} className="bank-batch">
-          <b>{t.destination}</b> <small className="skill-description">{dmy(t.start)} – {dmy(t.end)} ({t.days} gün) · {t.statusText}{t.daily ? ` · gündəlik ${azn(t.daily)}` : ""}{t.advance ? ` · avans ${azn(t.advance)}` : ""}</small>
+          <b>{t.destination}</b> <small className="skill-description">{dmy(t.start)} – {dmy(t.end)} ({t.days} gün) · {t.statusText}{t.manager ? (t.manager.status === "pending" ? " (rəhbərin təsdiqini gözləyir)" : t.manager.status === "approved" ? " (rəhbər təsdiq etdi)" : " (rəhbər rədd etdi)") : ""}{t.daily ? ` · gündəlik ${azn(t.daily)}` : ""}{t.advance ? ` · avans ${azn(t.advance)}` : ""}</small>
           {t.expenses.map((e) => <small key={e.id} className="skill-description">{e.label}: {azn(e.amount)}</small>)}
           {(t.status === "approved" || t.status === "reported") && (
             <div className="org-add structure-add">
@@ -197,14 +197,15 @@ export function MyTrips({ employeeId, notify }: { employeeId: string; notify: No
         <Field label="Başlanğıc"><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></Field>
         <Field label="Bitmə"><input type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></Field>
       </div>
-      <button type="button" className="primary" disabled={form.destination.trim().length < 2 || !form.start || !form.end} onClick={async () => { if (await act(notify, load, "employee/trips/request", { employeeId, ...form }, "Sorğu göndərildi.")) setForm({ destination: "", purpose: "", start: "", end: "" }); }}>Sorğu göndər</button>
+      <label className="check"><input type="checkbox" checked={form.abroad} onChange={(e) => setForm({ ...form, abroad: e.target.checked })} /> Xarici ezamiyyət</label>
+      <button type="button" className="primary" disabled={form.destination.trim().length < 2 || !form.start || !form.end} onClick={async () => { if (await act(notify, load, "employee/trips/request", { employeeId, ...form }, "Sorğu göndərildi.")) setForm({ destination: "", purpose: "", start: "", end: "", abroad: false }); }}>Sorğu göndər</button>
     </div>
   );
 }
 
 type SurveyQ = { id: string; label: string; kind: "scale10" | "scale5" | "yesno" | "text" };
 export function MyEngage({ employeeId, notify }: { employeeId: string; notify: Notify }) {
-  const [data, load] = useLoad<{ news: { id: string; title: string; body: string; pinned: boolean; author: string; created: string }[]; surveys: { id: string; title: string; anonymous: boolean; questions: SurveyQ[] }[] }>(`employee/engage?employeeId=${employeeId}`, notify);
+  const [data, load] = useLoad<{ news: { id: string; title: string; body: string; pinned: boolean; author: string; created: string; requiresAck?: boolean; read?: boolean; acked?: boolean }[]; surveys: { id: string; title: string; anonymous: boolean; questions: SurveyQ[] }[] }>(`employee/engage?employeeId=${employeeId}`, notify);
   const [answers, setAnswers] = useState<Record<string, Record<string, string>>>({});
   if (!data) return <p className="muted">Yüklənir…</p>;
   return (
@@ -230,7 +231,13 @@ export function MyEngage({ employeeId, notify }: { employeeId: string; notify: N
         </div>
       ))}
       <h4>Elanlar</h4>
-      {data.news.map((n) => <div key={n.id} className="bank-batch"><b>{n.pinned ? "📌 " : ""}{n.title}</b> <small className="skill-description">{dmy(n.created.slice(0, 10))} · {n.author}</small><p>{n.body}</p></div>)}
+      {data.news.map((n) => (
+        <div key={n.id} className="bank-batch" onMouseEnter={() => { if (!n.read) void request("employee/announcements/read", { employeeId, id: n.id }).catch(() => undefined); }}>
+          <b>{n.pinned ? "📌 " : ""}{n.title}</b> <small className="skill-description">{dmy(n.created.slice(0, 10))} · {n.author}</small>
+          <p>{n.body}</p>
+          {n.requiresAck && (n.acked ? <small className="skill-description">Oxuduğunuzu təsdiq etmisiniz.</small> : <button type="button" className="primary" onClick={() => void act(notify, load, "employee/announcements/read", { employeeId, id: n.id, ack: true }, "Təsdiqiniz qeyd olundu.")}>Oxudum, təsdiq edirəm</button>)}
+        </div>
+      ))}
       {!data.news.length && <p className="muted">Elan yoxdur.</p>}
     </div>
   );
@@ -262,6 +269,26 @@ export function MyReferrals({ employeeId, notify }: { employeeId: string; notify
           <tbody>{data.items.map((r) => <tr key={r.id}><td>{r.name}<small className="skill-description">{dmy(r.created.slice(0, 10))}</small></td><td>{r.jobTitle || "—"}</td><td>{data.statusText[r.status] || r.status}</td><td>{r.bonus ? `${azn(r.bonus)}${r.paid ? " (ödənilib)" : ""}` : "—"}</td></tr>)}</tbody>
         </table>
       )}
+    </div>
+  );
+}
+
+export type OneOnOne = { id: string; day: string; topics: string; decisions: string; nextStep: string; shared: boolean; authorKind: string; author: string };
+// The notes of one-to-one meetings that were shared with the employee.
+export function MyOneOnOnes({ employeeId, notify }: { employeeId: string; notify: Notify }) {
+  const [data] = useLoad<{ items: OneOnOne[] }>(`employee/one-on-ones?employeeId=${employeeId}`, notify);
+  if (!data || !data.items.length) return null;
+  return (
+    <div className="offer-composer">
+      <h4>1:1 görüşlər</h4>
+      {data.items.map((n) => (
+        <div key={n.id} className="bank-batch">
+          <b>{dmy(n.day)}</b> <small className="skill-description">{n.author}</small>
+          <p><b>Mövzular:</b> {n.topics}</p>
+          {n.decisions && <p><b>Qərarlar:</b> {n.decisions}</p>}
+          {n.nextStep && <p><b>Növbəti addım:</b> {n.nextStep}</p>}
+        </div>
+      ))}
     </div>
   );
 }
