@@ -39,6 +39,8 @@ export function runtime() {
     SITE_URL?: string;
     EMAIL_FROM?: string;
     RESEND_API_KEY?: string;
+    // Secret for sealing personal data (FİN, card and account numbers) at rest; unset means they are stored as before.
+    DATA_KEY?: string;
     EMAIL?: {
       send: (message: {
         to: string[];

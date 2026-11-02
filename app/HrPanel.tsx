@@ -35,6 +35,7 @@ import { BulkModal, SaveTalentModal } from "./BulkTalent";
 import { SavedSearches } from "./SavedSearches";
 import { SaveTemplateModal, TemplatesModal, duplicateJob } from "./JobTemplates";
 import { CloseJobModal, EditJobModal } from "./JobsManage";
+import ShareVacancy from "./ShareVacancy";
 import { closeReasonLabel, daysLeft, extendedDeadline } from "@/lib/job-edit";
 import { OfferComposer, type Offer } from "./Offers";
 import { InternalOfferModal } from "./StaffPages";
@@ -166,6 +167,7 @@ export default function HrPanel({
   const [views, setViews] = useState<Record<string, { views: number; unique: number; last7: number }>>({});
   const [editJob, setEditJob] = useState<Job | null>(null);
   const [closeJob, setCloseJob] = useState<Job | null>(null);
+  const [shareJob, setShareJob] = useState<Job | null>(null);
   const [jobQuery, setJobQuery] = useState("");
   const [jobFilter, setJobFilter] = useState("all");
   const [jobSort, setJobSort] = useState("new");
@@ -718,6 +720,7 @@ export default function HrPanel({
                           Təkrar yayımla
                         </button>
                       )}
+                      {["published", "paused"].includes(j.status || "published") && <button onClick={() => setShareJob(j)}>Paylaş</button>}
                       <button onClick={() => setSaveTemplate({ jobId: j.id, name: j.title })}>Şablon kimi saxla</button>
                       {canPublish && ["published", "paused"].includes(j.status || "published") && (
                         <>
@@ -1345,6 +1348,7 @@ export default function HrPanel({
         />
       )}
       {testFor && <AssignTestModal application={testFor} onClose={() => setTestFor(null)} notify={notify} />}
+      {shareJob && <ShareVacancy job={shareJob} notify={notify} onClose={() => setShareJob(null)} />}
       {editJob && <EditJobModal job={editJob} api={api} onClose={() => setEditJob(null)} onSaved={() => void refresh()} notify={notify} />}
       {closeJob && <CloseJobModal job={closeJob} api={api} onClose={() => setCloseJob(null)} onClosed={() => { void refresh(); onPublished(); }} notify={notify} />}
       {templatesOpen && <TemplatesModal onClose={() => setTemplatesOpen(false)} onUse={(d) => loadDraft(d, "Şablondan layihə yaradıldı. Son tarixi və yaranma səbəbini daxil edin.")} notify={notify} />}

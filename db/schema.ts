@@ -1129,6 +1129,18 @@ export const surveyResponses = sqliteTable(
   { id: text("id").primaryKey(), surveyId: text("survey_id").notNull(), companyId: text("company_id").notNull(), respondent: text("respondent").notNull(), employeeId: text("employee_id").notNull().default(""), department: text("department").notNull().default(""), answers: text("answers").notNull().default("{}"), created: text("created").notNull() },
   (t) => [uniqueIndex("survey_responses_one").on(t.surveyId, t.respondent)],
 );
+// Employees recommending people for the open vacancies; a bonus is due when the person is hired.
+export const referrals = sqliteTable(
+  "referrals",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), jobId: text("job_id").notNull().default(""), jobTitle: text("job_title").notNull().default(""), candidateName: text("candidate_name").notNull(), candidatePhone: text("candidate_phone").notNull().default(""), candidateEmail: text("candidate_email").notNull().default(""), note: text("note").notNull().default(""), status: text("status").notNull().default("new"), bonusCents: integer("bonus_cents").notNull().default(0), bonusPaidAt: text("bonus_paid_at").notNull().default(""), created: text("created").notNull(), updated: text("updated").notNull() },
+  (t) => [index("referrals_company").on(t.companyId, t.status), index("referrals_employee").on(t.companyId, t.employeeId)],
+);
+// Checks with the people a candidate named as referees: who, what they said, the verdict.
+export const referenceChecks = sqliteTable(
+  "reference_checks",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), candidateName: text("candidate_name").notNull(), jobTitle: text("job_title").notNull().default(""), refereeName: text("referee_name").notNull(), refereeRole: text("referee_role").notNull().default(""), refereeCompany: text("referee_company").notNull().default(""), contact: text("contact").notNull().default(""), status: text("status").notNull().default("planned"), answers: text("answers").notNull().default("{}"), verdict: text("verdict").notNull().default(""), checkedByName: text("checked_by_name").notNull().default(""), checkedAt: text("checked_at").notNull().default(""), created: text("created").notNull() },
+  (t) => [index("reference_checks_company").on(t.companyId, t.candidateName)],
+);
 // Draft until the director approves the staff plan; after that changes need the director.
 export const staffPlanState = sqliteTable("staff_plan_state", {
   companyId: text("company_id").primaryKey(),

@@ -201,3 +201,33 @@ export function MyEngage({ employeeId, notify }: { employeeId: string; notify: N
     </div>
   );
 }
+
+export function MyReferrals({ employeeId, notify }: { employeeId: string; notify: Notify }) {
+  const [data, load] = useLoad<{ bonus: number; statusText: Record<string, string>; jobs: { id: string; title: string }[]; items: { id: string; jobTitle: string; name: string; status: string; bonus: number; paid: boolean; created: string }[] }>(`employee/referrals?employeeId=${employeeId}`, notify);
+  const [form, setForm] = useState({ jobId: "", name: "", phone: "", email: "", note: "" });
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  return (
+    <div className="offer-composer">
+      <p className="muted">Tanıdığınız uyğun şəxsi açıq vakansiyaya tövsiyə edin{data.bonus > 0 ? `; işə qəbul olunarsa tövsiyə bonusu ${azn(data.bonus)}` : ""}.</p>
+      <div className="form-grid">
+        <Field label="Vakansiya">
+          <select value={form.jobId} onChange={(e) => setForm({ ...form, jobId: e.target.value })}>
+            <option value="">Ümumi tövsiyə</option>
+            {data.jobs.map((j) => <option key={j.id} value={j.id}>{j.title}</option>)}
+          </select>
+        </Field>
+        <Field label="Ad Soyad"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+        <Field label="Telefon"><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
+        <Field label="E-poçt"><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+        <Field label="Niyə uyğundur?"><input value={form.note} maxLength={500} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
+      </div>
+      <button type="button" className="primary" disabled={form.name.trim().length < 2 || (!form.phone.trim() && !form.email.trim())} onClick={async () => { if (await act(notify, load, "employee/referrals/submit", { employeeId, ...form }, "Tövsiyə göndərildi.")) setForm({ jobId: "", name: "", phone: "", email: "", note: "" }); }}>Tövsiyə et</button>
+      {data.items.length > 0 && (
+        <table className="admin-table">
+          <thead><tr><th>Namizəd</th><th>Vakansiya</th><th>Vəziyyət</th><th>Bonus</th></tr></thead>
+          <tbody>{data.items.map((r) => <tr key={r.id}><td>{r.name}<small className="skill-description">{dmy(r.created.slice(0, 10))}</small></td><td>{r.jobTitle || "—"}</td><td>{data.statusText[r.status] || r.status}</td><td>{r.bonus ? `${azn(r.bonus)}${r.paid ? " (ödənilib)" : ""}` : "—"}</td></tr>)}</tbody>
+        </table>
+      )}
+    </div>
+  );
+}

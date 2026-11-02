@@ -392,3 +392,134 @@ export function OrgChart({ notify }: { notify: Notify }) {
     </div>
   );
 }
+
+// ---------- Referral programme ----------
+type Referral = { id: string; referrer: string; jobTitle: string; name: string; phone: string; email: string; note: string; status: string; bonus: number; paidAt: string; created: string };
+export function Referrals({ notify }: { notify: Notify }) {
+  const [data, load] = useLoad<{ bonus: number; statusText: Record<string, string>; items: Referral[] }>("company/referrals", notify);
+  async function act(path: string, body: Record<string, unknown>, done?: string) {
+    try {
+      await request(path, body);
+      if (done) notify(done);
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  return (
+    <div className="company-page">
+      <div className="section-heading">
+        <p className="muted">İşçilər “İş yerim → Tövsiyə proqramı”ndan namizəd tövsiyə edir. Namizəd işə qəbul olunanda tövsiyə bonusu hesablanır və “Ödə” ilə işçiyə “digər ödəniş” kimi qeyd olunur.</p>
+        <button type="button" className="secondary" onClick={() => { const v = window.prompt("İşə qəbul olunan hər tövsiyə üçün bonus (AZN):", String(data.bonus)); if (v !== null) void act("company/referrals/setting", { bonus: Number(v) }, "Bonus məbləği saxlanıldı."); }}>Bonus: {azn(data.bonus)}</button>
+      </div>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead><tr><th>Tövsiyə edən</th><th>Namizəd</th><th>Vakansiya</th><th>Vəziyyət</th><th>Bonus</th><th></th></tr></thead>
+          <tbody>
+            {data.items.map((r) => (
+              <tr key={r.id}>
+                <td>{r.referrer}<small className="skill-description">{dmy(r.created.slice(0, 10))}</small></td>
+                <td><b>{r.name}</b><small className="skill-description">{[r.phone, r.email].filter(Boolean).join(" · ")}</small>{r.note && <small className="skill-description">{r.note}</small>}</td>
+                <td>{r.jobTitle || "—"}</td>
+                <td>
+                  <select value={r.status} disabled={!!r.paidAt} onChange={(e) => void act("company/referrals/status", { id: r.id, status: e.target.value })}>
+                    {Object.entries(data.statusText).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </td>
+                <td>{r.bonus ? azn(r.bonus) : "—"}{r.paidAt && <small className="skill-description">ödənilib {dmy(r.paidAt.slice(0, 10))}</small>}</td>
+                <td className="admin-actions">
+                  {r.status === "hired" && !r.paidAt && r.bonus > 0 && <button type="button" className="primary" onClick={() => window.confirm(`${azn(r.bonus)} bonus ${r.referrer} işçisinə ödənilsin?`) && void act("company/referrals/pay", { id: r.id }, "Bonus ödənildi.")}>Ödə</button>}
+                  {!r.paidAt && <button type="button" className="danger" onClick={() => window.confirm("Tövsiyə silinsin?") && void act("company/referrals/delete", { id: r.id })}>Sil</button>}
+                </td>
+              </tr>
+            ))}
+            {!data.items.length && <tr><td colSpan={6}><p className="admin-empty">Hələ tövsiyə yoxdur.</p></td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Reference checks ----------
+type RefQuestion = { id: string; label: string; kind: "scale5" | "yesno" | "text" };
+type RefCheck = { id: string; candidate: string; jobTitle: string; referee: string; role: string; company: string; contact: string; status: string; answers: Record<string, string>; verdict: string; checkedBy: string; checkedAt: string; score: number | null; reading: string };
+export function ReferenceChecks({ notify }: { notify: Notify }) {
+  const [data, load] = useLoad<{ questions: RefQuestion[]; items: RefCheck[] }>("company/reference-checks", notify);
+  const [edit, setEdit] = useState<Record<string, string> | null>(null);
+  const [record, setRecord] = useState<RefCheck | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [verdict, setVerdict] = useState("");
+  async function act(path: string, body: Record<string, unknown>, done?: string) {
+    try {
+      await request(path, body);
+      if (done) notify(done);
+      load();
+      return true;
+    } catch (error) {
+      notify((error as Error).message);
+      return false;
+    }
+  }
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  return (
+    <div className="company-page">
+      <div className="section-heading">
+        <p className="muted">Namizədin göstərdiyi rəy verənlərlə (əvvəlki rəhbər, həmkar) əlaqə saxlayın, cavabları qeyd edin: proqram orta qiyməti və qısa nəticəni göstərir.</p>
+        <button type="button" className="primary" onClick={() => setEdit({ candidate: "", jobTitle: "", referee: "", role: "", company: "", contact: "" })}>+ Rəy verən əlavə et</button>
+      </div>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead><tr><th>Namizəd</th><th>Rəy verən</th><th>Vəziyyət</th><th>Nəticə</th><th></th></tr></thead>
+          <tbody>
+            {data.items.map((r) => (
+              <tr key={r.id}>
+                <td><b>{r.candidate}</b><small className="skill-description">{r.jobTitle}</small></td>
+                <td>{r.referee}<small className="skill-description">{[r.role, r.company, r.contact].filter(Boolean).join(" · ")}</small></td>
+                <td>{r.status === "done" ? `Yoxlanılıb (${r.checkedBy}, ${dmy(r.checkedAt.slice(0, 10))})` : "Gözləyir"}</td>
+                <td>{r.score !== null ? <><b>{r.score} / 5</b><small className={r.reading.includes("diqqətlə") || r.reading === "Zəif rəy" ? "danger-text" : "skill-description"}>{r.reading}</small></> : "—"}{r.verdict && <small className="skill-description">{r.verdict}</small>}</td>
+                <td className="admin-actions">
+                  <button type="button" className="primary" onClick={() => { setRecord(r); setAnswers(r.answers); setVerdict(r.verdict); }}>{r.status === "done" ? "Bax / dəyiş" : "Cavabları yaz"}</button>
+                  <button type="button" className="danger" onClick={() => window.confirm("Qeyd silinsin?") && void act("company/reference-checks/delete", { id: r.id })}>Sil</button>
+                </td>
+              </tr>
+            ))}
+            {!data.items.length && <tr><td colSpan={5}><p className="admin-empty">Rəy yoxlaması yoxdur.</p></td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {edit && (
+        <Modal title="Rəy verən" onClose={() => setEdit(null)}>
+          <div className="offer-composer">
+            <div className="form-grid">
+              {([["candidate", "Namizəd"], ["jobTitle", "Vakansiya"], ["referee", "Rəy verənin adı"], ["role", "Vəzifəsi"], ["company", "Şirkəti"], ["contact", "Telefon / e-poçt"]] as const).map(([key, label]) => (
+                <Field key={key} label={label}><input value={edit[key]} onChange={(e) => setEdit({ ...edit, [key]: e.target.value })} /></Field>
+              ))}
+            </div>
+            <button type="button" className="primary" onClick={async () => { if (await act("company/reference-checks/save", edit, "Saxlanıldı.")) setEdit(null); }}>Saxla</button>
+          </div>
+        </Modal>
+      )}
+      {record && (
+        <Modal title={`${record.referee} — ${record.candidate} haqqında`} onClose={() => setRecord(null)}>
+          <div className="offer-composer">
+            {data.questions.map((q) => (
+              <Field key={q.id} label={q.label}>
+                {q.kind === "text" ? <input value={answers[q.id] || ""} maxLength={800} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} /> : (
+                  <select value={answers[q.id] || ""} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}>
+                    <option value="">—</option>
+                    {q.kind === "scale5" && [1, 2, 3, 4, 5].map((n) => <option key={n} value={String(n)}>{n}</option>)}
+                    {q.kind === "yesno" && (<><option value="yes">Bəli</option><option value="no">Xeyr</option></>)}
+                  </select>
+                )}
+              </Field>
+            ))}
+            <Field label="Nəticə (sizin rəyiniz)"><input value={verdict} maxLength={300} onChange={(e) => setVerdict(e.target.value)} /></Field>
+            <button type="button" className="primary" onClick={async () => { if (await act("company/reference-checks/record", { id: record.id, answers, verdict }, "Yadda saxlanıldı.")) setRecord(null); }}>Saxla</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}

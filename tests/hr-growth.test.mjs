@@ -34,3 +34,12 @@ test("eNPS and survey answers", () => {
   assert.equal(qs.length, 1);
   assert.deepEqual(cleanSurveyAnswers(qs, { q1: "yes", q2: "no" }), { q1: "yes" });
 });
+
+import { cleanReferenceAnswers, referenceScore } from "../lib/references.ts";
+test("a reference check is scored from the 1–5 answers", () => {
+  const a = cleanReferenceAnswers({ results: "5", teamwork: "4", reliability: "9", rehire: "yes", strengths: "  çalışqan  ", x: "1" });
+  assert.deepEqual(a, { results: "5", teamwork: "4", rehire: "yes", strengths: "çalışqan" });
+  assert.deepEqual(referenceScore(a), { score: 4.5, reading: "Müsbət rəy" });
+  assert.match(referenceScore({ results: "5", rehire: "no" }).reading, /işə götürməzdi/);
+  assert.equal(referenceScore({}).score, null);
+});

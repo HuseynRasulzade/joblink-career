@@ -39,7 +39,7 @@ type Row = {
 };
 type Sheet = {
   month: string; status: "draft" | "approved"; approvedBy: string; approvedAt: string;
-  settings: { advanceDay: number; payDay: number; dualThreshold: number; problem: string }; schedule: { advanceDate: string; payDate: string };
+  settings: { advanceDay: number; payDay: number; dualThreshold: number; benefitSick: number; benefitMaternity: number; problem: string }; schedule: { advanceDate: string; payDate: string };
   workingDays: number; rows: Row[];
   totals: { employees: number; gross: number; incomeTax: number; employeeInsurance: number; net: number; advances: number; toPay: number; outstanding: number; employerContributions: number; employerCost: number };
 };
@@ -570,9 +570,11 @@ function SettingsModal({ settings, notify, onClose, onSaved }: { settings: Sheet
   const [advanceDay, setAdvanceDay] = useState(settings.advanceDay);
   const [payDay, setPayDay] = useState(settings.payDay);
   const [dual, setDual] = useState(settings.dualThreshold);
+  const [sick, setSick] = useState(settings.benefitSick);
+  const [maternity, setMaternity] = useState(settings.benefitMaternity);
   async function save() {
     try {
-      await request("company/payroll/settings", { advanceDay, payDay, dualThreshold: dual });
+      await request("company/payroll/settings", { advanceDay, payDay, dualThreshold: dual, benefitSick: sick, benefitMaternity: maternity });
       notify("Ayarlar saxlanıldı.");
       onSaved();
       onClose();
@@ -587,6 +589,8 @@ function SettingsModal({ settings, notify, onClose, onSaved }: { settings: Sheet
         <div className="form-grid">
           <Field label="Avans günü (0 — avans verilmir)"><input type="number" min={0} max={28} value={advanceDay} onChange={(e) => setAdvanceDay(Number(e.target.value))} /></Field>
           <Field label="Əmək haqqının ödəniş günü (həmin ayın)"><input type="number" min={1} max={31} value={payDay} onChange={(e) => setPayDay(Number(e.target.value))} /></Field>
+          <Field label="Xəstəlik müavinəti: orta əmək haqqının faizi (qanuna görə yazın)"><input type="number" min={0} max={100} value={sick} onChange={(e) => setSick(Number(e.target.value))} /></Field>
+          <Field label="Hamiləlik və doğuş müavinəti: orta əmək haqqının faizi"><input type="number" min={0} max={100} value={maternity} onChange={(e) => setMaternity(Number(e.target.value))} /></Field>
           <Field label="Bank ödənişinə iki nəfərin təsdiqi (AZN-dən; 0 — bir təsdiq kifayətdir)"><input type="number" min={0} step={100} value={dual} onChange={(e) => setDual(Number(e.target.value))} /></Field>
         </div>
         <button type="button" className="primary" onClick={() => void save()}>Saxla</button>

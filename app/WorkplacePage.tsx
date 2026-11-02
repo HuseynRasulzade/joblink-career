@@ -5,7 +5,7 @@ import { ORDER_KINDS, UNPAID_REASONS } from "@/lib/orders";
 import { OTHER_REQUEST, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { Field } from "./components";
 import { DocsToSign, ExitInterview, MyAssets, MyLeave } from "./WorkplaceExtras";
-import { MyEngage, MyPerformance, MyShifts, MyTraining, MyTrips } from "./WorkplaceGrowth";
+import { MyEngage, MyPerformance, MyReferrals, MyShifts, MyTraining, MyTrips } from "./WorkplaceGrowth";
 import { monthLabel, payslipHtml, type SlipData } from "@/lib/payslip-html";
 
 type Notify = (message: string) => void;
@@ -54,7 +54,7 @@ const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slic
 export default function WorkplacePage({ notify }: { notify: Notify }) {
   const [places, setPlaces] = useState<Workplace[] | null>(null);
   const [current, setCurrent] = useState("");
-  const [tab, setTab] = useState<"info" | "letters" | "pay" | "leave" | "assets" | "exit" | "perf" | "training" | "shifts" | "trips" | "engage" | "docs">("letters");
+  const [tab, setTab] = useState<"info" | "letters" | "pay" | "leave" | "assets" | "exit" | "perf" | "training" | "shifts" | "trips" | "engage" | "docs" | "referral">("letters");
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -125,6 +125,9 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
               <button type="button" role="tab" aria-selected={tab === "docs"} className={tab === "docs" ? "primary" : "ghost"} onClick={() => setTab("docs")}>
                 Sənədlər
               </button>
+              <button type="button" role="tab" aria-selected={tab === "referral"} className={tab === "referral" ? "primary" : "ghost"} onClick={() => setTab("referral")}>
+                Tövsiyə proqramı
+              </button>
               <button type="button" role="tab" aria-selected={tab === "info"} className={tab === "info" ? "primary" : "ghost"} onClick={() => setTab("info")}>
                 Məlumatlarım
               </button>
@@ -139,6 +142,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
                 <div><dt>Məzuniyyət</dt><dd>{place.vacation.remaining} gün qalıb (qazanılıb {place.vacation.accrued}, istifadə {place.vacation.used})</dd></div>
               </dl>
             )}
+            {tab === "referral" && <MyReferrals key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "docs" && <DocsToSign key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "perf" && <MyPerformance key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "training" && <MyTraining key={place.id} employeeId={place.id} notify={notify} />}

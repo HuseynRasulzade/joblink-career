@@ -120,6 +120,7 @@ import WorkplacePage from "./WorkplacePage";
 import PayrollPage from "./PayrollPage";
 import PeopleOps from "./PeopleOps";
 import GrowthHub from "./GrowthHub";
+import EncryptionPanel from "./EncryptionPanel";
 import HrFundReport from "./HrFundReport";
 import { FitReviewPanel } from "./FitReview";
 import PackagesPage from "./PackagesPage";
@@ -2783,7 +2784,10 @@ export default function Joblink() {
                 />
               )}
               {page === "hr-company" && (
-                <CompanyProfilePage notify={notify} onChange={refreshCompany} />
+                <>
+                  <CompanyProfilePage notify={notify} onChange={refreshCompany} />
+                  <EncryptionPanel notify={notify} />
+                </>
               )}
               {page === "hr-billing" && <BillingPage notify={notify} />}
               {page === "hr-calculator" && (

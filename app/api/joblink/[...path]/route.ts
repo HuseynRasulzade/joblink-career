@@ -372,6 +372,7 @@ import { bestCatalogMatch } from "@/lib/job-title-match";
 import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
 import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validIban } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
 import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
@@ -381,6 +382,7 @@ import { RATING_TEXT, bandOf, cleanScore, cycleScore } from "@/lib/performance";
 import { shiftHours, validTime } from "@/lib/shifts";
 import { STATUS_TEXT as TRIP_STATUS, settleTrip, tripDays } from "@/lib/trips";
 import { cleanQuestions, cleanSurveyAnswers, enps, ENPS_QUESTIONS, type SurveyQuestion } from "@/lib/survey";
+import { REFERENCE_QUESTIONS, REFERRAL_STATUS, cleanReferenceAnswers, referenceScore } from "@/lib/references";
 import { EXIT_QUESTIONS, OFFBOARDING_ITEMS, checklistProgress, cleanAnswers as cleanExitAnswers, cleanChecklist } from "@/lib/offboarding";
 import { ASSET_CATEGORIES, ASSET_STATUS, assetActHtml, parseAssetRows } from "@/lib/assets";
 import { daysLeft, deadlinesOf } from "@/lib/hr-deadlines";
@@ -1979,6 +1981,10 @@ async function route(request: Request) {
     const calc = settleTrip({ dailyCents: t.daily_cents, days, expensesCents: expenses.reduce((sum, e) => sum + e.amount_cents, 0), advanceCents: t.advance_cents });
     return { id: t.id, employeeId: t.employee_id, name, destination: t.destination, purpose: t.purpose, start: t.start_date, end: t.end_date, days, daily: t.daily_cents / 100, advance: t.advance_cents / 100, status: t.status, statusText: TRIP_STATUS[t.status] || t.status, requestedBy: t.requested_by, decidedBy: t.decided_by_name, expenses: expenses.map((e) => ({ id: e.id, label: e.label, amount: e.amount_cents / 100, day: e.day })), calc: { perDiem: calc.perDiem / 100, expenses: calc.expenses / 100, total: calc.total / 100, advance: calc.advance / 100, balance: calc.balance / 100 }, settled: t.settled_cents / 100 };
   };
+  // Personal data sealed at rest: opened only here, with the DATA_KEY secret.
+  const dataKey = () => runtime().DATA_KEY;
+  const reveal = (raw: string | null | undefined) => revealProfile(raw, dataKey());
+  const revealAll = async (rows: { id: string; profile?: string }[]) => new Map(await Promise.all(rows.map(async (r) => [r.id, (await reveal(r.profile)).profile] as const)));
   // Who looked at pay and personal data: kept in the audit log, once per person and subject within a quarter of an hour.
   const auditView = async (action: string, target = "", detail = "") => {
     try {
@@ -7168,6 +7174,7 @@ async function route(request: Request) {
         }
       }
     }
+    const revealed = can(memberRole, "personal-data", memberGrants) ? await revealAll(rows.results as unknown as { id: string; profile?: string }[]) : new Map<string, ReturnType<typeof parseProfile>>();
     return ok({
       showSalary,
       canEdit: can(memberRole, "employees", memberGrants),
@@ -7202,7 +7209,7 @@ async function route(request: Request) {
         })(),
         linked: Boolean((r as { user_id?: string }).user_id),
         linkPending: Boolean((r as { link_hash?: string }).link_hash) && !linkExpired(String((r as { link_expires?: string }).link_expires || ""), new Date()),
-        profile: can(memberRole, "personal-data", memberGrants) ? parseProfile((r as { profile?: string }).profile) : null,
+        profile: can(memberRole, "personal-data", memberGrants) ? revealed.get(r.id) || null : null,
         // Time worked and leave left (leave counts as earned a twelfth per month).
         tenure: tenure(r.start_date, r.status === "left" ? r.end_date || "" : "", todayIso)?.text || "",
         vacation: vacationBalance(
@@ -7793,6 +7800,31 @@ async function route(request: Request) {
     await companyAudit(db, employee.company_id, userId, "doc-acknowledged", employee.id, `${doc.subtype} · ${hash.slice(0, 12)}`);
     return ok({ ok: true, hash: hash.slice(0, 16) });
   }
+  if (request.method === "GET" && path === "employee/referrals") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    const [jobs, mine, bonus] = await Promise.all([
+      db.prepare("SELECT id,json_extract(data,'$.title') AS title FROM jobs WHERE owner=? AND status='published' ORDER BY created DESC LIMIT 100").bind(employee.company_id).all<{ id: string; title: string }>(),
+      db.prepare("SELECT id,job_title,candidate_name,status,bonus_cents,bonus_paid_at,created FROM referrals WHERE company_id=? AND employee_id=? ORDER BY created DESC LIMIT 100").bind(employee.company_id, employee.id).all<{ id: string; job_title: string; candidate_name: string; status: string; bonus_cents: number; bonus_paid_at: string; created: string }>(),
+      db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key='referral_bonus'").bind(employee.company_id).first<{ value: string }>(),
+    ]);
+    return ok({ bonus: Number(bonus?.value || 0) / 100, statusText: REFERRAL_STATUS, jobs: jobs.results.map((j) => ({ id: j.id, title: j.title || "" })), items: mine.results.map((r) => ({ id: r.id, jobTitle: r.job_title, name: r.candidate_name, status: r.status, bonus: r.bonus_cents / 100, paid: !!r.bonus_paid_at, created: r.created })) });
+  }
+  if (request.method === "POST" && path === "employee/referrals/submit") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const name = str(b.name, 120);
+    const phone = str(b.phone, 40);
+    const email = str(b.email, 160);
+    if (name.length < 2) throw new HttpError(400, "Tövsiyə etdiyiniz şəxsin adını yazın.");
+    if (!phone && !email) throw new HttpError(400, "Telefon və ya e-poçt yazın ki, onunla əlaqə saxlanıla bilsin.");
+    const job = str(b.jobId, 100) ? await db.prepare("SELECT id,json_extract(data,'$.title') AS title FROM jobs WHERE id=? AND owner=? AND status='published'").bind(str(b.jobId, 100), employee.company_id).first<{ id: string; title: string }>() : null;
+    const open = Number((await db.prepare("SELECT COUNT(*) AS n FROM referrals WHERE company_id=? AND employee_id=? AND status IN ('new','contacted','interview')").bind(employee.company_id, employee.id).first<{ n: number }>())?.n || 0);
+    if (open >= 20) throw new HttpError(409, "Cavab gözləyən 20 tövsiyəniz var.");
+    const now = new Date().toISOString();
+    await db.prepare("INSERT INTO referrals(id,company_id,employee_id,job_id,job_title,candidate_name,candidate_phone,candidate_email,note,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), employee.company_id, employee.id, job?.id || "", job?.title || str(b.jobTitle, 120), name, phone, email, str(b.note, 500), now, now).run();
+    await tellCompany(employee.company_id, `${employee.name} namizəd tövsiyə etdi`, `${name}${job?.title ? ` — ${job.title}` : ""}`, "hr-people-ops");
+    return ok({ ok: true }, 201);
+  }
   // The employee's own pay slips: only months the company has approved, and only the employee's own figures.
   const approvedSlipOf = async (employee: { id: string; company_id: string }, month: string) => {
     const run = await db.prepare("SELECT snapshot,approved_at FROM payroll_runs WHERE company_id=? AND month=? AND status='approved'").bind(employee.company_id, month).first<{ snapshot: string; approved_at: string }>();
@@ -7847,7 +7879,7 @@ async function route(request: Request) {
       db.prepare("SELECT pay_day FROM payroll_settings WHERE company_id=?").bind(employee.company_id).first<{ pay_day: number }>(),
       db.prepare("SELECT data FROM payroll_inputs WHERE company_id=? AND month=? AND employee_id=?").bind(employee.company_id, month, employee.id).first<{ data: string }>(),
     ]);
-    const profile = parseProfile(profileRow?.profile);
+    const profile = (await reveal(profileRow?.profile)).profile;
     const paid = (kinds: string[]) => payments.results.filter((p) => kinds.includes(p.kind)).reduce((t, p) => t + p.amount_cents, 0) / 100;
     const salaryPaid = paid(["salary", "vacation"]);
     let inputData = { ...EMPTY_INPUTS };
@@ -8065,6 +8097,14 @@ async function route(request: Request) {
     const markBy = new Map<string, Map<string, string>>();
     for (const m of marks.results) markBy.set(m.employee_id, (markBy.get(m.employee_id) || new Map()).set(m.day, m.code));
     const inputBy = new Map(inputs.results.map((r) => [r.employee_id, (() => { try { return cleanInputs(JSON.parse(r.data)); } catch { return { ...EMPTY_INPUTS }; } })()]));
+    // The share of the average pay paid as sickness and maternity benefit: the company sets what the law says.
+    const rateRows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('benefit_sick_percent','benefit_maternity_percent')").bind(id).all<{ key: string; value: string }>()).results;
+    const rateOf = (key: string, fallback: number) => {
+      const n = Number(rateRows.find((r) => r.key === key)?.value);
+      return Number.isFinite(n) && n >= 0 && n <= 100 && rateRows.some((r) => r.key === key) ? n : fallback;
+    };
+    const sickPercent = rateOf("benefit_sick_percent", SICK_BENEFIT_PERCENT);
+    const maternityPercent = rateOf("benefit_maternity_percent", MATERNITY_BENEFIT_PERCENT);
     // Standing additions and deductions of the month, and what the previous month could not deduct.
     const recurring = (await db.prepare("SELECT id,employee_id,type,label,amount_cents,deduction_kind FROM payroll_recurring WHERE company_id=? AND from_month<=? AND (to_month='' OR to_month>=?)").bind(id, monthRaw, monthRaw).all<{ id: string; employee_id: string; type: string; label: string; amount_cents: number; deduction_kind: string }>()).results;
     const carries = (await db.prepare("SELECT id,employee_id,label,amount_cents,deduction_kind,from_month FROM payroll_carry WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ id: string; employee_id: string; label: string; amount_cents: number; deduction_kind: string; from_month: string }>()).results;
@@ -8086,6 +8126,7 @@ async function route(request: Request) {
     const payDate = paymentDate(year, month, payDay);
     const frozen: { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] } | null = run?.status === "approved" && run.snapshot ? (() => { try { return JSON.parse(run.snapshot); } catch { return null; } })() : null;
     const sectionFor = await staffSections();
+    const profiles = await revealAll(people.results);
     // The gross pay of the last approved month, to point out a sudden change.
     const previousMonth = new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
     const previousGross = new Map<string, number>();
@@ -8104,7 +8145,7 @@ async function route(request: Request) {
       for (const r of counted.results) leaverLeave.set(r.employee_id, Number(r.n));
     }
     const rows = people.results.map((p) => {
-      const profile = parseProfile(p.profile);
+      const profile = profiles.get(p.id) || parseProfile(p.profile);
       const reduction = taxReduction(profile, todayIso);
       const week = weeklyHours(profile, first);
       const payOf = (cents: number, type: string) => (cents > 0 ? employeePay(cents / 100, type === "net" ? "net" : "gross", p.sector === "public" ? "public" : "private", reduction) : null);
@@ -8168,7 +8209,7 @@ async function route(request: Request) {
         }
         if (insuredDays.workingDays > 0) {
           const maternity = [...marksOf.values()].includes("maternity");
-          insured = { averageMonthly: avg, calendarDays: insuredDays.calendarDays, percent: maternity ? MATERNITY_BENEFIT_PERCENT : SICK_BENEFIT_PERCENT };
+          insured = { averageMonthly: avg, calendarDays: insuredDays.calendarDays, percent: maternity ? maternityPercent : sickPercent };
         }
       }
       const base = { monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: (() => {
@@ -8239,7 +8280,7 @@ async function route(request: Request) {
       status: run?.status || "draft",
       approvedBy: run?.approved_by_name || "",
       approvedAt: run?.approved_at || "",
-      settings: { advanceDay, payDay, dualThreshold: (settings?.dual_threshold || 0) / 100, problem: scheduleProblem(advanceDay, payDay) },
+      settings: { advanceDay, payDay, dualThreshold: (settings?.dual_threshold || 0) / 100, benefitSick: sickPercent, benefitMaternity: maternityPercent, problem: scheduleProblem(advanceDay, payDay) },
       schedule: { advanceDate, payDate },
       workingDays: working.length,
       rows,
@@ -9136,6 +9177,100 @@ async function route(request: Request) {
     return ok({ ok: true });
   }
 
+  // ── Referral programme: employees recommend people, HR follows them, a bonus is paid when one is hired ──
+  type ReferralRow = { id: string; employee_id: string; job_id: string; job_title: string; candidate_name: string; candidate_phone: string; candidate_email: string; note: string; status: string; bonus_cents: number; bonus_paid_at: string; created: string };
+  const referralBonus = async () => Number((await db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key='referral_bonus'").bind(id).first<{ value: string }>())?.value || 0) / 100;
+  if (request.method === "GET" && path === "company/referrals") {
+    requirePermission("salaries", "Tövsiyələri yalnız kadr işçisi görə bilər.");
+    const rows = (await db.prepare("SELECT id,employee_id,job_id,job_title,candidate_name,candidate_phone,candidate_email,note,status,bonus_cents,bonus_paid_at,created FROM referrals WHERE company_id=? ORDER BY created DESC LIMIT 300").bind(id).all<ReferralRow>()).results;
+    const names = new Map((await db.prepare("SELECT id,name FROM company_employees WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results.map((p) => [p.id, p.name]));
+    return ok({ bonus: await referralBonus(), statusText: REFERRAL_STATUS, items: rows.map((r) => ({ id: r.id, referrer: names.get(r.employee_id) || "", jobTitle: r.job_title, name: r.candidate_name, phone: r.candidate_phone, email: r.candidate_email, note: r.note, status: r.status, bonus: r.bonus_cents / 100, paidAt: r.bonus_paid_at, created: r.created })) });
+  }
+  if (request.method === "POST" && path === "company/referrals/setting") {
+    requirePermission("salaries", "Bonusu yalnız kadr işçisi təyin edə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,'referral_bonus',?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, String(Math.max(0, Math.round((Number(b.bonus) || 0) * 100)))).run();
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/referrals/status") {
+    requirePermission("salaries", "Tövsiyənin vəziyyətini yalnız kadr işçisi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const status = str(b.status, 12);
+    if (!(status in REFERRAL_STATUS)) throw new HttpError(400, "Vəziyyət tanınmadı.");
+    const row = await db.prepare("SELECT id,employee_id,candidate_name,bonus_cents,bonus_paid_at FROM referrals WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<{ id: string; employee_id: string; candidate_name: string; bonus_cents: number; bonus_paid_at: string }>();
+    if (!row) throw new HttpError(404, "Tövsiyə tapılmadı.");
+    if (row.bonus_paid_at && status !== "hired") throw new HttpError(409, "Bonus ödənilib: vəziyyət dəyişdirilmir.");
+    const bonus = status === "hired" ? (row.bonus_cents > 0 ? row.bonus_cents : Math.round((await referralBonus()) * 100)) : row.bonus_cents;
+    await db.prepare("UPDATE referrals SET status=?,bonus_cents=?,updated=? WHERE id=? AND company_id=?").bind(status, bonus, new Date().toISOString(), row.id, id).run();
+    await tellEmployee(row.employee_id, `Tövsiyə etdiyiniz ${row.candidate_name}: ${REFERRAL_STATUS[status]}`, status === "hired" && bonus > 0 ? `Tövsiyə bonusu: ${(bonus / 100).toFixed(2)} AZN.` : "");
+    return ok({ ok: true, bonus: bonus / 100 });
+  }
+  if (request.method === "POST" && path === "company/referrals/pay") {
+    requirePermission("salaries", "Bonusu yalnız əmək haqqı icazəsi olan şəxs ödəyə bilər.");
+    const b = await jsonBody(request);
+    const row = await db.prepare("SELECT id,employee_id,candidate_name,status,bonus_cents,bonus_paid_at FROM referrals WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<{ id: string; employee_id: string; candidate_name: string; status: string; bonus_cents: number; bonus_paid_at: string }>();
+    if (!row) throw new HttpError(404, "Tövsiyə tapılmadı.");
+    if (row.status !== "hired") throw new HttpError(409, "Bonus yalnız işə qəbul olunmuş namizədə görə ödənilir.");
+    if (row.bonus_paid_at) throw new HttpError(409, "Bonus artıq ödənilib.");
+    if (!(row.bonus_cents > 0)) throw new HttpError(409, "Bonus məbləği yoxdur: əvvəl tövsiyə bonusunu təyin edin.");
+    const now = new Date().toISOString();
+    await db.batch([
+      db.prepare("INSERT INTO payroll_payments(id,company_id,employee_id,month,kind,amount_cents,paid_on,method,note,title,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, row.employee_id, now.slice(0, 7), "extra", row.bonus_cents, now.slice(0, 10), "bank", "Tövsiyə proqramı", `Tövsiyə bonusu: ${row.candidate_name}`, userId, now),
+      db.prepare("UPDATE referrals SET bonus_paid_at=?,updated=? WHERE id=? AND company_id=?").bind(now, now, row.id, id),
+    ]);
+    await companyAudit(db, id, userId, "referral-bonus-paid", row.employee_id, `${row.candidate_name}: ${row.bonus_cents / 100} AZN`);
+    await tellEmployee(row.employee_id, "Tövsiyə bonusunuz ödənildi", `${(row.bonus_cents / 100).toFixed(2)} AZN (${row.candidate_name}).`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/referrals/delete") {
+    requirePermission("salaries", "Tövsiyəni yalnız kadr işçisi silə bilər.");
+    const b = await jsonBody(request);
+    const res = await db.prepare("DELETE FROM referrals WHERE id=? AND company_id=? AND bonus_paid_at=''").bind(str(b.id, 100), id).run();
+    if (!res.meta.changes) throw new HttpError(409, "Ödənilmiş bonusu olan tövsiyə silinmir.");
+    return ok({ ok: true });
+  }
+
+  // ── Reference checks ──
+  if (request.method === "GET" && path === "company/reference-checks") {
+    requirePermission("salaries", "Rəy yoxlamasını yalnız kadr işçisi görə bilər.");
+    const rows = (await db.prepare("SELECT id,candidate_name,job_title,referee_name,referee_role,referee_company,contact,status,answers,verdict,checked_by_name,checked_at,created FROM reference_checks WHERE company_id=? ORDER BY candidate_name,created DESC LIMIT 500").bind(id).all<{ id: string; candidate_name: string; job_title: string; referee_name: string; referee_role: string; referee_company: string; contact: string; status: string; answers: string; verdict: string; checked_by_name: string; checked_at: string; created: string }>()).results;
+    return ok({
+      questions: REFERENCE_QUESTIONS,
+      items: rows.map((r) => {
+        const answers = parseJson<Record<string, string>>(r.answers, {});
+        return { id: r.id, candidate: r.candidate_name, jobTitle: r.job_title, referee: r.referee_name, role: r.referee_role, company: r.referee_company, contact: r.contact, status: r.status, answers, verdict: r.verdict, checkedBy: r.checked_by_name, checkedAt: r.checked_at, ...referenceScore(answers) };
+      }),
+    });
+  }
+  if (request.method === "POST" && path === "company/reference-checks/save") {
+    requirePermission("salaries", "Rəy yoxlamasını yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const candidate = str(b.candidate, 120);
+    const referee = str(b.referee, 120);
+    if (candidate.length < 2 || referee.length < 2) throw new HttpError(400, "Namizədin və rəy verənin adını yazın.");
+    const count = Number((await db.prepare("SELECT COUNT(*) AS n FROM reference_checks WHERE company_id=? AND candidate_name=?").bind(id, candidate).first<{ n: number }>())?.n || 0);
+    if (!str(b.id, 100) && count >= 6) throw new HttpError(409, "Bir namizəd üçün ən çox 6 rəy verən saxlanılır.");
+    const values = [candidate, str(b.jobTitle, 120), referee, str(b.role, 120), str(b.company, 120), str(b.contact, 160)];
+    if (str(b.id, 100)) await db.prepare("UPDATE reference_checks SET candidate_name=?,job_title=?,referee_name=?,referee_role=?,referee_company=?,contact=? WHERE id=? AND company_id=?").bind(...values, str(b.id, 100), id).run();
+    else await db.prepare("INSERT INTO reference_checks(id,company_id,candidate_name,job_title,referee_name,referee_role,referee_company,contact,created) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, ...values, new Date().toISOString()).run();
+    return ok({ ok: true }, 201);
+  }
+  if (request.method === "POST" && path === "company/reference-checks/record") {
+    requirePermission("salaries", "Rəy yoxlamasını yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const answers = cleanReferenceAnswers(b.answers);
+    if (!Object.keys(answers).length) throw new HttpError(400, "Ən azı bir suala cavab yazın.");
+    const res = await db.prepare("UPDATE reference_checks SET answers=?,verdict=?,status='done',checked_by_name=?,checked_at=? WHERE id=? AND company_id=?").bind(JSON.stringify(answers), str(b.verdict, 300), await requesterName(), new Date().toISOString(), str(b.id, 100), id).run();
+    if (!res.meta.changes) throw new HttpError(404, "Qeyd tapılmadı.");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/reference-checks/delete") {
+    requirePermission("salaries", "Rəy yoxlamasını yalnız kadr işçisi silə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM reference_checks WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    return ok({ ok: true });
+  }
+
   // ── HR and pay-fund report: headcount, plan, budget against the actual fund, vacation liability and turnover per department ──
   const hrFundReport = async () => {
     const year = (/^\d{4}$/.test(str(requestUrl.searchParams.get("year"), 4)) ? str(requestUrl.searchParams.get("year"), 4) : new Date().toISOString().slice(0, 4));
@@ -9478,7 +9613,8 @@ async function route(request: Request) {
     const open = await db.prepare("SELECT id FROM payroll_batches WHERE company_id=? AND month=? AND kind=? AND status IN ('draft','approved','sent') LIMIT 1").bind(id, monthRaw, kind).first();
     if (open) throw new HttpError(409, "Bu ay üçün açıq ödəniş sənədi var: onu tamamlayın və ya ləğv edin.");
     const profiles = await db.prepare("SELECT id,profile FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; profile: string }>();
-    const cards = new Map(profiles.results.map((p) => [p.id, parseProfile(p.profile).cardNumber]));
+    const opened = await revealAll(profiles.results);
+    const cards = new Map(profiles.results.map((p) => [p.id, opened.get(p.id)?.cardNumber || ""]));
     const { items, skipped } = buildTransfers(
       sheet.rows.map((r) => ({ employeeId: r.employeeId, name: r.name, fin: r.fin, iban: r.iban, cardNumber: cards.get(r.employeeId) || "", payMethod: (r.payMethod || "") as "" | "bank" | "card" | "cash", amount: kind === "advance" ? r.availableAdvance : kind === "vacation" ? r.vacationOutstanding : kind === "benefit" ? r.benefitOutstanding : r.outstanding })),
     );
@@ -10010,6 +10146,15 @@ async function route(request: Request) {
         dual = wanted;
       }
     }
+    for (const [field, key] of [["benefitSick", "benefit_sick_percent"], ["benefitMaternity", "benefit_maternity_percent"]] as const) {
+      if (b[field] === undefined) continue;
+      const wanted = Math.max(0, Math.min(100, Number(b[field]) || 0));
+      const old = await db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key=?").bind(id, key).first<{ value: string }>();
+      if (String(wanted) === (old?.value ?? "")) continue;
+      if (!canAct("approve-director")) throw new HttpError(403, "Müavinət faizlərini yalnız direktor və ya hesab sahibi dəyişə bilər.");
+      await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, key, String(wanted)).run();
+      await companyAudit(db, id, userId, "benefit-rate-set", key, `${wanted}%`);
+    }
     await db
       .prepare("INSERT INTO payroll_settings(company_id,advance_day,pay_day,dual_threshold,updated) VALUES(?,?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET advance_day=excluded.advance_day,pay_day=excluded.pay_day,dual_threshold=excluded.dual_threshold,updated=excluded.updated")
       .bind(id, advanceDay, payDay, dual, new Date().toISOString())
@@ -10205,12 +10350,17 @@ async function route(request: Request) {
         continue;
       }
       const current = await db.prepare("SELECT profile FROM company_employees WHERE id=? AND company_id=?").bind(found.id, id).first<{ profile: string }>();
-      const merged = normalizeProfile({ ...parseProfile(current?.profile), ...row.profile });
+      const opened = await reveal(current?.profile);
+      if (opened.locked) {
+        issues.push({ line: row.line, reason: `${row.name}: şifrələnmiş məlumat açıla bilmir (açar yoxdur və ya səhvdir), dəyişdirilmədi.` });
+        continue;
+      }
+      const merged = normalizeProfile({ ...opened.profile, ...row.profile });
       if (merged.issues.length) {
         issues.push({ line: row.line, reason: `${row.name}: ${merged.issues[0]}` });
         continue;
       }
-      statements.push(db.prepare("UPDATE company_employees SET profile=?,updated=? WHERE id=? AND company_id=?").bind(JSON.stringify(merged.profile), new Date().toISOString(), found.id, id));
+      statements.push(db.prepare("UPDATE company_employees SET profile=?,updated=? WHERE id=? AND company_id=?").bind(await sealProfile(merged.profile, dataKey()), new Date().toISOString(), found.id, id));
       applied += 1;
     }
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
@@ -10808,13 +10958,41 @@ async function route(request: Request) {
     const b = await jsonBody(request);
     const { profile, issues } = normalizeProfile(b.profile);
     if (issues.length) throw new HttpError(400, issues[0]);
+    const stored = await db.prepare("SELECT profile FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(str(b.id, 100), id).first<{ profile: string }>();
+    if (stored && (await reveal(stored.profile)).locked) throw new HttpError(409, "Bu işçinin şifrələnmiş məlumatı açıla bilmir (şifrələmə açarı yoxdur və ya səhvdir): saxlamaq mövcud məlumatı silərdi.");
     const done = await db
       .prepare("UPDATE company_employees SET profile=?,updated=? WHERE id=? AND company_id=? AND status<>'removed'")
-      .bind(JSON.stringify(profile), new Date().toISOString(), str(b.id, 100), id)
+      .bind(await sealProfile(profile, dataKey()), new Date().toISOString(), str(b.id, 100), id)
       .run();
     if (!done.meta.changes) throw new HttpError(404, "İşçi tapılmadı.");
     await companyAudit(db, id, userId, "employee-profile", str(b.id, 100), "Şəxsi məlumatlar yeniləndi");
     return ok({ ok: true, profile });
+  }
+  // Sealing the profiles that are still stored in the open, once the DATA_KEY secret is set.
+  if (request.method === "GET" && path === "company/security/encryption") {
+    if (!canAct("approve-director")) throw new HttpError(403, "Şifrələmə vəziyyətini yalnız direktor və ya hesab sahibi görə bilər.");
+    const rows = (await db.prepare("SELECT profile FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ profile: string }>()).results;
+    const sealed = rows.filter((r) => r.profile.includes("\"__enc\"")).length;
+    return ok({ keySet: encryptionOn(dataKey()), employees: rows.length, sealed, open: rows.length - sealed });
+  }
+  if (request.method === "POST" && path === "company/security/encrypt") {
+    if (!canAct("approve-director")) throw new HttpError(403, "Şifrələməni yalnız direktor və ya hesab sahibi işə sala bilər.");
+    if (!encryptionOn(dataKey())) throw new HttpError(409, "Şifrələmə açarı (DATA_KEY) qoyulmayıb: əvvəl serverdə gizli dəyər kimi əlavə edilməlidir.");
+    const rows = (await db.prepare("SELECT id,profile FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; profile: string }>()).results;
+    const now = new Date().toISOString();
+    const statements: D1PreparedStatement[] = [];
+    let skipped = 0;
+    for (const r of rows) {
+      const opened = await reveal(r.profile);
+      if (opened.locked) {
+        skipped += 1;
+        continue;
+      }
+      statements.push(db.prepare("UPDATE company_employees SET profile=?,updated=? WHERE id=? AND company_id=?").bind(await sealProfile(opened.profile, dataKey()), now, r.id, id));
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "profiles-encrypted", "", `${statements.length} profil, ${skipped} atlandı`);
+    return ok({ ok: true, sealed: statements.length, skipped });
   }
   if (request.method === "POST" && path === "company/staff/submit-plan") {
     requirePermission("salaries", "Ştat planını yalnız HR, direktor və hesab sahibi təsdiqə göndərə bilər.");
