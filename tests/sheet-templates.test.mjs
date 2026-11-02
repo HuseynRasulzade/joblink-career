@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SHEET_TEMPLATES, templateSheets } from "../lib/sheet-templates.ts";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "../lib/staff-import.ts";
-import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind } from "../lib/sheet-imports.ts";
+import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff } from "../lib/sheet-imports.ts";
 import { parseAssetRows } from "../lib/assets.ts";
 import { parseHoursRows, parseHoursTotals } from "../lib/hours.ts";
 import { createXlsxBook } from "../lib/xlsx.ts";
@@ -23,6 +23,8 @@ test("every sample file is read back by its own importer without a problem", () 
     payroll: parsePayrollRows,
     hours: parseHoursRows,
     hourtotals: parseHoursTotals,
+    shifts: parseShiftSchedule,
+    shiftstaff: parseShiftStaff,
     assets: parseAssetRows,
   };
   for (const [kind, parse] of Object.entries(checks)) {
@@ -160,4 +162,16 @@ test("disability and tax-benefit columns of the personal data file are read", ()
   const aysel = r.rows[0].profile;
   assert.equal(aysel.dependents3, true);
   assert.equal(aysel.disabilityWar, false);
+});
+
+test("the shift files are read: ranges, rest days, FİN, the work rhythm", () => {
+  const s = parseShiftSchedule([["FİN", "Başlama tarixi", "Bitmə tarixi", "Növbə"], ["5abc123", "2026-03-02", "2026-03-06", "Səhər"], ["5abc123", "2026-03-07", "", "İstirahət"], ["6XYZ789", "2026-03-02", "2026-02-01", "Gecə"]]);
+  assert.equal(s.rows.length, 2);
+  assert.deepEqual([s.rows[0].fin, s.rows[0].shift, s.rows[1].shift, s.rows[1].to], ["5ABC123", "Səhər", "", "2026-03-07"]);
+  assert.equal(s.issues.length, 1);
+  const p = parseShiftStaff([["Ad Soyad", "Növbəli rejim", "Standart növbə", "İş günü sayı", "İstirahət günü sayı", "Başlanğıc"], ["Aysel", "Bəli", "Gündüz", "2", "2", "1"], ["Orxan", "Xeyr", "", "", "", ""], ["Nigar", "Bəli", "Gecə", "0", "", ""]]);
+  assert.equal(p.rows.length, 2);
+  assert.deepEqual([p.rows[0].shiftWork, p.rows[0].work, p.rows[0].rest, p.rows[0].offset], [true, 2, 2, 1]);
+  assert.equal(p.rows[1].shiftWork, false);
+  assert.equal(p.issues.length, 1); // a rhythm needs at least one working day
 });

@@ -5,7 +5,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "assets";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -186,6 +186,46 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       ["Orxan Əliyev", "", "", "2026-03", 0, 8, 12, "Növbəli iş"],
     ],
     rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Ay yekunu yalnız həmin ay üçün gündəlik saatı olmayan işçilərə yazılır: gündəlik qeyd varsa, yalnız o sayılır, ikisi toplanmır.", "Fayl həmin işçi və ay üçün əvvəlki yekunu əvəz edir; hamısı 0 yazılsa yekun silinir."],
+  },
+  shifts: {
+    title: "Növbə cədvəli (kim hansı gün hansı növbədə)",
+    file: "novbe-cedveli-numune.xlsx",
+    sheet: "Növbələr",
+    columns: [
+      { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. FİN yazılıbsa, ad boş ola bilər." },
+      { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "FİN", required: false, format: "7 simvol", description: "Şəxsiyyət vəsiqəsindəki FİN kodu. Yazılırsa işçi yalnız FİN ilə tapılır (eyni adlı iki işçini dəqiq ayırır); işçi kartında FİN olmalıdır." },
+      { header: "Başlama tarixi", required: true, format: DATE, description: "Növbənin ilk günü." },
+      { header: "Bitmə tarixi", required: false, format: DATE, description: "Son gün. Boşdursa yalnız başlama günüdür (ən çox 93 gün)." },
+      { header: "Növbə", required: true, format: "Mətn", description: "Növbənin adı (Səhər, Gündüz, Axşam, Gecə və ya şirkətin öz növbəsi). «İstirahət» yazsanız həmin günlərin növbəsi silinir.", values: "Növbə növləri siyahısındakı ad; İstirahət" },
+    ],
+    examples: [
+      ["Aysel Məmmədova", "", "", "2026-03-02", "2026-03-06", "Səhər"],
+      ["Aysel Məmmədova", "", "", "2026-03-07", "2026-03-08", "İstirahət"],
+      ["Orxan Əliyev", "", "", "2026-03-02", "2026-03-04", "Gecə"],
+    ],
+    rules: ["Yalnız işçi kartında «Növbəli rejim» seçilən işçilərə növbə yazılır; başqaları hesabatda göstərilir.", "Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Növbənin adı «Növbə növləri»ndəki adla eyni olmalıdır (hərf böyüklüyünə və Azərbaycan hərflərinə baxılmır).", "Faylda olan günlər üçün əvvəlki növbə əvəz olunur; faylda olmayan günlərə toxunulmur."],
+  },
+  shiftstaff: {
+    title: "Növbəli işçilər və onların standart rejimi",
+    file: "novbeli-isciler-numune.xlsx",
+    sheet: "Növbəli işçilər",
+    columns: [
+      { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. FİN yazılıbsa, ad boş ola bilər." },
+      { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "FİN", required: false, format: "7 simvol", description: "Şəxsiyyət vəsiqəsindəki FİN kodu. Yazılırsa işçi yalnız FİN ilə tapılır (eyni adlı iki işçini dəqiq ayırır); işçi kartında FİN olmalıdır." },
+      { header: "Növbəli rejim", required: true, format: "Bəli / Xeyr", description: "Bəli: işçi növbə cədvəlinə düşür. Xeyr: işçi adi iş rejimindədir, növbə cədvəlindən çıxır." },
+      { header: "Standart növbə", required: false, format: "Mətn", description: "İşçinin adətən işlədiyi növbənin adı (məsələn Səhər).", values: "Növbə növləri siyahısındakı ad" },
+      { header: "İş günü sayı", required: false, format: "1–14", description: "Ardıcıl neçə gün işləyir (məsələn 2)." },
+      { header: "İstirahət günü sayı", required: false, format: "0–14", description: "Ardıcıl neçə gün istirahət edir (məsələn 2)." },
+      { header: "Başlanğıc", required: false, format: "0–27", description: "Ritmin neçənci günündən başlasın (0 = birinci gün). İki işçini növbələşmək üçün fərqli yazın." },
+    ],
+    examples: [
+      ["Aysel Məmmədova", "", "", "Bəli", "Səhər", 5, 2, 0],
+      ["Orxan Əliyev", "", "", "Bəli", "Gecə", 2, 2, 2],
+      ["Nigar Quliyeva", "", "", "Xeyr", "", "", "", ""],
+    ],
+    rules: ["Bu fayl işçi kartındakı «Növbəli rejim» sahələrini yeniləyir: boş buraxılan sahə dəyişmir.", "Rejim yazıldıqdan sonra növbə cədvəlində «Standart rejimlə doldur» düyməsi hər işçinin növbəsini bu ritmlə qurur.", "Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil."],
   },
   assets: {
     title: "Şirkət əmlakı (aktivlər)",

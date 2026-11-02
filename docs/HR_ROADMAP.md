@@ -279,3 +279,12 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - **Namizəd müqayisə cədvəli:** müsahibə nəticələri, maaş gözləntisi və diapazon, təcrübə və məcburi sertifikat çatışmazlığı, qısa nəticə, Excel və çap.
 
 **Qərarla edilməyib:** əmək haqqı hesabatı üçün hazır xülasə cədvəli. Hesabat 400 işçi və 12 ay üçün yerli bazada ~0,5 saniyədir; xülasə cədvəli ödəniş geri çəkiləndə, ay açılanda və işçi məlumatı dəyişəndə köhnəlib səhv rəqəm göstərmək riski daşıyır, ölçülmüş problem olmadığı üçün əlavə edilmədi.
+
+## 19. Növbə işçi kartına bağlı oldu (2026-11-03)
+
+- İşçi kartında «Növbəli rejimdə işləyir» + standart növbə + ritm (ardıcıl iş/istirahət günü, başlanğıc). İşarələnməyibsə işçi adi iş rejimindədir.
+- Növbə cədvəlinə yalnız növbəli işçilər düşür; növbə yalnız onlara təyin olunur (digərlərinə server rədd edir).
+- Standart növbələr (Səhər 08–16, Gündüz 09–18, Axşam 16–24, Gecə 22–06) şirkət üçün avtomatik yaranır; dəyişmək və əlavə etmək olar. Növbənin adı dəyişsə, işçi kartlarındakı standart növbə də yenilənir.
+- «Standart rejimlə doldur»: hər işçinin növbəsi və ritmi ilə seçilən iki həftənin boş günləri doldurulur (artıq təyin olunmuş günlərə toxunulmur).
+- «Növbəli işçilər» pəncərəsi: bir neçə işçini birdən növbəli rejimə keçirmək/qaytarmaq.
+- Excel: «Excel: növbə cədvəli» (işçi, tarix aralığı, növbə və ya İstirahət) və «Excel: növbəli işçilər» (rejim, standart növbə, ritm); hər ikisi nümunə fayl və təlimat ilə, FİN ilə işçi eyniləşdirilir.

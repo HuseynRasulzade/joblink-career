@@ -32,6 +32,11 @@ export type EmployeeProfile = {
   taxBenefitFrom: string;
   dependents3: boolean; // supports at least three people (Tax Code 102.5)
   nightPercent: number; // night work supplement in percent, from the contract
+  shiftWork: boolean; // works in shifts: only these employees are planned in the shift schedule
+  shiftDefault: string; // the usual shift (its name in the shift types)
+  shiftWorkDays: number; // the usual rhythm: days on …
+  shiftRestDays: number; // … and days off
+  shiftOffset: number; // on which day of the rhythm the schedule starts (0 = the first)
   deputyId: string; // stands in for the direct manager while they are away
   managerId: string; // the direct manager (an employee card): leave applications go to them first
   insuranceBefore: number; // months of social insurance record before this job (the benefit needs 6 months in all)
@@ -57,7 +62,7 @@ export const EMPTY_PROFILE: EmployeeProfile = {
   idIssuedBy: "", idIssuedDate: "", idExpires: "", address: "", registeredAddress: "", maritalStatus: "",
   childrenUnder14: 0, hasDisabledChild: false, soleParent: false, disability: "", disabilityDegree: "", disabilityWar: false,
   disabilityDoc: "", disabilityUntil: "", disabledChildren: 0, careDependent: "", taxBenefit: "", taxBenefitDoc: "", taxBenefitFrom: "",
-  dependents3: false, managerId: "", deputyId: "", nightPercent: 0, insuranceBefore: 0, mainJob: true, ssn: "", voen: "", iban: "", bankName: "", bankCode: "", accountNumber: "", cardNumber: "", cardHolder: "", payMethod: "",
+  dependents3: false, managerId: "", deputyId: "", shiftWork: false, shiftDefault: "", shiftWorkDays: 5, shiftRestDays: 2, shiftOffset: 0, nightPercent: 0, insuranceBefore: 0, mainJob: true, ssn: "", voen: "", iban: "", bankName: "", bankCode: "", accountNumber: "", cardNumber: "", cardHolder: "", payMethod: "",
   educationLevel: "", militaryStatus: "", emergencyName: "", emergencyPhone: "",
 };
 
@@ -152,6 +157,11 @@ export function normalizeProfile(input: unknown): ProfileResult {
     dependents3: raw.dependents3 === true,
     managerId: text(raw.managerId, 100),
     deputyId: text(raw.deputyId, 100),
+    shiftWork: raw.shiftWork === true,
+    shiftDefault: text(raw.shiftDefault, 60),
+    shiftWorkDays: Math.max(1, Math.min(14, Math.round(Number(raw.shiftWorkDays) || 5))),
+    shiftRestDays: raw.shiftRestDays === undefined || raw.shiftRestDays === "" ? 2 : Math.max(0, Math.min(14, Math.round(Number(raw.shiftRestDays)) || 0)),
+    shiftOffset: Math.max(0, Math.min(27, Math.round(Number(raw.shiftOffset) || 0))),
     nightPercent: Math.max(0, Math.min(100, Math.round((Number(raw.nightPercent) || 0) * 10) / 10)),
     insuranceBefore: Math.max(0, Math.min(720, Math.round(Number(raw.insuranceBefore) || 0))),
     mainJob: raw.mainJob === false ? false : true,

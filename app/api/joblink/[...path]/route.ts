@@ -371,7 +371,7 @@ import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
-import { matchEmployee, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { fold as plainFold, matchEmployee, parseShiftSchedule, parseShiftStaff, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validCard, validIban, type EmployeeProfile } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
@@ -7637,7 +7637,17 @@ async function route(request: Request) {
   const employeeRefs = async () => {
     const rows = (await db.prepare("SELECT id,name,email,profile FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; name: string; email: string; profile: string }>()).results;
     const opened = await revealAll(rows);
-    return rows.map((r) => ({ id: r.id, name: r.name, email: r.email, fin: opened.get(r.id)?.fin || "" }));
+    return rows.map((r) => ({ id: r.id, name: r.name, email: r.email, fin: opened.get(r.id)?.fin || "", shift: !!opened.get(r.id)?.shiftWork }));
+  };
+  // One detail of an employee card changed by HR (the card stays sealed when encryption is on).
+  const patchProfile = async (employeeId: string, patch: Partial<EmployeeProfile>) => {
+    const row = await db.prepare("SELECT profile FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(employeeId, id).first<{ profile: string }>();
+    if (!row) return false;
+    const opened = await reveal(row.profile);
+    if (opened.locked) throw new HttpError(409, "Bu işçinin şifrələnmiş məlumatı açıla bilmir: dəyişiklik tətbiq edilmədi.");
+    const { profile } = normalizeProfile({ ...opened.profile, ...patch });
+    await db.prepare("UPDATE company_employees SET profile=?,updated=? WHERE id=? AND company_id=?").bind(await sealProfile(profile, dataKey()), new Date().toISOString(), employeeId, id).run();
+    return true;
   };
   // Leave kinds that take the employee away from work: they go to the direct manager first and are checked for clashes.
   const AWAY_KINDS = ["vacation", "addleave", "creative", "study", "unpaid", "childcare", "maternity", "paternity", "donor", "medical", "remote", "postpone", "extendleave"];
@@ -9880,6 +9890,14 @@ async function route(request: Request) {
 
   // ── Shifts ──
   const addDay = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  // The usual shifts exist from the start: a company that has none gets the four common ones (it can change or add).
+  const STANDARD_SHIFTS: [string, string, string][] = [["Səhər", "08:00", "16:00"], ["Gündüz", "09:00", "18:00"], ["Axşam", "16:00", "00:00"], ["Gecə", "22:00", "06:00"]];
+  const ensureShiftTypes = async () => {
+    const have = Number((await db.prepare("SELECT COUNT(*) AS n FROM shift_types WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0);
+    if (have > 0) return;
+    const now = new Date().toISOString();
+    await db.batch(STANDARD_SHIFTS.map(([name, start, end]) => db.prepare("INSERT INTO shift_types(id,company_id,name,start_time,end_time,created) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), id, name, start, end, now)));
+  };
   // The limits the schedule is checked against: settings of the company (the rest between shifts is an internal rule).
   const shiftRules = async () => {
     const rows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND (key IN ('shift_min_rest_hours','shift_max_consecutive') OR key LIKE 'shift_min_cover:%')").bind(id).all<{ key: string; value: string }>()).results;
@@ -9918,14 +9936,6 @@ async function route(request: Request) {
     }
     return [...base, ...cover].filter((w) => w.day >= from && w.day <= to);
   };
-  if (request.method === "POST" && path === "company/shifts/defaults") {
-    requirePermission("salaries", "Növbə növünü yalnız kadr işçisi yarada bilər.");
-    const have = Number((await db.prepare("SELECT COUNT(*) AS n FROM shift_types WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0);
-    if (have > 0) throw new HttpError(409, "Növbə növləri artıq var.");
-    const now = new Date().toISOString();
-    await db.batch([["Səhər", "08:00", "16:00"], ["Gündüz", "09:00", "18:00"], ["Axşam", "16:00", "00:00"], ["Gecə", "22:00", "06:00"]].map(([name, start, end]) => db.prepare("INSERT INTO shift_types(id,company_id,name,start_time,end_time,created) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), id, name, start, end, now)));
-    return ok({ ok: true }, 201);
-  }
   if (request.method === "POST" && path === "company/shift-swaps/decide") {
     requirePermission("salaries", "Növbə dəyişdirməni yalnız kadr işçisi təsdiq edə bilər.");
     const b = await jsonBody(request);
@@ -9935,6 +9945,116 @@ async function route(request: Request) {
       if (!res.meta.changes) throw new HttpError(404, "Sorğu tapılmadı.");
     }
     return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "company/shifts/types") {
+    requirePermission("salaries", "Növbə növlərini yalnız kadr işçisi görə bilər.");
+    if (memberRole !== "auditor") await ensureShiftTypes();
+    const types = (await db.prepare("SELECT id,name,start_time,end_time FROM shift_types WHERE company_id=? ORDER BY start_time").bind(id).all<{ id: string; name: string; start_time: string; end_time: string }>()).results;
+    return ok({ types: types.map((t) => ({ id: t.id, name: t.name, start: t.start_time, end: t.end_time })) });
+  }
+  // Who works in shifts: the "shift work" box of the employee card, switched here for many at once (with the usual rhythm).
+  if (request.method === "POST" && path === "company/shifts/staff") {
+    requirePermission("salaries", "Növbəli rejimi yalnız kadr işçisi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const ids = (Array.isArray(b.employeeIds) ? (b.employeeIds as unknown[]) : []).map((x) => String(x)).slice(0, 300);
+    if (!ids.length) throw new HttpError(400, "İşçi seçin.");
+    const patch: Partial<EmployeeProfile> = { shiftWork: b.shiftWork === true };
+    if (typeof b.shiftDefault === "string") patch.shiftDefault = str(b.shiftDefault, 60);
+    if (b.work !== undefined) patch.shiftWorkDays = Number(b.work);
+    if (b.rest !== undefined) patch.shiftRestDays = Number(b.rest);
+    if (b.offset !== undefined) patch.shiftOffset = Number(b.offset);
+    let changed = 0;
+    for (const e of ids) if (await patchProfile(e, patch)) changed++;
+    await companyAudit(db, id, userId, "shift-work-set", "", `${changed} işçi: ${b.shiftWork === true ? "növbəli rejim" : "adi rejim"}`);
+    return ok({ ok: true, changed });
+  }
+  // Every shift employee gets the usual shift in the usual rhythm over the stretch; days that already carry a shift stay.
+  if (request.method === "POST" && path === "company/shifts/autofill") {
+    requirePermission("salaries", "Növbə qrafikini yalnız kadr işçisi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const from = str(b.from, 10);
+    const to = str(b.to, 10);
+    if (!dateOk(from) || !dateOk(to) || to < from) throw new HttpError(400, "Tarixləri düzgün yazın.");
+    if ((Date.parse(to) - Date.parse(from)) / 86_400_000 > 62) throw new HttpError(400, "Bir dəfəyə ən çox 63 gün doldurulur.");
+    await ensureShiftTypes();
+    const types = (await db.prepare("SELECT id,name FROM shift_types WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results;
+    const typeByName = new Map(types.map((t) => [plainFold(t.name), t.id]));
+    const cards = (await db.prepare("SELECT id,name,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).all<{ id: string; name: string; profile: string }>()).results;
+    const opened = await revealAll(cards);
+    const existing = new Set((await db.prepare("SELECT employee_id,day FROM shift_assignments WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, from, to).all<{ employee_id: string; day: string }>()).results.map((r) => `${r.employee_id}|${r.day}`));
+    const statements: D1PreparedStatement[] = [];
+    const skipped: string[] = [];
+    const filled = new Set<string>();
+    for (const c of cards) {
+      const p = opened.get(c.id);
+      if (!p?.shiftWork) continue;
+      const shiftId = typeByName.get(plainFold(p.shiftDefault));
+      if (!shiftId) { skipped.push(`${c.name}: standart növbə seçilməyib`); continue; }
+      for (const day of patternDays(from, to, p.shiftWorkDays || 5, p.shiftRestDays ?? 2, p.shiftOffset || 0)) {
+        if (existing.has(`${c.id}|${day}`) && b.overwrite !== true) continue;
+        statements.push(db.prepare("INSERT INTO shift_assignments(company_id,employee_id,day,shift_id) VALUES(?,?,?,?) ON CONFLICT(company_id,employee_id,day) DO UPDATE SET shift_id=excluded.shift_id").bind(id, c.id, day, shiftId));
+        filled.add(c.id);
+      }
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    return ok({ ok: true, days: statements.length, employees: filled.size, skipped, warnings: (await shiftWarnings(from, to)).map((w) => w.text).slice(0, 20) });
+  }
+  // The schedule from Excel: employee, stretch of days, shift (or "İstirahət" to clear).
+  if (request.method === "POST" && path === "company/shifts/import") {
+    requirePermission("salaries", "Növbə qrafikini yalnız kadr işçisi yükləyə bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseShiftSchedule((Array.isArray(b.rows) ? b.rows : []).slice(0, 2001).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda sətir tapılmadı.");
+    await ensureShiftTypes();
+    const types = (await db.prepare("SELECT id,name FROM shift_types WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results;
+    const typeByName = new Map(types.map((t) => [plainFold(t.name), t.id]));
+    const people = await employeeRefs();
+    const issues = [...parsed.issues];
+    const statements: D1PreparedStatement[] = [];
+    let applied = 0;
+    for (const row of parsed.rows) {
+      const found = matchEmployee(people, { name: row.name, email: row.email, fin: row.fin });
+      if ("error" in found) { issues.push({ line: row.line, reason: found.error }); continue; }
+      if (!people.find((p) => p.id === found.id)?.shift) { issues.push({ line: row.line, reason: `${row.name}: işçi kartında «Növbəli rejim» seçilməyib.` }); continue; }
+      const shiftId = row.shift ? typeByName.get(plainFold(row.shift)) : "";
+      if (row.shift && !shiftId) { issues.push({ line: row.line, reason: `${row.name}: «${row.shift}» adlı növbə növü yoxdur.` }); continue; }
+      for (let day = row.from; day <= row.to; day = addDay(day, 1))
+        statements.push(shiftId ? db.prepare("INSERT INTO shift_assignments(company_id,employee_id,day,shift_id) VALUES(?,?,?,?) ON CONFLICT(company_id,employee_id,day) DO UPDATE SET shift_id=excluded.shift_id").bind(id, found.id, day, shiftId) : db.prepare("DELETE FROM shift_assignments WHERE company_id=? AND employee_id=? AND day=?").bind(id, found.id, day));
+      applied++;
+    }
+    if (statements.length > 6000) throw new HttpError(400, "Bir dəfəyə çox gün yüklənir: faylı hissələrə bölün.");
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "shifts-imported", "", `${applied} sətir, ${statements.length} gün`);
+    return ok({ ok: true, applied, days: statements.length, created: applied, issues });
+  }
+  // Who works in shifts and how, from Excel: the card fields "shift work", usual shift and rhythm.
+  if (request.method === "POST" && path === "company/shifts/staff-import") {
+    requirePermission("salaries", "Növbəli işçiləri yalnız kadr işçisi yükləyə bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseShiftStaff((Array.isArray(b.rows) ? b.rows : []).slice(0, 1001).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda sətir tapılmadı.");
+    await ensureShiftTypes();
+    const types = (await db.prepare("SELECT name FROM shift_types WHERE company_id=?").bind(id).all<{ name: string }>()).results;
+    const typeNames = new Map(types.map((t) => [plainFold(t.name), t.name]));
+    const people = await employeeRefs();
+    const issues = [...parsed.issues];
+    let applied = 0;
+    for (const row of parsed.rows) {
+      const found = matchEmployee(people, { name: row.name, email: row.email, fin: row.fin });
+      if ("error" in found) { issues.push({ line: row.line, reason: found.error }); continue; }
+      const patch: Partial<EmployeeProfile> = { shiftWork: row.shiftWork };
+      if (row.shiftDefault) {
+        const real = typeNames.get(plainFold(row.shiftDefault));
+        if (real) patch.shiftDefault = real;
+        else issues.push({ line: row.line, reason: `${row.name}: «${row.shiftDefault}» adlı növbə növü yoxdur (rejim yenə də yazıldı).` });
+      }
+      if (row.work > 0) patch.shiftWorkDays = row.work;
+      if (row.rest >= 0) patch.shiftRestDays = row.rest;
+      if (row.present.includes("offset")) patch.shiftOffset = row.offset;
+      if (await patchProfile(found.id, patch)) applied++;
+    }
+    await companyAudit(db, id, userId, "shift-staff-imported", "", `${applied} işçi`);
+    return ok({ ok: true, applied, created: applied, issues });
   }
   if (request.method === "POST" && path === "company/shifts/rules") {
     requirePermission("salaries", "Növbə qaydalarını yalnız kadr işçisi dəyişə bilər.");
@@ -9954,18 +10074,24 @@ async function route(request: Request) {
   }
   if (request.method === "GET" && path === "company/shifts") {
     requirePermission("salaries", "Növbə qrafikini yalnız kadr işçisi görə bilər.");
+    if (memberRole !== "auditor") await ensureShiftTypes();
     const from = dateOk(str(requestUrl.searchParams.get("from"), 10)) ? str(requestUrl.searchParams.get("from"), 10) : new Date().toISOString().slice(0, 10);
     const to = addDay(from, 13);
-    const [types, assigned, people] = await Promise.all([
+    const [types, assigned, everyone] = await Promise.all([
       db.prepare("SELECT id,name,start_time,end_time FROM shift_types WHERE company_id=? ORDER BY start_time").bind(id).all<{ id: string; name: string; start_time: string; end_time: string }>(),
       db.prepare("SELECT employee_id,day,shift_id FROM shift_assignments WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, from, to).all<{ employee_id: string; day: string; shift_id: string }>(),
-      db.prepare("SELECT id,name,department FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY department,name").bind(id).all<{ id: string; name: string; department: string }>(),
+      db.prepare("SELECT id,name,department,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY department,name").bind(id).all<{ id: string; name: string; department: string; profile: string }>(),
     ]);
+    // Only people whose card says "works in shifts" are planned here; the others can be switched over from the list below.
+    const opened = await revealAll(everyone.results);
+    const people = { results: everyone.results.filter((p) => opened.get(p.id)?.shiftWork).map((p) => ({ id: p.id, name: p.name, department: p.department, usual: opened.get(p.id)?.shiftDefault || "", work: opened.get(p.id)?.shiftWorkDays || 0, rest: opened.get(p.id)?.shiftRestDays ?? 0 })) };
+    const candidates = everyone.results.filter((p) => !opened.get(p.id)?.shiftWork).map((p) => ({ id: p.id, name: p.name, department: p.department }));
     return ok({
       from, to,
       types: types.results.map((t) => ({ id: t.id, name: t.name, start: t.start_time, end: t.end_time, ...shiftHours(t.start_time, t.end_time) })),
       employees: people.results,
-      assignments: assigned.results.map((a) => ({ employeeId: a.employee_id, day: a.day, shiftId: a.shift_id })),
+      candidates,
+      assignments: assigned.results.filter((a) => people.results.some((p) => p.id === a.employee_id)).map((a) => ({ employeeId: a.employee_id, day: a.day, shiftId: a.shift_id })),
       rules: await shiftRules(),
       warnings: await shiftWarnings(from, to),
       departments: [...new Set(people.results.map((p) => p.department).filter(Boolean))],
@@ -9978,7 +10104,16 @@ async function route(request: Request) {
     const name = str(b.name, 60);
     if (name.length < 2) throw new HttpError(400, "Növbənin adını yazın.");
     if (!validTime(str(b.start, 5)) || !validTime(str(b.end, 5))) throw new HttpError(400, "Saatı SS:DD formasında yazın.");
-    if (str(b.id, 100)) await db.prepare("UPDATE shift_types SET name=?,start_time=?,end_time=? WHERE id=? AND company_id=?").bind(name, str(b.start, 5), str(b.end, 5), str(b.id, 100), id).run();
+    if (str(b.id, 100)) {
+      const before = await db.prepare("SELECT name FROM shift_types WHERE id=? AND company_id=?").bind(str(b.id, 100), id).first<{ name: string }>();
+      await db.prepare("UPDATE shift_types SET name=?,start_time=?,end_time=? WHERE id=? AND company_id=?").bind(name, str(b.start, 5), str(b.end, 5), str(b.id, 100), id).run();
+      // The usual shift of an employee card is kept by name: a renamed shift is renamed there too.
+      if (before && before.name !== name) {
+        const cards = (await db.prepare("SELECT id,profile FROM company_employees WHERE company_id=? AND status<>'removed' AND profile LIKE '%shiftDefault%'").bind(id).all<{ id: string; profile: string }>()).results;
+        const opened = await revealAll(cards);
+        for (const c of cards) if (opened.get(c.id)?.shiftDefault === before.name) await patchProfile(c.id, { shiftDefault: name });
+      }
+    }
     else {
       const count = Number((await db.prepare("SELECT COUNT(*) AS n FROM shift_types WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0);
       if (count >= 20) throw new HttpError(409, "Ən çox 20 növbə növü saxlanılır.");
@@ -10003,8 +10138,12 @@ async function route(request: Request) {
     if ((Date.parse(to) - Date.parse(from)) / 86_400_000 > 62) throw new HttpError(400, "Bir dəfəyə ən çox 63 gün təyin olunur.");
     const shiftId = str(b.shiftId, 100);
     if (shiftId && !(await db.prepare("SELECT 1 AS n FROM shift_types WHERE id=? AND company_id=?").bind(shiftId, id).first())) throw new HttpError(404, "Növbə növü tapılmadı.");
-    const valid = new Set((await db.prepare("SELECT id FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).all<{ id: string }>()).results.map((r) => r.id));
-    const ids = (Array.isArray(b.employeeIds) ? (b.employeeIds as unknown[]) : [b.employeeId]).map((x) => String(x ?? "")).filter((x) => valid.has(x)).slice(0, 300);
+    const refs = await employeeRefs();
+    const known = new Set(refs.map((r) => r.id));
+    const valid = new Set(refs.filter((r) => r.shift).map((r) => r.id));
+    const wanted = (Array.isArray(b.employeeIds) ? (b.employeeIds as unknown[]) : [b.employeeId]).map((x) => String(x ?? "")).filter((x) => known.has(x));
+    const ids = wanted.filter((x) => valid.has(x)).slice(0, 300);
+    if (wanted.length && !ids.length) throw new HttpError(409, "Növbə yalnız işçi kartında «Növbəli rejim» seçilən işçilərə təyin olunur.");
     if (!ids.length) throw new HttpError(400, "İşçi seçin.");
     const statements: D1PreparedStatement[] = [];
     // A repeating pattern (for example two days on, two off) puts the shift only on its working days.

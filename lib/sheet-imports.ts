@@ -193,6 +193,11 @@ const PROFILE_ALIASES: Aliases<"name" | "email" | ProfileField> = {
   dependents3: ["himayesinde 3 nefer", "himayesinde en azi 3 nefer", "himaye 3"],
   managerId: [],
   deputyId: [],
+  shiftWork: [],
+  shiftDefault: [],
+  shiftWorkDays: [],
+  shiftRestDays: [],
+  shiftOffset: [],
   nightPercent: ["gece elavesi", "gece faizi", "gece %"],
   insuranceBefore: ["evvelki sigorta stajı", "evvelki sigorta staji", "sigorta staji", "sigorta stajı ay"],
   mainJob: ["esas is yeri", "emek kitabcasi burada"],
@@ -418,5 +423,120 @@ export function parsePayrollRows(rows: string[][], limit = 500): { rows: Payroll
   }
   // The hours and the night supplement moved: hours go to Davamiyyət → Saat uçotu, the supplement to the employee card.
   if (hoursIgnored) issues.push({ line: header.index + 1, reason: "Saat və gecə əlavəsi sütunları burada yüklənmir (Davamiyyət → Saat uçotu və işçi kartı); mükafat, əlavə və tutulma yükləndi." });
+  return { rows: out, issues };
+}
+
+// ── Shifts: the schedule of one employee over a stretch of days, and who works in shifts ──────────
+
+export type ShiftScheduleRow = { line: number; name: string; email: string; fin: string; from: string; to: string; shift: string };
+const SHIFT_ALIASES: Aliases<"name" | "email" | "fin" | "from" | "to" | "date" | "shift"> = {
+  name: ["ad soyad", "isci", "isci adi", "ad", "full name", "name", "employee"],
+  email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
+  from: ["baslama tarixi", "baslanqic", "baslanqic tarixi", "tarixden", "from", "start"],
+  to: ["bitme tarixi", "son tarix", "tarixe qeder", "tarixedek", "to", "end"],
+  date: ["tarix", "gun", "date"],
+  shift: ["novbe", "novbe novu", "shift"],
+};
+// A cell that clears the day: "İstirahət", "Sil", "-".
+const restWord = (text: string) => /^(istirahet|sil|silmek|temizle|clear|-|—|off)$/.test(fold(text));
+
+export function parseShiftSchedule(rows: string[][], limit = 2000): { rows: ShiftScheduleRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, SHIFT_ALIASES, "name|fin");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” və ya “FİN” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  if (!header.map.has("shift")) return { rows: [], issues: [{ line: header.index + 1, reason: "“Növbə” sütunu tapılmadı (məsələn: Səhər, Gündüz, Gecə)." }] };
+  const out: ShiftScheduleRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} sətir yüklənir.` });
+      break;
+    }
+    const fin = finOf(cell(row, header.map, "fin"));
+    const name = cell(row, header.map, "name").slice(0, 120) || fin;
+    if (name.length < 2) {
+      issues.push({ line, reason: "Ad Soyad və ya FİN yoxdur." });
+      continue;
+    }
+    const fromText = cell(row, header.map, "from") || cell(row, header.map, "date");
+    const from = parseDateCell(fromText);
+    const toText = cell(row, header.map, "to");
+    const to = toText ? parseDateCell(toText) : from;
+    if (!from) {
+      issues.push({ line, reason: `${name}: başlama tarixi oxunmadı: “${fromText}”.` });
+      continue;
+    }
+    if (!to || to < from) {
+      issues.push({ line, reason: `${name}: bitmə tarixi oxunmadı və ya başlamadan əvvəldir.` });
+      continue;
+    }
+    if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 > 92) {
+      issues.push({ line, reason: `${name}: bir sətirdə ən çox 93 gün olar.` });
+      continue;
+    }
+    const shiftText = cell(row, header.map, "shift");
+    out.push({ line, name, email: cell(row, header.map, "email").slice(0, 160), fin, from, to, shift: restWord(shiftText) ? "" : shiftText.slice(0, 60) });
+  }
+  return { rows: out, issues };
+}
+
+export type ShiftStaffRow = { line: number; name: string; email: string; fin: string; shiftWork: boolean; shiftDefault: string; work: number; rest: number; offset: number; present: string[] };
+const STAFF_ALIASES: Aliases<"name" | "email" | "fin" | "shiftWork" | "shiftDefault" | "work" | "rest" | "offset"> = {
+  name: ["ad soyad", "isci", "isci adi", "ad", "full name", "name", "employee"],
+  email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
+  shiftWork: ["novbeli rejim", "novbeli", "novbe ile isleyir", "shift work"],
+  shiftDefault: ["standart novbe", "adeti novbe", "novbe", "novbe novu"],
+  work: ["is gunu sayi", "ardicil is gunu", "is gunleri"],
+  rest: ["istirahet gunu sayi", "ardicil istirahet gunu", "istirahet gunleri"],
+  offset: ["baslangic", "sablon baslangici", "baslangic gunu"],
+};
+export function parseShiftStaff(rows: string[][], limit = 1000): { rows: ShiftStaffRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, STAFF_ALIASES, "name|fin");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” və ya “FİN” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  if (!header.map.has("shiftWork") && !header.map.has("shiftDefault")) return { rows: [], issues: [{ line: header.index + 1, reason: "“Növbəli rejim” və ya “Standart növbə” sütunu tapılmadı." }] };
+  const out: ShiftStaffRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} işçi yüklənir.` });
+      break;
+    }
+    const fin = finOf(cell(row, header.map, "fin"));
+    const name = cell(row, header.map, "name").slice(0, 120) || fin;
+    if (name.length < 2) {
+      issues.push({ line, reason: "Ad Soyad və ya FİN yoxdur." });
+      continue;
+    }
+    const numeric = (field: "work" | "rest" | "offset") => {
+      const text = cell(row, header.map, field);
+      return text ? parseNumberCell(text) : NaN;
+    };
+    const work = numeric("work");
+    const rest = numeric("rest");
+    const offset = numeric("offset");
+    if ([work, rest, offset].some((n) => !Number.isNaN(n) && (!Number.isFinite(n) || n < 0 || n > 27))) {
+      issues.push({ line, reason: `${name}: iş, istirahət və başlanğıc günləri 0–27 arası rəqəm olmalıdır.` });
+      continue;
+    }
+    if (!Number.isNaN(work) && work < 1) {
+      issues.push({ line, reason: `${name}: iş günü sayı ən azı 1 olmalıdır.` });
+      continue;
+    }
+    const shiftText = cell(row, header.map, "shiftWork");
+    out.push({
+      line, name, email: cell(row, header.map, "email").slice(0, 160), fin,
+      shiftWork: header.map.has("shiftWork") ? yes(shiftText) : true,
+      shiftDefault: cell(row, header.map, "shiftDefault").slice(0, 60),
+      work: Number.isNaN(work) ? 0 : Math.round(work), rest: Number.isNaN(rest) ? -1 : Math.round(rest), offset: Number.isNaN(offset) ? 0 : Math.round(offset),
+      present: [...header.map.keys()],
+    });
+  }
   return { rows: out, issues };
 }

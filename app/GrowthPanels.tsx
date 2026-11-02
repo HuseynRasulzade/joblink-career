@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { Field, Modal } from "./components";
+import { SheetImport } from "./StaffPages";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -325,7 +326,7 @@ function Participants({ training, employees, notify, onClose, onChanged }: { tra
 
 // ---------- Shifts ----------
 type ShiftSwap = { id: string; day: string; from: string; to: string; fromShift: string; toShift: string; note: string; status: string; statusText: string };
-type ShiftData = { departments: string[]; swaps: ShiftSwap[]; rules: { minRestHours: number; maxConsecutive: number; cover: Record<string, number> }; warnings: { employeeId: string; day: string; kind: string; text: string }[]; from: string; to: string; types: { id: string; name: string; start: string; end: string; hours: number; night: number }[]; employees: { id: string; name: string; department: string }[]; assignments: { employeeId: string; day: string; shiftId: string }[] };
+type ShiftData = { departments: string[]; swaps: ShiftSwap[]; rules: { minRestHours: number; maxConsecutive: number; cover: Record<string, number> }; warnings: { employeeId: string; day: string; kind: string; text: string }[]; from: string; to: string; types: { id: string; name: string; start: string; end: string; hours: number; night: number }[]; employees: { id: string; name: string; department: string; usual: string; work: number; rest: number }[]; candidates: { id: string; name: string; department: string }[]; assignments: { employeeId: string; day: string; shiftId: string }[] };
 const SHIFT_COLORS = ["#cfe8ff", "#ffe7b3", "#d6f5d6", "#e5d4f7", "#ffd4d4", "#d4f1f4"];
 const WEEKDAY = ["B", "B.e", "Ç.a", "Ç", "C.a", "C", "Ş"];
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
@@ -341,6 +342,8 @@ export function Shifts({ notify }: { notify: Notify }) {
   const [pattern, setPattern] = useState<{ shiftId: string; from: string; to: string; work: number; rest: number; offset: number; ids: string[] } | null>(null);
   const [rules, setRules] = useState<{ minRestHours: number; maxConsecutive: number; cover: Record<string, number> } | null>(null);
   const [assignWarnings, setAssignWarnings] = useState<string[]>([]);
+  const [importing, setImporting] = useState<"shifts" | "shiftstaff" | null>(null);
+  const [staffModal, setStaffModal] = useState(false);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const days = Array.from({ length: 14 }, (_, i) => addDays(data.from, i));
   const at = (employeeId: string, day: string) => data.assignments.find((a) => a.employeeId === employeeId && a.day === day)?.shiftId || "";
@@ -366,6 +369,10 @@ export function Shifts({ notify }: { notify: Notify }) {
         <div className="admin-actions">
           <button type="button" className="secondary" onClick={() => void run(notify, load, "company/shifts/copy", { from: data.from, to: addDays(data.from, 7) }, "Birinci həftə ikinci həftəyə köçürüldü.")}>1-ci həftəni 2-ciyə köçür</button>
           <button type="button" className="secondary" onClick={() => window.confirm("Bu iki həftənin növbələri işlənən saat kimi yazılsın? (Əmək haqqında artıq iş və gecə saatı bundan hesablanır.)") && void run(notify, load, "company/shifts/to-hours", { from: data.from, to: data.to }, "Növbələr saat uçotuna köçürüldü.")}>Saat uçotuna köçür</button>
+          <button type="button" className="secondary" onClick={() => setStaffModal(true)}>Növbəli işçilər</button>
+          <button type="button" className="primary" disabled={!data.employees.length} onClick={() => window.confirm("Hər işçinin standart növbəsi və ritmi ilə bu iki həftənin boş günləri doldurulsun? Artıq təyin olunmuş günlərə toxunulmur.") && void (async () => { try { const r = await request<{ days: number; employees: number; skipped: string[]; warnings: string[] }>("company/shifts/autofill", { from: data.from, to: data.to }); notify(`${r.employees} işçi üçün ${r.days} gün dolduruldu.${r.skipped.length ? ` Standart növbəsi olmayan: ${r.skipped.length}.` : ""}`); setAssignWarnings(r.warnings); load(); } catch (error) { notify((error as Error).message); } })()}>Standart rejimlə doldur</button>
+          <button type="button" className="secondary" onClick={() => setImporting("shifts")}>Excel: növbə cədvəli</button>
+          <button type="button" className="secondary" onClick={() => setImporting("shiftstaff")}>Excel: növbəli işçilər</button>
           <button type="button" className="secondary" onClick={printGrid}>Çap</button>
           <button type="button" className="secondary" onClick={() => setRules(data.rules)}>Qaydalar</button>
           <button type="button" className="secondary" disabled={!data.types.length} onClick={() => setPattern({ shiftId: data.types[0]?.id || "", from: data.from, to: data.to, work: 2, rest: 2, offset: 0, ids: [] })}>Dövrü şablon</button>
@@ -373,13 +380,10 @@ export function Shifts({ notify }: { notify: Notify }) {
         </div>
       </div>
       <div className="notice" role="note">
-        <b>Bu nə üçündür?</b> Növbə ilə işləyən işçilər (mağaza, zavod, kafe, mühafizə, klinika) üçün kimin hansı gün hansı saatda işləyəcəyini planlayırsınız. İşçi öz növbəsini «İş yerim → Növbəm»də görür və kolleqa ilə dəyişdirməyi xahiş edə bilər. Plan hazır olanda «Saat uçotuna köçür» saatları yazır, əmək haqqında gecə və artıq iş saatı özü hesablanır. Qrafik məzuniyyət, xəstəlik və istirahət qaydaları ilə yoxlanılır. Normal 9–18 iş rejimi olan işçilər üçün növbə lazım deyil.
+        <b>Bu nə üçündür?</b> Növbə cədvəlinə yalnız <b>işçi kartında «Növbəli rejimdə işləyir» seçilən</b> işçilər düşür (mağaza, zavod, kafe, mühafizə, klinika). Kartda həm də işçinin standart növbəsi və ritmi (məs. 2 gün iş / 2 gün istirahət) yazılır. Sonra «Standart rejimlə doldur» iki həftəni özü qurur, istənilən günü əl ilə və ya Excel ilə dəyişə bilərsiniz. Plan hazır olanda «Saat uçotuna köçür» saatları yazır və əmək haqqında gecə və artıq iş saatı özü hesablanır. Adi 9–18 iş rejimində olan işçilər üçün növbə lazım deyil.
       </div>
       {!data.types.length ? (
-        <div className="notice" role="status">
-          <b>Əvvəlcə növbə növləri lazımdır.</b> Ən çox işlənənləri bir kliklə yaradın (Səhər 08–16, Gündüz 09–18, Axşam 16–24, Gecə 22–06), sonra dəyişə və ya yenisini əlavə edə bilərsiniz.
-          <div className="admin-actions"><button type="button" className="primary" onClick={() => void run(notify, load, "company/shifts/defaults", {}, "Standart növbələr yaradıldı.")}>Standart növbələri yarat</button></div>
-        </div>
+        <p className="muted">Növbə növləri yüklənir…</p>
       ) : (
         <p className="muted">
           Növbə növləri: {data.types.map((t, n) => (
@@ -393,7 +397,7 @@ export function Shifts({ notify }: { notify: Notify }) {
           <tbody>
             {data.employees.map((p) => (
               <tr key={p.id}>
-                <td><b>{p.name}</b><small className="skill-description">{p.department}</small></td>
+                <td><b>{p.name}</b><small className="skill-description">{p.department}{p.usual ? ` · ${p.usual}, ${p.work} iş / ${p.rest} istirahət` : " · standart növbə seçilməyib"}</small></td>
                 {days.map((d) => (
                   <td key={d}>
                     <select value={at(p.id, d)} aria-label={`${p.name} ${d}`} style={{ background: at(p.id, d) ? SHIFT_COLORS[Math.max(0, data.types.findIndex((t) => t.id === at(p.id, d))) % SHIFT_COLORS.length] : undefined }} onChange={async (e) => { try { const r = await request<{ warnings?: { text: string }[] }>("company/shifts/assign", { employeeId: p.id, from: d, shiftId: e.target.value }); setAssignWarnings((r.warnings || []).map((w) => w.text)); load(); } catch (error) { notify((error as Error).message); } }}>
@@ -471,6 +475,13 @@ export function Shifts({ notify }: { notify: Notify }) {
           </div>
         </Modal>
       )}
+      {!data.employees.length && (
+        <div className="notice" role="status">
+          Hələ heç bir işçi növbəli rejimdə deyil. İşçi kartında «Növbəli rejimdə işləyir» seçin və ya <button type="button" className="text-button" onClick={() => setStaffModal(true)}>buradan bir neçə işçini birdən növbəli rejimə keçirin</button> (və ya Excel ilə yükləyin).
+        </div>
+      )}
+      {staffModal && <ShiftStaffModal data={data} notify={notify} onClose={() => setStaffModal(false)} onDone={load} />}
+      {importing && <SheetImport kind={importing} notify={notify} onClose={() => setImporting(null)} onDone={load} />}
       {type && (
         <Modal title={type.id ? "Növbə növünü dəyiş" : "Yeni növbə növü"} onClose={() => setType(null)}>
           <div className="offer-composer">
@@ -793,5 +804,43 @@ export function SkillMatrix({ notify }: { notify: Notify }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Who works in shifts: switch employees over (or back) with the usual shift and rhythm; the same fields are on the employee card.
+function ShiftStaffModal({ data, notify, onClose, onDone }: { data: ShiftData; notify: Notify; onClose: () => void; onDone: () => void }) {
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [shift, setShift] = useState(data.types[0]?.name || "");
+  const [rhythm, setRhythm] = useState({ work: 5, rest: 2, offset: 0 });
+  return (
+    <Modal title="Növbəli işçilər" onClose={onClose}>
+      <div className="offer-composer">
+        <h4>Növbəli rejimə keçir</h4>
+        <div className="hours-grid" style={{ maxHeight: 200, overflowY: "auto" }}>
+          {data.candidates.map((p) => (
+            <label key={p.id} className="check-row"><input type="checkbox" checked={chosen.includes(p.id)} onChange={(e) => setChosen(e.target.checked ? [...chosen, p.id] : chosen.filter((x) => x !== p.id))} /> {p.name} <small className="skill-description">{p.department}</small></label>
+          ))}
+          {!data.candidates.length && <p className="muted">Bütün işçilər artıq növbəli rejimdədir.</p>}
+        </div>
+        <div className="form-grid">
+          <Field label="Standart növbə"><select value={shift} onChange={(e) => setShift(e.target.value)}>{data.types.map((t) => <option key={t.id} value={t.name}>{t.name} {t.start}–{t.end}</option>)}</select></Field>
+          <Field label="Ardıcıl iş günü"><input type="number" min={1} max={14} value={rhythm.work} onChange={(e) => setRhythm({ ...rhythm, work: Number(e.target.value) })} /></Field>
+          <Field label="Ardıcıl istirahət günü"><input type="number" min={0} max={14} value={rhythm.rest} onChange={(e) => setRhythm({ ...rhythm, rest: Number(e.target.value) })} /></Field>
+          <Field label="Ritm neçənci gündən başlasın (0 = birinci)"><input type="number" min={0} max={27} value={rhythm.offset} onChange={(e) => setRhythm({ ...rhythm, offset: Number(e.target.value) })} /></Field>
+        </div>
+        <button type="button" className="primary" disabled={!chosen.length} onClick={async () => { if (await run(notify, onDone, "company/shifts/staff", { employeeIds: chosen, shiftWork: true, shiftDefault: shift, work: rhythm.work, rest: rhythm.rest, offset: rhythm.offset }, "İşçilər növbəli rejimə keçirildi.")) onClose(); }}>Növbəli rejimə keçir</button>
+        {data.employees.length > 0 && (
+          <>
+            <h4>Növbəli rejimdən çıxar (adi iş rejiminə qaytar)</h4>
+            {data.employees.map((p) => (
+              <div key={p.id} className="bank-account">
+                <span>{p.name}{p.usual ? ` · ${p.usual}, ${p.work}/${p.rest}` : ""}</span>
+                <button type="button" onClick={() => window.confirm(`${p.name} adi iş rejiminə qaytarılsın? Növbə cədvəlindən çıxır, mövcud növbələri qalır.`) && void run(notify, onDone, "company/shifts/staff", { employeeIds: [p.id], shiftWork: false }, "Adi rejimə qaytarıldı.")}>Çıxar</button>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
