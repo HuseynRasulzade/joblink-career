@@ -8218,7 +8218,36 @@ async function route(request: Request) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) throw new HttpError(400, "Ayı düzgün seçin (YYYY-AA).");
     return { raw, year: Number(raw.slice(0, 4)), month: Number(raw.slice(5, 7)) };
   };
-  const payrollRows = async (monthRaw: string) => {
+  // Work shared by the months of one report (loaded once instead of once per month); a single month builds its own.
+  type PayrollShared = {
+    salaryHistory?: Promise<{ employee_id: string; effective_from: string; salary_cents: number; salary_type: string }[]>;
+    rates?: Promise<{ key: string; value: string }[]>;
+    gross?: Promise<Map<string, Map<string, number>>>; // approved month -> employee -> gross pay, read from the frozen snapshots
+    grossSince?: string;
+  };
+  const approvedGross = (shared: PayrollShared, since: string, before: string) => {
+    // A shared load covers every approved month from `grossSince` on; a lone month loads just the 12 it needs.
+    const covering = shared.gross && shared.grossSince !== undefined && shared.grossSince <= since;
+    if (!covering) {
+      shared.grossSince = since;
+      shared.gross = (async () => {
+        const out = new Map<string, Map<string, number>>();
+        const past = await db.prepare("SELECT month,snapshot FROM payroll_runs WHERE company_id=? AND status='approved' AND month>=? AND month<?").bind(id, since, before).all<{ month: string; snapshot: string }>();
+        for (const run of past.results) {
+          const gross = new Map<string, number>();
+          try {
+            for (const r of (JSON.parse(run.snapshot) as { rows?: { employeeId: string; result: { gross: number } }[] }).rows || []) gross.set(r.employeeId, r.result.gross);
+          } catch {
+            // A broken snapshot gives no history for that month.
+          }
+          out.set(run.month, gross);
+        }
+        return out;
+      })();
+    }
+    return shared.gross!;
+  };
+  const payrollRows = async (monthRaw: string, shared: PayrollShared = {}) => {
     const year = Number(monthRaw.slice(0, 4));
     const month = Number(monthRaw.slice(5, 7));
     const first = `${monthRaw}-01`;
@@ -8242,7 +8271,8 @@ async function route(request: Request) {
     const working = days.filter((d) => !d.off);
     // The pay in force on each working day: an employee whose pay changed in the month is paid each part at its own rate.
     const salaryHistory = new Map<string, { from: string; cents: number; type: string }[]>();
-    for (const h of (await db.prepare("SELECT employee_id,effective_from,salary_cents,salary_type FROM employee_salary_history WHERE company_id=? ORDER BY effective_from").bind(id).all<{ employee_id: string; effective_from: string; salary_cents: number; salary_type: string }>()).results)
+    shared.salaryHistory ||= db.prepare("SELECT employee_id,effective_from,salary_cents,salary_type FROM employee_salary_history WHERE company_id=? ORDER BY effective_from").bind(id).all<{ employee_id: string; effective_from: string; salary_cents: number; salary_type: string }>().then((r) => r.results);
+    for (const h of await shared.salaryHistory)
       salaryHistory.set(h.employee_id, [...(salaryHistory.get(h.employee_id) || []), { from: h.effective_from, cents: h.salary_cents, type: h.salary_type }]);
     // Art. 140: vacation pay comes from the 12 months before; approved months give the real gross pay, other months the current salary.
     const priorMonths = Array.from({ length: 12 }, (_, i) => {
@@ -8253,13 +8283,10 @@ async function route(request: Request) {
     const wantsHistory = leavers.length > 0 || marks.results.some((m) => isVacationCode(m.code) || isInsuredCode(m.code));
     const history = new Map<string, Map<string, number>>();
     if (wantsHistory) {
-      const past = await db.prepare("SELECT month,snapshot FROM payroll_runs WHERE company_id=? AND status='approved' AND month>=? AND month<?").bind(id, priorMonths[0], monthRaw).all<{ month: string; snapshot: string }>();
-      for (const run of past.results) {
-        try {
-          for (const r of (JSON.parse(run.snapshot) as { rows?: { employeeId: string; result: { gross: number } }[] }).rows || []) history.set(r.employeeId, (history.get(r.employeeId) || new Map()).set(run.month, r.result.gross));
-        } catch {
-          // A broken snapshot gives no history for that month.
-        }
+      const past = await approvedGross(shared, priorMonths[0], monthRaw);
+      for (const [pastMonth, grossBy] of past) {
+        if (pastMonth < priorMonths[0] || pastMonth >= monthRaw) continue;
+        for (const [employeeId, gross] of grossBy) history.set(employeeId, (history.get(employeeId) || new Map()).set(pastMonth, gross));
       }
     }
     const behind = working.filter((d) => d.date <= todayIso).length;
@@ -8267,7 +8294,8 @@ async function route(request: Request) {
     for (const m of marks.results) markBy.set(m.employee_id, (markBy.get(m.employee_id) || new Map()).set(m.day, m.code));
     const inputBy = new Map(inputs.results.map((r) => [r.employee_id, (() => { try { return cleanInputs(JSON.parse(r.data)); } catch { return { ...EMPTY_INPUTS }; } })()]));
     // The share of the average pay paid as sickness and maternity benefit: the company sets what the law says.
-    const rateRows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('benefit_sick_percent','benefit_maternity_percent','benefit_min_pension','benefit_payer','overtime_approval')").bind(id).all<{ key: string; value: string }>()).results;
+    shared.rates ||= db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('benefit_sick_percent','benefit_maternity_percent','benefit_min_pension','benefit_payer','overtime_approval')").bind(id).all<{ key: string; value: string }>().then((x) => x.results);
+    const rateRows = await shared.rates;
     const rateOf = (key: string, fallback: number) => {
       const n = Number(rateRows.find((r) => r.key === key)?.value);
       return Number.isFinite(n) && n >= 0 && n <= 100 && rateRows.some((r) => r.key === key) ? n : fallback;
@@ -8308,14 +8336,9 @@ async function route(request: Request) {
     // The gross pay of the last approved month, to point out a sudden change.
     const previousMonth = new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
     const previousGross = new Map<string, number>();
-    const previousRun = await db.prepare("SELECT snapshot FROM payroll_runs WHERE company_id=? AND month=? AND status='approved'").bind(id, previousMonth).first<{ snapshot: string }>();
-    if (previousRun?.snapshot) {
-      try {
-        for (const r of (JSON.parse(previousRun.snapshot) as { rows?: { employeeId: string; result: { gross: number } }[] }).rows || []) previousGross.set(r.employeeId, r.result.gross);
-      } catch {
-        // No comparison without a readable snapshot.
-      }
-    }
+    // The month before is read from the same frozen snapshots; a lone month asks for just that one.
+    const priorGross = await approvedGross(shared, shared.grossSince !== undefined && shared.grossSince <= previousMonth ? shared.grossSince : previousMonth, monthRaw);
+    for (const [employeeId, gross] of priorGross.get(previousMonth) || []) previousGross.set(employeeId, gross);
     // Leave days already taken by those whose contract ends this month.
     const leaverLeave = new Map<string, number>();
     if (leavers.length) {
@@ -9688,7 +9711,11 @@ async function route(request: Request) {
     const by = new Map<string, Acc>();
     const status: { month: string; status: string }[] = [];
     // The months are worked out side by side; the report waits for all of them.
-    const sheets = await Promise.all(list.map((m) => payrollRows(m)));
+    const shared: PayrollShared = {};
+    // The 12 months before the first one also feed the vacation pay average, so they are read once, ahead of the months.
+    const firstPrior = new Date(Date.UTC(Number(list[0].slice(0, 4)), Number(list[0].slice(5, 7)) - 13, 1)).toISOString().slice(0, 7);
+    void approvedGross(shared, firstPrior, `${list[list.length - 1]}-32`);
+    const sheets = await Promise.all(list.map((m) => payrollRows(m, shared)));
     for (const [monthIndex, m] of list.entries()) {
       const sheet = sheets[monthIndex];
       if (approvedOnly && sheet.status !== "approved") continue;

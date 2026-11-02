@@ -204,3 +204,10 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - Yoxlamalar (ərizə yazılanda, rəhbərə və HR-a): cədvəldə həmin günlərdə artıq məzuniyyət/xəstəlik qeydi, işçinin başqa açıq ərizəsi, şöbədə eyni vaxtda çox adamın məzuniyyəti.
 - Rəhbər komandasının bu günkü vəziyyətini və növbəti 45 gündə kimin olmayacağını görür.
 - Hələ yoxdur: rəhbər məzuniyyətdə olanda əvəzedici, rəhbərin komandasında davamiyyət/artıq iş təsdiqi.
+
+## 13. Hesabat sürəti (2026-11-02)
+
+- Çox aylı hesabatlarda (hesablaşma hesabatı) aylar üçün ortaq məlumat bir dəfə yüklənir: maaş tarixçəsi, ödəniş ayarları və təsdiqlənmiş ayların donmuş nəticələri. Əvvəl hər ay bunu təkrar yükləyir və hər ayın 12 əvvəlki snapşotunu yenidən oxuyurdu (12 aylıq hesabatda ən çox 150-yə yaxın snapşot oxunuşu, indi 12).
+- Nəticə əvvəlki ilə eynidir (400 işçi, 12 təsdiqlənmiş ay üzərində hesabatın bütün məzmunu müqayisə olunub).
+- Yerli bazada vaxt demək olar dəyişmir (~0,5 san): qazanc D1 sorğularının sayında (12 aylıq hesabatda ~48 ortaq sorğu əvəzinə 3) və CPU-dadır. Canlı sayt üzərində ölçülməyib.
+- Edilməyib: hazır xülasə cədvəli. Ödəniş geri çəkiləndə, ay yenidən açılanda və işçi məlumatı dəyişəndə onu yeniləmək riski var; ölçmə göstərməsə lazım deyil.
