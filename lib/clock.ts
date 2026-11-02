@@ -27,7 +27,7 @@ export function hoursFromClock(clockIn: string, clockOut: string, breakMinutes =
   const a = minutesOf(clockIn);
   let b = minutesOf(clockOut);
   if (a === null || b === null) return null;
-  if (b <= a) b += 1440; // the shift passes midnight
+  if (b < a) b += 1440; // the shift passes midnight
   const span = b - a;
   const rest = span > 240 ? Math.max(0, breakMinutes) : 0;
   const night = Math.min(nightMinutes(a, b), span - rest);

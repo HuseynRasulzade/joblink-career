@@ -7754,10 +7754,22 @@ async function route(request: Request) {
       return ok({ ok: true, time: now.time, late: lateMinutes(now.time, setting.rules) });
     }
     if (b.action === "out") {
-      if (!current?.clock_in) throw new HttpError(409, "Əvvəlcə giriş qeyd edin.");
-      if (current.clock_out) throw new HttpError(409, `Bu gün çıxış artıq ${current.clock_out}-də qeyd olunub.`);
-      const calc = hoursFromClock(current.clock_in, now.time, setting.rules.breakMinutes);
-      await db.prepare("UPDATE attendance_hours SET clock_out=?,hours=?,night_hours=?,updated=? WHERE company_id=? AND employee_id=? AND day=?").bind(now.time, calc?.hours || 0, calc?.night || 0, stamp, employee.company_id, employee.id, now.date).run();
+      // A night shift ends after midnight: the open arrival of yesterday is closed in the morning.
+      let day = now.date;
+      let open = current;
+      if (!open?.clock_in || open.clock_out) {
+        const yesterday = new Date(new Date(`${now.date}T00:00:00Z`).getTime() - 86_400_000).toISOString().slice(0, 10);
+        const prev = await db.prepare("SELECT clock_in,clock_out,source FROM attendance_hours WHERE company_id=? AND employee_id=? AND day=?").bind(employee.company_id, employee.id, yesterday).first<{ clock_in: string; clock_out: string; source: string }>();
+        if (!open?.clock_in && prev?.clock_in && !prev.clock_out && now.time < "12:00") {
+          day = yesterday;
+          open = prev;
+        }
+      }
+      if (!open?.clock_in) throw new HttpError(409, "Əvvəlcə giriş qeyd edin.");
+      if (open.clock_out) throw new HttpError(409, `Bu gün çıxış artıq ${open.clock_out}-də qeyd olunub.`);
+      const calc = hoursFromClock(open.clock_in, now.time, setting.rules.breakMinutes);
+      if (day === now.date && now.time < open.clock_in) throw new HttpError(409, "Çıxış saatı giriş saatından əvvəl ola bilməz.");
+      await db.prepare("UPDATE attendance_hours SET clock_out=?,hours=?,night_hours=?,updated=? WHERE company_id=? AND employee_id=? AND day=?").bind(now.time, calc?.hours || 0, calc?.night || 0, stamp, employee.company_id, employee.id, day).run();
       return ok({ ok: true, time: now.time, hours: calc?.hours || 0 });
     }
     throw new HttpError(400, "Əməliyyat «giriş» və ya «çıxış» olmalıdır.");

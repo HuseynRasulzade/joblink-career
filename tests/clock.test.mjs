@@ -8,6 +8,7 @@ test("hours with a break and night hours", () => {
   assert.deepEqual(hoursFromClock("22:00", "06:00", 0), { hours: 8, night: 8 });
   assert.deepEqual(hoursFromClock("14:00", "23:30", 60), { hours: 8.5, night: 1.5 });
   assert.equal(hoursFromClock("xx", "18:00"), null);
+  assert.deepEqual(hoursFromClock("10:00", "10:00", 60), { hours: 0, night: 0 });
 });
 test("lateness uses the grace period", () => {
   assert.equal(lateMinutes("09:08", DEFAULT_CLOCK), 0);
