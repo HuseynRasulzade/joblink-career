@@ -70,8 +70,9 @@ export type PayInputs = {
   nightPercent: number;
   deductions: OtherDeduction[];
   note: string;
+  benefitDoc: string; // number of the e-sickness certificate (e-bülleten) the benefit rests on
 };
-export const EMPTY_INPUTS: PayInputs = { bonus: 0, allowance: 0, overtimeHours: 0, restDayHours: 0, restDayWithinNorm: true, nightHours: 0, nightPercent: 0, deductions: [], note: "" };
+export const EMPTY_INPUTS: PayInputs = { bonus: 0, allowance: 0, overtimeHours: 0, restDayHours: 0, restDayWithinNorm: true, nightHours: 0, nightPercent: 0, deductions: [], note: "", benefitDoc: "" };
 export function cleanInputs(raw: unknown): PayInputs {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const list = Array.isArray(o.deductions) ? o.deductions : [];
@@ -92,6 +93,7 @@ export function cleanInputs(raw: unknown): PayInputs {
       })
       .filter((d) => d.amount > 0),
     note: String(o.note ?? "").trim().slice(0, 300),
+    benefitDoc: String(o.benefitDoc ?? "").trim().slice(0, 40),
   };
 }
 

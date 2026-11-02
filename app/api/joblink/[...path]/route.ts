@@ -376,7 +376,7 @@ import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validIban } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
 import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
-import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, payWarnings, isVacationCode, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
+import { EMPTY_INPUTS, MINIMUM_WAGE, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, payWarnings, isVacationCode, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
 import { explainChange, type SlipFigures } from "@/lib/payroll-explain";
 import { RATING_TEXT, bandOf, cleanScore, cycleScore } from "@/lib/performance";
 import { shiftHours, validTime } from "@/lib/shifts";
@@ -8294,7 +8294,7 @@ async function route(request: Request) {
     for (const m of marks.results) markBy.set(m.employee_id, (markBy.get(m.employee_id) || new Map()).set(m.day, m.code));
     const inputBy = new Map(inputs.results.map((r) => [r.employee_id, (() => { try { return cleanInputs(JSON.parse(r.data)); } catch { return { ...EMPTY_INPUTS }; } })()]));
     // The share of the average pay paid as sickness and maternity benefit: the company sets what the law says.
-    shared.rates ||= db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('benefit_sick_percent','benefit_maternity_percent','benefit_min_pension','benefit_payer','overtime_approval')").bind(id).all<{ key: string; value: string }>().then((x) => x.results);
+    shared.rates ||= db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('benefit_sick_percent','benefit_maternity_percent','benefit_min_pension','benefit_payer','overtime_approval','tax_confirmed_year','tax_confirmed_by','tax_confirmed_at')").bind(id).all<{ key: string; value: string }>().then((x) => x.results);
     const rateRows = await shared.rates;
     const rateOf = (key: string, fallback: number) => {
       const n = Number(rateRows.find((r) => r.key === key)?.value);
@@ -8474,7 +8474,7 @@ async function route(request: Request) {
         benefit: profile.taxBenefit ? taxBenefit(profile.taxBenefit)?.short || taxBenefit(profile.taxBenefit)?.label || "" : "",
         taxReduction: reduction,
         annual: annualInfo,
-        warnings: payWarnings({ gross: pay?.gross || 0, weekHours: week.hours, workedAll: result.workedDays + result.paidLeaveDays >= result.normDays && result.normDays > 0, hasIban: !!profile.iban || !!profile.cardNumber, cashPay: profile.payMethod === "cash", advanceExcess: result.advanceExcess, earned: result.gross, previousEarned: previousGross.get(p.id) }),
+        warnings: [...payWarnings({ gross: pay?.gross || 0, weekHours: week.hours, workedAll: result.workedDays + result.paidLeaveDays >= result.normDays && result.normDays > 0, hasIban: !!profile.iban || !!profile.cardNumber, cashPay: profile.payMethod === "cash", advanceExcess: result.advanceExcess, earned: result.gross, previousEarned: previousGross.get(p.id) }), ...(result.benefitCalendarDays > 0 && !inputsOf.benefitDoc ? ["Xəstəlik/analıq günləri var, e-bülleten nömrəsi yazılmayıb (əlavələr və tutulmalar pəncərəsində)."] : [])],
         inputs: inputsOf,
         hours: hoursAuto,
         recurring: recurring.filter((x) => x.employee_id === p.id).map((x) => ({ id: x.id, type: x.type, label: x.label, amount: x.amount_cents / 100 })),
@@ -8502,7 +8502,7 @@ async function route(request: Request) {
       status: run?.status || "draft",
       approvedBy: run?.approved_by_name || "",
       approvedAt: run?.approved_at || "",
-      settings: { advanceDay, payDay, dualThreshold: (settings?.dual_threshold || 0) / 100, benefitSick: sickPercent, benefitMaternity: maternityPercent, benefitMinPension: minPension, benefitPayer: benefitPayer, problem: scheduleProblem(advanceDay, payDay) },
+      settings: { advanceDay, payDay, dualThreshold: (settings?.dual_threshold || 0) / 100, benefitSick: sickPercent, benefitMaternity: maternityPercent, benefitMinPension: minPension, benefitPayer: benefitPayer, taxCheck: { year: monthRaw.slice(0, 4), confirmed: rateRows.find((r) => r.key === "tax_confirmed_year")?.value === monthRaw.slice(0, 4), by: rateRows.find((r) => r.key === "tax_confirmed_by")?.value || "", at: rateRows.find((r) => r.key === "tax_confirmed_at")?.value || "", params: [`Minimum aylıq əmək haqqı: ${MINIMUM_WAGE} AZN`, "Gəlir vergisi (qeyri-dövlət, qeyri-neft): 2500 AZN-dək 200 AZN-dən yuxarı hissənin 3%-i; 2500–8000: 75 + 10%; 8000-dən yuxarı: 625 + 14%", "Gəlir vergisi (dövlət və neft-qaz): 2500 AZN-dək 14%, yuxarısı 350 + 25%", "DSMF (özəl): işçi 200-dək 3%, yuxarısı 10%; işəgötürən 200-dək 22%, 200–8000 15%, yuxarısı 11%. Dövlət/neft-qaz: işçi 3%, işəgötürən 22%", "İcbari tibbi sığorta: hər tərəf 2500 AZN-dək 2%, yuxarısı 0,5%", "İşsizlik sığortası: işçi 0,5%, işəgötürən 0,5%"] }, problem: scheduleProblem(advanceDay, payDay) },
       schedule: { advanceDate, payDate },
       workingDays: working.length,
       rows,
@@ -9771,7 +9771,7 @@ async function route(request: Request) {
         push(monthEnd, "insurance", "İşsizlik sığortası (işçi)", -x.employeeUnemployment, true);
         push(monthEnd, "insurance", "İcbari tibbi sığorta (işçi)", -x.employeeMedical, true);
         for (const d of x.otherDeductions) push(monthEnd, "deduction", `Tutulma: ${d.label || "digər"}`, -d.applied, true, d.applied < d.amount ? `tələb ${d.amount} AZN, həddə görə ${d.applied} AZN tutuldu, qalıq növbəti aya keçir` : "");
-        if (r.benefitDue > 0) push(monthEnd, "benefit", "Sosial sığorta müavinəti (xəstəlik/analıq, ayrıca)", r.benefitDue, true);
+        if (r.benefitDue > 0) push(monthEnd, "benefit", "Sosial sığorta müavinəti (xəstəlik/analıq, ayrıca)", r.benefitDue, true, r.inputs.benefitDoc ? `e-bülleten № ${r.inputs.benefitDoc}` : "e-bülleten nömrəsi yazılmayıb");
         for (const c of r.carries) push(monthEnd, "info", `Əvvəlki aydan keçən tutulma: ${c.label} (${c.from})`, 0, false, `${c.amount} AZN növbəti hesablamaya daxil edilib`);
         for (const pay of [...r.payments].sort((p1, p2) => p1.paidOn.localeCompare(p2.paidOn))) {
           const name = `${PAY_LABEL[pay.kind] || pay.kind}${pay.title ? `: ${pay.title}` : ""} (${METHOD_LABEL[pay.method] || pay.method || "—"})`;
@@ -10404,6 +10404,22 @@ async function route(request: Request) {
     ]);
     await companyAudit(db, id, userId, "payroll-accounting-exported", sheet.month, `${rows.length} sətir, ${total} AZN`);
     return new Response(Uint8Array.from(book).buffer, { headers: { "Cache-Control": "private, no-store", "Content-Disposition": `attachment; filename="muhasibat-jurnali-${sheet.month}.xlsx"`, "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } });
+  }
+  // The accountant's yearly confirmation that the tax figures used (minimum wage, exempt amount, rates) are the ones in force.
+  if (request.method === "POST" && path === "company/payroll/tax-confirm") {
+    requirePermission("salaries", "Vergi parametrlərini yalnız əmək haqqı icazəsi olan şəxs təsdiq edə bilər.");
+    const b = await jsonBody(request);
+    const year = str(b.year, 4);
+    if (!/^20\d{2}$/.test(year)) throw new HttpError(400, "İli düzgün yazın.");
+    const me = await requesterName();
+    const put = async (key: string, value: string) => {
+      await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, key, value).run();
+    };
+    await put("tax_confirmed_year", year);
+    await put("tax_confirmed_by", me);
+    await put("tax_confirmed_at", new Date().toISOString());
+    await companyAudit(db, id, userId, "tax-params-confirmed", year, me);
+    return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/payroll/settings") {
     requirePermission("salaries", "Əmək haqqı ayarlarını yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");

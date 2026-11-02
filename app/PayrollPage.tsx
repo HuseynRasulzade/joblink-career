@@ -22,7 +22,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 }
 
 type Deduction = { label: string; amount: number; kind: "general" | "writ" | "alimony" };
-type Inputs = { bonus: number; allowance: number; overtimeHours: number; restDayHours: number; restDayWithinNorm: boolean; nightHours: number; nightPercent: number; deductions: Deduction[]; note: string };
+type Inputs = { bonus: number; allowance: number; overtimeHours: number; restDayHours: number; restDayWithinNorm: boolean; nightHours: number; nightPercent: number; deductions: Deduction[]; note: string; benefitDoc?: string };
 type Line = { id: string; label: string; amount: number; article: string };
 type Result = {
   normDays: number; workedDays: number; paidLeaveDays: number; downtimeDays: number; benefitDays: number; unpaidDays: number; hourly: number;
@@ -39,7 +39,7 @@ type Row = {
 };
 type Sheet = {
   month: string; status: "draft" | "approved"; approvedBy: string; approvedAt: string;
-  settings: { advanceDay: number; payDay: number; dualThreshold: number; benefitSick: number; benefitMaternity: number; benefitMinPension: number; benefitPayer: string; problem: string }; schedule: { advanceDate: string; payDate: string };
+  settings: { advanceDay: number; payDay: number; dualThreshold: number; benefitSick: number; benefitMaternity: number; benefitMinPension: number; benefitPayer: string; taxCheck: { year: string; confirmed: boolean; by: string; at: string; params: string[] }; problem: string }; schedule: { advanceDate: string; payDate: string };
   workingDays: number; rows: Row[];
   totals: { employees: number; gross: number; incomeTax: number; employeeInsurance: number; net: number; advances: number; toPay: number; outstanding: number; employerContributions: number; employerCost: number };
 };
@@ -170,6 +170,20 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
         )}{" "}
         <small className="muted">(istirahət və bayram günü olarsa əvvəlki iş günü — Əmək M. 172.3)</small>
       </p>
+      {sheet.settings.taxCheck && (
+        <details className={sheet.settings.taxCheck.confirmed ? "plan-state plan-approved" : "plan-state plan-draft"} open={!sheet.settings.taxCheck.confirmed}>
+          <summary>
+            {sheet.settings.taxCheck.confirmed
+              ? `${sheet.settings.taxCheck.year} ili üçün vergi parametrləri təsdiqlənib (${sheet.settings.taxCheck.by || "—"}, ${dmy((sheet.settings.taxCheck.at || "").slice(0, 10))})`
+              : `${sheet.settings.taxCheck.year} ili üçün vergi parametrləri mühasib tərəfindən hələ təsdiqlənməyib`}
+          </summary>
+          <ul>{sheet.settings.taxCheck.params.map((p) => <li key={p}>{p}</li>)}</ul>
+          <p className="muted">Bu rəqəmlər hər il dəyişə bilər. Mühasib cari ilin qanununa uyğunluğunu yoxlayıb təsdiq etməlidir; rəqəm fərqlidirsə təsdiq etməyin və bizə bildirin.</p>
+          {!sheet.settings.taxCheck.confirmed && (
+            <button type="button" className="secondary" onClick={() => void act("company/payroll/tax-confirm", { year: sheet.settings.taxCheck.year }, "Vergi parametrləri təsdiqləndi.")}>Yoxladım, təsdiq edirəm</button>
+          )}
+        </details>
+      )}
       <div className="staff-kpis">
         <div className="staff-kpi"><small>Hesablanıb (gross)</small><strong>{azn(t.gross)}</strong><span>{t.employees} işçi · {sheet.workingDays} iş günü</span></div>
         <div className="staff-kpi"><small>Vergi və sığorta (işçi)</small><strong>{azn(t.incomeTax + t.employeeInsurance)}</strong><span>gəlir vergisi {azn(t.incomeTax)}</span></div>
@@ -384,6 +398,7 @@ function InputsModal({ month, row, notify, onClose, onSaved }: { month: string; 
           <label className="check-row"><input type="checkbox" checked={form.restDayWithinNorm} onChange={(e) => setForm({ ...form, restDayWithinNorm: e.target.checked })} /> İş aylıq norma çərçivəsindədir (1 qat; normadan artıqdırsa 2 qat)</label>
           {num("nightHours", "Gecə saatı (22:00–06:00)", 0.5)}
           {num("nightPercent", "Gecə əlavəsi (%) — müqavilədə")}
+          <Field label="E-bülleten (xəstəlik vərəqəsi) nömrəsi — sığorta müavinəti olduqda"><input value={form.benefitDoc || ""} maxLength={40} onChange={(e) => setForm({ ...form, benefitDoc: e.target.value })} /></Field>
         </div>
         <h4>Digər tutulmalar (Əmək M. 175–176)</h4>
         <p className="muted">Bütün tutulmalar birlikdə ödəniləcək məbləğin 20%-ni (icra sənədi 50%, aliment 70%) keçə bilməz; artıq hissə tutulmur.</p>

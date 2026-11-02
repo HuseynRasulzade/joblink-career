@@ -211,3 +211,10 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - Nəticə əvvəlki ilə eynidir (400 işçi, 12 təsdiqlənmiş ay üzərində hesabatın bütün məzmunu müqayisə olunub).
 - Yerli bazada vaxt demək olar dəyişmir (~0,5 san): qazanc D1 sorğularının sayında (12 aylıq hesabatda ~48 ortaq sorğu əvəzinə 3) və CPU-dadır. Canlı sayt üzərində ölçülməyib.
 - Edilməyib: hazır xülasə cədvəli. Ödəniş geri çəkiləndə, ay yenidən açılanda və işçi məlumatı dəyişəndə onu yeniləmək riski var; ölçmə göstərməsə lazım deyil.
+
+## 14. Əmək haqqı siyahısının qalan bəndləri (2026-11-02)
+
+- 3. E-bülleten nömrəsi: əlavə/tutulma pəncərəsində yazılır; müavinət günü olub nömrə yoxdursa cədvəldə xəbərdarlıq, hesablaşma hesabatında müavinət sətrində nömrə görünür.
+- 7. Ödəniş sənədinin layihəsi: bank hesabı «avtomatik hazırla» rejimindədirsə layihə avans və maaş günü bank bölməsi açılanda yaranır; gündəlik cron xatırlatma göndərir. Cron özü layihə yaratmır, çünki hesablama serverin sorğu qatındadır.
+- 8. Vergi parametrləri: cədvəldə banner göstərir (minimum əmək haqqı, gəlir vergisi, DSMF, tibbi və işsizlik sığortası); mühasib ildə bir dəfə «Yoxladım, təsdiq edirəm» basır, təsdiq audit jurnalına yazılır.
+- 10. Şifrələmə: kod hazırdır; `DATA_KEY` secret-ini yalnız sahib qoya bilər.
