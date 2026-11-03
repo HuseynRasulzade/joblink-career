@@ -371,6 +371,7 @@ import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
+import { parsePhotoDataUrl } from "@/lib/photo";
 import { GEO_MODES, checkLocation, validPoint, type GeoMode, type Office } from "@/lib/geofence";
 import { forecast, monthSeries, planFactAlerts } from "@/lib/hr-trends";
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
@@ -8328,6 +8329,54 @@ async function route(request: Request) {
     if (!(await celebrationsOn(employee.company_id))) return ok({ enabled: false, items: [] });
     const items = (await celebrationList(employee.company_id, 30)).filter((c) => c.employeeId !== employee.id).map((c) => ({ name: c.name, kind: c.kind, date: c.date, days: c.days, years: c.years }));
     return ok({ enabled: true, items });
+  }
+  // ---- The photo of an employee: set by HR or by the employee, removed by either ----
+  const photoOf = async (companyId: string, employeeId: string) => {
+    const row = await db.prepare("SELECT mime,data FROM employee_photos WHERE employee_id=? AND company_id=?").bind(employeeId, companyId).first<{ mime: string; data: string }>();
+    return row ? `data:${row.mime};base64,${row.data}` : "";
+  };
+  const savePhoto = async (companyId: string, employeeId: string, image: unknown, by: string) => {
+    const parsed = parsePhotoDataUrl(image);
+    if (!parsed.ok) throw new HttpError(400, parsed.error);
+    await db.prepare("INSERT INTO employee_photos(employee_id,company_id,mime,data,size,updated,updated_by) VALUES(?,?,?,?,?,?,?) ON CONFLICT(employee_id) DO UPDATE SET mime=excluded.mime,data=excluded.data,size=excluded.size,updated=excluded.updated,updated_by=excluded.updated_by").bind(employeeId, companyId, parsed.mime, parsed.base64, parsed.bytes, new Date().toISOString(), by).run();
+  };
+  if (request.method === "GET" && path === "company/employees/photo") {
+    requirePermission("salaries", "Şəkli yalnız şəxsi məlumat icazəsi olan şəxs görə bilər.");
+    return ok({ image: await photoOf(id, str(requestUrl.searchParams.get("id"), 100)) });
+  }
+  if (request.method === "POST" && path === "company/employees/photo") {
+    requirePermission("salaries", "Şəkli yalnız şəxsi məlumat icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    const employee = await db.prepare("SELECT id,name FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(str(b.id, 100), id).first<{ id: string; name: string }>();
+    if (!employee) throw new HttpError(404, "İşçi tapılmadı.");
+    await savePhoto(id, employee.id, b.image, userId);
+    await companyAudit(db, id, userId, "employee-photo", employee.id, employee.name);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/employees/photo/delete") {
+    requirePermission("salaries", "Şəkli yalnız şəxsi məlumat icazəsi olan şəxs silə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM employee_photos WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    await companyAudit(db, id, userId, "employee-photo-removed", str(b.id, 100), "");
+    return ok({ ok: true });
+  }
+  if (request.method === "GET" && path === "employee/photo") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    return ok({ image: await photoOf(employee.company_id, employee.id) });
+  }
+  if (request.method === "POST" && path === "employee/photo") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    await savePhoto(employee.company_id, employee.id, b.image, userId);
+    await companyAudit(db, employee.company_id, userId, "employee-photo", employee.id, `${employee.name}: şəkli özü yüklədi`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "employee/photo/delete") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    await db.prepare("DELETE FROM employee_photos WHERE employee_id=? AND company_id=?").bind(employee.id, employee.company_id).run();
+    await companyAudit(db, employee.company_id, userId, "employee-photo-removed", employee.id, `${employee.name}: şəkli özü sildi`);
+    return ok({ ok: true });
   }
   if (request.method === "GET" && path === "employee/assets") {
     const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));

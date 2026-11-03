@@ -22,6 +22,7 @@ import { EMPTY_PROFILE, ageOn, idExpiresSoon, type EmployeeProfile } from "@/lib
 import { TAX_BENEFITS, employeeRights, suggestedBenefits, taxBenefit, taxReduction } from "@/lib/employee-rights";
 import { Field, Modal } from "./components";
 import JobTitleInput from "./JobTitleInput";
+import EmployeePhoto from "./EmployeePhoto";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -1835,7 +1836,7 @@ export function BulkLinkCodes({ unlinked, withCode, notify, onClose, onDone }: {
 
 // ---------- Personal data of an employee ----------
 const MARITAL: [string, string][] = [["", "—"], ["single", "Subay"], ["married", "Evli"], ["divorced", "Boşanıb"], ["widowed", "Dul"]];
-export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notify, onSaved }: { employeeId: string; initial?: EmployeeProfile | null; birthDateHint?: string; notify: Notify; onSaved?: (profile: EmployeeProfile) => void }) {
+export function EmployeeProfilePanel({ employeeId, name, initial, birthDateHint, notify, onSaved }: { employeeId: string; name?: string; initial?: EmployeeProfile | null; birthDateHint?: string; notify: Notify; onSaved?: (profile: EmployeeProfile) => void }) {
   const [profile, setProfile] = useState<EmployeeProfile>({ ...EMPTY_PROFILE, ...(initial || {}) });
   const set = <K extends keyof EmployeeProfile>(key: K, value: EmployeeProfile[K]) => setProfile((p) => ({ ...p, [key]: value }));
   const today = new Date().toISOString().slice(0, 10);
@@ -1857,6 +1858,7 @@ export function EmployeeProfilePanel({ employeeId, initial, birthDateHint, notif
   );
   return (
     <div className="offer-composer">
+      <EmployeePhoto employeeId={employeeId} name={name || ""} notify={notify} />
       <p className="muted">
         Şəxsiyyət vəsiqəsi, ünvan və bank məlumatları yalnız HR, direktor və hesab sahibinə görünür.
         {age !== null && ` Yaş: ${age}.`}

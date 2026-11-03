@@ -154,6 +154,8 @@ const PATH_PERMISSION: [RegExp, CompanyPermission][] = [
   [/^company\/(attendance|calendar)(\/|$)/, "attendance"],
   [/^company\/employee-docs?(\/|$)/, "documents"],
   [/^company\/employees\/profile(-import)?$/, "personal-data"],
+  [/^company\/employees\/photo(\/delete)?$/, "personal-data"],
+  [/^company\/employees\/photo(\/delete)?$/, "personal-data"],
   [/^company\/(employees|employee-tasks|employee-events)(\/|$)/, "employees"],
 ];
 export function permissionForPath(path: string): CompanyPermission {

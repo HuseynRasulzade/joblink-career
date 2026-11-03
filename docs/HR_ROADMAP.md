@@ -9,7 +9,7 @@ Qiymətləndirmə: ✅ var · 🟡 qismən · ❌ yoxdur. Əmək: S (1–2 gün)
 | Sahə | Vəziyyət | Nə var / nə çatmır |
 |---|---|---|
 | İşə qəbul (vakansiya, namizəd, müsahibə, test, təklif) | ✅ | Vakansiyalar, namizəd axını, istedad bazası, müsahibə, testlər, iş təklifi, təsdiq zənciri, AI köməkçi, tövsiyə proqramı, rəy yoxlaması, vakansiya paylaşma. Çatmır: bir neçə xarici sayta eyni anda yerləşdirmə (xarici müqavilə) |
-| İşçi kartı və şəxsi iş | ✅ | Şəxsi məlumatlar, vəsiqə, əlillik və vergi güzəşti, bank/kart, sənəd qovluğu, əmrlər, müqavilə şablonları, işçi profili qoşulması. Sənəd müddəti xatırlatması və təşkilat sxemi var. Çatmır: işçi şəkli (fayl saxlama və məxfilik qərarı tələb edir) |
+| İşçi kartı və şəxsi iş | ✅ | Şəxsi məlumatlar, vəsiqə, əlillik və vergi güzəşti, bank/kart, sənəd qovluğu, əmrlər, müqavilə şablonları, işçi profili qoşulması. Sənəd müddəti xatırlatması və təşkilat sxemi var. İşçi şəkli (bölmə 29) |
 | Ştat cədvəli və struktur | ✅ | Plan, kilid və direktor təsdiqi, vəzifə və şöbə kataloqu, maaş həddi, ştat dərəcəsi. Vəzifə təlimatları (versiyalı, işçi təsdiqi ilə, bölmə 28), kadr dinamikası qrafiki və plan-fakt (bölmə 28) |
 | Davamiyyət | ✅ | Gün üzrə qeyd, Excel idxalı, qısaldılmış həftə, giriş-çıxış saatı, işçinin özünün qeydi, gecikmə jurnalı, artıq iş təsdiqi, saatların əmək haqqına avtomatik keçməsi, növbələr. Məkan yoxlaması (bölmə 28). Çatmır: turniket inteqrasiyası (xarici cihaz) |
 | Məzuniyyət və icazə | ✅ | Əmrlər, işçi ərizəsi, qalıq, məzuniyyət haqqı (md. 140), illik qrafik, birbaşa rəhbər təsdiqi ("İş yerim → Komandam"), üst-üstə düşmə və şöbə yükü yoxlaması, HR qapısı (rəhbər cavab verməmiş əmr hazırlanmır), ezamiyyət. Rəhbərin yoxluğunda əvəzedici var |
@@ -386,3 +386,13 @@ Bölmə 1-dəki köhnə cədvəl yenilənib: ❌ qalmış sətirlərin hamısı 
 Texniki: miqrasiya 0094 (`policy_docs.position`), `lib/hr-trends.ts`, `lib/geofence.ts` (testlərlə), `company/hr-trends`, `app/HrTrends.tsx`.
 
 Qalan: işçi şəkli (fayl saxlama, məxfilik), turniket inteqrasiyası (xarici cihaz), hüquqi e-imza, bank API, bir neçə xarici sayta eyni anda yerləşdirmə.
+
+## 29. İşçi şəkli
+
+İşçi kartında (Şəxsi məlumatlar) HR, "İş yerim → Məlumatlarım"da isə işçi özü şəkil yükləyir və silir. Brauzer şəkli 256 piksellik JPEG-ə kiçildir; server yalnız JPEG, PNG və WebP qəbul edir, faylın başlığını yoxlayır (başqa fayl şəkil adı ilə keçmir, SVG qəbul olunmur), 150 KB-dan böyüyünü rədd edir. Şəkil yalnız şəxsi məlumat icazəsi olan HR işçilərinə görünür; hər dəyişiklik baxış jurnalına yazılır. İşçilər siyahısında və təşkilat sxemində şəkil göstərilmir (yük və məxfilik səbəbi ilə).
+
+Diqqət: şəkil `DATA_KEY` şifrələməsinə daxil deyil, bazada adi şəkildə (base64) saxlanır.
+
+Texniki: miqrasiya 0095 (`employee_photos`), `lib/photo.ts` (test), `company/employees/photo*`, `employee/photo*`, `app/EmployeePhoto.tsx`.
+
+Qalan: turniket inteqrasiyası (xarici cihaz), hüquqi e-imza, bank API, bir neçə xarici sayta eyni anda yerləşdirmə — hamısı xarici müqavilə və ya cihaz tələb edir.

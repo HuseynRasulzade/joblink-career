@@ -666,6 +666,13 @@
       "when": 1799089200000,
       "tag": "0094_position_instructions",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "6",
+      "when": 1799175600000,
+      "tag": "0095_employee_photos",
+      "breakpoints": true
     }
   ]
 }

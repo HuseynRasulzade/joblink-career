@@ -3061,6 +3061,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
               <Modal title={`Şəxsi məlumatlar: ${editing.name || "işçi"}`} onClose={() => setPanel(null)}>
                 <EmployeeProfilePanel
                   employeeId={editing.id}
+                  name={editing.name || ""}
                   initial={editing.profile}
                   notify={notify}
                   onSaved={(profile) => setEditing({ ...editing, profile })}

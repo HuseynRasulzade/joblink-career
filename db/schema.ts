@@ -1742,3 +1742,18 @@ export const retentionRules = sqliteTable(
   { companyId: text("company_id").notNull(), category: text("category").notNull(), years: integer("years").notNull() },
   (t) => [primaryKey({ columns: [t.companyId, t.category] })],
 );
+
+// The photo of an employee: a small image kept as base64 text; HR and the employee can set or remove it.
+export const employeePhotos = sqliteTable(
+  "employee_photos",
+  {
+    employeeId: text("employee_id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    mime: text("mime").notNull(),
+    data: text("data").notNull(),
+    size: integer("size").notNull().default(0),
+    updated: text("updated").notNull(),
+    updatedBy: text("updated_by").notNull().default(""),
+  },
+  (t) => [index("employee_photos_company").on(t.companyId)],
+);

@@ -1,4 +1,5 @@
 "use client";
+import EmployeePhoto from "./EmployeePhoto";
 import { MyCelebrations, MyPolicies, MySafety } from "./WorkplaceCompliance";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Send, Trash2 } from "lucide-react";
@@ -149,6 +150,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
             </div>
             {tab === "info" && (
               <>
+              <EmployeePhoto key={`${place.id}-photo`} employeeId={place.id} name={place.name || ""} mine notify={notify} />
               <dl className="workplace-info">
                 <div><dt>Şirkət</dt><dd>{place.company}</dd></div>
                 <div><dt>Vəzifə</dt><dd>{place.position || "—"}</dd></div>
