@@ -141,6 +141,7 @@ function PersonReview({ person, colleagues, cycleId, closed, rating, notify, onC
   const [givers, setGivers] = useState<string[]>([]);
   const [advice, setAdvice] = useState({ type: person.review?.raise?.type || "", percent: person.review?.raise?.percent || 0, note: person.review?.raise?.note || "" });
   const [effective, setEffective] = useState(new Date().toISOString().slice(0, 7) + "-01");
+  const [bonus, setBonus] = useState({ amount: 0, month: new Date().toISOString().slice(0, 7) });
   return (
     <Modal title={`${person.name}: məqsədlər və qiymətləndirmə`} onClose={onClose}>
       <div className="offer-composer">
@@ -196,10 +197,17 @@ function PersonReview({ person, colleagues, cycleId, closed, rating, notify, onC
               <Field label="Əsaslandırma"><input value={advice.note} maxLength={300} disabled={!!person.review.raise?.applied} onChange={(e) => setAdvice({ ...advice, note: e.target.value })} /></Field>
             </div>
             {person.review.raise?.applied ? (
-              <p className="muted">Maaş artımı {dmy(person.review.raise.applied)} tarixindən maaş tarixçəsinə tətbiq olunub.</p>
+              <p className="muted">{person.review.raise.type === "bonus" ? `Mükafat ${person.review.raise.applied} ayının əmək haqqına yazılıb.` : `Maaş artımı ${dmy(person.review.raise.applied)} tarixindən maaş tarixçəsinə tətbiq olunub.`}</p>
             ) : (
               <div className="admin-actions">
                 <button type="button" className="secondary" onClick={() => void run(notify, onChanged, "company/performance/raise", { cycleId, employeeId: person.id, ...advice }, "Tövsiyə saxlanıldı.")}>Tövsiyəni saxla</button>
+                {person.review.raise?.type === "bonus" && (
+                  <>
+                    <input type="number" min={0} step="0.01" placeholder="Mükafat (AZN)" aria-label="Mükafatın məbləği" value={bonus.amount || ""} onChange={(e) => setBonus({ ...bonus, amount: Number(e.target.value) })} style={{ maxWidth: 140 }} />
+                    <input type="month" aria-label="Hansı ayın əmək haqqına" value={bonus.month} onChange={(e) => setBonus({ ...bonus, month: e.target.value })} />
+                    <button type="button" className="primary" disabled={!(bonus.amount > 0)} onClick={() => void run(notify, onChanged, "company/performance/bonus/apply", { cycleId, employeeId: person.id, amount: bonus.amount, month: bonus.month }, "Mükafat əmək haqqına yazıldı.")}>Əmək haqqına yaz</button>
+                  </>
+                )}
                 {person.review.raise?.type === "raise" && person.review.raise.percent > 0 && (
                   <>
                     <input type="date" aria-label="Yeni maaşın qüvvəyə minmə tarixi" value={effective} onChange={(e) => setEffective(e.target.value)} />
@@ -228,8 +236,8 @@ function PersonReview({ person, colleagues, cycleId, closed, rating, notify, onC
 }
 
 // ---------- Training ----------
-type Training = { id: string; title: string; provider: string; kind: string; start: string; end: string; hours: number; cost: number; status: string; note: string; validMonths: number; requiredFor: string; participants: { employeeId: string; name: string; status: string; result: string; certificateNo: string; completedOn: string; validUntil: string; bondMonths: number; bondUntil: string; bondCost: number }[] };
-type TrainingData = { bonds: { employeeId: string; name: string; title: string; until: string; cost: number }[]; year: string; budget: number; spent: number; expiring: { employeeId: string; name: string; title: string; validUntil: string; expired: boolean }[]; missing: { trainingId: string; title: string; requiredFor: string; employees: { id: string; name: string }[] }[]; trainings: Training[]; employees: { id: string; name: string; department: string; hours: number }[] };
+type Training = { id: string; title: string; provider: string; kind: string; start: string; end: string; hours: number; cost: number; status: string; note: string; validMonths: number; requiredFor: string; skillId: string; skillLevel: number; participants: { employeeId: string; name: string; status: string; result: string; certificateNo: string; completedOn: string; validUntil: string; bondMonths: number; bondUntil: string; bondCost: number }[] };
+type TrainingData = { skills: { id: string; name: string }[]; bonds: { employeeId: string; name: string; title: string; until: string; cost: number }[]; year: string; budget: number; spent: number; expiring: { employeeId: string; name: string; title: string; validUntil: string; expired: boolean }[]; missing: { trainingId: string; title: string; requiredFor: string; employees: { id: string; name: string }[] }[]; trainings: Training[]; employees: { id: string; name: string; department: string; hours: number }[] };
 const KIND_TEXT: Record<string, string> = { internal: "Daxili", external: "Xarici", online: "Onlayn", safety: "Əməyin mühafizəsi və təhlükəsizlik" };
 const TSTATUS: Record<string, string> = { planned: "Planlaşdırılıb", done: "Keçirilib", cancelled: "Ləğv edilib" };
 const PSTATUS: Record<string, string> = { invited: "Dəvət olunub", attending: "Gələcək", completed: "Tamamlayıb", declined: "İmtina edib" };
@@ -305,6 +313,13 @@ export function Training({ notify }: { notify: Notify }) {
               <Field label="Xərc (AZN)"><input type="number" min={0} value={edit.cost ?? ""} onChange={(e) => setEdit({ ...edit, cost: Number(e.target.value) })} /></Field>
               <Field label="Sertifikatın etibarlılığı (ay; 0 = müddətsiz)"><input type="number" min={0} max={120} value={edit.validMonths ?? ""} onChange={(e) => setEdit({ ...edit, validMonths: Number(e.target.value) })} /></Field>
               <Field label="Məcburidir: vəzifələr (vergüllə; məs. sürücü, operator)"><input value={edit.requiredFor || ""} onChange={(e) => setEdit({ ...edit, requiredFor: e.target.value })} /></Field>
+              <Field label="Öyrətdiyi bacarıq (bacarıq matrisindən)">
+                <select value={edit.skillId || ""} onChange={(e) => setEdit({ ...edit, skillId: e.target.value })}>
+                  <option value="">— yoxdur —</option>
+                  {data.skills.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </Field>
+              {edit.skillId && <Field label="Təlimi bitirən işçinin səviyyəsi bu qədər qalxır"><select value={edit.skillLevel ?? 2} onChange={(e) => setEdit({ ...edit, skillLevel: Number(e.target.value) })}>{LEVELS.slice(1).map((l, i) => <option key={l} value={i + 1}>{l}</option>)}</select></Field>}
               <Field label="Vəziyyət"><select value={edit.status || "planned"} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>{Object.entries(TSTATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
             </div>
             <button type="button" className="primary" onClick={async () => { if (await run(notify, load, "company/training/save", { ...edit }, "Saxlanıldı.")) setEdit(null); }}>Saxla</button>
@@ -789,7 +804,7 @@ function OneOnOneModal({ person, notify, onClose }: { person: { id: string; name
 
 // ---------- Skill matrix ----------
 const LEVELS = ["—", "başlanğıc", "işləyə bilir", "yaxşı", "ekspert"];
-type MatrixData = { employees: { id: string; name: string; position: string; department: string }[]; skills: { id: string; name: string }[]; cells: { employeeId: string; skillId: string; level: number; target: number }[] };
+type MatrixData = { trainings?: { id: string; title: string; start: string; skillId: string; level: number }[]; employees: { id: string; name: string; position: string; department: string }[]; skills: { id: string; name: string }[]; cells: { employeeId: string; skillId: string; level: number; target: number }[] };
 // Who can do what: a level from 0 to 4 for each skill, against the level the job needs.
 export function SkillMatrix({ notify }: { notify: Notify }) {
   const [data, load] = useLoad<MatrixData>("company/skill-matrix", notify);
@@ -822,6 +837,7 @@ export function SkillMatrix({ notify }: { notify: Notify }) {
                     return (
                       <td key={s.id} style={c.target > c.level ? { background: "#ffd4d4" } : undefined}>
                         <select aria-label={`${p.name}: ${s.name} səviyyə`} value={c.level} onChange={(e) => set(p.id, s.id, { level: Number(e.target.value) })}>{LEVELS.map((l, i) => <option key={l} value={i}>{l}</option>)}</select>
+                        {c.target > c.level && (data.trainings || []).filter((t) => t.skillId === s.id && t.level >= c.target).slice(0, 1).map((t) => <small key={t.id} className="skill-description" title="Planlaşdırılmış təlim">təlim: {t.title}</small>)}
                         <select aria-label={`${p.name}: ${s.name} hədəf`} value={c.target} onChange={(e) => set(p.id, s.id, { target: Number(e.target.value) })} title="Vəzifənin tələb etdiyi səviyyə">{LEVELS.map((l, i) => <option key={l} value={i}>{i ? `hədəf: ${l}` : "hədəf yoxdur"}</option>)}</select>
                       </td>
                     );

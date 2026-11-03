@@ -158,7 +158,6 @@ const hrNav = [
   { id: "hr-people-ops", label: "Kadr əməliyyatları", icon: ClipboardList },
   { id: "hr-growth", label: "İnkişaf və kommunikasiya", icon: Sparkles },
   { id: "hr-attendance", label: "Davamiyyət", icon: CalendarCheck },
-  { id: "hr-workforce", label: "İşçi axını", icon: TrendingUp },
   { id: "hr-team", label: "Komanda və rollar", icon: UserCog },
   { id: "hr-company", label: "Şirkət məlumatları", icon: Building2 },
   { id: "hr-billing", label: "Hesablar və ödənişlər", icon: Receipt },

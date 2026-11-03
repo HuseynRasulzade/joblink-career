@@ -1128,7 +1128,7 @@ export const perfReviews = sqliteTable(
 // Training plan: courses and who takes part.
 export const trainings = sqliteTable(
   "trainings",
-  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), provider: text("provider").notNull().default(""), kind: text("kind").notNull().default("external"), startDate: text("start_date").notNull().default(""), endDate: text("end_date").notNull().default(""), hours: integer("hours").notNull().default(0), costCents: integer("cost_cents").notNull().default(0), status: text("status").notNull().default("planned"), note: text("note").notNull().default(""), created: text("created").notNull(), validMonths: integer("valid_months").notNull().default(0), requiredFor: text("required_for").notNull().default("") },
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), title: text("title").notNull(), provider: text("provider").notNull().default(""), kind: text("kind").notNull().default("external"), startDate: text("start_date").notNull().default(""), endDate: text("end_date").notNull().default(""), hours: integer("hours").notNull().default(0), costCents: integer("cost_cents").notNull().default(0), status: text("status").notNull().default("planned"), note: text("note").notNull().default(""), created: text("created").notNull(), validMonths: integer("valid_months").notNull().default(0), requiredFor: text("required_for").notNull().default(""), skillId: text("skill_id").notNull().default(""), skillLevel: integer("skill_level").notNull().default(0) },
   (t) => [index("trainings_company").on(t.companyId, t.startDate)],
 );
 export const trainingParticipants = sqliteTable(
@@ -1643,4 +1643,11 @@ export const employeeSkills = sqliteTable(
   "employee_skills",
   { companyId: text("company_id").notNull(), employeeId: text("employee_id").notNull(), skillId: text("skill_id").notNull(), level: integer("level").notNull().default(0), target: integer("target").notNull().default(0), updated: text("updated").notNull() },
   (t) => [primaryKey({ columns: [t.companyId, t.employeeId, t.skillId] })],
+);
+
+// What a signed order did to the employee card: kept with what was there before, so it can be taken back.
+export const orderEffects = sqliteTable(
+  "order_effects",
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), orderId: text("order_id").notNull(), employeeId: text("employee_id").notNull(), kind: text("kind").notNull(), effectiveDate: text("effective_date").notNull(), status: text("status").notNull().default("applied"), plan: text("plan").notNull().default("{}"), before: text("before").notNull().default("{}"), summary: text("summary").notNull().default(""), appliedAt: text("applied_at").notNull().default(""), revertedAt: text("reverted_at").notNull().default(""), revertedBy: text("reverted_by").notNull().default(""), created: text("created").notNull() },
+  (t) => [uniqueIndex("order_effects_order").on(t.orderId), index("order_effects_due").on(t.companyId, t.status, t.effectiveDate)],
 );

@@ -98,7 +98,7 @@ export function DocRegistry({ notify }: { notify: Notify }) {
 // ---------- Offboarding ----------
 type Item = { id: string; label: string; hint: string };
 type Question = { id: string; label: string; kind: "choice" | "scale" | "yesno" | "text"; options?: string[] };
-type Case = { id: string; employeeId: string; name: string; position: string; department: string; employeeStatus: string; endDate: string; exitType: string; exitReason: string; status: string; checklist: Record<string, { done: boolean; at?: string; by?: string }>; progress: { done: number; total: number; percent: number }; answers: Record<string, string>; note: string; heldAssets: number; bonds?: { title: string; until: string; cost: number }[] };
+type Case = { id: string; employeeId: string; name: string; position: string; department: string; employeeStatus: string; endDate: string; exitType: string; exitReason: string; status: string; checklist: Record<string, { done: boolean; at?: string; by?: string }>; progress: { done: number; total: number; percent: number }; answers: Record<string, string>; note: string; heldAssets: number; exitOrder?: { number: string; status: string; kind: string } | null; bonds?: { title: string; until: string; cost: number }[] };
 type OffData = { items: Item[]; questions: Question[]; cases: Case[]; withoutCase: { id: string; name: string; position: string; department: string; endDate: string }[]; active: { id: string; name: string; department: string }[] };
 
 export function Offboarding({ notify }: { notify: Notify }) {
@@ -195,6 +195,7 @@ function CaseModal({ c, data, notify, onClose, onChanged }: { c: Case; data: Off
             <span>{i.label} <small className="skill-description">{i.hint}{c.checklist[i.id]?.done && c.checklist[i.id].at ? ` · ${dmy(c.checklist[i.id].at || "")} ${c.checklist[i.id].by || ""}` : ""}</small></span>
           </label>
         ))}
+        {c.exitOrder ? <p className="muted">{c.exitOrder.kind === "reduction" ? "Ştat ixtisarı" : "Xitam"} əmri: № {c.exitOrder.number || "—"} ({c.exitOrder.status === "signed" ? "imzalanıb, işçi kartı əmrə uyğun yenilənib" : "imza gözləyir"}).</p> : <p className="danger-text">Xitam əmri yoxdur: «Əmrlər reyestri»ndə xitam əmri hazırlayın; imzalananda işçi kartı və çıxış tarixi özü yenilənir.</p>}
         {(c.bonds || []).map((b) => <p key={b.title} className="danger-text">Təlim öhdəliyi: «{b.title}» üzrə {b.until.slice(8, 10)}.{b.until.slice(5, 7)}.{b.until.slice(0, 4)}-dək işləmə öhdəliyi var{b.cost ? `; xərc ${b.cost} AZN` : ""}. Çıxışdan əvvəl hüquqi cəhətdən yoxlayın.</p>)}
         {c.heldAssets > 0 && <p className="danger-text">İşçidə {c.heldAssets} şirkət əmlakı qalıb: “Aktivlər” bölməsində qaytarma qeyd edin.</p>}
         <h4>Çıxış müsahibəsi</h4>

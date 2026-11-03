@@ -346,12 +346,18 @@ export type SavedOrder = {
   created: string;
   input: Omit<OrderInput, "signers">;
   signers: SignerState[];
+  effect?: { supported: boolean; status?: string; summary?: string; effectiveDate?: string };
 };
 const HOLDER = { creator: "Əmri hazırlayan (HR)", head: "Şöbə rəhbəri", director: "Direktor", "": "" } as const;
 const EVENT = { created: "Əmr yaradıldı", approved: "Təsdiqlədi", returned: "Geri göndərdi", edited: "Əmri dəyişdi", signed: "Tam imzalandı" } as Record<string, string>;
 const STATUS_TEXT = (order: SavedOrder) =>
   order.status === "signed" ? "İmzalanıb" : order.status === "returned" ? `Geri qaytarılıb: ${HOLDER[order.holder]}` : `İmza gözləyir: ${HOLDER[order.holder]}`;
-const rebuildOrder = (item: SavedOrder) => buildOrder({ ...item.input, signers: item.signers });
+// An order made by the system (a trip order) or by an older version may lack the employee or company block: it is filled so the text still builds.
+const rebuildOrder = (item: SavedOrder) => {
+  const named = (item as unknown as { employee?: { name?: string; position?: string; department?: string } }).employee;
+  const input = item.input as Partial<OrderInput> & Omit<OrderInput, "signers">;
+  return buildOrder({ ...input, kind: input.kind || item.kind, number: input.number || item.number, date: input.date || item.date, city: input.city || "Bakı", company: input.company || { name: "" }, employee: input.employee || { name: named?.name || "—", position: named?.position || "", department: named?.department || "" }, signers: item.signers });
+};
 const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 
 // Who has the order, the signatures, the approve and send-back buttons and what happened to it.
@@ -380,6 +386,16 @@ export function OrderSignerBox({ order, onChange, notify }: { order: SavedOrder;
       notify((error as Error).message);
     }
   }
+  async function effectAction(path: string, question: string, done: string) {
+    if (!window.confirm(question)) return;
+    try {
+      await request(path, { orderId: order.id });
+      notify(done);
+      onChange();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   const lastReturn = [...order.history].reverse().find((event) => event.type === "returned");
   return (
     <div style={{ display: "grid", gap: 6 }}>
@@ -390,6 +406,15 @@ export function OrderSignerBox({ order, onChange, notify }: { order: SavedOrder;
           {signer.approvedAt ? <small className="skill-description">təsdiqləyib: {signer.approvedBy} · {when(signer.approvedAt)}</small> : signer.role === order.holder ? <small className="skill-description">növbə bundadır</small> : <small className="skill-description">gözləyir</small>}
         </div>
       ))}
+      {order.status === "signed" && order.effect?.supported && (
+        <div className="notice" role="status">
+          {order.effect.status === "applied" && <>Kartda tətbiq olundu: {order.effect.summary}. <button type="button" className="text-button" onClick={() => void effectAction("company/orders/effect/revert", "Əmrin kartdakı təsiri geri qaytarılsın? İşçi kartı əvvəlki məlumatlara qayıdır.", "Geri qaytarıldı.")}>Geri qaytar</button></>}
+          {order.effect.status === "scheduled" && <>{order.effect.effectiveDate ? `${order.effect.effectiveDate.split("-").reverse().join(".")} tarixində` : "Tarixi çatanda"} kartda tətbiq olunacaq: {order.effect.summary}. <button type="button" className="text-button" onClick={() => void effectAction("company/orders/effect/apply", "Əmrin təsiri tarixindən əvvəl kartda indi tətbiq edilsin?", "Kartda tətbiq olundu.")}>İndi tətbiq et</button></>}
+          {order.effect.status === "skipped" && <>Kartda dəyişiklik edilmədi: {order.effect.summary}</>}
+          {order.effect.status === "reverted" && <>Kartdakı təsiri geri qaytarılıb. <button type="button" className="text-button" onClick={() => void effectAction("company/orders/effect/apply", "Əmrin təsiri kartda yenidən tətbiq edilsin?", "Kartda yenidən tətbiq olundu.")}>Yenidən tətbiq et</button></>}
+          {!order.effect.status && <>Bu əmrin təsiri kartda hələ tətbiq olunmayıb. <button type="button" className="text-button" onClick={() => void effectAction("company/orders/effect/apply", "Əmrin təsiri işçi kartında tətbiq edilsin?", "Kartda tətbiq olundu.")}>Kartda tətbiq et</button></>}
+        </div>
+      )}
       {order.status === "returned" && lastReturn && (
         <div className="notice">
           Geri qaytarma səbəbi ({lastReturn.by}): {lastReturn.note}
@@ -930,7 +955,7 @@ type RequestRow = {
   kind: string;
   data: RequestData & { basis?: string };
   status: "new" | "ordered" | "rejected" | "answered" | "withdrawn";
-  source: "employee" | "hr";
+  source: "employee" | "hr" | "plan";
   orderId: string;
   orderNumber: string;
   orderStatus: string;
@@ -1014,7 +1039,6 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
           </button>
         </div>
       </div>
-      <ProfileChangesPanel notify={notify} />
       {stats && (
         <p className="muted">
           Son 90 gün: {stats.answered} ərizə cavablandırılıb{stats.averageHours !== null ? `, orta cavab müddəti ${stats.averageHours < 48 ? `${stats.averageHours} saat` : `${Math.round(stats.averageHours / 24)} gün`}` : ""}; gözləyən {stats.waiting}
@@ -1041,7 +1065,7 @@ function RequestsPanel({ notify, onCount, onOrdered }: { notify: Notify; onCount
                 <td>
                   <b>{row.employee.name}</b>
                   <small className="skill-description">{[row.employee.position, row.employee.department].filter(Boolean).join(" · ")}</small>
-                  <small className="skill-description">{row.source === "employee" ? "İşçi öz profilindən yazıb" : `HR qeyd edib${row.by ? `: ${row.by}` : ""}`}</small>
+                  <small className="skill-description">{row.source === "employee" ? "İşçi öz profilindən yazıb" : row.source === "plan" ? `Məzuniyyət qrafikindən yaranıb${row.by ? `: ${row.by}` : ""}` : `HR qeyd edib${row.by ? `: ${row.by}` : ""}`}</small>
                 </td>
                 <td>{requestKindLabel(row.kind)}</td>
                 <td>
@@ -2656,47 +2680,6 @@ function ManagerSelect({ employeeId, value, onChange, label, empty }: { employee
         {people.map((p) => <option key={p.id} value={p.id}>{p.name}{p.position ? ` · ${p.position}` : ""}</option>)}
       </select>
     </Field>
-  );
-}
-
-// Requests of employees to change a detail of their own card: HR checks and approves, and the card is updated.
-function ProfileChangesPanel({ notify }: { notify: Notify }) {
-  const [items, setItems] = useState<{ id: string; name: string; label: string; value: string; status: string; reason: string; decidedBy: string; created: string }[] | null>(null);
-  const load = useCallback(() => {
-    request<{ items: NonNullable<typeof items> }>("company/profile-changes").then((r) => setItems(r.items)).catch(() => setItems([]));
-  }, []);
-  useEffect(load, [load]);
-  async function decide(id: string, decision: "approve" | "reject") {
-    let reason = "";
-    if (decision === "reject") {
-      reason = window.prompt("Rədd səbəbi:") || "";
-      if (reason.length < 5) return;
-    }
-    try {
-      await request("company/profile-changes/decide", { id, decision, reason });
-      notify(decision === "approve" ? "Dəyişiklik işçi kartında tətbiq olundu." : "Sorğu rədd edildi.");
-      load();
-    } catch (error) {
-      notify((error as Error).message);
-    }
-  }
-  const waiting = (items || []).filter((i) => i.status === "new");
-  if (!waiting.length) return null;
-  return (
-    <div className="notice" role="status">
-      <b>Məlumat dəyişikliyi sorğuları ({waiting.length})</b>
-      <table className="admin-table">
-        <thead><tr><th>İşçi</th><th>Nə dəyişir</th><th>Yeni dəyər</th><th></th></tr></thead>
-        <tbody>
-          {waiting.map((i) => (
-            <tr key={i.id}>
-              <td>{i.name}</td><td>{i.label}</td><td>{i.value}</td>
-              <td className="admin-actions"><button type="button" className="primary" onClick={() => void decide(i.id, "approve")}>Təsdiq, kartı yenilə</button><button type="button" onClick={() => void decide(i.id, "reject")}>Rədd</button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }
 

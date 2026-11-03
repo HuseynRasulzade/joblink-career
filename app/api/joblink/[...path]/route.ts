@@ -389,6 +389,7 @@ import { daysLeft, deadlinesOf } from "@/lib/hr-deadlines";
 import { STATUS_TEXT as LEAVE_STATUS, monthlyLoad, planLeave, scheduleWarnings, type ScheduleEntry } from "@/lib/leave-schedule";
 import { chooseHours, dailyNorm, parseHoursRows, parseHoursTotals, summarizeHours, type HoursByDay } from "@/lib/hours";
 import { checkCoverage, checkShifts, patternDays, AWAY_LABEL as SHIFT_AWAY_LABEL, type ShiftWarning } from "@/lib/shift-rules";
+import { beforeOf, hasEffect, planOrderEffect, type CardPatch, type CardSnapshot } from "@/lib/order-effects";
 import { DEFAULT_CLOCK, bakuNow, earlyLeaveMinutes, hoursFromClock, lateMinutes, validTime as validClockTime, type ClockRules } from "@/lib/clock";
 import { vacationDaysBetween } from "@/lib/hr-calc";
 import { BENEFIT_CAP_FACTOR, BENEFIT_MIN_INSURANCE_MONTHS, MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
@@ -7649,6 +7650,129 @@ async function route(request: Request) {
     await db.prepare("UPDATE company_employees SET profile=?,updated=? WHERE id=? AND company_id=?").bind(await sealProfile(profile, dataKey()), new Date().toISOString(), employeeId, id).run();
     return true;
   };
+  // ── What a signed order does to the employee card ──
+  type EffectRow = { id: string; order_id: string; employee_id: string; kind: string; effective_date: string; status: string; plan: string; before: string; summary: string; applied_at: string; reverted_at: string; reverted_by: string };
+  const CARD_COLUMN: Record<keyof CardSnapshot, string> = { name: "name", position: "position", department: "department", salaryCents: "salary_cents", salaryType: "salary_type", status: "status", endDate: "end_date", exitType: "exit_type", exitReason: "exit_reason", probationEnd: "probation_end" };
+  const cardOf = async (employeeId: string): Promise<CardSnapshot | null> => {
+    const r = await db.prepare("SELECT name,position,department,salary_cents,salary_type,status,end_date,exit_type,exit_reason,probation_end FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(employeeId, id).first<{ name: string; position: string; department: string; salary_cents: number; salary_type: string; status: string; end_date: string; exit_type: string; exit_reason: string; probation_end: string }>();
+    return r ? { name: r.name, position: r.position, department: r.department, salaryCents: r.salary_cents, salaryType: r.salary_type || "gross", status: r.status, endDate: r.end_date || "", exitType: r.exit_type || "", exitReason: r.exit_reason || "", probationEnd: r.probation_end || "" } : null;
+  };
+  const writeCard = (employeeId: string, patch: CardPatch) => {
+    const keys = Object.keys(patch) as (keyof CardSnapshot)[];
+    return db.prepare(`UPDATE company_employees SET ${keys.map((k) => `${CARD_COLUMN[k]}=?`).join(",")}${keys.length ? "," : ""}updated=? WHERE id=? AND company_id=?`).bind(...keys.map((k) => patch[k]), new Date().toISOString(), employeeId, id);
+  };
+  const cardEvent = (employeeId: string, type: string, from: string, to: string, note: string, date: string) =>
+    db.prepare("INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, employeeId, type, from, to, note, userId, date, new Date().toISOString());
+  const payrollMonthLocked = async (month: string) => (await db.prepare("SELECT status FROM payroll_runs WHERE company_id=? AND month=?").bind(id, month).first<{ status: string }>())?.status === "approved";
+  const addToBonus = async (employeeId: string, month: string, delta: number) => {
+    const row = await db.prepare("SELECT data FROM payroll_inputs WHERE company_id=? AND month=? AND employee_id=?").bind(id, month, employeeId).first<{ data: string }>();
+    let current: PayInputs = { ...EMPTY_INPUTS };
+    try { current = cleanInputs(JSON.parse(row?.data || "{}")); } catch { /* an unreadable earlier value is replaced */ }
+    const next = cleanInputs({ ...current, bonus: Math.max(0, Math.round((current.bonus + delta) * 100) / 100) });
+    await db.prepare("INSERT INTO payroll_inputs(company_id,month,employee_id,data,updated) VALUES(?,?,?,?,?) ON CONFLICT(company_id,month,employee_id) DO UPDATE SET data=excluded.data,updated=excluded.updated").bind(id, month, employeeId, JSON.stringify(next), new Date().toISOString()).run();
+  };
+  // Applies the effect of a signed order (once): the card changes at once, or on its date when that is still to come.
+  const applyOrderEffect = async (orderId: string, force = false, immediate = false): Promise<{ status: string; summary: string } | null> => {
+    const order = await db.prepare("SELECT id,employee_id,kind,number,order_date,input,status FROM employee_orders WHERE id=? AND company_id=?").bind(orderId, id).first<{ id: string; employee_id: string; kind: string; number: string; order_date: string; input: string; status: string }>();
+    if (!order || order.status !== "signed" || !hasEffect(order.kind)) return null;
+    const existing = await db.prepare("SELECT * FROM order_effects WHERE order_id=?").bind(orderId).first<EffectRow>();
+    if (existing && (!force || existing.status === "applied")) return { status: existing.status, summary: existing.summary };
+    if (existing) await db.prepare("DELETE FROM order_effects WHERE id=?").bind(existing.id).run();
+    const card = await cardOf(order.employee_id);
+    if (!card) return null;
+    let input: Record<string, unknown> = {};
+    try { input = JSON.parse(order.input || "{}"); } catch { /* an order without readable fields has no effect */ }
+    const today = new Date().toISOString().slice(0, 10);
+    const effectId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const plan = planOrderEffect(order.kind, input, card, order.order_date);
+    const note = `Əmr № ${order.number || "—"}`;
+    const store = async (status: string, summary: string, before: Record<string, unknown>, effective: string) => {
+      await db.prepare("INSERT INTO order_effects(id,company_id,order_id,employee_id,kind,effective_date,status,plan,before,summary,applied_at,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(effectId, id, orderId, order.employee_id, order.kind, effective, status, JSON.stringify(plan || {}), JSON.stringify(before), summary, status === "applied" ? now : "", now).run();
+      return { status, summary };
+    };
+    if (!plan) return store("skipped", "Kartda dəyişiklik yoxdur: məlumat artıq əmrdəki kimidir.", {}, order.order_date);
+    const changesCard = Object.keys(plan.patch).length > 0;
+    if (changesCard && plan.effectiveDate > today && !immediate) return store("scheduled", plan.summary.join("; "), {}, plan.effectiveDate);
+    const before: Record<string, unknown> = { ...beforeOf(card, plan.patch) };
+    const statements: D1PreparedStatement[] = [];
+    if (changesCard) {
+      statements.push(writeCard(order.employee_id, plan.patch));
+      if (plan.patch.salaryCents !== undefined) statements.push(...(await salaryChange(order.employee_id, card.salaryCents, card.salaryType, plan.patch.salaryCents, card.salaryType, plan.effectiveDate, userId)));
+      if (plan.patch.position !== undefined) statements.push(cardEvent(order.employee_id, "position", card.position, plan.patch.position, note, plan.effectiveDate));
+      if (plan.patch.department !== undefined) statements.push(cardEvent(order.employee_id, "department", card.department, plan.patch.department, note, plan.effectiveDate));
+      if (plan.patch.salaryCents !== undefined) statements.push(cardEvent(order.employee_id, "salary", "", "", note, plan.effectiveDate));
+      if (plan.patch.status === "left") statements.push(cardEvent(order.employee_id, "left", card.status, plan.patch.exitType || "", plan.patch.exitReason || "", plan.effectiveDate));
+    }
+    if (plan.bonus) {
+      if (await payrollMonthLocked(plan.bonus.month)) return store("skipped", `${plan.bonus.month} ayı təsdiqlənib: mükafatı əmək haqqında əllə yazın.`, {}, order.order_date);
+      before._bonus = { month: plan.bonus.month, amount: plan.bonus.amount };
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    if (plan.patch.status === "left") {
+      const caseId = crypto.randomUUID();
+      const res = await db.prepare("INSERT OR IGNORE INTO offboarding_cases(id,company_id,employee_id,status,planned_end,created) VALUES(?,?,?,'open',?,?)").bind(caseId, id, order.employee_id, plan.effectiveDate, now).run();
+      if (res.meta.changes) before._offboardingCase = caseId;
+    }
+    if (plan.marks) await markAttendance(order.employee_id, plan.marks.from, plan.marks.to, plan.marks.code, note);
+    if (plan.bonus) await addToBonus(order.employee_id, plan.bonus.month, plan.bonus.amount);
+    const result = await store("applied", plan.summary.join("; "), before, plan.effectiveDate);
+    await companyAudit(db, id, userId, "order-effect-applied", order.employee_id, `${note}: ${plan.summary.join("; ")}`);
+    return result;
+  };
+  // Takes the effect back: the card gets its earlier values (the pay change is a new line in the pay history).
+  const revertOrderEffect = async (orderId: string, by: string) => {
+    const effect = await db.prepare("SELECT * FROM order_effects WHERE order_id=? AND company_id=?").bind(orderId, id).first<EffectRow>();
+    if (!effect || effect.status === "reverted") throw new HttpError(404, "Geri qaytarılacaq tətbiq tapılmadı.");
+    const order = await db.prepare("SELECT number FROM employee_orders WHERE id=?").bind(orderId).first<{ number: string }>();
+    const note = `Əmr № ${order?.number || "—"} geri qaytarıldı`;
+    const today = new Date().toISOString().slice(0, 10);
+    if (effect.status === "scheduled" || effect.status === "skipped") {
+      await db.prepare("UPDATE order_effects SET status='reverted',reverted_at=?,reverted_by=? WHERE id=?").bind(new Date().toISOString(), by, effect.id).run();
+      return;
+    }
+    const before = JSON.parse(effect.before || "{}") as Record<string, unknown>;
+    const plan = JSON.parse(effect.plan || "{}") as { patch?: CardPatch; marks?: { from: string; to: string; code: string } };
+    const card = await cardOf(effect.employee_id);
+    if (!card) throw new HttpError(404, "İşçi tapılmadı.");
+    const restore: CardPatch = {};
+    for (const key of Object.keys(CARD_COLUMN) as (keyof CardSnapshot)[]) if (key in before) (restore as Record<string, unknown>)[key] = before[key];
+    const statements: D1PreparedStatement[] = [];
+    if (Object.keys(restore).length) {
+      statements.push(writeCard(effect.employee_id, restore));
+      if (restore.salaryCents !== undefined) {
+        statements.push(...(await salaryChange(effect.employee_id, card.salaryCents, card.salaryType, restore.salaryCents, card.salaryType, today, userId)));
+        statements.push(cardEvent(effect.employee_id, "salary", "", "", note, today));
+      }
+      if (restore.position !== undefined) statements.push(cardEvent(effect.employee_id, "position", card.position, restore.position, note, today));
+      if (restore.department !== undefined) statements.push(cardEvent(effect.employee_id, "department", card.department, restore.department, note, today));
+      if (restore.status !== undefined && restore.status !== "left") statements.push(cardEvent(effect.employee_id, "returned", "left", restore.status, note, today));
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    if (plan.marks) await markAttendance(effect.employee_id, plan.marks.from, plan.marks.to, "", note);
+    const bonus = before._bonus as { month: string; amount: number } | undefined;
+    if (bonus) {
+      if (await payrollMonthLocked(bonus.month)) throw new HttpError(409, `${bonus.month} ayı təsdiqlənib: mükafatı əmək haqqında əllə silin.`);
+      await addToBonus(effect.employee_id, bonus.month, -bonus.amount);
+    }
+    const caseId = before._offboardingCase as string | undefined;
+    if (caseId) {
+      const c = await db.prepare("SELECT checklist,exit_interview FROM offboarding_cases WHERE id=? AND company_id=?").bind(caseId, id).first<{ checklist: string; exit_interview: string }>();
+      if (c && (!c.checklist || c.checklist === "{}") && (!c.exit_interview || c.exit_interview === "{}")) await db.prepare("DELETE FROM offboarding_cases WHERE id=?").bind(caseId).run();
+    }
+    await db.prepare("UPDATE order_effects SET status='reverted',reverted_at=?,reverted_by=? WHERE id=?").bind(new Date().toISOString(), by, effect.id).run();
+    await companyAudit(db, id, userId, "order-effect-reverted", effect.employee_id, note);
+  };
+  // Effects with a date that has come (a transfer or a termination that starts later) are applied when HR next looks.
+  const applyDueOrderEffects = async () => {
+    const due = (await db.prepare("SELECT order_id FROM order_effects WHERE company_id=? AND status='scheduled' AND effective_date<=? LIMIT 50").bind(id, new Date().toISOString().slice(0, 10)).all<{ order_id: string }>()).results;
+    for (const d of due) await applyOrderEffect(d.order_id, true).catch(() => undefined);
+  };
+  const withEffects = async <T extends { id: string; kind: string; status?: string }>(orders: T[]) => {
+    const ids = orders.map((o) => o.id).slice(0, 500);
+    const rows = ids.length ? (await db.prepare(`SELECT order_id,status,summary,effective_date,applied_at FROM order_effects WHERE company_id=? AND order_id IN (${ids.map(() => "?").join(",")})`).bind(id, ...ids).all<{ order_id: string; status: string; summary: string; effective_date: string; applied_at: string }>()).results : [];
+    return orders.map((o) => ({ ...o, effect: { supported: hasEffect(o.kind), ...(rows.find((r) => r.order_id === o.id) ? { status: rows.find((r) => r.order_id === o.id)!.status, summary: rows.find((r) => r.order_id === o.id)!.summary, effectiveDate: rows.find((r) => r.order_id === o.id)!.effective_date } : {}) } }));
+  };
   // Leave kinds that take the employee away from work: they go to the direct manager first and are checked for clashes.
   const AWAY_KINDS = ["vacation", "addleave", "creative", "study", "unpaid", "childcare", "maternity", "paternity", "donor", "medical", "remote", "postpone", "extendleave"];
   const AWAY_CODES = ["annual", "addleave", "creative", "unpaid", "study", "maternity", "childcare", "paternity", "donor", "medical", "sick", "injury", "trip", "summons", "military", "downtime"];
@@ -8490,7 +8614,7 @@ async function route(request: Request) {
         statusText: APPLICATION_STATUS_TEXT[r.status] || r.status,
         reply: r.decision,
         manager: r.manager_status ? { status: r.manager_status, name: r.manager_name, note: r.manager_note } : null,
-        source: r.source === "employee" ? "employee" : "hr",
+        source: r.source === "employee" ? "employee" : r.source === "plan" ? "plan" : "hr",
         orderNumber: r.order_number || "",
         orderStatus: r.order_status || "",
         created: r.created,
@@ -9126,6 +9250,15 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "hours-imported", "", `${applied} sətir`);
     return ok({ ok: true, applied, created: applied, issues });
   }
+  // An approved line of the leave plan is also an application for the order: HR makes the order from it, nobody types it again.
+  const requestFromPlan = async (employeeId: string, start: string, end: string, days: number, by: string) => {
+    const same = (await db.prepare("SELECT data FROM employee_requests WHERE company_id=? AND employee_id=? AND kind='vacation' AND status IN ('new','ordered')").bind(id, employeeId).all<{ data: string }>()).results.some((r) => { try { const d = JSON.parse(r.data) as { from?: string; to?: string }; return d.from === start && d.to === end; } catch { return false; } });
+    const ordered = await db.prepare("SELECT 1 AS n FROM employee_orders WHERE company_id=? AND employee_id=? AND kind IN ('vacation','addleave') AND json_extract(input,'$.from')=? AND json_extract(input,'$.to')=?").bind(id, employeeId, start, end).first();
+    if (same || ordered) return false;
+    const now = new Date().toISOString();
+    await db.prepare("INSERT INTO employee_requests(id,company_id,employee_id,kind,data,status,source,created_by,created_by_name,created,updated) VALUES(?,?,?,'vacation',?,'new','plan',?,?,?,?)").bind(crypto.randomUUID(), id, employeeId, JSON.stringify({ from: start, to: end, quantity: days, reason: "İllik məzuniyyət qrafikinə əsasən", basis: "" }), userId, by, now, now).run();
+    return true;
+  };
   // ── The annual leave schedule ──
   type LeaveRow = { id: string; employee_id: string; year: number; start_date: string; end_date: string; days: number; status: string; proposed_by: string; note: string; decided_by_name: string; decided_at: string };
   const leaveYear = () => (/^\d{4}$/.test(str(requestUrl.searchParams.get("year"), 4)) ? Number(str(requestUrl.searchParams.get("year"), 4)) : new Date().getUTCFullYear());
@@ -9180,6 +9313,7 @@ async function route(request: Request) {
       await db.prepare("INSERT INTO leave_schedule(id,company_id,employee_id,year,start_date,end_date,days,status,proposed_by,note,decided_by_name,decided_at,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(entryId, id, person.id, year, plan.start, plan.end, plan.days, status, "hr", str(b.note, 300), status === "approved" ? me : "", status === "approved" ? now : "", now).run();
     }
     await companyAudit(db, id, userId, "leave-schedule-saved", person.id, `${person.name}: ${plan.start} – ${plan.end} (${plan.days} gün)`);
+    if (status === "approved") await requestFromPlan(person.id, plan.start, plan.end, plan.days, me).catch(() => false);
     if (status === "approved") await tellEmployee(person.id, "Məzuniyyətiniz qrafikə daxil edildi", `${plan.start} – ${plan.end} (${plan.days} gün) məzuniyyət qrafikdə təsdiqləndi. Qayıdış tarixi: ${plan.returnDate}.`);
     return ok({ ok: true, id: entryId, warnings, plan });
   }
@@ -9191,6 +9325,7 @@ async function route(request: Request) {
     const approve = b.decision === "approve";
     await db.prepare("UPDATE leave_schedule SET status=?,decided_by_name=?,decided_at=?,note=CASE WHEN ?<>'' THEN ? ELSE note END WHERE id=? AND company_id=?").bind(approve ? "approved" : "rejected", await requesterName(), new Date().toISOString(), str(b.note, 300), str(b.note, 300), row.id, id).run();
     await companyAudit(db, id, userId, approve ? "leave-schedule-approved" : "leave-schedule-rejected", row.employee_id, `${row.start_date} – ${row.end_date}`);
+    if (approve) await requestFromPlan(row.employee_id, row.start_date, row.end_date, row.days, await requesterName()).catch(() => false);
     await tellEmployee(row.employee_id, approve ? "Məzuniyyət təklifiniz təsdiqləndi" : "Məzuniyyət təklifiniz təsdiqlənmədi", `${row.start_date} – ${row.end_date} (${row.days} gün)${str(b.note, 300) ? `. Qeyd: ${str(b.note, 300)}` : ""}`);
     return ok({ ok: true });
   }
@@ -9289,6 +9424,8 @@ async function route(request: Request) {
     const cases = (await db.prepare("SELECT id,employee_id,status,planned_end,checklist,exit_interview,note,created,closed_at FROM offboarding_cases WHERE company_id=? ORDER BY status,created DESC LIMIT 300").bind(id).all<CaseRow>()).results;
     const people = new Map((await db.prepare("SELECT id,name,position,department,status,end_date,exit_type,exit_reason FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; name: string; position: string; department: string; status: string; end_date: string; exit_type: string; exit_reason: string }>()).results.map((p) => [p.id, p]));
     const held = new Map((await db.prepare("SELECT employee_id,COUNT(*) AS n FROM asset_assignments WHERE company_id=? AND returned_on='' GROUP BY employee_id").bind(id).all<{ employee_id: string; n: number }>()).results.map((r) => [r.employee_id, Number(r.n)]));
+    const exitOrders = new Map<string, { number: string; status: string; kind: string }>();
+    for (const o of (await db.prepare("SELECT employee_id,kind,number,status FROM employee_orders WHERE company_id=? AND kind IN ('termination','reduction') ORDER BY created").bind(id).all<{ employee_id: string; kind: string; number: string; status: string }>()).results) exitOrders.set(o.employee_id, { number: o.number, status: o.status, kind: o.kind });
     const bondRows = (await db.prepare("SELECT p.employee_id,t.title,p.bond_until,p.bond_cost_cents FROM training_participants p JOIN trainings t ON t.id=p.training_id WHERE p.company_id=? AND p.bond_until<>''").bind(id).all<{ employee_id: string; title: string; bond_until: string; bond_cost_cents: number }>()).results;
     const withoutCase = [...people.values()].filter((p) => p.status === "left" && !cases.some((c) => c.employee_id === p.id));
     return ok({
@@ -9299,7 +9436,7 @@ async function route(request: Request) {
         const state = cleanChecklist(parseJson(c.checklist, {}));
         const endOf = p?.end_date || c.planned_end || new Date().toISOString().slice(0, 10);
         const bonds = bondRows.filter((x) => x.employee_id === c.employee_id && x.bond_until > endOf).map((x) => ({ title: x.title, until: x.bond_until, cost: x.bond_cost_cents / 100 }));
-        return { bonds, id: c.id, employeeId: c.employee_id, name: p?.name || "", position: p?.position || "", department: p?.department || "", employeeStatus: p?.status || "", endDate: p?.end_date || c.planned_end, exitType: p?.exit_type ? exitTypeLabel(p.exit_type) : "", exitReason: p?.exit_reason ? exitReasonLabel(p.exit_reason) : "", status: c.status, plannedEnd: c.planned_end, checklist: state, progress: checklistProgress(state), answers: parseJson(c.exit_interview, {}), note: c.note, heldAssets: held.get(c.employee_id) || 0, closedAt: c.closed_at };
+        return { exitOrder: exitOrders.get(c.employee_id) || null, bonds, id: c.id, employeeId: c.employee_id, name: p?.name || "", position: p?.position || "", department: p?.department || "", employeeStatus: p?.status || "", endDate: p?.end_date || c.planned_end, exitType: p?.exit_type ? exitTypeLabel(p.exit_type) : "", exitReason: p?.exit_reason ? exitReasonLabel(p.exit_reason) : "", status: c.status, plannedEnd: c.planned_end, checklist: state, progress: checklistProgress(state), answers: parseJson(c.exit_interview, {}), note: c.note, heldAssets: held.get(c.employee_id) || 0, closedAt: c.closed_at };
       }),
       withoutCase: withoutCase.map((p) => ({ id: p.id, name: p.name, position: p.position, department: p.department, endDate: p.end_date })),
       active: [...people.values()].filter((p) => p.status !== "left" && !cases.some((c) => c.employee_id === p.id && c.status === "open")).map((p) => ({ id: p.id, name: p.name, department: p.department })),
@@ -9582,9 +9719,9 @@ async function route(request: Request) {
     const items = [
       item("apps", "İşçi ərizəsi cavab gözləyir", apps, "hr-orders", overdue ? "red" : "amber", overdue ? [`3 gündən çox gözləyən: ${overdue}`] : []),
       item("manager", "Rəhbərdə 2 gündən çox gözləyən ərizə", managerWaiting, "hr-orders", "amber"),
-      item("changes", "Məlumat dəyişikliyi sorğusu", changes, "hr-orders", "amber"),
-      item("trips", "Ezamiyyət sorğusu HR qərarını gözləyir", trips, "hr-growth", "amber"),
-      item("plans", "Təklif olunmuş məzuniyyət qrafiki", plans, "hr-people-ops", "info"),
+      item("changes", "Məlumat dəyişikliyi sorğusu", changes, "hr-approvals", "amber"),
+      item("trips", "Ezamiyyət sorğusu HR qərarını gözləyir", trips, "hr-approvals", "amber"),
+      item("plans", "Təklif olunmuş məzuniyyət qrafiki", plans, "hr-approvals", "info"),
       item("approvals", "Direktor/HR təsdiqi gözləyən sorğu", approvals, "hr-approvals", "amber"),
       item("probation", "Sınaq müddəti 14 gün ərzində bitir", probation.results.length, "hr-employees", "amber", probation.results.slice(0, 5).map((p) => `${p.name}: ${p.probation_end}`)),
       item("deadlines", "Sənəd və sertifikat müddəti 30 gün ərzində bitir", deadlines.length, "hr-people-ops", deadlines.some((d) => d.days < 0) ? "red" : "amber", deadlines.slice(0, 5).map((d) => `${d.employeeName}: ${d.what} — ${d.days < 0 ? "müddəti bitib" : `${d.days} gün`}`)),
@@ -9595,7 +9732,8 @@ async function route(request: Request) {
   if (request.method === "GET" && path === "company/skill-matrix") {
     requirePermission("salaries", "Bacarıq matrisini yalnız kadr işçisi görə bilər.");
     const people = (await db.prepare("SELECT id,name,position,department FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY department,name").bind(id).all<{ id: string; name: string; position: string; department: string }>()).results;
-    return ok({ employees: people, ...(await skillMatrix(id, people.map((p) => p.id))) });
+    const planned = (await db.prepare("SELECT id,title,start_date,skill_id,skill_level FROM trainings WHERE company_id=? AND skill_id<>'' AND status='planned' ORDER BY start_date").bind(id).all<{ id: string; title: string; start_date: string; skill_id: string; skill_level: number }>()).results;
+    return ok({ employees: people, ...(await skillMatrix(id, people.map((p) => p.id))), trainings: planned.map((t) => ({ id: t.id, title: t.title, start: t.start_date, skillId: t.skill_id, level: t.skill_level })) });
   }
   if (request.method === "POST" && path === "company/skill-matrix/skill") {
     requirePermission("salaries", "Bacarığı yalnız kadr işçisi əlavə edə bilər.");
@@ -9659,7 +9797,9 @@ async function route(request: Request) {
     const plans = (await db.prepare("SELECT id,employee_id,start_date,end_date,days FROM leave_schedule WHERE company_id=? AND status='proposed' ORDER BY start_date LIMIT 30").bind(id).all<{ id: string; employee_id: string; start_date: string; end_date: string; days: number }>()).results.map((p) => ({ id: p.id, name: names.get(p.employee_id)?.name || "", start: p.start_date, end: p.end_date, days: p.days }));
     const batches = (await db.prepare("SELECT id,month,kind,status,total_cents,item_count FROM payroll_batches WHERE company_id=? AND status IN ('draft','approved') ORDER BY created DESC LIMIT 20").bind(id).all<{ id: string; month: string; kind: string; status: string; total_cents: number; item_count: number }>()).results.map((b) => ({ id: b.id, month: b.month, kind: b.kind, status: b.status, total: b.total_cents / 100, count: b.item_count }));
     const applications = Number((await db.prepare("SELECT COUNT(*) AS n FROM employee_requests WHERE company_id=? AND status='new' AND manager_status IN ('','approved')").bind(id).first<{ n: number }>())?.n || 0);
-    return ok({ overtime, swaps, trips, plans, batches, applications });
+    const showValues = can(memberRole, "personal-data", memberGrants);
+    const changes = await Promise.all((await db.prepare("SELECT id,employee_id,field,payload FROM profile_changes WHERE company_id=? AND status='new' ORDER BY created LIMIT 30").bind(id).all<{ id: string; employee_id: string; field: string; payload: string }>()).results.map(async (c) => { const value = await changeValue(c.payload, c.field); return { id: c.id, name: names.get(c.employee_id)?.name || "", label: PROFILE_CHANGE_FIELDS[c.field] || c.field, value: showValues ? value : maskedValue(c.field, value) }; }));
+    return ok({ overtime, swaps, trips, plans, batches, applications, changes });
   }
   if (request.method === "GET" && path === "company/profile-changes") {
     requirePermission("salaries", "Məlumat dəyişikliyi sorğularını yalnız şəxsi məlumat icazəsi olan şəxs görə bilər.");
@@ -9761,6 +9901,24 @@ async function route(request: Request) {
     await tellEmployee(emp.id, "Maaşınız yenilənir", `${from} tarixindən maaşınız qiymətləndirmə nəticəsinə görə dəyişir. Ətraflı: İş yerim → Əmək haqqı.`);
     return ok({ ok: true, from, salary: cents / 100 });
   }
+  // The bonus recommended after an appraisal goes into the pay of a month, without typing it again.
+  if (request.method === "POST" && path === "company/performance/bonus/apply") {
+    requirePermission("salaries", "Mükafatı əmək haqqına yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
+    if (!can(memberRole, "payroll", memberGrants)) throw new HttpError(403, "Mükafat üçün əmək haqqı icazəsi lazımdır.");
+    const b = await jsonBody(request);
+    const review = await db.prepare("SELECT raise_type FROM perf_reviews WHERE cycle_id=? AND employee_id=? AND company_id=? AND raise_applied=''").bind(str(b.cycleId, 100), str(b.employeeId, 100), id).first<{ raise_type: string }>();
+    if (!review || review.raise_type !== "bonus") throw new HttpError(409, "Tətbiq ediləcək mükafat tövsiyəsi yoxdur.");
+    const amount = Math.round((Number(b.amount) || 0) * 100) / 100;
+    if (!(amount > 0) || amount > 1_000_000) throw new HttpError(400, "Mükafatın məbləğini yazın.");
+    const month = str(b.month, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpError(400, "Ayı düzgün seçin.");
+    if (await payrollMonthLocked(month)) throw new HttpError(409, `${month} ayı təsdiqlənib: başqa ay seçin.`);
+    await addToBonus(str(b.employeeId, 100), month, amount);
+    await db.prepare("UPDATE perf_reviews SET raise_applied=?,raise_percent=? WHERE cycle_id=? AND employee_id=? AND company_id=?").bind(month, amount, str(b.cycleId, 100), str(b.employeeId, 100), id).run();
+    await companyAudit(db, id, userId, "performance-bonus-applied", str(b.employeeId, 100), `${amount} AZN → ${month}`);
+    await tellEmployee(str(b.employeeId, 100), "Mükafat təyin olundu", `${month} ayının əmək haqqına ${amount} AZN mükafat əlavə edildi (performans qiymətləndirməsinə görə).`);
+    return ok({ ok: true });
+  }
   if (request.method === "GET" && path === "company/performance/export") {
     requirePermission("salaries", "Hesabatı yalnız kadr işçisi yükləyə bilər.");
     const cycleId = str(requestUrl.searchParams.get("cycle"), 100);
@@ -9791,7 +9949,7 @@ async function route(request: Request) {
     requirePermission("salaries", "Təlim planını yalnız kadr işçisi görə bilər.");
     const year = trainingYear();
     const [list, parts, budget, people] = await Promise.all([
-      db.prepare("SELECT id,title,provider,kind,start_date,end_date,hours,cost_cents,status,note,valid_months,required_for FROM trainings WHERE company_id=? ORDER BY start_date").bind(id).all<{ id: string; title: string; provider: string; kind: string; start_date: string; end_date: string; hours: number; cost_cents: number; status: string; note: string; valid_months: number; required_for: string }>(),
+      db.prepare("SELECT id,title,provider,kind,start_date,end_date,hours,cost_cents,status,note,valid_months,required_for,skill_id,skill_level FROM trainings WHERE company_id=? ORDER BY start_date").bind(id).all<{ id: string; title: string; provider: string; kind: string; start_date: string; end_date: string; hours: number; cost_cents: number; status: string; note: string; valid_months: number; required_for: string; skill_id: string; skill_level: number }>(),
       db.prepare("SELECT training_id,employee_id,status,result,certificate_no,completed_on,valid_until,bond_months,bond_until,bond_cost_cents FROM training_participants WHERE company_id=?").bind(id).all<{ training_id: string; employee_id: string; status: string; result: string; certificate_no: string; completed_on: string; valid_until: string; bond_months: number; bond_until: string; bond_cost_cents: number }>(),
       db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key=?").bind(id, `training_budget_${year}`).first<{ value: string }>(),
       db.prepare("SELECT id,name,department FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY name").bind(id).all<{ id: string; name: string; department: string }>(),
@@ -9805,8 +9963,9 @@ async function route(request: Request) {
       year,
       budget: Number(budget?.value || 0) / 100,
       spent,
-      trainings: inYear.map((t) => ({ id: t.id, title: t.title, provider: t.provider, kind: t.kind, start: t.start_date, end: t.end_date, hours: t.hours, cost: t.cost_cents / 100, status: t.status, note: t.note, validMonths: t.valid_months, requiredFor: t.required_for, participants: parts.results.filter((p) => p.training_id === t.id).map((p) => ({ employeeId: p.employee_id, name: names.get(p.employee_id) || "", status: p.status, result: p.result, certificateNo: p.certificate_no, completedOn: p.completed_on, validUntil: p.valid_until, bondMonths: p.bond_months, bondUntil: p.bond_until, bondCost: p.bond_cost_cents / 100 })) })),
+      trainings: inYear.map((t) => ({ id: t.id, title: t.title, provider: t.provider, kind: t.kind, start: t.start_date, end: t.end_date, hours: t.hours, cost: t.cost_cents / 100, status: t.status, note: t.note, validMonths: t.valid_months, requiredFor: t.required_for, skillId: t.skill_id, skillLevel: t.skill_level, participants: parts.results.filter((p) => p.training_id === t.id).map((p) => ({ employeeId: p.employee_id, name: names.get(p.employee_id) || "", status: p.status, result: p.result, certificateNo: p.certificate_no, completedOn: p.completed_on, validUntil: p.valid_until, bondMonths: p.bond_months, bondUntil: p.bond_until, bondCost: p.bond_cost_cents / 100 })) })),
       employees: people.results.map((p) => ({ id: p.id, name: p.name, department: p.department, hours: hoursBy.get(p.id) || 0 })),
+      skills: (await db.prepare("SELECT id,name FROM skill_defs WHERE company_id=? ORDER BY name").bind(id).all<{ id: string; name: string }>()).results,
       bonds: parts.results.filter((p) => p.bond_until && p.bond_until >= new Date().toISOString().slice(0, 10)).map((p) => ({ employeeId: p.employee_id, name: names.get(p.employee_id) || "", title: list.results.find((t) => t.id === p.training_id)?.title || "", until: p.bond_until, cost: p.bond_cost_cents / 100 })).sort((a, b) => a.until.localeCompare(b.until)),
       // Certificates that run out within 60 days (or already did), and who still lacks a mandatory training of their position.
       expiring: parts.results.filter((p) => p.valid_until && p.valid_until <= new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10)).map((p) => ({ employeeId: p.employee_id, name: names.get(p.employee_id) || "", title: list.results.find((t) => t.id === p.training_id)?.title || "", validUntil: p.valid_until, expired: p.valid_until < new Date().toISOString().slice(0, 10) })).sort((a, b) => a.validUntil.localeCompare(b.validUntil)),
@@ -9834,9 +9993,9 @@ async function route(request: Request) {
     if (start && end < start) throw new HttpError(400, "Bitmə tarixi başlanğıcdan əvvəl ola bilməz.");
     const kind = ["internal", "external", "online", "safety"].includes(str(b.kind, 10)) ? str(b.kind, 10) : "external";
     const status = ["planned", "done", "cancelled"].includes(str(b.status, 10)) ? str(b.status, 10) : "planned";
-    const values = [title, str(b.provider, 120), kind, start, end, Math.max(0, Math.min(2000, Math.round(Number(b.hours) || 0))), Math.max(0, Math.round((Number(b.cost) || 0) * 100)), status, str(b.note, 300), Math.max(0, Math.min(120, Math.round(Number(b.validMonths) || 0))), str(b.requiredFor, 120)];
-    if (str(b.id, 100)) await db.prepare("UPDATE trainings SET title=?,provider=?,kind=?,start_date=?,end_date=?,hours=?,cost_cents=?,status=?,note=?,valid_months=?,required_for=? WHERE id=? AND company_id=?").bind(...values, str(b.id, 100), id).run();
-    else await db.prepare("INSERT INTO trainings(id,company_id,title,provider,kind,start_date,end_date,hours,cost_cents,status,note,valid_months,required_for,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, ...values, new Date().toISOString()).run();
+    const values = [title, str(b.provider, 120), kind, start, end, Math.max(0, Math.min(2000, Math.round(Number(b.hours) || 0))), Math.max(0, Math.round((Number(b.cost) || 0) * 100)), status, str(b.note, 300), Math.max(0, Math.min(120, Math.round(Number(b.validMonths) || 0))), str(b.requiredFor, 120), str(b.skillId, 100), Math.max(0, Math.min(4, Math.round(Number(b.skillLevel) || 0)))];
+    if (str(b.id, 100)) await db.prepare("UPDATE trainings SET title=?,provider=?,kind=?,start_date=?,end_date=?,hours=?,cost_cents=?,status=?,note=?,valid_months=?,required_for=?,skill_id=?,skill_level=? WHERE id=? AND company_id=?").bind(...values, str(b.id, 100), id).run();
+    else await db.prepare("INSERT INTO trainings(id,company_id,title,provider,kind,start_date,end_date,hours,cost_cents,status,note,valid_months,required_for,skill_id,skill_level,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, ...values, new Date().toISOString()).run();
     return ok({ ok: true }, 201);
   }
   if (request.method === "POST" && path === "company/training/participants") {
@@ -9871,7 +10030,19 @@ async function route(request: Request) {
     const bondUntil = completedOn && bondMonths ? (() => { const d = new Date(`${completedOn}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + bondMonths); return d.toISOString().slice(0, 10); })() : "";
     const res = await db.prepare("UPDATE training_participants SET status=?,result=?,certificate_no=?,completed_on=?,valid_until=?,bond_months=?,bond_until=?,bond_cost_cents=? WHERE training_id=? AND employee_id=? AND company_id=?").bind(status, str(b.result, 200), str(b.certificateNo, 60), completedOn, validUntil, bondMonths, bondUntil, bondCost, str(b.trainingId, 100), str(b.employeeId, 100), id).run();
     if (!res.meta.changes) throw new HttpError(404, "İştirakçı tapılmadı.");
-    return ok({ ok: true, validUntil });
+    // A completed training that teaches a skill lifts the level in the skill matrix (never lowers it).
+    let skillGranted = "";
+    if (status === "completed") {
+      const t = await db.prepare("SELECT skill_id,skill_level FROM trainings WHERE id=? AND company_id=?").bind(str(b.trainingId, 100), id).first<{ skill_id: string; skill_level: number }>();
+      if (t?.skill_id && t.skill_level > 0) {
+        const cur = await db.prepare("SELECT level FROM employee_skills WHERE company_id=? AND employee_id=? AND skill_id=?").bind(id, str(b.employeeId, 100), t.skill_id).first<{ level: number }>();
+        if ((cur?.level || 0) < t.skill_level) {
+          await setSkillLevel(id, str(b.employeeId, 100), t.skill_id, t.skill_level, null).catch(() => undefined);
+          skillGranted = t.skill_id;
+        }
+      }
+    }
+    return ok({ ok: true, validUntil, skillGranted });
   }
   if (request.method === "POST" && path === "company/training/delete") {
     requirePermission("salaries", "Təlimi yalnız kadr işçisi silə bilər.");
@@ -10215,13 +10386,14 @@ async function route(request: Request) {
     if (!employee) return "";
     const people = (await db.prepare("SELECT id,name,position,department,section,status FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).all<{ id: string; name: string; position: string; department: string; section: string; status: string }>()).results;
     const profile = await db.prepare("SELECT data FROM company_profiles WHERE company_id=?").bind(id).first<{ data: string }>();
-    const picked = pickSigners(employee, people, companyDetailsInput(profile ? JSON.parse(profile.data) : {}).director);
+    const companyDetails = companyDetailsInput(profile ? JSON.parse(profile.data) : {});
+    const picked = pickSigners(employee, people, companyDetails.director);
     const signers: FlowSigner[] = [picked.head, picked.director].filter((x): x is NonNullable<typeof x> => !!x && !!x.name).map((x) => ({ role: x.role, title: x.title, name: x.name }));
     const now = new Date().toISOString();
     const flow = startFlow(signers, "Sistem (ezamiyyət təsdiqi)", now);
     const orderId = crypto.randomUUID();
     await db.prepare("INSERT INTO employee_orders(id,company_id,employee_id,kind,number,order_date,input,signers,status,holder,history,created_by,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-      .bind(orderId, id, employee.id, "trip", "", now.slice(0, 10), JSON.stringify({ from: trip.start_date, to: trip.end_date, place: trip.destination, basis: `ezamiyyət sorğusu${trip.purpose ? `: ${trip.purpose}` : ""}` }).slice(0, 8000), JSON.stringify(flow.signers), flow.status, flow.holder, JSON.stringify(flow.history), userId, now, now).run();
+      .bind(orderId, id, employee.id, "trip", "", now.slice(0, 10), JSON.stringify({ kind: "trip", number: "", date: now.slice(0, 10), city: "Bakı", company: { name: companyDetails.legalName || (await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>())?.name || "", voen: companyDetails.voen, director: companyDetails.director, directorTitle: "Direktor" }, employee: { name: employee.name, position: employee.position, department: employee.department, section: employee.section }, from: trip.start_date, to: trip.end_date, place: trip.destination, basis: `ezamiyyət sorğusu${trip.purpose ? `: ${trip.purpose}` : ""}` }).slice(0, 8000), JSON.stringify(flow.signers), flow.status, flow.holder, JSON.stringify(flow.history), userId, now, now).run();
     await db.prepare("UPDATE trips SET order_id=? WHERE id=?").bind(orderId, trip.id).run();
     // No signer is needed (a small company): the order stands at once and the days are marked.
     if (flow.status === "signed") await markAttendance(employee.id, trip.start_date, trip.end_date, "trip", "Ezamiyyət əmri");
@@ -11089,6 +11261,7 @@ async function route(request: Request) {
   }
   if (request.method === "GET" && path === "company/payroll") {
     requirePermission("salaries", "Əmək haqqı cədvəlini yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    await applyDueOrderEffects();
     await auditView("view-payroll", payrollMonth().raw);
     const sheet = await payrollRows(payrollMonth().raw);
     return ok(auditorOnly ? { ...sheet, rows: sheet.rows.map((r) => ({ ...r, iban: r.iban ? "••••" : "", fin: "", cardNumber: "" })) } : sheet);
@@ -11727,13 +11900,45 @@ async function route(request: Request) {
       throw new HttpError(409, error instanceof Error ? error.message : "Əməliyyat alınmadı.");
     }
   };
+  // Everything a signed order sets going: the marked days, the approved extra hours, the leave plan, the change of the card.
+  const afterSigned = async (order: { id: string; employeeId: string; kind: string; number: string; input: unknown }) => {
+    let marked = 0;
+    const leaveCode = ORDER_KINDS.find((k) => k.id === order.kind)?.leaveCode;
+    const range = (order.input || {}) as { from?: string; to?: string };
+    const isDay = (v?: string) => /^\d{4}-\d{2}-\d{2}$/.test(v || "");
+    if (leaveCode && isDay(range.from) && isDay(range.to) && (range.to as string) >= (range.from as string))
+      marked = await markAttendance(order.employeeId, range.from as string, range.to as string, leaveCode, `Əmr № ${order.number}`);
+    // A signed order for extra or rest-day work approves the hours of those days (arts. 99, 105).
+    if ((order.kind === "overtime" || order.kind === "restday") && isDay(range.from)) {
+      const from = range.from as string;
+      const to = isDay(range.to) && (range.to as string) >= from && order.kind === "overtime" ? (range.to as string) : from;
+      const length = Math.min(62, Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1);
+      const statements: D1PreparedStatement[] = [];
+      for (let i = 0; i < length; i++) {
+        const day = new Date(Date.parse(`${from}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
+        statements.push(db.prepare("INSERT OR REPLACE INTO overtime_orders(company_id,employee_id,day,order_id,order_number) VALUES(?,?,?,?,?)").bind(id, order.employeeId, day, order.id, String(order.number || "")));
+      }
+      for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    }
+    // A signed annual leave is "taken" in the leave plan: the planned stretch is marked, or a new line is added.
+    if (["vacation", "addleave", "creative"].includes(order.kind) && isDay(range.from) && isDay(range.to) && (range.to as string) >= (range.from as string)) {
+      const from = range.from as string;
+      const to = range.to as string;
+      const planned = (await db.prepare("SELECT id FROM leave_schedule WHERE company_id=? AND employee_id=? AND status IN ('proposed','approved') AND start_date<=? AND end_date>=?").bind(id, order.employeeId, to, from).all<{ id: string }>()).results;
+      if (planned.length) await db.batch(planned.map((p) => db.prepare("UPDATE leave_schedule SET status='taken',start_date=?,end_date=?,days=?,note=CASE WHEN note='' THEN ? ELSE note END WHERE id=?").bind(from, to, vacationDaysBetween(from, to), `Əmr № ${order.number}`, p.id)));
+      else await db.prepare("INSERT INTO leave_schedule(id,company_id,employee_id,year,start_date,end_date,days,status,proposed_by,note,decided_by_name,decided_at,created) VALUES(?,?,?,?,?,?,?,'taken','order',?,?,?,?)").bind(crypto.randomUUID(), id, order.employeeId, Number(from.slice(0, 4)), from, to, vacationDaysBetween(from, to), `Əmr № ${order.number}`, "", "", new Date().toISOString()).run();
+    }
+    await applyOrderEffect(order.id).catch(() => undefined);
+    return marked;
+  };
   if (request.method === "GET" && path === "company/orders") {
     requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi görə bilər.");
     const rows = await db
       .prepare(`SELECT ${ORDER_COLUMNS} FROM employee_orders o WHERE o.company_id=? AND o.employee_id=? ORDER BY o.created DESC LIMIT 100`)
       .bind(id, str(requestUrl.searchParams.get("employeeId"), 100))
       .all<OrderDbRow>();
-    return ok({ orders: rows.results.map(orderRow) });
+    await applyDueOrderEffects();
+    return ok({ orders: await withEffects(rows.results.map(orderRow)) });
   }
   // The register of all orders, with the filters of the page and of the Excel report.
   const registryRows = async () => {
@@ -11770,7 +11975,22 @@ async function route(request: Request) {
   };
   if (request.method === "GET" && path === "company/orders/registry") {
     requirePermission("salaries", "Əmrlər reyestrini yalnız HR, direktor və hesab sahibi görə bilər.");
-    return ok({ orders: await registryRows() });
+    await applyDueOrderEffects();
+    return ok({ orders: await withEffects(await registryRows()) });
+  }
+  // The card change of a signed order: applied by hand (older orders, or after it was taken back) and taken back.
+  if (request.method === "POST" && path === "company/orders/effect/apply") {
+    requirePermission("salaries", "Əmrin kartda tətbiqini yalnız əmr icazəsi olan şəxs edə bilər.");
+    const b = await jsonBody(request);
+    const result = await applyOrderEffect(str(b.orderId, 100), true, true);
+    if (!result) throw new HttpError(409, "Bu əmr imzalanmayıb və ya kartda dəyişiklik yaratmır.");
+    return ok({ ok: true, ...result });
+  }
+  if (request.method === "POST" && path === "company/orders/effect/revert") {
+    requirePermission("salaries", "Əmrin kartda tətbiqini yalnız əmr icazəsi olan şəxs geri qaytara bilər.");
+    const b = await jsonBody(request);
+    await revertOrderEffect(str(b.orderId, 100), await requesterName());
+    return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/orders/save") {
     requirePermission("salaries", "Əmrləri yalnız HR, direktor və hesab sahibi hazırlaya bilər.");
@@ -11809,6 +12029,8 @@ async function route(request: Request) {
       if (closed.meta.changes) await tellEmployee(employee.id, "Ərizəniz əsasında əmr hazırlanır", `Əmr № ${str(b.number, 40) || "—"}: imza prosesindədir.`);
     }
     await companyAudit(db, id, userId, "order-created", employee.id, `${employee.name}: ${kind}${requestId ? " (ərizə əsasında)" : ""}`);
+    // An order with no signers stands at once: its effects start now.
+    if (flow.status === "signed") await afterSigned({ id: orderId, employeeId: employee.id, kind, number: str(b.number, 40), input: JSON.parse(input) });
     return ok({ ok: true, id: orderId }, 201);
   }
   // The person who drew the order up changes it (after it was sent back, or before it is signed); every approval is cleared.
@@ -11842,24 +12064,7 @@ async function route(request: Request) {
     const flow = flowFail(() => approveStep(order, signer.role, who, now));
     await saveFlow(order.id, flow, now);
     await companyAudit(db, id, userId, "order-approved", order.employeeId, `${signer.title}: ${signer.name} (${who})`);
-    // A signed leave or trip order marks those days in the attendance sheet.
-    let marked = 0;
-    const leaveCode = ORDER_KINDS.find((k) => k.id === order.kind)?.leaveCode;
-    const range = order.input as { from?: string; to?: string; number?: string };
-    if (flow.status === "signed" && leaveCode && /^\d{4}-\d{2}-\d{2}$/.test(range.from || "") && /^\d{4}-\d{2}-\d{2}$/.test(range.to || "") && (range.to as string) >= (range.from as string))
-      marked = await markAttendance(order.employeeId, range.from as string, range.to as string, leaveCode, `Əmr № ${order.number}`);
-    // A signed order for extra or rest-day work approves the hours of those days (arts. 99, 105).
-    if (flow.status === "signed" && (order.kind === "overtime" || order.kind === "restday") && /^\d{4}-\d{2}-\d{2}$/.test(range.from || "")) {
-      const from = range.from as string;
-      const to = /^\d{4}-\d{2}-\d{2}$/.test(range.to || "") && (range.to as string) >= from && order.kind === "overtime" ? (range.to as string) : from;
-      const length = Math.min(62, Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1);
-      const statements: D1PreparedStatement[] = [];
-      for (let i = 0; i < length; i++) {
-        const day = new Date(Date.parse(`${from}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
-        statements.push(db.prepare("INSERT OR REPLACE INTO overtime_orders(company_id,employee_id,day,order_id,order_number) VALUES(?,?,?,?,?)").bind(id, order.employeeId, day, order.id, String(order.number || "")));
-      }
-      for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
-    }
+    const marked = flow.status === "signed" ? await afterSigned(order) : 0;
     return ok({ ok: true, signed: flow.status === "signed", marked });
   }
   // A signer who wants a change sends the order back, with the reason, to the person before them.
@@ -11900,7 +12105,7 @@ async function route(request: Request) {
     orderNumber: r.order_number || "",
     orderStatus: r.order_status || "",
     decision: r.decision,
-    source: r.source === "employee" ? "employee" : "hr",
+    source: r.source === "employee" ? "employee" : r.source === "plan" ? "plan" : "hr",
     by: r.created_by_name,
     created: r.created,
     manager: (r as { manager_status?: string }).manager_status ? { status: (r as { manager_status?: string }).manager_status, name: (r as { manager_name?: string }).manager_name || "", note: (r as { manager_note?: string }).manager_note || "" } : null,

@@ -301,3 +301,15 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - İstifadə olunduğu yerlər: növbəli rejimə keçirmə və geri qaytarma, dövrü növbə şablonu, təlim iştirakçıları, kolleqa rəyi.
 - Çoxlu işçi serverə 200-lük hissələrlə göndərilir, gedişat göstərilir. Növbə cədvəli 40 işçilik səhifələrlə, axtarış və departament süzgəci ilə açılır.
 - 403 işçi ilə brauzerdə yoxlanıb (axtarış, hamısını seçmə, 3 hissəli yazma, cədvəl 1–40 / 403).
+
+## 22. Təkrar məlumat daxil etməyin aradan qaldırılması
+
+1. İmzalanmış əmr işçi kartını avtomatik yeniləyir (köçürmə, maaş, ad, xitam, ixtisar, sınaq, dayandırma, mükafat); əvvəlki vəziyyət `order_effects`-də saxlanır və geri qaytarıla bilər. Gələcək tarixli təsirlər cron/lazy ilə tətbiq olunur.
+2. Çıxış: xitam əmri ↔ kart statusu ↔ offboarding bağlıdır.
+3. Məzuniyyət planı ↔ ərizə ↔ əmr ↔ tabel.
+4. Performans mükafatı → əmək haqqı "Mükafat".
+5. Təlim ↔ bacarıq matrisi (təlim nəticəsi bacarıq səviyyəsini verir).
+6. Üç gələn qutusu əvəzinə vahid HR gələn qutusu.
+7. "İşçi axını" menyudan çıxarıldı, Hesabatlara birləşdirildi.
+
+Məhdudiyyət: əvəzetmə, qrafik, uzatma, intizam əmrlərinin kart təsiri yoxdur; UI hər təsir növü üçün test edilməyib.

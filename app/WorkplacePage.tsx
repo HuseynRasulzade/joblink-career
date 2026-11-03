@@ -386,6 +386,7 @@ function Letters({ employeeId, company, notify }: { employeeId: string; company:
                   <b>{a.label}</b>
                   {a.data.reason && <small className="skill-description">{a.data.reason.slice(0, 160)}</small>}
                   {a.source === "hr" && <small className="skill-description">HR tərəfindən qeyd edilib</small>}
+                  {(a.source as string) === "plan" && <small className="skill-description">Məzuniyyət qrafikindən yaranıb</small>}
                 </td>
                 <td>{a.data.from ? `${dmy(a.data.from)}${a.data.to ? ` – ${dmy(a.data.to)}` : ""}` : "—"}</td>
                 <td>

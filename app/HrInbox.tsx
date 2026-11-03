@@ -23,6 +23,7 @@ type Inbox = {
   plans: { id: string; name: string; start: string; end: string; days: number }[];
   batches: { id: string; month: string; kind: string; status: string; total: number; count: number }[];
   applications: number;
+  changes: { id: string; name: string; label: string; value: string }[];
 };
 
 // Everything that waits for HR or the director, beside the vacancy and structure approvals above.
@@ -42,7 +43,7 @@ export default function HrInbox({ go, notify }: { go: (page: string) => void; no
     }
   }
   if (!data) return null;
-  const empty = !data.overtime.length && !data.swaps.length && !data.trips.length && !data.plans.length && !data.batches.length && !data.applications;
+  const empty = !data.overtime.length && !data.swaps.length && !data.trips.length && !data.plans.length && !data.batches.length && !data.applications && !data.changes.length;
   return (
     <section className="panel" aria-label="Digər gözləyən təsdiqlər">
       <h3>Digər gözləyən təsdiqlər</h3>
@@ -53,6 +54,16 @@ export default function HrInbox({ go, notify }: { go: (page: string) => void; no
           <h4>Ödəniş sənədləri</h4>
           {data.batches.map((b) => (
             <p key={b.id}><button type="button" className="text-button" onClick={() => go("hr-payroll")}>{b.month} · {b.kind === "advance" ? "avans" : b.kind === "vacation" ? "məzuniyyət" : b.kind === "benefit" ? "müavinət" : "əmək haqqı"} · {b.count} nəfər · {b.total.toFixed(2)} AZN · {b.status === "draft" ? "təsdiq gözləyir" : "təsdiqlənib, bankda"} →</button></p>
+          ))}
+        </>
+      )}
+      {data.changes.length > 0 && (
+        <>
+          <h4>İşçi məlumatının dəyişdirilməsi</h4>
+          {data.changes.map((c) => (
+            <p key={c.id}>{c.name}: {c.label} → <b>{c.value}</b>{" "}
+              <button type="button" className="primary" onClick={() => void act("company/profile-changes/decide", { id: c.id, decision: "approve" }, "Dəyişiklik işçi kartında tətbiq olundu.")}>Təsdiq, kartı yenilə</button>{" "}
+              <button type="button" className="ghost" onClick={() => { const reason = window.prompt("Rədd səbəbi:") || ""; if (reason.length >= 5) void act("company/profile-changes/decide", { id: c.id, decision: "reject", reason }, "Rədd edildi."); }}>Rədd</button></p>
           ))}
         </>
       )}
