@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import LeaveSchedulePanel from "./LeaveSchedulePanel";
+import { OhsPanel, PoliciesPanel, RetentionPanel } from "./ComplianceHr";
 import { Assets, DocRegistry, OrgChart, Offboarding, ReferenceChecks, Referrals } from "./PeopleOpsPanels";
 
 type Notify = (message: string) => void;
@@ -12,6 +13,9 @@ const TABS = [
   { id: "chart", label: "Təşkilat sxemi" },
   { id: "referrals", label: "Tövsiyə proqramı" },
   { id: "references", label: "Rəy yoxlaması" },
+  { id: "ohs", label: "Əməyin mühafizəsi" },
+  { id: "policies", label: "Qaydalar və razılıq" },
+  { id: "retention", label: "Saxlama müddəti" },
 ] as const;
 
 // The everyday personnel work that is not pay: leave plan, documents and their dates, leavers, company property.
@@ -33,6 +37,9 @@ export default function PeopleOps({ notify }: { notify: Notify }) {
       {tab === "chart" && <OrgChart notify={notify} />}
       {tab === "referrals" && <Referrals notify={notify} />}
       {tab === "references" && <ReferenceChecks notify={notify} />}
+      {tab === "ohs" && <OhsPanel notify={notify} />}
+      {tab === "policies" && <PoliciesPanel notify={notify} />}
+      {tab === "retention" && <RetentionPanel notify={notify} />}
     </div>
   );
 }

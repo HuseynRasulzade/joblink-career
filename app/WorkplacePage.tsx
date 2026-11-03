@@ -1,4 +1,5 @@
 "use client";
+import { MyPolicies, MySafety } from "./WorkplaceCompliance";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Send, Trash2 } from "lucide-react";
 import { ORDER_KINDS, UNPAID_REASONS } from "@/lib/orders";
@@ -57,7 +58,7 @@ const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slic
 export default function WorkplacePage({ notify }: { notify: Notify }) {
   const [places, setPlaces] = useState<Workplace[] | null>(null);
   const [current, setCurrent] = useState("");
-  const [tab, setTab] = useState<"info" | "letters" | "pay" | "leave" | "assets" | "exit" | "perf" | "training" | "shifts" | "trips" | "engage" | "docs" | "referral" | "clock" | "team">("letters");
+  const [tab, setTab] = useState<"info" | "letters" | "pay" | "leave" | "assets" | "exit" | "perf" | "training" | "shifts" | "trips" | "engage" | "docs" | "referral" | "clock" | "team" | "rules">("letters");
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -133,6 +134,9 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
               <button type="button" role="tab" aria-selected={tab === "engage"} className={tab === "engage" ? "primary" : "ghost"} onClick={() => setTab("engage")}>
                 Elanlar və sorğular
               </button>
+              <button type="button" role="tab" aria-selected={tab === "rules"} className={tab === "rules" ? "primary" : "ghost"} onClick={() => setTab("rules")}>
+                Qaydalar və təhlükəsizlik
+              </button>
               <button type="button" role="tab" aria-selected={tab === "docs"} className={tab === "docs" ? "primary" : "ghost"} onClick={() => setTab("docs")}>
                 Sənədlər
               </button>
@@ -156,6 +160,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
               <MyProfileChanges key={`${place.id}-chg`} employeeId={place.id} notify={notify} />
               </>
             )}
+            {tab === "rules" && <><MyPolicies key={place.id} employeeId={place.id} notify={notify} /><MySafety key={`${place.id}-ohs`} employeeId={place.id} notify={notify} /></>}
             {tab === "referral" && <MyReferrals key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "docs" && <DocsToSign key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "perf" && <><MyPerformance key={place.id} employeeId={place.id} notify={notify} /><MyFeedbackRequests key={`${place.id}-fb`} employeeId={place.id} notify={notify} /><MySkills key={`${place.id}-sk`} employeeId={place.id} notify={notify} /><MyOneOnOnes key={`${place.id}-1on1`} employeeId={place.id} notify={notify} /></>}

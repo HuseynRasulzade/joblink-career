@@ -1673,3 +1673,68 @@ export const companyGroupLinks = sqliteTable(
   },
   (t) => [index("company_group_links_group").on(t.groupId, t.status), index("company_group_links_company").on(t.companyId, t.status)],
 );
+
+// Occupational safety: briefings, medical examinations and incidents (one table, the details are in `data`).
+export const ohsRecords = sqliteTable(
+  "ohs_records",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    type: text("type").notNull(), // briefing, medical, incident
+    employeeId: text("employee_id").notNull().default(""),
+    recordDate: text("record_date").notNull(),
+    dueDate: text("due_date").notNull().default(""),
+    status: text("status").notNull().default("done"),
+    data: text("data").notNull().default("{}"),
+    createdBy: text("created_by").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [index("ohs_records_company").on(t.companyId, t.type, t.recordDate), index("ohs_records_employee").on(t.companyId, t.employeeId)],
+);
+// Internal rules, policies and consents with versions; the employee confirms (or withdraws a consent) for one version.
+export const policyDocs = sqliteTable(
+  "policy_docs",
+  {
+    id: text("id").primaryKey(),
+    companyId: text("company_id").notNull(),
+    kind: text("kind").notNull().default("rules"), // rules, policy, consent, other
+    title: text("title").notNull(),
+    requiresAck: integer("requires_ack").notNull().default(1),
+    currentVersion: integer("current_version").notNull().default(1),
+    retired: integer("retired").notNull().default(0),
+    created: text("created").notNull(),
+  },
+  (t) => [index("policy_docs_company").on(t.companyId, t.retired)],
+);
+export const policyVersions = sqliteTable(
+  "policy_versions",
+  {
+    id: text("id").primaryKey(),
+    docId: text("doc_id").notNull(),
+    version: integer("version").notNull(),
+    effectiveDate: text("effective_date").notNull(),
+    body: text("body").notNull(),
+    changeNote: text("change_note").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [uniqueIndex("policy_versions_doc").on(t.docId, t.version)],
+);
+export const policyAcks = sqliteTable(
+  "policy_acks",
+  {
+    docId: text("doc_id").notNull(),
+    version: integer("version").notNull(),
+    employeeId: text("employee_id").notNull(),
+    companyId: text("company_id").notNull(),
+    ackedAt: text("acked_at").notNull(),
+    hash: text("hash").notNull().default(""),
+    withdrawnAt: text("withdrawn_at").notNull().default(""),
+  },
+  (t) => [primaryKey({ columns: [t.docId, t.version, t.employeeId] }), index("policy_acks_company").on(t.companyId, t.employeeId)],
+);
+export const retentionRules = sqliteTable(
+  "retention_rules",
+  { companyId: text("company_id").notNull(), category: text("category").notNull(), years: integer("years").notNull() },
+  (t) => [primaryKey({ columns: [t.companyId, t.category] })],
+);

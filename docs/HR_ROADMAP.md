@@ -19,8 +19,8 @@ Qiymətləndirmə: ✅ var · 🟡 qismən · ❌ yoxdur. Əmək: S (1–2 gün)
 | Aktivlər | ❌ | Noutbuk, telefon, açar, forma: verilmə və qaytarma aktı |
 | İşçi təcrübəsi | ❌ | Elanlar, sorğular (eNPS), ad günü və il dönümü, HR-a müraciət (tiket) |
 | Çıxış prosesi | 🟡 | Çıxış növü və səbəbi, işdən çıxarma əmri. Çatmır: çıxış siyahısı (aktivlərin qaytarılması), çıxış müsahibəsi, son haqq-hesabın əmək haqqına bağlanması |
-| Əməyin mühafizəsi | ❌ | Təlimat jurnalları, tibbi baxış qrafiki, qəza qeydləri |
-| Hüquqi uyğunluq | 🟡 | Əmr və müqavilə layihələri, audit qeydləri, rol və icazələr. Çatmır: sənəd reyestri və versiyalar, e-imza, daxili əmək qaydaları, şəxsi məlumatların rəzayəti və saxlama müddəti |
+| Əməyin mühafizəsi | ✅ | Təlimat jurnalı, tibbi baxış qrafiki, qəza qeydləri (bölmə 25) |
+| Hüquqi uyğunluq | 🟡 | Əmr və müqavilə layihələri, audit qeydləri, rol və icazələr, versiyalı daxili qaydalar, rəzayət, saxlama müddəti (bölmə 25). Çatmır: hüquqi e-imza (xarici müqavilə) |
 
 ## 2. Əmək haqqı bölməsində qalan boşluqlar (düzəliş sırası ilə)
 
@@ -338,3 +338,17 @@ Qərarlar (9-cu bölmədəki açıq suallara cavab):
 Texniki: `company_groups`, `company_group_links` (miqrasiya 0091), `lib/company-group.ts` (yekunlar, axıcılıq, ay snapşotunun cəmi; test), `company/group*` endpoint-ləri, `app/GroupPage.tsx`.
 
 Hələ olmayanlar: qrup üzrə aylıq dinamika qrafiki, qrup səviyyəsində ayrıca hesab növü (şirkətə bağlı olmayan şəxs üçün), üzv şirkətlərin vahid kataloqu/ortaq vəzifə adları.
+
+## 25. Əməyin mühafizəsi və hüquqi uyğunluq
+
+Statusu köhnə cədvəldə ❌ görünən "Performans, aktivlər, işçi təcrübəsi, çıxış prosesi" artıq əvvəlki bölmələrdə tamamlanıb. Bu bölmə yalnız həqiqətən çatışmayanları əhatə edir.
+
+**Əməyin mühafizəsi** (Kadr əməliyyatları → Əməyin mühafizəsi): təlimat jurnalı (giriş, ilkin, təkrar, növbədənkənar, yanğın; kim keçib, mövzu, işçi imzaladı), tibbi baxış qrafiki (ilkin/dövri/növbədənkənar, nəticə, klinika), qəza və hadisə qeydləri (növ, yer, təsvir, səbəb, tədbir, itirilən gün, status). Növbəti təlimat (6 ay) və dövri baxış (1 il) tarixi yazılmasa avtomatik qoyulur; vaxtı keçən və 30 gün qalan qeydlər yuxarıda siyahılanır. Ağır və ya ölümlə nəticələnən hadisədə "dövlət əmək müfəttişliyinə və sığortaçıya bildirmək lazımdır" xəbərdarlığı çıxır. İşçi öz təlimat və baxışlarını "İş yerim → Qaydalar və təhlükəsizlik"də görür.
+
+**Daxili qaydalar, siyasətlər və razılıq** (Kadr əməliyyatları → Qaydalar və razılıq): mətn dəyişəndə yeni versiya yaranır, köhnələri saxlanır; işçi hər versiyanı təsdiq edir (mətnin hash-i ilə), yeni versiyada yenidən təsdiq istənilir; HR kimin təsdiq etmədiyini görür. "Razılıq" növündə işçi razılığı özü geri götürə bilər (qeyd jurnalda). Üç nümunə layihə var: daxili əmək qaydaları, şəxsi məlumatların işlənməsinə razılıq, məlumatların qorunması siyasəti (hüquqşünasla yoxlamaq lazımdır).
+
+**Saxlama müddəti** (Kadr əməliyyatları → Saxlama müddəti): hər sənəd qrupu üçün il (şirkət dəyişə bilər), müddəti bitmiş işdən çıxmış işçi işləri siyahıda göstərilir. Sistem heç nəyi silmir.
+
+Diqqət: saxlama illəri (şəxsi işlər 75, əmrlər 75, tabel 5 və s.) orientirdir, rəsmi cədvələ qarşı yoxlanmayıb; hüquqşünas və arxiv qaydaları ilə təsdiq etmək lazımdır. Hüquqi e-imza (ASAN imza və s.) xarici müqavilə tələb edir; daxili təsdiq hash ilə saxlanır, amma qanuni e-imza deyil.
+
+Texniki: miqrasiya 0092 (`ohs_records`, `policy_docs`, `policy_versions`, `policy_acks`, `retention_rules`), `lib/ohs.ts` (yoxlama, tarixlər, saxlama; test), `lib/policy-templates.ts`, `company/ohs*`, `company/policies*`, `company/retention*`, `employee/policies*`, `employee/ohs`, `app/ComplianceHr.tsx`, `app/WorkplaceCompliance.tsx`.

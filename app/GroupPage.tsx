@@ -1,4 +1,5 @@
 "use client";
+import { Field } from "./components";
 import { useCallback, useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { createXlsxBook } from "@/lib/xlsx";
@@ -117,10 +118,9 @@ export default function GroupPage({ notify }: { notify: Notify }) {
           <div className="panel">
             <h3>Qrup yarat</h3>
             <p className="muted">Siz qrupun baş şirkəti olursunuz, digər şirkətləri dəvət kodu ilə çağırırsınız.</p>
-            <label>
-              Qrupun adı
+            <Field label="Qrupun adı">
               <input value={name} onChange={(e) => setName(e.target.value)} />
-            </label>
+            </Field>
             <div className="admin-actions">
               <button type="button" className="primary" disabled={busy} onClick={() => void act("company/group/create", { name }, "Qrup yaradıldı.")}>
                 Qrupu yarat
@@ -130,10 +130,9 @@ export default function GroupPage({ notify }: { notify: Notify }) {
           <div className="panel">
             <h3>Qrupa qoşul</h3>
             <p className="muted">Baş şirkətin verdiyi dəvət kodunu yazın. Qoşulmaq üçün hesab sahibi və ya direktor olmalısınız.</p>
-            <label>
-              Dəvət kodu
+            <Field label="Dəvət kodu">
               <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
-            </label>
+            </Field>
             <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <input type="checkbox" checked={sharePay} onChange={(e) => setSharePay(e.target.checked)} /> Maaş yekununu da paylaş (sonradan dəyişmək olar)
             </label>
