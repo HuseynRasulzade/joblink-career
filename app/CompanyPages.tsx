@@ -2497,6 +2497,11 @@ const EVENT_LABEL: Record<string, string> = {
   position: "Vəzifə dəyişikliyi",
   department: "Şöbə dəyişikliyi",
   salary: "Maaş dəyişikliyi",
+  discipline: "İntizam tənbehi",
+  contract: "Müqavilə müddəti",
+  substitute: "Müvəqqəti əvəzetmə",
+  schedule: "İş rejimi",
+  reverted: "Əmr geri qaytarıldı",
 };
 const EMPLOYEE_STATUS: Record<string, string> = {
   active: "İşləyir",

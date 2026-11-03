@@ -313,3 +313,15 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 7. "İşçi axını" menyudan çıxarıldı, Hesabatlara birləşdirildi.
 
 Məhdudiyyət: əvəzetmə, qrafik, uzatma, intizam əmrlərinin kart təsiri yoxdur; UI hər təsir növü üçün test edilməyib.
+
+## 23. İşçi kartı tək mənbə, "Kadr hadisəsi" girişi, Excel ilə kütləvi giriş
+
+**Audit nəticəsi (kart tək mənbə).** Vəzifə, departament, maaş, status yalnız `company_employees`-də saxlanır; rəhbər, növbə, gecə faizi kartın profilində; bacarıq `employee_skills`-də. Digər bölmələr (ştat cədvəli, tabel, məzuniyyət qrafiki, ezamiyyət, performans) yalnız işçi ID-si ilə kartdan oxuyur. Kartı dəyişən bütün yollar (əmr, əl ilə redaktə, performans artımı, maaş qərarı, çıxış) tarixçəyə yazır. Tapılan boşluqlar:
+- Excel idxalı vəzifə/departament dəyişikliyini tarixçəyə yazmırdı və yalnız e-poçt/ad+tarixlə uyğunlaşdırırdı → düzəldildi.
+- İntizam, müqavilənin uzadılması, əvəzetmə və iş rejimi əmrləri kartda iz qoymurdu → imzalananda kart tarixçəsinə yazılır, geri qaytarıla bilir.
+
+**Kadr hadisəsi.** Əmrlər reyestrində "Kadr hadisəsi" düyməsi: işçi siyahıdan seçilir (və ya yeni işçi + FİN ilə kart yaradılır və işə qəbul əmrinə keçilir), hadisə növü seçilir, məlumat bir dəfə yazılır. Göndərməzdən əvvəl "İmzalandıqdan sonra nə olacaq" siyahısı göstərilir (kart, tabel, məzuniyyət qrafiki, əmək haqqı, çıxış işi). İmzadan sonra hamısı özü tətbiq olunur.
+
+**Excel (işçilər).** Yeni "FİN" sütunu. Uyğunlaşdırma sırası: FİN → e-poçt → ad+başlama tarixi. FİN eyni adlı iki işçini ayırır; kartdakı FİN fayldakından fərqlidirsə sətir rədd edilir; kartda FİN yoxdursa ora yazılır; yanlış formatlı və ya faylda təkrar FİN bildirilir. Nümunə fayl yeniləndi.
+
+Məhdudiyyətlər: əmr növlərinin UI-da hər biri brauzerdə ayrıca yoxlanmayıb; yeni işçinin FİN-i şifrələmə açarı (`DATA_KEY`) qoyulanda şifrələnmiş saxlanır.

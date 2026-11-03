@@ -33,6 +33,17 @@ test("name, salary, probation, suspension and bonus orders", () => {
 });
 
 test("kinds without an effect on the card are left alone", () => {
-  for (const kind of ["hire", "vacation", "trip", "overtime", "discipline", "substitute", "schedule"]) assert.equal(hasEffect(kind), false, kind);
+  for (const kind of ["hire", "vacation", "trip", "overtime"]) assert.equal(hasEffect(kind), false, kind);
   assert.equal(planOrderEffect("vacation", { from: "2026-03-02" }, card, "2026-03-01"), null);
+});
+
+test("discipline, extension, substitution and schedule orders leave a line in the card history", () => {
+  const card = { name: "A", position: "Mühasib", department: "Maliyyə", salaryCents: 100000, salaryType: "gross", status: "active", endDate: "", exitType: "", exitReason: "", probationEnd: "" };
+  const d = planOrderEffect("discipline", { penalty: "Töhmət", basis: "Gecikmə" }, card, "2026-11-03");
+  assert.deepEqual(d.patch, {});
+  assert.equal(d.events[0].type, "discipline");
+  assert.equal(d.events[0].to, "Töhmət");
+  assert.equal(planOrderEffect("extend", { to: "2027-12-31" }, card, "2026-11-03").events[0].type, "contract");
+  assert.equal(planOrderEffect("substitute", { newPosition: "Baş mühasib", from: "2026-12-01", to: "2026-12-31" }, card, "2026-11-03").events[0].to, "Baş mühasib");
+  assert.equal(planOrderEffect("schedule", { schedule: "5/2, 10:00-19:00" }, card, "2026-11-03").events[0].to, "5/2, 10:00-19:00");
 });

@@ -15,6 +15,7 @@ export type EmployeeRow = {
   phone: string;
   vacationDays: number;
   vacationUsed: number;
+  fin: string;
 };
 export type StaffRow = { line: number; department: string; section: string; position: string; planned: number; rate: number; salary: number; salaryMax: number; note: string };
 export type StructureRow = { line: number; department: string; section: string };
@@ -64,8 +65,9 @@ export function parseNumberCell(value: string): number {
   return Number.isFinite(number) ? number : 0;
 }
 
-type Field = "name" | "position" | "department" | "section" | "startDate" | "salary" | "salaryType" | "sector" | "email" | "phone" | "vacationDays" | "vacationUsed" | "planned" | "note" | "rate" | "salaryMax";
+type Field = "fin" | "name" | "position" | "department" | "section" | "startDate" | "salary" | "salaryType" | "sector" | "email" | "phone" | "vacationDays" | "vacationUsed" | "planned" | "note" | "rate" | "salaryMax";
 const ALIASES: Record<Field, string[]> = {
+  fin: ["fin", "fin kod", "fin kodu", "fin kodu 7 simvol"],
   name: ["ad soyad", "ad soyad ata adi", "soyad ad", "isci", "isci adi", "ad", "fio", "ф и о", "фио", "full name", "name", "employee"],
   position: ["vezife", "ixtisas", "position", "title", "job title", "должность"],
   department: ["departament", "department", "idare", "департамент"],
@@ -115,7 +117,7 @@ function findHeader(rows: string[][], fields: Field[], must: Field) {
 }
 
 export function parseEmployeeRows(rows: string[][], limit = 500): { rows: EmployeeRow[]; issues: RowIssue[] } {
-  const fields: Field[] = ["name", "position", "department", "section", "startDate", "salary", "salaryType", "sector", "email", "phone", "vacationDays", "vacationUsed"];
+  const fields: Field[] = ["name", "position", "department", "section", "startDate", "salary", "salaryType", "sector", "email", "phone", "vacationDays", "vacationUsed", "fin"];
   const header = findHeader(rows, fields, "name");
   if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
   const get = (row: string[], field: Field) => String(row[header.map.get(field) ?? -1] ?? "").trim();
@@ -159,6 +161,7 @@ export function parseEmployeeRows(rows: string[][], limit = 500): { rows: Employ
       phone: get(row, "phone").slice(0, 40),
       vacationDays: get(row, "vacationDays") ? Math.max(0, Math.min(365, Math.round(parseNumberCell(get(row, "vacationDays"))))) : 21,
       vacationUsed: Math.max(0, Math.min(3650, Math.round(parseNumberCell(get(row, "vacationUsed"))))),
+      fin: get(row, "fin").toUpperCase().replace(/\s+/g, "").slice(0, 10),
     });
   }
   return { rows: out, issues };
@@ -241,8 +244,8 @@ export function parseStructureRows(rows: string[][], limit = 500): { rows: Struc
   return { rows: out, issues };
 }
 
-export const EMPLOYEE_TEMPLATE_HEADERS = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "İşə başlama", "Əmək haqqı", "Maaş növü (gross/net)", "Sektor (özəl/dövlət)", "E-poçt", "Telefon", "Məzuniyyət günləri (il üçün)", "İstifadə olunmuş məzuniyyət"];
-export const EMPLOYEE_TEMPLATE_EXAMPLE = ["Aysel Məmmədova", "Baş mühasib", "Maliyyə", "Mühasibat", "2026-04-09", 2800, "gross", "özəl", "aysel@example.az", "+994501234567", 21, 5];
+export const EMPLOYEE_TEMPLATE_HEADERS = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "İşə başlama", "Əmək haqqı", "Maaş növü (gross/net)", "Sektor (özəl/dövlət)", "E-poçt", "Telefon", "Məzuniyyət günləri (il üçün)", "İstifadə olunmuş məzuniyyət", "FİN"];
+export const EMPLOYEE_TEMPLATE_EXAMPLE = ["Aysel Məmmədova", "Baş mühasib", "Maliyyə", "Mühasibat", "2026-04-09", 2800, "gross", "özəl", "aysel@example.az", "+994501234567", 21, 5, "5ABC123"];
 export const STAFF_TEMPLATE_HEADERS = ["Departament", "Şöbə", "Vəzifə", "Ştat sayı", "Ştat dərəcəsi", "Əmək haqqı", "Maksimum əmək haqqı", "Qeyd"];
 export const STAFF_TEMPLATE_EXAMPLE = ["Maliyyə", "Mühasibat", "Baş mühasib", 1, "tam", 2500, 3000, ""];
 export const STRUCTURE_TEMPLATE_HEADERS = ["Departament", "Şöbə"];

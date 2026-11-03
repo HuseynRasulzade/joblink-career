@@ -8,10 +8,11 @@ export type EffectPlan = {
   patch: CardPatch; // the card fields that change
   marks?: { from: string; to: string; code: string }; // attendance days to mark
   bonus?: { amount: number; month: string }; // an amount for the pay of a month
+  events?: { type: string; from: string; to: string; note: string }[]; // lines for the history of the card only
   summary: string[];
 };
 
-export const EFFECT_KINDS = ["transfer", "salary", "name", "termination", "reduction", "probation", "suspension", "bonus"] as const;
+export const EFFECT_KINDS = ["transfer", "salary", "name", "termination", "reduction", "probation", "suspension", "bonus", "discipline", "extend", "substitute", "schedule"] as const;
 export const hasEffect = (kind: string) => (EFFECT_KINDS as readonly string[]).includes(kind);
 
 const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -29,7 +30,7 @@ export function planOrderEffect(kind: string, input: Record<string, unknown>, ca
   const effectiveDate = isDate(input.from) ? input.from : orderDate;
   const patch: CardPatch = {};
   const summary: string[] = [];
-  const plan = (extra: Partial<EffectPlan> = {}): EffectPlan | null => (Object.keys(patch).length || extra.marks || extra.bonus ? { kind, effectiveDate, patch, summary, ...extra } : null);
+  const plan = (extra: Partial<EffectPlan> = {}): EffectPlan | null => (Object.keys(patch).length || extra.marks || extra.bonus || extra.events ? { kind, effectiveDate, patch, summary, ...extra } : null);
   const newSalary = amount(input.salary);
   const setSalary = () => {
     if (newSalary > 0 && Math.round(newSalary * 100) !== card.salaryCents) {
@@ -83,6 +84,28 @@ export function planOrderEffect(kind: string, input: Record<string, unknown>, ca
     summary.push(`Mükafat ${value} AZN ${month} ayının əmək haqqına əlavə olunur`);
     return plan({ bonus: { amount: value, month } });
   }
+  const day = (v: string) => v.split("-").reverse().join(".");
+  if (kind === "discipline") {
+    const penalty = text(input.penalty) || "İntizam tənbehi";
+    summary.push(`Kartın tarixçəsinə yazılır: ${penalty}`);
+    return plan({ events: [{ type: "discipline", from: "", to: penalty, note: text(input.basis) }] });
+  }
+  if (kind === "extend") {
+    const to = isDate(input.to) ? input.to : "";
+    summary.push(`Kartın tarixçəsinə yazılır: əmək müqaviləsi ${to ? `${day(to)} tarixinədək ` : ""}uzadıldı`);
+    return plan({ events: [{ type: "contract", from: "", to: to || "uzadıldı", note: text(input.basis) }] });
+  }
+  if (kind === "substitute") {
+    const to = isDate(input.to) ? input.to : "";
+    const position = text(input.newPosition) || "əlavə vəzifə";
+    summary.push(`Kartın tarixçəsinə yazılır: müvəqqəti əvəzetmə — ${position}${to ? `, ${day(to)} tarixinədək` : ""}`);
+    return plan({ events: [{ type: "substitute", from: card.position, to: position, note: `${day(effectiveDate)}${to ? ` – ${day(to)}` : ""}` }] });
+  }
+  if (kind === "schedule") {
+    const schedule = text(input.schedule) || "yeni iş rejimi";
+    summary.push(`Kartın tarixçəsinə yazılır: iş rejimi — ${schedule}`);
+    return plan({ events: [{ type: "schedule", from: "", to: schedule, note: text(input.basis) }] });
+  }
   return null;
 }
 
@@ -91,4 +114,24 @@ export function beforeOf(card: CardSnapshot, patch: CardPatch): CardPatch {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(patch) as (keyof CardSnapshot)[]) out[key] = card[key];
   return out as CardPatch;
+}
+
+// What will happen once the order is signed, in plain words, for the form to show before it is sent.
+export function previewOrder(kind: string, input: Record<string, unknown>, card: CardSnapshot, orderDate: string, leaveCode?: string): string[] {
+  const out: string[] = [];
+  const plan = planOrderEffect(kind, input, card, orderDate);
+  if (plan) {
+    out.push(...plan.summary);
+    if (plan.effectiveDate > new Date().toISOString().slice(0, 10) && Object.keys(plan.patch).length) out.push(`Dəyişiklik ${plan.effectiveDate.split("-").reverse().join(".")} tarixində, həmin gün gələndə tətbiq olunacaq`);
+  }
+  const from = isDate(input.from) ? input.from : "";
+  const to = isDate(input.to) && input.to >= from ? input.to : from;
+  if (leaveCode && from) out.push(`Tabeldə ${from.split("-").reverse().join(".")} – ${to.split("-").reverse().join(".")} günləri avtomatik işarələnir`);
+  if (["vacation", "addleave", "creative"].includes(kind) && from) out.push("Məzuniyyət qrafikində həmin dövr “götürülüb” olur, məzuniyyət balansı yenilənir");
+  if (kind === "overtime" || kind === "restday") out.push("Həmin günlərin artıq saatı təsdiqlənmiş sayılır (əmək haqqına düşür)");
+  if (kind === "termination" || kind === "reduction") out.push("Çıxış işi (offboarding) avtomatik açılır");
+  if (kind === "hire") out.push("İşçi kartı və başlama tarixi əmrlə eyni olur");
+  if (!out.length) out.push("Kartda dəyişiklik olmur: əmr yalnız sənəd kimi saxlanır");
+  out.push("Hamısı imzalar tamamlananda özü tətbiq olunur; əmrin səhifəsindən geri qaytarmaq olar");
+  return out;
 }

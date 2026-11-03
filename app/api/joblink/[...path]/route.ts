@@ -371,7 +371,7 @@ import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
-import { fold as plainFold, matchEmployee, parseShiftSchedule, parseShiftStaff, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validCard, validIban, type EmployeeProfile } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
@@ -7358,17 +7358,33 @@ async function route(request: Request) {
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
     const existing = await db
-      .prepare("SELECT id,name,email,start_date,salary_cents,salary_type FROM company_employees WHERE company_id=? AND status<>'removed'")
+      .prepare("SELECT id,name,email,start_date,salary_cents,salary_type,position,department,profile FROM company_employees WHERE company_id=? AND status<>'removed'")
       .bind(id)
-      .all<{ id: string; name: string; email: string; start_date: string; salary_cents: number; salary_type: string }>();
+      .all<{ id: string; name: string; email: string; start_date: string; salary_cents: number; salary_type: string; position: string; department: string; profile: string }>();
     const lower = (value: string) => value.toLocaleLowerCase("az").trim();
+    const opened = await revealAll(existing.results);
+    const finById = new Map(existing.results.map((e) => [e.id, plainFinOf(opened.get(e.id)?.fin || "")]));
+    const byFin = new Map<string, string[]>();
+    for (const [empId, fin] of finById) if (fin) byFin.set(fin, [...(byFin.get(fin) || []), empId]);
     const byEmail = new Map(existing.results.filter((e) => e.email).map((e) => [lower(e.email), e.id]));
     const byName = new Map(existing.results.map((e) => [`${lower(e.name)}|${e.start_date}`, e.id]));
     const statements: D1PreparedStatement[] = [];
+    const eventLine = (employeeId: string, type: string, from: string, to: string, note: string, date: string) =>
+      db.prepare("INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, employeeId, type, from, to, note, userId, date, now);
     let created = 0;
     let updated = 0;
     const plan = await loadPlanData(db, id);
+    const seenFin = new Set<string>();
     for (const row of incoming.rows) {
+      if (row.fin && !/^[A-Z0-9]{7}$/.test(row.fin)) {
+        incoming.issues.push({ line: row.line, reason: `${row.name}: FİN kodu 7 simvol olmalıdır (“${row.fin}”).` });
+        continue;
+      }
+      if (row.fin && seenFin.has(row.fin)) {
+        incoming.issues.push({ line: row.line, reason: `${row.name}: FİN ${row.fin} faylda iki dəfə yazılıb.` });
+        continue;
+      }
+      if (row.fin) seenFin.add(row.fin);
       // A row paid above or below the band of the staff table is left out and reported.
       const gross = row.salary > 0 ? employeePay(row.salary, row.salaryType, row.sector).gross : 0;
       const problem = checkSalary(plan.units, { id: "", department: row.department, section: row.section, position: row.position }, gross);
@@ -7376,11 +7392,30 @@ async function route(request: Request) {
         incoming.issues.push({ line: row.line, reason: `${row.name}: ${problem}` });
         continue;
       }
-      const found = (row.email && byEmail.get(lower(row.email))) || byName.get(`${lower(row.name)}|${row.startDate}`);
+      // The FİN tells two people with one name apart; without it the e-mail and then the name and start day are used.
+      const finHits = row.fin ? byFin.get(row.fin) || [] : [];
+      if (finHits.length > 1) {
+        incoming.issues.push({ line: row.line, reason: `${row.name}: FİN ${row.fin} ilə ${finHits.length} işçi var — kartları yoxlayın.` });
+        continue;
+      }
+      const found = finHits[0] || (row.email && byEmail.get(lower(row.email))) || byName.get(`${lower(row.name)}|${row.startDate}`);
       if (found) {
-        if (mayPay) {
-          const before = existing.results.find((e) => e.id === found);
-          if (before) statements.push(...(await salaryChange(found, before.salary_cents, before.salary_type, Math.round(row.salary * 100), row.salaryType, today, userId)));
+        const before = existing.results.find((e) => e.id === found);
+        const cardFin = finById.get(found) || "";
+        if (row.fin && cardFin && cardFin !== row.fin) {
+          incoming.issues.push({ line: row.line, reason: `${row.name}: kartdakı FİN (${cardFin}) fayldakından (${row.fin}) fərqlidir — başqa işçi ola bilər.` });
+          continue;
+        }
+        if (mayPay && before) statements.push(...(await salaryChange(found, before.salary_cents, before.salary_type, Math.round(row.salary * 100), row.salaryType, today, userId)));
+        // Every change of position or department stays in the history of the card.
+        if (before && row.position && row.position !== before.position) statements.push(eventLine(found, "position", before.position, row.position, "Excel idxalı", today));
+        if (before && row.department && row.department !== before.department) statements.push(eventLine(found, "department", before.department, row.department, "Excel idxalı", today));
+        if (row.fin && !cardFin) {
+          const card = await reveal(before?.profile);
+          if (!card.locked) {
+            const { profile } = normalizeProfile({ ...card.profile, fin: row.fin });
+            statements.push(db.prepare("UPDATE company_employees SET profile=? WHERE id=? AND company_id=?").bind(await sealProfile(profile, dataKey()), found, id));
+          }
         }
         statements.push(
           db
@@ -7399,18 +7434,20 @@ async function route(request: Request) {
         continue;
       }
       const newId = crypto.randomUUID();
+      const newProfile = row.fin ? await sealProfile(normalizeProfile({ fin: row.fin }).profile, dataKey()) : "";
       statements.push(
         db
           .prepare(
-            "INSERT INTO company_employees(id,company_id,name,position,department,section,email,phone,start_date,salary_cents,salary_type,sector,vacation_days,vacation_used,status,source,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active','import',?,?)",
+            "INSERT INTO company_employees(id,company_id,name,position,department,section,email,phone,start_date,salary_cents,salary_type,sector,vacation_days,vacation_used,status,source,created,updated,profile) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'active','import',?,?,?)",
           )
-          .bind(newId, id, row.name, row.position, row.department, row.section, row.email, row.phone, row.startDate, Math.round(row.salary * 100), row.salaryType, row.sector, row.vacationDays, row.vacationUsed, now, now),
+          .bind(newId, id, row.name, row.position, row.department, row.section, row.email, row.phone, row.startDate, Math.round(row.salary * 100), row.salaryType, row.sector, row.vacationDays, row.vacationUsed, now, now, newProfile || "{}"),
         db
           .prepare(
             "INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)",
           )
           .bind(crypto.randomUUID(), id, newId, "hired", "", "", "import", userId, row.startDate || today, now),
       );
+      if (row.fin) byFin.set(row.fin, [newId]);
       created++;
     }
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
@@ -7693,7 +7730,7 @@ async function route(request: Request) {
     };
     if (!plan) return store("skipped", "Kartda dəyişiklik yoxdur: məlumat artıq əmrdəki kimidir.", {}, order.order_date);
     const changesCard = Object.keys(plan.patch).length > 0;
-    if (changesCard && plan.effectiveDate > today && !immediate) return store("scheduled", plan.summary.join("; "), {}, plan.effectiveDate);
+    if ((changesCard || plan.events?.length) && plan.effectiveDate > today && !immediate) return store("scheduled", plan.summary.join("; "), {}, plan.effectiveDate);
     const before: Record<string, unknown> = { ...beforeOf(card, plan.patch) };
     const statements: D1PreparedStatement[] = [];
     if (changesCard) {
@@ -7708,6 +7745,7 @@ async function route(request: Request) {
       if (await payrollMonthLocked(plan.bonus.month)) return store("skipped", `${plan.bonus.month} ayı təsdiqlənib: mükafatı əmək haqqında əllə yazın.`, {}, order.order_date);
       before._bonus = { month: plan.bonus.month, amount: plan.bonus.amount };
     }
+    for (const e of plan.events || []) statements.push(cardEvent(order.employee_id, e.type, e.from, e.to, e.note || note, plan.effectiveDate));
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
     if (plan.patch.status === "left") {
       const caseId = crypto.randomUUID();
@@ -7732,7 +7770,7 @@ async function route(request: Request) {
       return;
     }
     const before = JSON.parse(effect.before || "{}") as Record<string, unknown>;
-    const plan = JSON.parse(effect.plan || "{}") as { patch?: CardPatch; marks?: { from: string; to: string; code: string } };
+    const plan = JSON.parse(effect.plan || "{}") as { patch?: CardPatch; marks?: { from: string; to: string; code: string }; events?: { type: string }[] };
     const card = await cardOf(effect.employee_id);
     if (!card) throw new HttpError(404, "İşçi tapılmadı.");
     const restore: CardPatch = {};
@@ -7748,6 +7786,7 @@ async function route(request: Request) {
       if (restore.department !== undefined) statements.push(cardEvent(effect.employee_id, "department", card.department, restore.department, note, today));
       if (restore.status !== undefined && restore.status !== "left") statements.push(cardEvent(effect.employee_id, "returned", "left", restore.status, note, today));
     }
+    for (const e of plan.events || []) statements.push(cardEvent(effect.employee_id, "reverted", e.type, "", note, today));
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
     if (plan.marks) await markAttendance(effect.employee_id, plan.marks.from, plan.marks.to, "", note);
     const bonus = before._bonus as { month: string; amount: number } | undefined;

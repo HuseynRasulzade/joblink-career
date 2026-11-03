@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileSpreadsheet, Plus, Printer, Trash2, Upload } from "lucide-react";
+import { previewOrder } from "@/lib/order-effects";
+import PeoplePicker from "./PeoplePicker";
 import { buildEmployeeOffer, buildOrder, leaveDays, orderNumber, ORDER_KINDS, UNPAID_REASONS, unpaidReason, type OrderField, type OrderInput, type OrderKind } from "@/lib/orders";
 import { employeePay, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 import { readSheetRows } from "@/lib/question-file";
@@ -552,11 +554,11 @@ type OrderEmployee = { id: string; name: string; position: string; department: s
 
 // Draws an order up, or (with `editing`) changes one that was sent back.
 export type OrderPrefill = { requestId: string; kind: OrderKind; from: string; to: string; quantity: string; vacationKind: string; basis: string };
-export function OrderMaker({ employee, notify, editing, onSaved, prefill }: { employee: OrderEmployee; notify: Notify; editing?: SavedOrder; onSaved?: () => void; prefill?: OrderPrefill }) {
+export function OrderMaker({ employee, notify, editing, onSaved, prefill, initialKind }: { employee: OrderEmployee; notify: Notify; editing?: SavedOrder; onSaved?: () => void; prefill?: OrderPrefill; initialKind?: OrderKind }) {
   const [facts, setFacts] = useState<CompanyFacts>({ name: "", voen: "", director: "" });
   const today = new Date().toISOString().slice(0, 10);
   const prior = editing?.input;
-  const [kind, setKind] = useState<OrderKind>(editing?.kind || prefill?.kind || "vacation");
+  const [kind, setKind] = useState<OrderKind>(editing?.kind || prefill?.kind || initialKind || "vacation");
   const [form, setForm] = useState({
     date: editing?.date || today,
     from: prior?.from || prefill?.from || today,
@@ -639,6 +641,13 @@ export function OrderMaker({ employee, notify, editing, onSaved, prefill }: { em
     signers: signerList,
   };
   const order = buildOrder(input);
+  const willHappen = previewOrder(
+    kind,
+    input as unknown as Record<string, unknown>,
+    { name: employee.name, position: employee.position, department: employee.department, salaryCents: Math.round((employee.salary || 0) * 100), salaryType: employee.salaryType, status: "active", endDate: employee.endDate || "", exitType: "", exitReason: "", probationEnd: employee.probationEnd || "" },
+    form.date,
+    ORDER_KINDS.find((item) => item.id === kind)?.leaveCode,
+  );
   const set = (key: keyof typeof form, value: string) => setForm({ ...form, [key]: value });
   async function create() {
     setBusy(true);
@@ -714,6 +723,14 @@ export function OrderMaker({ employee, notify, editing, onSaved, prefill }: { em
           <small className="skill-picker-help">{director.note}</small>
         </Field>
       </div>
+      <div className="panel" style={{ margin: "8px 0" }}>
+        <b>İmzalandıqdan sonra nə olacaq</b>
+        <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+          {willHappen.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      </div>
       <pre className="muted" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
         {order.text}
       </pre>
@@ -777,6 +794,116 @@ export function OrderMaker({ employee, notify, editing, onSaved, prefill }: { em
   );
 }
 
+// ---------- One entry for every event of an employee: pick the person (or add a new one), pick the event, write it once ----------
+export function HrEventModal({ notify, onClose, onDone }: { notify: Notify; onClose: () => void; onDone: () => void }) {
+  type Person = OrderEmployee & { status: string };
+  const [people, setPeople] = useState<Person[] | null>(null);
+  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [pickedId, setPickedId] = useState("");
+  const [created, setCreated] = useState<OrderEmployee | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [fresh, setFresh] = useState({ name: "", fin: "", position: "", department: "", section: "", startDate: new Date().toISOString().slice(0, 10), salary: "", salaryType: "gross" as SalaryType, email: "" });
+  useEffect(() => {
+    request<{ employees: Person[] }>("company/employees")
+      .then((r) => setPeople(r.employees.filter((e) => e.status !== "left")))
+      .catch(() => setPeople([]));
+  }, []);
+  const picked = people?.find((p) => p.id === pickedId) || null;
+  const setF = (key: keyof typeof fresh, value: string) => setFresh({ ...fresh, [key]: value });
+  async function addEmployee() {
+    if (fresh.name.trim().length < 2) return notify("İşçinin adını yazın.");
+    const fin = fresh.fin.trim().toUpperCase();
+    if (fin && !/^[A-Z0-9]{7}$/.test(fin)) return notify("FİN kodu 7 simvol olmalıdır.");
+    setBusy(true);
+    try {
+      const saved = await request<{ id: string }>("company/employees/save", { name: fresh.name.trim(), position: fresh.position, department: fresh.department, section: fresh.section, startDate: fresh.startDate, salary: Number(fresh.salary) || 0, salaryType: fresh.salaryType, email: fresh.email, status: "active" });
+      if (fin) await request("company/employees/profile", { id: saved.id, profile: { ...EMPTY_PROFILE, fin } });
+      setCreated({ id: saved.id, name: fresh.name.trim(), position: fresh.position, department: fresh.department, section: fresh.section, startDate: fresh.startDate, salary: Number(fresh.salary) || null, salaryType: fresh.salaryType, probationEnd: "", endDate: "" });
+      notify("İşçi kartı yaradıldı. İndi işə qəbul əmrini imzaya göndərin.");
+      onDone();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const chosen = created || (mode === "existing" ? picked : null);
+  return (
+    <Modal title="Kadr hadisəsi" onClose={onClose}>
+      <p className="muted">İşçini seçin, hadisənin növünü seçin, məlumatı bir dəfə yazın. Əmr hazırlanır, imzaya düşür; imzalananda kart, tabel, məzuniyyət qrafiki və əmək haqqı özü yenilənir, hamısı tarixçəyə yazılır.</p>
+      {!chosen && (
+        <>
+          <div className="calc-tabs" role="tablist" aria-label="İşçi">
+            <button type="button" role="tab" aria-selected={mode === "existing"} className={mode === "existing" ? "primary" : "ghost"} onClick={() => setMode("existing")}>
+              Mövcud işçi
+            </button>
+            <button type="button" role="tab" aria-selected={mode === "new"} className={mode === "new" ? "primary" : "ghost"} onClick={() => setMode("new")}>
+              Yeni işçi (işə qəbul)
+            </button>
+          </div>
+          {mode === "existing" &&
+            (people ? (
+              <PeoplePicker people={people} selected={pickedId ? [pickedId] : []} onChange={(ids) => setPickedId(ids.filter((x) => x !== pickedId).pop() || "")} height={240} label="Hadisə hansı işçi ilədir" />
+            ) : (
+              <p className="muted">Yüklənir…</p>
+            ))}
+          {mode === "new" && (
+            <div className="form-grid">
+              <Field label="Ad Soyad">
+                <input value={fresh.name} onChange={(e) => setF("name", e.target.value)} />
+              </Field>
+              <Field label="FİN (7 simvol)">
+                <input value={fresh.fin} maxLength={7} onChange={(e) => setF("fin", e.target.value.toUpperCase())} />
+              </Field>
+              <Field label="Vəzifə">
+                <input value={fresh.position} onChange={(e) => setF("position", e.target.value)} />
+              </Field>
+              <Field label="Departament">
+                <input value={fresh.department} onChange={(e) => setF("department", e.target.value)} />
+              </Field>
+              <Field label="Şöbə">
+                <input value={fresh.section} onChange={(e) => setF("section", e.target.value)} />
+              </Field>
+              <Field label="İşə başlama">
+                <input type="date" value={fresh.startDate} onChange={(e) => setF("startDate", e.target.value)} />
+              </Field>
+              <Field label="Əmək haqqı (AZN)">
+                <input inputMode="decimal" value={fresh.salary} onChange={(e) => setF("salary", e.target.value)} />
+              </Field>
+              <Field label="Maaş növü">
+                <select value={fresh.salaryType} onChange={(e) => setF("salaryType", e.target.value)}>
+                  <option value="gross">Gross (vergidən əvvəl)</option>
+                  <option value="net">Net (ələ verilən)</option>
+                </select>
+              </Field>
+              <Field label="E-poçt">
+                <input value={fresh.email} onChange={(e) => setF("email", e.target.value)} />
+              </Field>
+              <div className="admin-actions">
+                <button type="button" className="primary" disabled={busy} onClick={() => void addEmployee()}>
+                  Kartı yarat və əmrə keç
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+      {chosen && (
+        <>
+          {!created && (
+            <p>
+              <button type="button" className="ghost" onClick={() => setPickedId("")}>
+                ← Başqa işçi seç
+              </button>
+            </p>
+          )}
+          <OrderMaker employee={chosen} notify={notify} initialKind={created ? "hire" : undefined} onSaved={() => { onDone(); onClose(); }} />
+        </>
+      )}
+    </Modal>
+  );
+}
+
 // ---------- The register of all orders ----------
 export function OrdersRegistry({ notify }: { notify: Notify }) {
   type Row = SavedOrder & { employee: OrderEmployee };
@@ -802,8 +929,10 @@ export function OrdersRegistry({ notify }: { notify: Notify }) {
   const waiting = rows?.filter((r) => r.status !== "signed").length || 0;
   const [tab, setTab] = useState<"orders" | "requests">("orders");
   const [newRequests, setNewRequests] = useState(0);
+  const [event, setEvent] = useState(false);
   return (
     <div className="company-page">
+      {event && <HrEventModal notify={notify} onClose={() => setEvent(false)} onDone={load} />}
       <div className="calc-tabs" role="tablist" aria-label="Əmrlər bölməsi">
         <button type="button" role="tab" aria-selected={tab === "orders"} className={tab === "orders" ? "primary" : "ghost"} onClick={() => setTab("orders")}>
           Əmrlər reyestri
@@ -822,6 +951,9 @@ export function OrdersRegistry({ notify }: { notify: Notify }) {
           </p>
         </div>
         <div className="admin-actions">
+          <button type="button" className="primary" onClick={() => setEvent(true)}>
+            <Plus size={14} /> Kadr hadisəsi
+          </button>
           <a className="secondary report-button" href={`/api/joblink/company/report?kind=orders${query ? `&${query}` : ""}`} download>
             <Download size={14} /> Excel hesabatı
           </a>

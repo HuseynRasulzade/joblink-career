@@ -62,3 +62,13 @@ test("the sample files are read back without a problem", () => {
   assert.equal(staff.issues.length, 0);
   assert.equal(staff.rows[0].planned, 1);
 });
+
+test("the employee file carries the FİN code, which tells two people with one name apart", () => {
+  const result = parseEmployeeRows([
+    ["Ad Soyad", "FİN", "Vəzifə"],
+    ["Eli Əliyev", " 5abc123 ", "Mühasib"],
+    ["Eli Əliyev", "7XYZ456", "Satıcı"],
+  ]);
+  assert.deepEqual(result.rows.map((r) => r.fin), ["5ABC123", "7XYZ456"]);
+  assert.equal(parseEmployeeRows([EMPLOYEE_TEMPLATE_HEADERS, EMPLOYEE_TEMPLATE_EXAMPLE].map(String).length ? [EMPLOYEE_TEMPLATE_HEADERS, EMPLOYEE_TEMPLATE_EXAMPLE].map((row) => row.map(String)) : []).rows[0].fin, "5ABC123");
+});
