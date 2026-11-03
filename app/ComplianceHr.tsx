@@ -238,14 +238,14 @@ export function OhsPanel({ notify }: { notify: Notify }) {
 }
 
 // ---------------- Internal rules, policies and consents ----------------
-type PolicyRow = { id: string; kind: string; title: string; requiresAck: boolean; version: number; retired: boolean; effectiveDate: string; acked: number; withdrawn: number };
-type PolicyDetail = { doc: { id: string; kind: string; title: string; requiresAck: boolean; version: number; retired: boolean }; versions: { version: number; effectiveDate: string; body: string; changeNote: string; created: string }[]; acked: { employeeId: string; name: string; at: string; withdrawnAt: string }[]; pending: { employeeId: string; name: string; department: string }[] };
-const KIND_LABEL: Record<string, string> = { rules: "Daxili qaydalar", policy: "Siyasət", consent: "Razılıq (rəzayət)", other: "Digər" };
+type PolicyRow = { audience: number; position: string; id: string; kind: string; title: string; requiresAck: boolean; version: number; retired: boolean; effectiveDate: string; acked: number; withdrawn: number };
+type PolicyDetail = { doc: { position: string; id: string; kind: string; title: string; requiresAck: boolean; version: number; retired: boolean }; versions: { version: number; effectiveDate: string; body: string; changeNote: string; created: string }[]; acked: { employeeId: string; name: string; at: string; withdrawnAt: string }[]; pending: { employeeId: string; name: string; department: string }[] };
+const KIND_LABEL: Record<string, string> = { rules: "Daxili qaydalar", policy: "Siyasət", consent: "Razılıq (rəzayət)", jobdesc: "Vəzifə təlimatı", other: "Digər" };
 
 export function PoliciesPanel({ notify }: { notify: Notify }) {
   const [list, setList] = useState<{ staff: number; docs: PolicyRow[] } | null>(null);
   const [open, setOpen] = useState<PolicyDetail | null>(null);
-  const [edit, setEdit] = useState<{ id: string; kind: string; title: string; body: string; requiresAck: boolean; changeNote: string; effectiveDate: string } | null>(null);
+  const [edit, setEdit] = useState<{ id: string; kind: string; title: string; position: string; body: string; requiresAck: boolean; changeNote: string; effectiveDate: string } | null>(null);
   const load = useCallback(() => {
     request<{ staff: number; docs: PolicyRow[] }>("company/policies").then(setList).catch((e) => notify((e as Error).message));
   }, [notify]);
@@ -285,11 +285,11 @@ export function PoliciesPanel({ notify }: { notify: Notify }) {
     <div className="company-page">
       <p className="muted">Daxili əmək qaydaları, siyasətlər və şəxsi məlumatların işlənməsinə razılıq. Mətn dəyişəndə yeni versiya yaranır, köhnələri qalır; işçilər “İş yerim → Qaydalar” bölməsində təsdiq edir (təsdiq mətnin hash-i ilə saxlanır). Razılığı işçi özü geri götürə bilər.</p>
       <div className="admin-actions">
-        <button type="button" className="primary" onClick={() => setEdit({ id: "", kind: "rules", title: "", body: "", requiresAck: true, changeNote: "", effectiveDate: today() })}>
+        <button type="button" className="primary" onClick={() => setEdit({ id: "", kind: "rules", title: "", position: "", body: "", requiresAck: true, changeNote: "", effectiveDate: today() })}>
           Yeni sənəd
         </button>
         {POLICY_TEMPLATES.map((t) => (
-          <button key={t.id} type="button" className="secondary" onClick={() => setEdit({ id: "", kind: t.kind, title: t.title, body: t.body, requiresAck: true, changeNote: "", effectiveDate: today() })}>
+          <button key={t.id} type="button" className="secondary" onClick={() => setEdit({ id: "", kind: t.kind, title: t.title, position: "", body: t.body, requiresAck: true, changeNote: "", effectiveDate: today() })}>
             Nümunə: {t.title}
           </button>
         ))}
@@ -312,13 +312,14 @@ export function PoliciesPanel({ notify }: { notify: Notify }) {
                   <b>{d.title}</b>
                   <small className="skill-description">
                     {KIND_LABEL[d.kind] || d.kind}
+                    {d.kind === "jobdesc" ? ` · ${d.position}` : ""}
                     {d.retired ? " · ləğv edilib" : ""}
                   </small>
                 </td>
                 <td>
                   v{d.version} · {dmy(d.effectiveDate)}
                 </td>
-                <td>{d.requiresAck ? `${d.acked} / ${list.staff}${d.withdrawn ? ` (${d.withdrawn} geri götürüb)` : ""}` : "tələb olunmur"}</td>
+                <td>{d.requiresAck ? `${d.acked} / ${d.audience}${d.withdrawn ? ` (${d.withdrawn} geri götürüb)` : ""}` : "tələb olunmur"}</td>
                 <td className="admin-actions">
                   <button type="button" onClick={() => void show(d.id)}>
                     Aç
@@ -342,7 +343,7 @@ export function PoliciesPanel({ notify }: { notify: Notify }) {
             {open.doc.title} · v{open.doc.version}
           </h3>
           <div className="admin-actions">
-            <button type="button" className="primary" onClick={() => setEdit({ id: open.doc.id, kind: open.doc.kind, title: open.doc.title, body: current.body, requiresAck: open.doc.requiresAck, changeNote: "", effectiveDate: today() })}>
+            <button type="button" className="primary" onClick={() => setEdit({ id: open.doc.id, kind: open.doc.kind, title: open.doc.title, position: open.doc.position || "", body: current.body, requiresAck: open.doc.requiresAck, changeNote: "", effectiveDate: today() })}>
               Dəyişdir (yeni versiya)
             </button>
             <button type="button" className="secondary" onClick={() => void retire(open.doc.id, !open.doc.retired)}>
@@ -389,6 +390,11 @@ export function PoliciesPanel({ notify }: { notify: Notify }) {
                 ))}
               </select>
             </Field>
+            {edit.kind === "jobdesc" && (
+              <Field label="Vəzifə (bu vəzifədəki işçilər təsdiq edir)">
+                <input value={edit.position} onChange={(e) => setEdit({ ...edit, position: e.target.value })} />
+              </Field>
+            )}
             <Field label="Qüvvəyə minmə tarixi">
               <input type="date" value={edit.effectiveDate} onChange={(e) => setEdit({ ...edit, effectiveDate: e.target.value })} />
             </Field>

@@ -1,4 +1,5 @@
 "use client";
+import HrTrends from "./HrTrends";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, Download, FileBarChart, Printer } from "lucide-react";
 import { ATTENDANCE_CODES } from "@/lib/calendar-az";
@@ -75,6 +76,7 @@ const REPORTS: Report[] = [
         totals: ["CƏMİ", "", "", sum((r) => r.result.gross), sum((r) => r.result.incomeTax), sum((r) => r.result.employeeSocial + r.result.employeeUnemployment + r.result.employeeMedical), sum((r) => r.result.net), sum((r) => r.advances), sum((r) => r.salaryPaid), sum((r) => r.outstanding), sum((r) => r.result.employerCost)],
       };
     } },
+  { id: "trends", group: "Kadr və əmək haqqı", title: "Kadr dinamikası, proqnoz və plan-fakt", description: "Son 12 ayda işçi sayı, işə qəbul və çıxış qrafiki, 3 aylıq proqnoz, ştat cədvəli ilə faktiki işçi müqayisəsi və xəbərdarlıqlar.", need: "reports", render: ({ notify }) => <HrTrends notify={notify} /> },
   { id: "workforce", group: "Kadr və əmək haqqı", title: "İşçi axını və dövriyyə", description: "İşə qəbul, ayrılma, işçi sayı və dövriyyə faizi; dövr üzrə süzgəc.", need: "reports" },
 
   { id: "attendance", group: "Davamiyyət və vaxt", title: "Davamiyyət xülasəsi", description: "Ay üzrə hər işçinin norma, işlənmiş gün və məzuniyyət, xəstəlik, yoxluq günləri.", need: "attendance", filters: [{ id: "month", label: "Ay", type: "month" }, DEPARTMENT],

@@ -371,6 +371,8 @@ import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
+import { GEO_MODES, checkLocation, validPoint, type GeoMode, type Office } from "@/lib/geofence";
+import { forecast, monthSeries, planFactAlerts } from "@/lib/hr-trends";
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS, RETENTION_CATEGORIES, cleanOhs, dueState, retentionEnd, retentionYears, textHash } from "@/lib/ohs";
 import { groupTotals, snapshotTotals, turnoverPercent, type MemberFigures } from "@/lib/company-group";
@@ -7980,7 +7982,7 @@ async function route(request: Request) {
     return out;
   };
   const clockSettings = async (companyId: string) => {
-    const rows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('work_start','work_end','break_minutes','grace_minutes','overtime_approval','self_clock')").bind(companyId).all<{ key: string; value: string }>()).results;
+    const rows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('work_start','work_end','break_minutes','grace_minutes','overtime_approval','self_clock','office_lat','office_lng','office_radius','clock_location')").bind(companyId).all<{ key: string; value: string }>()).results;
     const get = (k: string) => rows.find((r) => r.key === k)?.value;
     const rules: ClockRules = {
       start: validClockTime(get("work_start") || "") ? get("work_start")! : DEFAULT_CLOCK.start,
@@ -7988,7 +7990,12 @@ async function route(request: Request) {
       breakMinutes: get("break_minutes") !== undefined && Number.isFinite(Number(get("break_minutes"))) ? Number(get("break_minutes")) : DEFAULT_CLOCK.breakMinutes,
       graceMinutes: get("grace_minutes") !== undefined && Number.isFinite(Number(get("grace_minutes"))) ? Number(get("grace_minutes")) : DEFAULT_CLOCK.graceMinutes,
     };
-    return { rules, overtimeApproval: get("overtime_approval") === "1", selfClock: get("self_clock") !== "0" };
+    const lat = Number(get("office_lat"));
+    const lng = Number(get("office_lng"));
+    const radius = Math.max(20, Math.min(5000, Math.round(Number(get("office_radius")) || 150)));
+    const office: Office | null = validPoint(lat, lng) && get("office_lat") !== undefined ? { lat, lng, radius } : null;
+    const mode: GeoMode = GEO_MODES.includes(get("clock_location") as GeoMode) && office ? (get("clock_location") as GeoMode) : "off";
+    return { rules, overtimeApproval: get("overtime_approval") === "1", selfClock: get("self_clock") !== "0", office, locationMode: mode };
   };
   const ownWorkplace = async (employeeId: string) => {
     if (accountRole === "company") throw new HttpError(403, "İşçi profili yalnız şəxsi hesab üçündür.");
@@ -8147,33 +8154,36 @@ async function route(request: Request) {
   // ---- Internal rules, policies and consents, with versions and the employee's confirmation ----
   if (request.method === "GET" && path === "company/policies") {
     requirePermission("salaries", "Daxili qaydaları yalnız sənəd icazəsi olan şəxs görə bilər.");
-    const docs = (await db.prepare("SELECT d.id,d.kind,d.title,d.requires_ack,d.current_version,d.retired,v.effective_date,v.created FROM policy_docs d LEFT JOIN policy_versions v ON v.doc_id=d.id AND v.version=d.current_version WHERE d.company_id=? ORDER BY d.retired,d.title").bind(id).all<{ id: string; kind: string; title: string; requires_ack: number; current_version: number; retired: number; effective_date: string; created: string }>()).results;
+    const docs = (await db.prepare("SELECT d.id,d.kind,d.title,d.position,d.requires_ack,d.current_version,d.retired,v.effective_date,v.created FROM policy_docs d LEFT JOIN policy_versions v ON v.doc_id=d.id AND v.version=d.current_version WHERE d.company_id=? ORDER BY d.retired,d.title").bind(id).all<{ id: string; kind: string; title: string; position: string; requires_ack: number; current_version: number; retired: number; effective_date: string; created: string }>()).results;
+    const holders = (await db.prepare("SELECT position,COUNT(*) AS n FROM company_employees WHERE company_id=? AND status IN ('active','leave') GROUP BY lower(position)").bind(id).all<{ position: string; n: number }>()).results;
     const staff = (await db.prepare("SELECT COUNT(*) AS n FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).first<{ n: number }>())?.n || 0;
     const acks = (await db.prepare("SELECT doc_id,version,COUNT(*) AS n,SUM(CASE WHEN withdrawn_at<>'' THEN 1 ELSE 0 END) AS withdrawn FROM policy_acks WHERE company_id=? GROUP BY doc_id,version").bind(id).all<{ doc_id: string; version: number; n: number; withdrawn: number }>()).results;
     return ok({
       staff,
       docs: docs.map((d) => {
         const a = acks.find((x) => x.doc_id === d.id && x.version === d.current_version);
-        return { id: d.id, kind: d.kind, title: d.title, requiresAck: !!d.requires_ack, version: d.current_version, retired: !!d.retired, effectiveDate: d.effective_date || "", acked: (a?.n || 0) - (a?.withdrawn || 0), withdrawn: a?.withdrawn || 0 };
+        return { id: d.id, kind: d.kind, title: d.title, position: d.position, audience: d.kind === "jobdesc" ? holders.filter((h) => h.position.toLocaleLowerCase("az") === d.position.toLocaleLowerCase("az")).reduce((t, h) => t + h.n, 0) : staff, requiresAck: !!d.requires_ack, version: d.current_version, retired: !!d.retired, effectiveDate: d.effective_date || "", acked: (a?.n || 0) - (a?.withdrawn || 0), withdrawn: a?.withdrawn || 0 };
       }),
     });
   }
   if (request.method === "GET" && path === "company/policies/detail") {
     requirePermission("salaries", "Daxili qaydaları yalnız sənəd icazəsi olan şəxs görə bilər.");
     const docId = str(requestUrl.searchParams.get("id"), 100);
-    const doc = await db.prepare("SELECT id,kind,title,requires_ack,current_version,retired FROM policy_docs WHERE id=? AND company_id=?").bind(docId, id).first<{ id: string; kind: string; title: string; requires_ack: number; current_version: number; retired: number }>();
+    const doc = await db.prepare("SELECT id,kind,title,position,requires_ack,current_version,retired FROM policy_docs WHERE id=? AND company_id=?").bind(docId, id).first<{ id: string; kind: string; title: string; position: string; requires_ack: number; current_version: number; retired: number }>();
     if (!doc) throw new HttpError(404, "Sənəd tapılmadı.");
     const versions = (await db.prepare("SELECT version,effective_date,body,change_note,created FROM policy_versions WHERE doc_id=? ORDER BY version DESC").bind(docId).all<{ version: number; effective_date: string; body: string; change_note: string; created: string }>()).results;
     const acks = (await db.prepare("SELECT a.employee_id,a.acked_at,a.withdrawn_at,e.name FROM policy_acks a JOIN company_employees e ON e.id=a.employee_id WHERE a.doc_id=? AND a.version=? ORDER BY e.name").bind(docId, doc.current_version).all<{ employee_id: string; acked_at: string; withdrawn_at: string; name: string }>()).results;
     const seen = new Set(acks.map((a) => a.employee_id));
-    const pending = (await db.prepare("SELECT id,name,department FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY name LIMIT 2000").bind(id).all<{ id: string; name: string; department: string }>()).results.filter((e) => !seen.has(e.id));
-    return ok({ doc: { id: doc.id, kind: doc.kind, title: doc.title, requiresAck: !!doc.requires_ack, version: doc.current_version, retired: !!doc.retired }, versions: versions.map((v) => ({ version: v.version, effectiveDate: v.effective_date, body: v.body, changeNote: v.change_note, created: v.created })), acked: acks.map((a) => ({ employeeId: a.employee_id, name: a.name, at: a.acked_at, withdrawnAt: a.withdrawn_at })), pending: pending.map((e) => ({ employeeId: e.id, name: e.name, department: e.department })) });
+    const pending = (await db.prepare("SELECT id,name,department,position FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY name LIMIT 2000").bind(id).all<{ id: string; name: string; department: string; position: string }>()).results.filter((e) => !seen.has(e.id) && (doc.kind !== "jobdesc" || e.position.toLocaleLowerCase("az") === doc.position.toLocaleLowerCase("az")));
+    return ok({ doc: { id: doc.id, kind: doc.kind, title: doc.title, position: doc.position, requiresAck: !!doc.requires_ack, version: doc.current_version, retired: !!doc.retired }, versions: versions.map((v) => ({ version: v.version, effectiveDate: v.effective_date, body: v.body, changeNote: v.change_note, created: v.created })), acked: acks.map((a) => ({ employeeId: a.employee_id, name: a.name, at: a.acked_at, withdrawnAt: a.withdrawn_at })), pending: pending.map((e) => ({ employeeId: e.id, name: e.name, department: e.department })) });
   }
   if (request.method === "POST" && path === "company/policies/save") {
     requirePermission("salaries", "Daxili qaydaları yalnız sənəd icazəsi olan şəxs dəyişə bilər.");
     const b = await jsonBody(request);
-    const kind = ["rules", "policy", "consent", "other"].includes(str(b.kind, 20)) ? str(b.kind, 20) : "rules";
+    const kind = ["rules", "policy", "consent", "jobdesc", "other"].includes(str(b.kind, 20)) ? str(b.kind, 20) : "rules";
     const title = str(b.title, 160);
+    const position = kind === "jobdesc" ? (await resolvePosition(db, id, str(b.position, 120))).name : "";
+    if (kind === "jobdesc" && !position) throw new HttpError(400, "Vəzifə təlimatı üçün vəzifəni seçin.");
     const body = String(b.body ?? "").trim().slice(0, 30000);
     if (title.length < 3) throw new HttpError(400, "Sənədin adını yazın.");
     if (body.length < 20) throw new HttpError(400, "Sənədin mətnini yazın (ən azı bir neçə cümlə).");
@@ -8184,7 +8194,7 @@ async function route(request: Request) {
     if (!docId) {
       const newId = crypto.randomUUID();
       await db.batch([
-        db.prepare("INSERT INTO policy_docs(id,company_id,kind,title,requires_ack,current_version,retired,created) VALUES(?,?,?,?,?,1,0,?)").bind(newId, id, kind, title, requiresAck, now),
+        db.prepare("INSERT INTO policy_docs(id,company_id,kind,title,position,requires_ack,current_version,retired,created) VALUES(?,?,?,?,?,?,1,0,?)").bind(newId, id, kind, title, position, requiresAck, now),
         db.prepare("INSERT INTO policy_versions(id,doc_id,version,effective_date,body,change_note,created_by,created) VALUES(?,?,1,?,?,?,?,?)").bind(crypto.randomUUID(), newId, effective, body, str(b.changeNote, 300) || "İlk versiya", userId, now),
       ]);
       await companyAudit(db, id, userId, "policy-created", newId, title);
@@ -8195,7 +8205,7 @@ async function route(request: Request) {
     const current = await db.prepare("SELECT body FROM policy_versions WHERE doc_id=? AND version=?").bind(docId, doc.current_version).first<{ body: string }>();
     const changed = (current?.body || "") !== body;
     const version = changed ? doc.current_version + 1 : doc.current_version;
-    const statements = [db.prepare("UPDATE policy_docs SET kind=?,title=?,requires_ack=?,current_version=? WHERE id=? AND company_id=?").bind(kind, title, requiresAck, version, docId, id)];
+    const statements = [db.prepare("UPDATE policy_docs SET kind=?,title=?,position=?,requires_ack=?,current_version=? WHERE id=? AND company_id=?").bind(kind, title, position, requiresAck, version, docId, id)];
     if (changed) statements.push(db.prepare("INSERT INTO policy_versions(id,doc_id,version,effective_date,body,change_note,created_by,created) VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), docId, version, effective, body, str(b.changeNote, 300), userId, now));
     await db.batch(statements);
     await companyAudit(db, id, userId, changed ? "policy-version" : "policy-updated", docId, `${title}: v${version}`);
@@ -8242,7 +8252,7 @@ async function route(request: Request) {
   // ---- The employee side: rules to confirm, consents to give or withdraw, own safety records ----
   if (request.method === "GET" && path === "employee/policies") {
     const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
-    const docs = (await db.prepare("SELECT d.id,d.kind,d.title,d.requires_ack,d.current_version,v.effective_date,v.body FROM policy_docs d JOIN policy_versions v ON v.doc_id=d.id AND v.version=d.current_version WHERE d.company_id=? AND d.retired=0 ORDER BY d.title").bind(employee.company_id).all<{ id: string; kind: string; title: string; requires_ack: number; current_version: number; effective_date: string; body: string }>()).results;
+    const docs = (await db.prepare("SELECT d.id,d.kind,d.title,d.position,d.requires_ack,d.current_version,v.effective_date,v.body FROM policy_docs d JOIN policy_versions v ON v.doc_id=d.id AND v.version=d.current_version WHERE d.company_id=? AND d.retired=0 ORDER BY d.title").bind(employee.company_id).all<{ id: string; kind: string; title: string; position: string; requires_ack: number; current_version: number; effective_date: string; body: string }>()).results.filter((d) => d.kind !== "jobdesc" || d.position.toLocaleLowerCase("az") === employee.position.toLocaleLowerCase("az"));
     const acks = (await db.prepare("SELECT doc_id,version,acked_at,withdrawn_at FROM policy_acks WHERE company_id=? AND employee_id=?").bind(employee.company_id, employee.id).all<{ doc_id: string; version: number; acked_at: string; withdrawn_at: string }>()).results;
     return ok({
       items: docs.map((d) => {
@@ -8721,6 +8731,7 @@ async function route(request: Request) {
     const rows = await db.prepare("SELECT day,hours,clock_in,clock_out,overtime_status FROM attendance_hours WHERE company_id=? AND employee_id=? AND day>=? ORDER BY day DESC LIMIT 14").bind(employee.company_id, employee.id, new Date(Date.now() - 20 * 86_400_000).toISOString().slice(0, 10)).all<{ day: string; hours: number; clock_in: string; clock_out: string; overtime_status: string }>();
     return ok({
       enabled: setting.selfClock,
+      locationMode: setting.locationMode,
       today: now.date,
       now: now.time,
       start: setting.rules.start,
@@ -8736,12 +8747,16 @@ async function route(request: Request) {
     const now = bakuNow();
     const locked = (await db.prepare("SELECT status FROM payroll_runs WHERE company_id=? AND month=?").bind(employee.company_id, now.date.slice(0, 7)).first<{ status: string }>())?.status === "approved";
     if (locked) throw new HttpError(409, "Bu ay təsdiqlənib: giriş-çıxış qeydi artıq dəyişmir. HR ilə əlaqə saxlayın.");
+    // At the office? Only the distance is kept (as a note when it is outside); the person's coordinates are not stored.
+    const geo = checkLocation(setting.locationMode, setting.office, b.lat !== undefined ? { lat: b.lat, lng: b.lng } : null);
+    if (!geo.allowed) throw new HttpError(403, geo.error);
     const current = await db.prepare("SELECT clock_in,clock_out,source FROM attendance_hours WHERE company_id=? AND employee_id=? AND day=?").bind(employee.company_id, employee.id, now.date).first<{ clock_in: string; clock_out: string; source: string }>();
     const stamp = new Date().toISOString();
     if (b.action === "in") {
       if (current?.clock_in) throw new HttpError(409, `Bu gün giriş artıq ${current.clock_in}-də qeyd olunub.`);
       await db.prepare("INSERT INTO attendance_hours(company_id,employee_id,day,hours,night_hours,note,updated,clock_in,clock_out,source) VALUES(?,?,?,0,0,'',?,?,'','self') ON CONFLICT(company_id,employee_id,day) DO UPDATE SET clock_in=excluded.clock_in,updated=excluded.updated,source='self'").bind(employee.company_id, employee.id, now.date, stamp, now.time).run();
-      return ok({ ok: true, time: now.time, late: lateMinutes(now.time, setting.rules) });
+      if (geo.note) await db.prepare("UPDATE attendance_hours SET note=CASE WHEN note='' THEN ? ELSE note||' · '||? END WHERE company_id=? AND employee_id=? AND day=?").bind(`Giriş: ${geo.note}`, `Giriş: ${geo.note}`, employee.company_id, employee.id, now.date).run();
+      return ok({ ok: true, time: now.time, late: lateMinutes(now.time, setting.rules), outside: geo.outside });
     }
     if (b.action === "out") {
       // A night shift ends after midnight: the open arrival of yesterday is closed in the morning.
@@ -8760,7 +8775,8 @@ async function route(request: Request) {
       const calc = hoursFromClock(open.clock_in, now.time, setting.rules.breakMinutes);
       if (day === now.date && now.time < open.clock_in) throw new HttpError(409, "Çıxış saatı giriş saatından əvvəl ola bilməz.");
       await db.prepare("UPDATE attendance_hours SET clock_out=?,hours=?,night_hours=?,updated=? WHERE company_id=? AND employee_id=? AND day=?").bind(now.time, calc?.hours || 0, calc?.night || 0, stamp, employee.company_id, employee.id, day).run();
-      return ok({ ok: true, time: now.time, hours: calc?.hours || 0 });
+      if (geo.note) await db.prepare("UPDATE attendance_hours SET note=CASE WHEN note='' THEN ? ELSE note||' · '||? END WHERE company_id=? AND employee_id=? AND day=?").bind(`Çıxış: ${geo.note}`, `Çıxış: ${geo.note}`, employee.company_id, employee.id, day).run();
+      return ok({ ok: true, time: now.time, hours: calc?.hours || 0, outside: geo.outside });
     }
     throw new HttpError(400, "Əməliyyat «giriş» və ya «çıxış» olmalıdır.");
   }
@@ -9488,7 +9504,7 @@ async function route(request: Request) {
     const dayOf = new Map(days.map((d) => [d.date, d]));
     return ok({
       month: monthRaw,
-      settings: { start: clock.rules.start, end: clock.rules.end, breakMinutes: clock.rules.breakMinutes, graceMinutes: clock.rules.graceMinutes, overtimeApproval: clock.overtimeApproval, selfClock: clock.selfClock },
+      settings: { start: clock.rules.start, end: clock.rules.end, breakMinutes: clock.rules.breakMinutes, graceMinutes: clock.rules.graceMinutes, overtimeApproval: clock.overtimeApproval, selfClock: clock.selfClock, locationMode: clock.locationMode, officeLat: clock.office?.lat ?? "", officeLng: clock.office?.lng ?? "", officeRadius: clock.office?.radius ?? 150 },
       days: days.map((d) => ({ date: d.date, off: d.off, short: d.short, label: d.label })),
       employees: people.results.map((p) => ({
         id: p.id, name: p.name, position: p.position, department: p.department,
@@ -9566,6 +9582,14 @@ async function route(request: Request) {
     await put("grace_minutes", String(Math.max(0, Math.min(120, Math.round(Number(b.graceMinutes) || 0)))));
     await put("overtime_approval", b.overtimeApproval ? "1" : "0");
     await put("self_clock", b.selfClock === false ? "0" : "1");
+    const mode = GEO_MODES.includes(b.locationMode as GeoMode) ? (b.locationMode as GeoMode) : "off";
+    if (mode !== "off" && !validPoint(b.officeLat, b.officeLng)) throw new HttpError(400, "Məkan yoxlaması üçün ofisin koordinatlarını yazın (və ya “Cari məkanım” düyməsini basın).");
+    if (validPoint(b.officeLat, b.officeLng)) {
+      await put("office_lat", String(Number(b.officeLat)));
+      await put("office_lng", String(Number(b.officeLng)));
+    }
+    await put("office_radius", String(Math.max(20, Math.min(5000, Math.round(Number(b.officeRadius) || 150)))));
+    await put("clock_location", mode);
     await companyAudit(db, id, userId, "attendance-settings", "hours", `${start}–${end}, artıq iş təsdiqi: ${b.overtimeApproval ? "bəli" : "xeyr"}`);
     return ok({ ok: true });
   }
@@ -13198,6 +13222,17 @@ async function route(request: Request) {
       .bind(id, str(requestUrl.searchParams.get("id"), 100))
       .all();
     return ok({ events: rows.results });
+  }
+  // Headcount over the last year, a plain forecast, and the staff table against the people really working.
+  if (request.method === "GET" && path === "company/hr-trends") {
+    requirePermission("reports");
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = (await db.prepare("SELECT start_date,end_date,status FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ start_date: string; end_date: string; status: string }>()).results;
+    const series = monthSeries(rows.map((r) => ({ startDate: r.start_date || "", endDate: r.end_date || "", status: r.status })), today.slice(0, 7), 12);
+    const plan = await loadPlanData(db, id);
+    const fact = summarize(plan.units, plan.people);
+    const planFact = fact.departments.map((d) => ({ department: d.department, planned: d.planned, filled: d.filled, unplaced: d.unplaced }));
+    return ok({ series, forecast: forecast(series, 3, 6), planFact, alerts: planFactAlerts(planFact), planned: fact.total.planned, filled: fact.total.filled });
   }
   if (request.method === "GET" && path === "company/workforce") {
     requirePermission("reports");

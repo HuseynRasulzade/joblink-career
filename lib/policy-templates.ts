@@ -1,5 +1,5 @@
 // Starting texts for the documents a company keeps: drafts only, to be read and changed by the company's lawyer.
-export const POLICY_TEMPLATES: { id: string; kind: "rules" | "policy" | "consent"; title: string; body: string }[] = [
+export const POLICY_TEMPLATES: { id: string; kind: "rules" | "policy" | "consent" | "jobdesc"; title: string; body: string }[] = [
   {
     id: "rules",
     kind: "rules",
@@ -47,5 +47,33 @@ Məlumatlar yalnız bu məqsədlər üçün və qanunla müəyyən edilmiş müd
     body: `Şirkət işçilərin şəxsi məlumatlarını yalnız əmək münasibətlərinin tələb etdiyi həddə toplayır, onlara yalnız vəzifə öhdəliyi olan şəxslərin çıxışını verir və qanunla müəyyən edilmiş müddət bitəndən sonra məhv edir.
 Hər işçi öz məlumatlarına baxa, düzəliş tələb edə və razılığını geri götürə bilər. Müraciətlər kadr şöbəsinə yazılı şəkildə edilir.
 Məlumatların üçüncü şəxslərə ötürülməsi yalnız qanunvericilikdə nəzərdə tutulan hallarda və ya işçinin razılığı ilə həyata keçirilir.`,
+  },
+  {
+    id: "jobdesc",
+    kind: "jobdesc",
+    title: "Vəzifə təlimatı",
+    body: `1. Ümumi müddəalar
+Vəzifənin adı, aid olduğu şöbə, birbaşa tabe olduğu rəhbər, əvəz edən işçi və iş rejimi.
+
+2. Vəzifənin məqsədi
+Bu vəzifənin şirkət üçün gördüyü əsas işin bir-iki cümləlik izahı.
+
+3. Vəzifə öhdəlikləri
+- (əsas öhdəlik 1)
+- (əsas öhdəlik 2)
+- (əsas öhdəlik 3)
+- rəhbərin tapşırdığı digər işləri öz səlahiyyəti çərçivəsində yerinə yetirmək.
+
+4. Hüquqlar və səlahiyyətlər
+İşçinin qərar verə biləcəyi məsələlər, istifadə etdiyi sistemlər və sənədlər, imza səlahiyyəti (varsa).
+
+5. Tələblər
+Təhsil, iş təcrübəsi, bilik və bacarıqlar, dil biliyi.
+
+6. Məsuliyyət
+Vəzifə öhdəliklərinin yerinə yetirilməməsinə və ya lazımınca yerinə yetirilməməsinə görə məsuliyyət Əmək Məcəlləsinə və daxili əmək qaydalarına uyğun müəyyən edilir.
+
+7. Qiymətləndirmə
+İşçinin fəaliyyəti performans dövrünün məqsədləri və göstəriciləri əsasında qiymətləndirilir.`,
   },
 ];

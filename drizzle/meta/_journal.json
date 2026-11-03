@@ -659,6 +659,13 @@
       "when": 1799002800000,
       "tag": "0093_asset_ack",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "6",
+      "when": 1799089200000,
+      "tag": "0094_position_instructions",
+      "breakpoints": true
     }
   ]
 }

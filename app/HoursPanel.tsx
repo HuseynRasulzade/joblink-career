@@ -19,7 +19,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 
 type Summary = { days: number; worked: number; overtime: number; restDay: number; night: number };
 type Entry = { day: string; hours: number; night: number; note: string; clockIn: string; clockOut: string; source: string; late: number; early: number; extra: number; overtimeStatus: string; order: string };
-type Settings = { start: string; end: string; breakMinutes: number; graceMinutes: number; overtimeApproval: boolean; selfClock: boolean };
+type Settings = { start: string; end: string; breakMinutes: number; graceMinutes: number; overtimeApproval: boolean; selfClock: boolean; locationMode?: "off" | "warn" | "require"; officeLat?: number | string; officeLng?: number | string; officeRadius?: number };
 type Person = { id: string; name: string; position: string; department: string; weekHours: number; summary: Summary; entries: Entry[]; missing: string[]; mode: "daily" | "month" | "none"; total: { overtime: number; restDay: number; night: number; status: string; note: string } | null };
 type Data = { month: string; settings: Settings; days: { date: string; off: string; short: boolean; label: string }[]; employees: Person[] };
 const OFF: Record<string, string> = { weekend: "istirahət", holiday: "bayram", transfer: "köçürülmüş istirahət", company: "şirkət istirahəti" };
@@ -173,6 +173,22 @@ function ClockSettings({ settings, notify, onClose, onSaved }: { settings: Setti
         <Field label="Gecikmə sayılmayan müddət (dəqiqə)"><input type="number" min={0} max={120} value={form.graceMinutes} onChange={(e) => setForm({ ...form, graceMinutes: Number(e.target.value) })} /></Field>
         <label className="check-row"><input type="checkbox" checked={form.overtimeApproval} onChange={(e) => setForm({ ...form, overtimeApproval: e.target.checked })} /> Artıq iş və istirahət günü işi yalnız təsdiq edildikdə əmək haqqına düşsün</label>
         <label className="check-row"><input type="checkbox" checked={form.selfClock} onChange={(e) => setForm({ ...form, selfClock: e.target.checked })} /> İşçilər «İş yerim»də özləri gəliş-gediş qeyd etsin</label>
+        <Field label="Giriş-çıxışda məkan yoxlaması">
+          <select value={form.locationMode || "off"} onChange={(e) => setForm({ ...form, locationMode: e.target.value as "off" | "warn" | "require" })}>
+            <option value="off">Yoxlanmasın</option>
+            <option value="warn">Ofisdən kənarda olanda HR üçün qeyd yazılsın</option>
+            <option value="require">Yalnız ofisdə qeyd etməyə icazə verilsin</option>
+          </select>
+        </Field>
+        {(form.locationMode || "off") !== "off" && (
+          <>
+            <Field label="Ofisin enliyi (lat)"><input inputMode="decimal" value={String(form.officeLat ?? "")} onChange={(e) => setForm({ ...form, officeLat: e.target.value })} /></Field>
+            <Field label="Ofisin uzunluğu (lng)"><input inputMode="decimal" value={String(form.officeLng ?? "")} onChange={(e) => setForm({ ...form, officeLng: e.target.value })} /></Field>
+            <Field label="İcazə verilən məsafə (metr)"><input type="number" min={20} max={5000} value={form.officeRadius ?? 150} onChange={(e) => setForm({ ...form, officeRadius: Number(e.target.value) })} /></Field>
+            <button type="button" className="secondary" onClick={() => navigator.geolocation?.getCurrentPosition((p) => setForm({ ...form, officeLat: Number(p.coords.latitude.toFixed(6)), officeLng: Number(p.coords.longitude.toFixed(6)) }), () => notify("Məkan alınmadı: brauzerdə icazə verin."), { enableHighAccuracy: true, timeout: 10000 })}>Cari məkanım ofisdir</button>
+            <small className="skill-description">İşçinin koordinatları saxlanmır: yalnız ofisdən məsafə hesablanır, kənarda isə cədvəldə “Ofisdən N m kənarda qeyd olunub” qeydi qalır.</small>
+          </>
+        )}
         <button type="button" className="primary" disabled={busy} onClick={() => void save()}>Yadda saxla</button>
       </div>
     </Modal>

@@ -1704,6 +1704,8 @@ export const policyDocs = sqliteTable(
     requiresAck: integer("requires_ack").notNull().default(1),
     currentVersion: integer("current_version").notNull().default(1),
     retired: integer("retired").notNull().default(0),
+    // For a position instruction (kind "jobdesc"): the position whose holders must confirm it.
+    position: text("position").notNull().default(""),
     created: text("created").notNull(),
   },
   (t) => [index("policy_docs_company").on(t.companyId, t.retired)],

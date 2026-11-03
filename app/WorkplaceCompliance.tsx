@@ -17,7 +17,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : iso || "—");
 
 type Policy = { id: string; kind: string; title: string; requiresAck: boolean; version: number; effectiveDate: string; body: string; ackedAt: string; withdrawnAt: string; earlierVersion: number };
-const KIND: Record<string, string> = { rules: "Daxili qaydalar", policy: "Siyasət", consent: "Razılıq", other: "Sənəd" };
+const KIND: Record<string, string> = { rules: "Daxili qaydalar", policy: "Siyasət", consent: "Razılıq", jobdesc: "Vəzifə təlimatı", other: "Sənəd" };
 
 // The employee reads the rules and policies of the company, confirms them and may withdraw a consent.
 export function MyPolicies({ employeeId, notify }: { employeeId: string; notify: Notify }) {

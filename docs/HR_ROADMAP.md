@@ -8,17 +8,17 @@ Qiymətləndirmə: ✅ var · 🟡 qismən · ❌ yoxdur. Əmək: S (1–2 gün)
 
 | Sahə | Vəziyyət | Nə var / nə çatmır |
 |---|---|---|
-| İşə qəbul (vakansiya, namizəd, müsahibə, test, təklif) | ✅ | Vakansiyalar, namizəd axını, istedad bazası, müsahibə, testlər, iş təklifi, təsdiq zənciri, AI köməkçi. Çatmır: bir neçə sayta eyni anda yerləşdirmə, referal proqramı, rəy yoxlaması |
-| İşçi kartı və şəxsi iş | ✅ | Şəxsi məlumatlar, vəsiqə, əlillik və vergi güzəşti, bank/kart, sənəd qovluğu, əmrlər, müqavilə şablonları, işçi profili qoşulması. Çatmır: sənəd müddəti xatırlatması (tibbi baxış, sertifikat), təşkilat sxemi, işçi şəkli |
-| Ştat cədvəli və struktur | ✅ | Plan, kilid və direktor təsdiqi, vəzifə və şöbə kataloqu, maaş həddi, ştat dərəcəsi. Çatmır: ştat dəyişikliyi tarixçəsinin qrafik görüntüsü, vəzifə təlimatları (iş təsviri) |
-| Davamiyyət | ✅ | Gün üzrə qeyd, Excel idxalı, qısaldılmış həftə, giriş-çıxış saatı, işçinin özünün qeydi, gecikmə jurnalı, artıq iş təsdiqi, saatların əmək haqqına avtomatik keçməsi, növbələr. Çatmır: məkan yoxlaması, turniket inteqrasiyası |
-| Məzuniyyət və icazə | ✅ | Əmrlər, işçi ərizəsi, qalıq, məzuniyyət haqqı (md. 140), illik qrafik, birbaşa rəhbər təsdiqi ("İş yerim → Komandam"), üst-üstə düşmə və şöbə yükü yoxlaması, HR qapısı (rəhbər cavab verməmiş əmr hazırlanmır), ezamiyyət. Çatmır: rəhbərin yoxluğunda əvəzedici, məzuniyyət balansının ərizə zamanı iş günü ilə dəqiq yoxlanması |
-| Əmək haqqı | ✅ | Hesablama, avans, vergi güzəşti, müavinətlər, ödənişlər və geri çəkmə, bank sənədi və ikinci təsdiq, hesablaşma hesabatı, haqq-hesab vərəqəsi, işçiyə bildiriş. Çatmır: bölmə 2-də |
-| Hesabatlar | ✅ | İşçi axını, dövriyyə, kadr və fond hesabatı, hesablaşma hesabatı. Çatmır: qrafiklər, proqnoz, plan-fakt xəbərdarlığı |
-| Performans və inkişaf | ❌ | Məqsəd, qiymətləndirmə dövrü, 360° rəy, 1:1 qeydləri, bacarıq matrisi, təlim planı |
-| Aktivlər | ❌ | Noutbuk, telefon, açar, forma: verilmə və qaytarma aktı |
-| İşçi təcrübəsi | ❌ | Elanlar, sorğular (eNPS), ad günü və il dönümü, HR-a müraciət (tiket) |
-| Çıxış prosesi | 🟡 | Çıxış növü və səbəbi, işdən çıxarma əmri. Çatmır: çıxış siyahısı (aktivlərin qaytarılması), çıxış müsahibəsi, son haqq-hesabın əmək haqqına bağlanması |
+| İşə qəbul (vakansiya, namizəd, müsahibə, test, təklif) | ✅ | Vakansiyalar, namizəd axını, istedad bazası, müsahibə, testlər, iş təklifi, təsdiq zənciri, AI köməkçi, tövsiyə proqramı, rəy yoxlaması, vakansiya paylaşma. Çatmır: bir neçə xarici sayta eyni anda yerləşdirmə (xarici müqavilə) |
+| İşçi kartı və şəxsi iş | ✅ | Şəxsi məlumatlar, vəsiqə, əlillik və vergi güzəşti, bank/kart, sənəd qovluğu, əmrlər, müqavilə şablonları, işçi profili qoşulması. Sənəd müddəti xatırlatması və təşkilat sxemi var. Çatmır: işçi şəkli (fayl saxlama və məxfilik qərarı tələb edir) |
+| Ştat cədvəli və struktur | ✅ | Plan, kilid və direktor təsdiqi, vəzifə və şöbə kataloqu, maaş həddi, ştat dərəcəsi. Vəzifə təlimatları (versiyalı, işçi təsdiqi ilə, bölmə 28), kadr dinamikası qrafiki və plan-fakt (bölmə 28) |
+| Davamiyyət | ✅ | Gün üzrə qeyd, Excel idxalı, qısaldılmış həftə, giriş-çıxış saatı, işçinin özünün qeydi, gecikmə jurnalı, artıq iş təsdiqi, saatların əmək haqqına avtomatik keçməsi, növbələr. Məkan yoxlaması (bölmə 28). Çatmır: turniket inteqrasiyası (xarici cihaz) |
+| Məzuniyyət və icazə | ✅ | Əmrlər, işçi ərizəsi, qalıq, məzuniyyət haqqı (md. 140), illik qrafik, birbaşa rəhbər təsdiqi ("İş yerim → Komandam"), üst-üstə düşmə və şöbə yükü yoxlaması, HR qapısı (rəhbər cavab verməmiş əmr hazırlanmır), ezamiyyət. Rəhbərin yoxluğunda əvəzedici var |
+| Əmək haqqı | ✅ | Hesablama, avans, vergi güzəşti, müavinətlər, ödənişlər və geri çəkmə, bank sənədi və ikinci təsdiq, hesablaşma hesabatı, haqq-hesab vərəqəsi, işçiyə bildiriş. Qalan bəndlər bölmə 2–14-də tamamlanıb |
+| Hesabatlar | ✅ | İşçi axını, dövriyyə, kadr və fond hesabatı, hesablaşma hesabatı. Qrafik, proqnoz və plan-fakt xəbərdarlığı (bölmə 28) |
+| Performans və inkişaf | ✅ | Məqsəd, qiymətləndirmə dövrü, 360° rəy, 1:1 qeydləri, bacarıq matrisi, təlim planı |
+| Aktivlər | ✅ | Noutbuk, telefon, açar, forma: verilmə və qaytarma aktı |
+| İşçi təcrübəsi | ✅ | Elanlar, sorğular (eNPS), ad günü və il dönümü, HR-a müraciət (tiket) |
+| Çıxış prosesi | ✅ | Çıxış növü və səbəbi, işdən çıxarma əmri, çıxış siyahısı, aktivlərin qaytarılması, çıxış müsahibəsi, son haqq-hesab (məzuniyyət kompensasiyası əmək haqqında) |
 | Əməyin mühafizəsi | ✅ | Təlimat jurnalı, tibbi baxış qrafiki, qəza qeydləri (bölmə 25) |
 | Hüquqi uyğunluq | 🟡 | Əmr və müqavilə layihələri, audit qeydləri, rol və icazələr, versiyalı daxili qaydalar, rəzayət, saxlama müddəti (bölmə 25). Çatmır: hüquqi e-imza (xarici müqavilə) |
 
@@ -374,3 +374,15 @@ Kadr əməliyyatları → Məzuniyyət qrafiki və Əməyin mühafizəsi bölmə
 - İşçi hər iki faylda **FİN ilə** tapılır (eyni adlı iki işçi qarışmır); FİN yoxdursa e-poçt, sonra ad; birmənalı olmayan sətir yüklənmir və səbəbi yazılır.
 
 Texniki: `parseLeavePlan`, `parseOhsRows` (`lib/sheet-imports.ts`), `leaveplan` və `ohs` şablonları (`lib/sheet-templates.ts`, testlə oxunur), `company/leave-schedule/import`, `company/ohs/import`.
+
+## 28. Kadr dinamikası və proqnoz, vəzifə təlimatı, davamiyyətdə məkan yoxlaması
+
+Bölmə 1-dəki köhnə cədvəl yenilənib: ❌ qalmış sətirlərin hamısı artıq tamamlanıb. Real çatışmayanlar bunlar idi:
+
+- **Hesabatlar → Kadr dinamikası, proqnoz və plan-fakt:** son 12 ayda işçi sayı, işə qəbul və çıxış (SVG qrafik), son 6 ayın orta qəbul/çıxışına əsaslanan 3 aylıq proqnoz (sadə tendensiya), ştat cədvəli ilə faktiki işçi müqayisəsi və xəbərdarlıqlar (ştatdan artıq işçi, ştatda yeri olmayan işçi, 25%+ boş yer).
+- **Vəzifə təlimatı (iş təsviri):** "Qaydalar və razılıq" bölməsində yeni növ; vəzifə seçilir, mətn versiyalanır, yalnız o vəzifədəki işçilər "İş yerim → Qaydalar"da görür və təsdiq edir; işçi vəzifəsi dəyişəndə yeni təlimat avtomatik təsdiq gözləyənlərə düşür. Nümunə mətn layihədir.
+- **Davamiyyətdə məkan yoxlaması:** Davamiyyət ayarlarında üç rejim (yoxlanmasın / kənarda HR üçün qeyd / yalnız ofisdə). Ofisin koordinatı və məsafə (20–5000 m) yazılır. İşçinin koordinatları saxlanmır, yalnız məsafə hesablanır; kənarda qeyd olunanda cədvəldə "Ofisdən N m kənarda qeyd olunub" yazılır. GPS brauzer icazəsi tələb edir; dəqiqliyi cihazdan asılıdır, qəti sübut deyil.
+
+Texniki: miqrasiya 0094 (`policy_docs.position`), `lib/hr-trends.ts`, `lib/geofence.ts` (testlərlə), `company/hr-trends`, `app/HrTrends.tsx`.
+
+Qalan: işçi şəkli (fayl saxlama, məxfilik), turniket inteqrasiyası (xarici cihaz), hüquqi e-imza, bank API, bir neçə xarici sayta eyni anda yerləşdirmə.

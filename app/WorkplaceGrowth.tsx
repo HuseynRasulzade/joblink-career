@@ -121,18 +121,24 @@ export function MyTraining({ employeeId, notify }: { employeeId: string; notify:
   );
 }
 
-type ClockData = { enabled: boolean; today: string; now: string; start: string; end: string; items: { day: string; hours: number; clockIn: string; clockOut: string; late: number; early: number; overtimeStatus: string }[] };
+type ClockData = { locationMode?: "off" | "warn" | "require"; enabled: boolean; today: string; now: string; start: string; end: string; items: { day: string; hours: number; clockIn: string; clockOut: string; late: number; early: number; overtimeStatus: string }[] };
 // Arrival and departure: the server stamps the time, so nothing can be typed in.
 export function MyClock({ employeeId, notify }: { employeeId: string; notify: Notify }) {
   const [data, load] = useLoad<ClockData>(`employee/clock?employeeId=${employeeId}`, notify);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const today = data.items.find((i) => i.day === data.today);
+  // When the company checks the place, the position is asked from the browser and sent with the click; only the distance is kept.
+  const stamp = (action: "in" | "out", done: string) => {
+    const send = (extra: Record<string, unknown>) => void act(notify, load, "employee/clock", { employeeId, action, ...extra }, done);
+    if (!data.locationMode || data.locationMode === "off" || !navigator.geolocation) return send({});
+    navigator.geolocation.getCurrentPosition((p) => send({ lat: p.coords.latitude, lng: p.coords.longitude }), () => send({}), { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+  };
   return (
     <div className="offer-composer">
       {data.enabled ? (
         <div className="admin-actions">
-          <button type="button" className="primary" disabled={!!today?.clockIn} onClick={() => void act(notify, load, "employee/clock", { employeeId, action: "in" }, "Giriş qeyd olundu.")}>Gəldim</button>
-          <button type="button" disabled={!today?.clockIn || !!today?.clockOut} onClick={() => void act(notify, load, "employee/clock", { employeeId, action: "out" }, "Çıxış qeyd olundu.")}>Getdim</button>
+          <button type="button" className="primary" disabled={!!today?.clockIn} onClick={() => stamp("in", "Giriş qeyd olundu.")}>Gəldim</button>
+          <button type="button" disabled={!today?.clockIn || !!today?.clockOut} onClick={() => stamp("out", "Çıxış qeyd olundu.")}>Getdim</button>
           <small className="skill-description">Bakı vaxtı {data.now} · iş saatı {data.start} – {data.end}{today?.clockIn ? ` · bu gün giriş ${today.clockIn}${today.clockOut ? `, çıxış ${today.clockOut}` : ""}` : ""}</small>
         </div>
       ) : (
