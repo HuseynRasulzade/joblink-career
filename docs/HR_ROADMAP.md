@@ -364,3 +364,13 @@ Köhnə cədvəldəki "Performans və inkişaf, Aktivlər, İşçi təcrübəsi,
 Texniki: miqrasiya 0093 (`asset_assignments.ack_issued_at`), `lib/celebrations.ts` (test), `company/celebrations*`, `employee/celebrations`, `employee/assets/ack`, `runCelebrations` cron.
 
 Qalan yeganə boşluq: hüquqi e-imza (ASAN imza və s.) — xarici müqavilə tələb edir.
+
+## 27. Excel ilə məlumat əlavə: məzuniyyət qrafiki və əməyin mühafizəsi
+
+Kadr əməliyyatları → Məzuniyyət qrafiki və Əməyin mühafizəsi bölmələrində "Excel-dən yüklə" düyməsi: nümunə fayl (təlimat vərəqi ilə), yükləmədən əvvəl önizləmə, sətir-sətir xəta siyahısı.
+
+- **Məzuniyyət qrafiki:** Ad Soyad / FİN, Başlama, Gün sayı və ya Bitmə, Status (Təklif / Təsdiqlənib), Qeyd. Bitmə yazılsa, bayram günləri nəzərə alınaraq gün sayı hesablanır. "Təsdiqlənib" olanlar üçün ərizə yaranır və işçiyə bildiriş gedir (formada olduğu kimi). Eyni dövr artıq varsa sətir keçilir; üst-üstə düşmə, şöbədə çox adamın eyni vaxtda məzuniyyəti və qalan günlərin çatmaması xəbərdarlıq kimi göstərilir. "Götürülüb" statusu yüklənmir (əmr imzalananda özü olur).
+- **Əməyin mühafizəsi:** bir faylda üç növ qeyd (Təlimat, Tibbi baxış, Hadisə); hər sətir formadakı eyni yoxlamadan keçir (təlimatı keçən şəxs məcburidir, növ və nəticə tanınmalıdır, növbəti tarix boşdursa avtomatik 6 ay / 1 il). Ağır hadisə "bildirilib" olmadan yüklənərsə xəbərdarlıq çıxır.
+- İşçi hər iki faylda **FİN ilə** tapılır (eyni adlı iki işçi qarışmır); FİN yoxdursa e-poçt, sonra ad; birmənalı olmayan sətir yüklənmir və səbəbi yazılır.
+
+Texniki: `parseLeavePlan`, `parseOhsRows` (`lib/sheet-imports.ts`), `leaveplan` və `ohs` şablonları (`lib/sheet-templates.ts`, testlə oxunur), `company/leave-schedule/import`, `company/ohs/import`.

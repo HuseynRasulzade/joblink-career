@@ -5,7 +5,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -245,6 +245,57 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       ["iPhone 14 telefon", "Telefon", "SN-IP-014", "INV-0002", 1500, ""],
     ],
     rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Yüklənən əmlak “Anbarda” statusu ilə yaranır; işçiyə verilmə aktivlər bölməsində edilir.", "Bir dəfəyə ən çox 500 sətir."],
+  },
+  leaveplan: {
+    title: "Məzuniyyət qrafiki",
+    file: "mezuniyyet-qrafiki-numune.xlsx",
+    sheet: "Qrafik",
+    columns: [
+      { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. FİN yazılıbsa, ad boş ola bilər." },
+      { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "FİN", required: false, format: "7 simvol", description: "FİN yazılırsa işçi yalnız FİN ilə tapılır (eyni adlı iki işçi qarışmır); işçi kartında FİN olmalıdır." },
+      { header: "Başlama", required: true, format: "GGGG-AA-GG", description: "Məzuniyyətin ilk günü." },
+      { header: "Gün sayı", required: false, format: "1–90", description: "Neçə məzuniyyət günü (bayram günləri sayılmır, bitmə tarixi buna görə hesablanır). Gün sayı və ya Bitmə sütunlarından biri olmalıdır." },
+      { header: "Bitmə", required: false, format: "GGGG-AA-GG", description: "Məzuniyyətin son günü. Gün sayı yazılıbsa, gün sayı üstünlük təşkil edir." },
+      { header: "Status", required: false, format: "Təklif / Təsdiqlənib", description: "Təsdiqlənib yazılsa qrafikdə təsdiqlənmiş olur və işçiyə bildiriş gedir, ərizə yaranır. Boşdursa “təklif” olaraq düşür.", values: "Təklif, Təsdiqlənib" },
+      { header: "Qeyd", required: false, format: "Mətn", description: "İstədiyiniz izah." },
+    ],
+    examples: [
+      ["Aysel Məmmədova", "", "", "2026-07-06", 14, "", "Təsdiqlənib", "Yay məzuniyyəti"],
+      ["Orxan Əliyev", "", "", "2026-08-03", "", "2026-08-14", "Təklif", ""],
+      ["Nigar Quliyeva", "", "", "2026-12-21", 10, "", "", "İl sonu"],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Eyni işçinin həmin günlərdə başqa məzuniyyəti varsa və ya qalan məzuniyyət günləri çatmırsa, sətir yenə yüklənir, xəbərdarlıq nəticədə göstərilir.", "“Götürülüb” statusu yüklənmir: məzuniyyət əmr imzalananda özü götürülmüş olur."],
+  },
+  ohs: {
+    title: "Əməyin mühafizəsi qeydləri",
+    file: "emeyin-muhafizesi-numune.xlsx",
+    sheet: "Qeydlər",
+    columns: [
+      { header: "Qeyd növü", required: true, format: "Mətn", description: "Hər sətir bir qeyddir.", values: "Təlimat, Tibbi baxış, Hadisə" },
+      { header: "Ad Soyad", required: false, format: "Mətn", description: "Təlimat və tibbi baxış üçün məcburidir; hadisədə boş ola bilər. FİN yazılıbsa, ad boş ola bilər." },
+      { header: "FİN", required: false, format: "7 simvol", description: "FİN yazılırsa işçi yalnız FİN ilə tapılır; işçi kartında FİN olmalıdır." },
+      { header: "Tarix", required: true, format: "GGGG-AA-GG", description: "Təlimatın, baxışın və ya hadisənin tarixi." },
+      { header: "Növ", required: true, format: "Mətn", description: "Təlimat: Giriş təlimatı, İş yerində ilkin təlimat, Təkrar təlimat, Növbədənkənar təlimat, Yanğın təhlükəsizliyi. Tibbi baxış: İlkin, Dövri, Növbədənkənar. Hadisə: Yaxın hadisə, Yüngül zədə, Ağır zədə, Ölümlə nəticələnən, Peşə xəstəliyi." },
+      { header: "Təlimatı keçən / klinika", required: false, format: "Mətn", description: "Təlimat üçün məcburidir (təlimatı keçən şəxsin adı); tibbi baxış üçün tibb müəssisəsi." },
+      { header: "Mövzu / qeyd", required: false, format: "Mətn", description: "Təlimatın mövzusu və ya tibbi baxışın qeydi." },
+      { header: "İşçi imzalayıb", required: false, format: "Bəli / Xeyr", description: "Təlimat jurnalında işçinin imzası var.", values: "Bəli, Xeyr" },
+      { header: "Nəticə", required: false, format: "Mətn", description: "Tibbi baxış üçün. Boşdursa “İşləyə bilər”.", values: "İşləyə bilər, Məhdudiyyətlə, İşləyə bilməz" },
+      { header: "Növbəti tarix", required: false, format: "GGGG-AA-GG", description: "Növbəti təlimat/baxış. Boşdursa: təkrar təlimat və yanğın üçün 6 ay, dövri baxış üçün 1 il sonra." },
+      { header: "Yer", required: false, format: "Mətn", description: "Hadisənin baş verdiyi yer." },
+      { header: "Təsvir", required: false, format: "Mətn", description: "Hadisə üçün məcburidir (qısaca nə baş verdi)." },
+      { header: "Səbəb", required: false, format: "Mətn", description: "Hadisənin səbəbi." },
+      { header: "Görülən tədbirlər", required: false, format: "Mətn", description: "Hadisədən sonra görülən tədbirlər." },
+      { header: "İtirilən iş günü", required: false, format: "Tam ədəd", description: "Hadisə nəticəsində itirilən iş günü sayı." },
+      { header: "Status", required: false, format: "Mətn", description: "Hadisənin statusu. Boşdursa “Açıq”.", values: "Açıq, Araşdırılır, Bağlanıb" },
+      { header: "Bildirilib", required: false, format: "Bəli / Xeyr", description: "Hadisə dövlət əmək müfəttişliyinə və sığortaçıya bildirilib." },
+    ],
+    examples: [
+      ["Təlimat", "Aysel Məmmədova", "", "2026-03-02", "Təkrar təlimat", "Ə. Əliyev", "Yanğın təhlükəsizliyi", "Bəli", "", "", "", "", "", "", "", "", ""],
+      ["Tibbi baxış", "Orxan Əliyev", "", "2026-04-15", "Dövri", "Mərkəzi klinika", "", "", "İşləyə bilər", "", "", "", "", "", "", "", ""],
+      ["Hadisə", "", "", "2026-05-20", "Yüngül zədə", "", "", "", "", "", "Anbar", "Yük götürərkən əl zədələndi", "Əlcəksiz iş", "Əlcək verildi", 2, "Bağlanıb", "Xeyr"],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Üç növ qeydi eyni faylda qarışıq yaza bilərsiniz; hər növ üçün lazım olmayan xanalar boş qalır.", "Ağır və ya ölümlə nəticələnən hadisə “Bildirilib” = Xeyr ilə yüklənəndə xəbərdarlıq göstərilir."],
   },
   questions: {
     title: "Test sualları",

@@ -374,7 +374,7 @@ import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode,
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS, RETENTION_CATEGORIES, cleanOhs, dueState, retentionEnd, retentionYears, textHash } from "@/lib/ohs";
 import { groupTotals, snapshotTotals, turnoverPercent, type MemberFigures } from "@/lib/company-group";
-import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validCard, validIban, type EmployeeProfile } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
@@ -8100,6 +8100,42 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "ohs-created", v.employeeId, `${v.type} ${v.date}`);
     return ok({ ok: true, id: recordId, warning: v.data.mustReport && v.data.reported !== true ? "Ağır və ya ölümlə nəticələnən hadisə: dövlət əmək müfəttişliyinə və sığortaçıya bildirmək lazımdır, “bildirilib” qeydini hadisə bildirildikdən sonra işarələyin." : "" }, 201);
   }
+  // Safety records from a spreadsheet: briefings, medical examinations and incidents, each checked like the form does.
+  if (request.method === "POST" && path === "company/ohs/import") {
+    requirePermission("salaries", "Əməyin mühafizəsi qeydlərini yalnız kadr işçisi, direktor və hesab sahibi yükləyə bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseOhsRows((Array.isArray(b.rows) ? b.rows : []).slice(0, 1001).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda qeyd tapılmadı.");
+    const refs = await employeeRefs();
+    const issues = [...parsed.issues];
+    const warnings: string[] = [];
+    const statements: D1PreparedStatement[] = [];
+    const now = new Date().toISOString();
+    let created = 0;
+    for (const row of parsed.rows) {
+      let employeeId = "";
+      if (row.raw.type !== "incident" || row.name || row.fin) {
+        const found = matchEmployee(refs, { name: row.name, email: row.email, fin: row.fin });
+        if ("error" in found) {
+          issues.push({ line: row.line, reason: found.error });
+          continue;
+        }
+        employeeId = found.id;
+      }
+      const checked = cleanOhs({ ...row.raw, employeeId });
+      if (!checked.ok) {
+        issues.push({ line: row.line, reason: `${row.name || "Hadisə"}: ${checked.error}` });
+        continue;
+      }
+      const v = checked.value;
+      statements.push(db.prepare("INSERT INTO ohs_records(id,company_id,type,employee_id,record_date,due_date,status,data,created_by,created) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, v.type, v.employeeId, v.date, v.due, v.status, JSON.stringify(v.data), userId, now));
+      if (v.data.mustReport && v.data.reported !== true) warnings.push(`${v.date} hadisəsi (${String(v.data.description).slice(0, 40)}): ağır hadisədir, müfəttişliyə və sığortaçıya bildirmək lazımdır.`);
+      created++;
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "ohs-imported", "", `${created} qeyd Excel faylından yükləndi`);
+    return ok({ created, issues, warnings: warnings.slice(0, 50) });
+  }
   if (request.method === "POST" && path === "company/ohs/delete") {
     requirePermission("salaries", "Əməyin mühafizəsi qeydlərini yalnız kadr işçisi, direktor və hesab sahibi silə bilər.");
     const b = await jsonBody(request);
@@ -9708,6 +9744,65 @@ async function route(request: Request) {
     if (status === "approved") await requestFromPlan(person.id, plan.start, plan.end, plan.days, me).catch(() => false);
     if (status === "approved") await tellEmployee(person.id, "Məzuniyyətiniz qrafikə daxil edildi", `${plan.start} – ${plan.end} (${plan.days} gün) məzuniyyət qrafikdə təsdiqləndi. Qayıdış tarixi: ${plan.returnDate}.`);
     return ok({ ok: true, id: entryId, warnings, plan });
+  }
+  // The leave plan from a spreadsheet: each line is a proposed or an approved leave, the employee is found by the FİN first.
+  if (request.method === "POST" && path === "company/leave-schedule/import") {
+    requirePermission("salaries", "Məzuniyyət qrafikini yalnız kadr işçisi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseLeavePlan((Array.isArray(b.rows) ? b.rows : []).slice(0, 1001).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda məzuniyyət sətri tapılmadı.");
+    const refs = await employeeRefs();
+    const people = await leavePeople();
+    const issues = [...parsed.issues];
+    const warnings: string[] = [];
+    const byYear = new Map<number, ScheduleEntry[]>();
+    const me = await requesterName();
+    let created = 0;
+    for (const row of parsed.rows) {
+      const found = matchEmployee(refs, { name: row.name, email: row.email, fin: row.fin });
+      if ("error" in found) {
+        issues.push({ line: row.line, reason: found.error });
+        continue;
+      }
+      const person = people.find((p) => p.id === found.id);
+      if (!person) {
+        issues.push({ line: row.line, reason: `${row.name}: işçi hazırda işləmir (məzuniyyət yazıla bilməz).` });
+        continue;
+      }
+      // An end date is turned into the number of leave days: holidays inside the stretch are not counted as leave days.
+      let days = row.days;
+      if (!days && row.to) {
+        for (let d = 1; d <= 90; d++) {
+          const p = planLeave(row.from, d);
+          if (p && p.end >= row.to) { days = d; break; }
+        }
+      }
+      const plan = days ? planLeave(row.from, days) : null;
+      if (!plan) {
+        issues.push({ line: row.line, reason: `${row.name}: başlama tarixi və gün sayı düzgün deyil.` });
+        continue;
+      }
+      const year = Number(plan.start.slice(0, 4));
+      if (!byYear.has(year)) byYear.set(year, (await leaveEntries(year)).map(toEntry));
+      const entries = byYear.get(year)!;
+      if (entries.some((e) => e.employeeId === person.id && e.start === plan.start && e.end === plan.end && e.status !== "rejected")) {
+        issues.push({ line: row.line, reason: `${person.name}: ${plan.start} – ${plan.end} məzuniyyəti qrafikdə artıq var.` });
+        continue;
+      }
+      const wasWarned = scheduleWarnings({ employeeId: person.id, start: plan.start, end: plan.end, days: plan.days }, entries, people.map((p) => ({ id: p.id, name: p.name, department: p.department })), { remaining: person.balance.remaining });
+      for (const w of wasWarned) warnings.push(`${person.name}: ${w}`);
+      const now = new Date().toISOString();
+      const entryId = crypto.randomUUID();
+      await db.prepare("INSERT INTO leave_schedule(id,company_id,employee_id,year,start_date,end_date,days,status,proposed_by,note,decided_by_name,decided_at,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(entryId, id, person.id, year, plan.start, plan.end, plan.days, row.status, "hr", row.note, row.status === "approved" ? me : "", row.status === "approved" ? now : "", now).run();
+      entries.push({ id: entryId, employeeId: person.id, start: plan.start, end: plan.end, days: plan.days, status: row.status });
+      if (row.status === "approved") {
+        await requestFromPlan(person.id, plan.start, plan.end, plan.days, me).catch(() => false);
+        await tellEmployee(person.id, "Məzuniyyətiniz qrafikə daxil edildi", `${plan.start} – ${plan.end} (${plan.days} gün) məzuniyyət qrafikdə təsdiqləndi. Qayıdış tarixi: ${plan.returnDate}.`);
+      }
+      created++;
+    }
+    await companyAudit(db, id, userId, "leave-schedule-imported", "", `${created} məzuniyyət Excel faylından yükləndi`);
+    return ok({ created, issues, warnings: warnings.slice(0, 50) });
   }
   if (request.method === "POST" && path === "company/leave-schedule/decide") {
     requirePermission("salaries", "Məzuniyyət qrafikini yalnız kadr işçisi təsdiqləyə bilər.");

@@ -9,7 +9,7 @@ import { readSheetRows } from "@/lib/question-file";
 import { parseHoursRows, parseHoursTotals } from "@/lib/hours";
 import { parseAssetRows } from "@/lib/assets";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "@/lib/staff-import";
-import { parseShiftSchedule, parseShiftStaff, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { SHEET_TEMPLATES, templateSheets } from "@/lib/sheet-templates";
 import { OTHER_REQUEST, REQUEST_KINDS, orderPrefill, requestKindLabel, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { ATTENDANCE_CODES } from "@/lib/calendar-az";
@@ -39,7 +39,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 const azn = (value: number) => `${value.toLocaleString("az-AZ", { maximumFractionDigits: 2 })} AZN`;
 
 // ---------- Excel file: template and import ----------
-export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets";
+export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs";
 const SHEET_META: Record<SheetKind, { title: string; endpoint: string; done: (r: SheetResult) => string }> = {
   employees: { title: "İşçiləri Excel faylından əlavə et", endpoint: "company/employees/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən işçi yadda saxlanıldı.` },
   staff: { title: "Ştat cədvəlini Excel faylından əlavə et", endpoint: "company/staff/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən ştat sətri yadda saxlanıldı.` },
@@ -52,9 +52,11 @@ const SHEET_META: Record<SheetKind, { title: string; endpoint: string; done: (r:
   hourtotals: { title: "Ay yekunu saatlarını Excel faylından yüklə (artıq iş, istirahət günü, gecə)", endpoint: "company/hours/totals-import", done: (r) => `${r.applied ?? 0} işçinin ay yekunu yeniləndi.` },
   hours: { title: "İşlənən saatları Excel faylından yüklə", endpoint: "company/hours/import", done: (r) => `${r.applied ?? 0} günün saatı yeniləndi.` },
   payroll: { title: "Ayın əlavə və tutulmalarını Excel faylından yüklə", endpoint: "company/payroll/inputs-import", done: (r) => `${r.applied ?? 0} işçinin mükafat, əlavə və tutulma məlumatı yeniləndi.` },
+  leaveplan: { title: "Məzuniyyət qrafikini Excel faylından yüklə", endpoint: "company/leave-schedule/import", done: (r) => `${r.created} məzuniyyət qrafikə yazıldı.` },
+  ohs: { title: "Əməyin mühafizəsi qeydlərini Excel faylından yüklə", endpoint: "company/ohs/import", done: (r) => `${r.created} qeyd jurnala yazıldı.` },
   profiles: { title: "Şəxsi məlumatları Excel faylından yüklə", endpoint: "company/employees/profile-import", done: (r) => `${r.applied ?? 0} işçinin şəxsi məlumatı yeniləndi.` },
 };
-type SheetResult = { created: number; updated?: number; existing?: number; applied?: number; days?: number; pending?: boolean; issues?: { line: number; reason: string }[] };
+type SheetResult = { warnings?: string[]; created: number; updated?: number; existing?: number; applied?: number; days?: number; pending?: boolean; issues?: { line: number; reason: string }[] };
 
 function downloadBlob(bytes: Uint8Array, name: string) {
   const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
@@ -84,6 +86,8 @@ function previewOf(kind: SheetKind, rows: unknown[]): { head: string[]; body: st
   if (kind === "structure") return { head: ["Departament", "Şöbə"], body: list.map((r) => [str(r.department), str(r.section)]) };
   if (kind === "attendance") return { head: ["Ad Soyad", "Başlama", "Bitmə", "Səbəb", "Qeyd"], body: list.map((r) => [str(r.name), str(r.from), str(r.to), codeName(String(r.code)), str(r.note)]) };
   if (kind === "calendar") return { head: ["Tarix", "Növ", "Ad"], body: list.map((r) => [str(r.day), KIND_NAME[String(r.kind)] || str(r.kind), str(r.label)]) };
+  if (kind === "leaveplan") return { head: ["Ad Soyad / FİN", "Başlama", "Gün / Bitmə", "Status", "Qeyd"], body: list.map((r) => [str(r.name), str(r.from), r.days ? `${r.days} gün` : str(r.to), r.status === "approved" ? "Təsdiqlənib" : "Təklif", str(r.note)]) };
+  if (kind === "ohs") return { head: ["Növ", "Ad Soyad / FİN", "Tarix", "Alt növ", "Qeyd"], body: list.map((r) => { const raw = (r.raw || {}) as Record<string, unknown>; return [raw.type === "briefing" ? "Təlimat" : raw.type === "medical" ? "Tibbi baxış" : "Hadisə", str(r.name), str(raw.date), str(raw.kind), str(raw.topic || raw.description)]; }) };
   if (kind === "assets") return { head: ["Ad", "Kateqoriya", "Seriya", "İnventar №", "Dəyər"], body: list.map((r) => [str(r.name), str(r.category), str(r.serial), str(r.inventoryNo), str(r.value)]) };
   if (kind === "shifts") return { head: ["Ad Soyad / FİN", "Başlama", "Bitmə", "Növbə"], body: list.map((r) => [str(r.name), str(r.from), str(r.to), r.shift ? str(r.shift) : "İstirahət (silinir)"]) };
   if (kind === "shiftstaff") return { head: ["Ad Soyad / FİN", "Növbəli rejim", "Standart növbə", "İş / istirahət", "Başlanğıc"], body: list.map((r) => [str(r.name), r.shiftWork ? "Bəli" : "Xeyr", str(r.shiftDefault), `${r.work || "—"} / ${Number(r.rest) >= 0 ? r.rest : "—"}`, str(r.offset)]) };
@@ -112,7 +116,7 @@ export function SheetImport({
   const template = SHEET_TEMPLATES[kind];
   const parsed = useMemo(() => {
     if (!rows) return null;
-    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows, payroll: parsePayrollRows, hours: parseHoursRows, hourtotals: (r: string[][]) => parseHoursTotals(r, (extra?.month as string) || ""), shifts: parseShiftSchedule, shiftstaff: parseShiftStaff, assets: parseAssetRows }[kind];
+    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows, payroll: parsePayrollRows, leaveplan: parseLeavePlan, ohs: parseOhsRows, hours: parseHoursRows, hourtotals: (r: string[][]) => parseHoursTotals(r, (extra?.month as string) || ""), shifts: parseShiftSchedule, shiftstaff: parseShiftStaff, assets: parseAssetRows }[kind];
     return parse(rows) as { rows: unknown[]; issues: { line: number; reason: string }[] };
   }, [rows, kind, extra]);
   async function pick(file: File | undefined) {
@@ -129,7 +133,7 @@ export function SheetImport({
     setBusy(true);
     try {
       const result = await request<SheetResult>(SHEET_META[kind].endpoint, { rows, ...extra });
-      const problems = result.issues?.length ? ` ${result.issues.length} sətir yüklənmədi: ${result.issues[0].reason}` : "";
+      const problems = (result.issues?.length ? ` ${result.issues.length} sətir yüklənmədi: ${result.issues[0].reason}` : "") + (result.warnings?.length ? ` Diqqət (${result.warnings.length}): ${result.warnings[0]}` : "");
       notify(result.pending ? "Ştat cədvəli təsdiq olunub: yükləmə direktorun təsdiqinə göndərildi." : `${SHEET_META[kind].done(result)}${problems}`);
       onDone();
       onClose();

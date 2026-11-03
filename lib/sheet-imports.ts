@@ -4,6 +4,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import { normalizeProfile, type EmployeeProfile } from "./employee-profile.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 import { parseDateCell, parseNumberCell, type RowIssue } from "./staff-import.ts";
+import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS } from "./ohs.ts";
 
 export const fold = (value: string) =>
   String(value ?? "")
@@ -536,6 +537,175 @@ export function parseShiftStaff(rows: string[][], limit = 1000): { rows: ShiftSt
       shiftDefault: cell(row, header.map, "shiftDefault").slice(0, 60),
       work: Number.isNaN(work) ? 0 : Math.round(work), rest: Number.isNaN(rest) ? -1 : Math.round(rest), offset: Number.isNaN(offset) ? 0 : Math.round(offset),
       present: [...header.map.keys()],
+    });
+  }
+  return { rows: out, issues };
+}
+
+// ── Leave plan: who goes on leave from which day, for how many days (or until which day) ──
+export type LeavePlanRow = { line: number; name: string; email: string; fin: string; from: string; to: string; days: number; status: "proposed" | "approved"; note: string };
+type LeavePlanField = "name" | "email" | "fin" | "from" | "to" | "days" | "status" | "note";
+const LEAVE_PLAN_ALIASES: Aliases<LeavePlanField> = {
+  name: ["ad soyad", "isci", "isci adi", "ad", "full name", "name", "employee"],
+  email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
+  from: ["baslama", "baslama tarixi", "baslanma", "baslangic", "tarixden", "from", "start"],
+  to: ["bitme", "bitme tarixi", "qayidis", "tarixe qeder", "to", "end"],
+  days: ["gun sayi", "gun", "muddet", "gunler", "days"],
+  status: ["status", "veziyyet", "tesdiq"],
+  note: ["qeyd", "note", "serh"],
+};
+export function parseLeavePlan(rows: string[][], limit = 1000): { rows: LeavePlanRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, LEAVE_PLAN_ALIASES, "name|fin");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” və ya “FİN” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  if (!header.map.has("from")) return { rows: [], issues: [{ line: header.index + 1, reason: "“Başlama” sütunu tapılmadı." }] };
+  if (!header.map.has("days") && !header.map.has("to")) return { rows: [], issues: [{ line: header.index + 1, reason: "“Gün sayı” və ya “Bitmə” sütunu tapılmadı." }] };
+  const out: LeavePlanRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} sətir yüklənir.` });
+      break;
+    }
+    const fin = finOf(cell(row, header.map, "fin"));
+    const name = cell(row, header.map, "name").slice(0, 120) || fin;
+    if (name.length < 2) {
+      issues.push({ line, reason: "Ad Soyad və ya FİN yoxdur." });
+      continue;
+    }
+    const fromText = cell(row, header.map, "from");
+    const from = parseDateCell(fromText);
+    if (!from) {
+      issues.push({ line, reason: `${name}: başlama tarixi oxunmadı: “${fromText}”.` });
+      continue;
+    }
+    const toText = cell(row, header.map, "to");
+    const to = toText ? parseDateCell(toText) : "";
+    if (toText && !to) {
+      issues.push({ line, reason: `${name}: bitmə tarixi oxunmadı: “${toText}”.` });
+      continue;
+    }
+    if (to && to < from) {
+      issues.push({ line, reason: `${name}: bitmə tarixi başlamadan əvvəldir.` });
+      continue;
+    }
+    const daysText = cell(row, header.map, "days");
+    const days = daysText ? Math.round(parseNumberCell(daysText)) : 0;
+    if (!to && !(days >= 1)) {
+      issues.push({ line, reason: `${name}: gün sayı və ya bitmə tarixi yazılmayıb.` });
+      continue;
+    }
+    if (days > 90 || (to && (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 > 120)) {
+      issues.push({ line, reason: `${name}: bir məzuniyyət 90 gündən uzun ola bilməz.` });
+      continue;
+    }
+    const statusText = fold(cell(row, header.map, "status"));
+    if (/goturulub|istifade/.test(statusText)) {
+      issues.push({ line, reason: `${name}: “götürülüb” statusu yüklənmir; məzuniyyət əmr imzalananda özü “götürülüb” olur.` });
+      continue;
+    }
+    out.push({ line, name, email: cell(row, header.map, "email").slice(0, 160), fin, from, to: to || "", days: to ? 0 : days, status: /tesdiq|approved|beli|he\b/.test(statusText) && !/gozle|tesdiqlenmeyib/.test(statusText) ? "approved" : "proposed", note: cell(row, header.map, "note").slice(0, 300) });
+  }
+  return { rows: out, issues };
+}
+
+// ── Occupational safety: briefings, medical examinations and incidents, one line each ──
+export type OhsSheetRow = { line: number; name: string; email: string; fin: string; raw: Record<string, unknown> };
+type OhsField = "type" | "name" | "email" | "fin" | "date" | "kind" | "who" | "topic" | "signed" | "result" | "due" | "place" | "description" | "cause" | "measures" | "daysLost" | "status" | "reported";
+const OHS_ALIASES: Aliases<OhsField> = {
+  type: ["qeyd novu", "qeydin novu", "qeyd", "tip", "bolme", "type"],
+  name: ["ad soyad", "isci", "isci adi", "ad", "full name", "name", "employee"],
+  email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
+  date: ["tarix", "date", "kecirilme tarixi", "hadise tarixi"],
+  kind: ["novu", "nov", "kind", "telimatin novu", "baxisin novu", "hadisenin novu"],
+  who: ["telimati kecen klinika", "telimati kecen", "telimati kecen shexs", "telimati kecen sexs", "kecen sexs", "klinika", "tibb muessisesi", "instruktor"],
+  topic: ["movzu qeyd", "movzu", "qeyd metni", "topic"],
+  signed: ["isci imzalayib", "imzalayib", "imza"],
+  result: ["netice", "result"],
+  due: ["novbeti tarix", "novbeti", "novbeti telimat", "novbeti baxis", "due"],
+  place: ["yer", "place"],
+  description: ["tesvir", "hadisenin tesviri", "description"],
+  cause: ["sebeb", "cause"],
+  measures: ["gorulen tedbirler", "tedbirler", "measures"],
+  daysLost: ["itirilen is gunu", "itirilen gun", "days lost"],
+  status: ["status", "veziyyet"],
+  reported: ["bildirilib", "mufettisliye bildirilib", "reported"],
+};
+const matchLabel = (value: string, labels: Record<string, string>) => {
+  const v = fold(value);
+  if (!v) return "";
+  return Object.entries(labels).find(([id, label]) => fold(id) === v || fold(label) === v || fold(label).startsWith(v))?.[0] || "";
+};
+export function parseOhsRows(rows: string[][], limit = 1000): { rows: OhsSheetRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, OHS_ALIASES, "type");
+  if (!header || !header.map.has("date")) return { rows: [], issues: [{ line: 1, reason: "“Qeyd növü” və “Tarix” sütunları tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  const out: OhsSheetRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} sətir yüklənir.` });
+      break;
+    }
+    const typeText = fold(cell(row, header.map, "type"));
+    const type = /telimat|briefing/.test(typeText) ? "briefing" : /tibbi|baxis|medical/.test(typeText) ? "medical" : /hadise|qeza|incident|zedeleme/.test(typeText) ? "incident" : "";
+    if (!type) {
+      issues.push({ line, reason: "Qeyd növü “Təlimat”, “Tibbi baxış” və ya “Hadisə” olmalıdır." });
+      continue;
+    }
+    const fin = finOf(cell(row, header.map, "fin"));
+    const name = cell(row, header.map, "name").slice(0, 120) || fin;
+    if (type !== "incident" && name.length < 2) {
+      issues.push({ line, reason: "Ad Soyad və ya FİN yoxdur." });
+      continue;
+    }
+    const dateText = cell(row, header.map, "date");
+    const date = parseDateCell(dateText);
+    if (!date) {
+      issues.push({ line, reason: `${name || "Hadisə"}: tarix oxunmadı: “${dateText}”.` });
+      continue;
+    }
+    const dueText = cell(row, header.map, "due");
+    const due = dueText ? parseDateCell(dueText) : "";
+    if (dueText && !due) {
+      issues.push({ line, reason: `${name}: növbəti tarix oxunmadı: “${dueText}”.` });
+      continue;
+    }
+    const labels = type === "briefing" ? BRIEFING_KINDS : type === "medical" ? MEDICAL_KINDS : INCIDENT_KINDS;
+    const kindText = cell(row, header.map, "kind");
+    const kind = matchLabel(kindText, labels);
+    if (!kind) {
+      issues.push({ line, reason: `${name || "Hadisə"}: növ tanınmadı: “${kindText}”. Seçimlər: ${Object.values(labels).join(", ")}.` });
+      continue;
+    }
+    const who = cell(row, header.map, "who");
+    const resultText = cell(row, header.map, "result");
+    const result = type === "medical" ? matchLabel(resultText, MEDICAL_RESULTS) || (resultText ? "?" : "fit") : "";
+    if (result === "?") {
+      issues.push({ line, reason: `${name}: nəticə tanınmadı: “${resultText}”. Seçimlər: ${Object.values(MEDICAL_RESULTS).join(", ")}.` });
+      continue;
+    }
+    const statusText = cell(row, header.map, "status");
+    const status = type === "incident" ? matchLabel(statusText, INCIDENT_STATUS) || "open" : "done";
+    out.push({
+      line,
+      name,
+      email: cell(row, header.map, "email").slice(0, 160),
+      fin,
+      raw: {
+        type, date, kind, due: due || undefined, status,
+        instructor: type === "briefing" ? who : undefined, clinic: type === "medical" ? who : undefined,
+        topic: cell(row, header.map, "topic"), note: type === "medical" ? cell(row, header.map, "topic") : undefined,
+        signed: yes(cell(row, header.map, "signed")), result,
+        place: cell(row, header.map, "place"), description: cell(row, header.map, "description"), cause: cell(row, header.map, "cause"), measures: cell(row, header.map, "measures"),
+        daysLost: cell(row, header.map, "daysLost"), reported: yes(cell(row, header.map, "reported")),
+      },
     });
   }
   return { rows: out, issues };

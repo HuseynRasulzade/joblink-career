@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SHEET_TEMPLATES, templateSheets } from "../lib/sheet-templates.ts";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "../lib/staff-import.ts";
-import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff } from "../lib/sheet-imports.ts";
+import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows } from "../lib/sheet-imports.ts";
 import { parseAssetRows } from "../lib/assets.ts";
 import { parseHoursRows, parseHoursTotals } from "../lib/hours.ts";
 import { createXlsxBook } from "../lib/xlsx.ts";
@@ -26,6 +26,8 @@ test("every sample file is read back by its own importer without a problem", () 
     shifts: parseShiftSchedule,
     shiftstaff: parseShiftStaff,
     assets: parseAssetRows,
+    leaveplan: parseLeavePlan,
+    ohs: parseOhsRows,
   };
   for (const [kind, parse] of Object.entries(checks)) {
     const result = parse(asRows(kind));
@@ -174,4 +176,32 @@ test("the shift files are read: ranges, rest days, FİN, the work rhythm", () =>
   assert.deepEqual([p.rows[0].shiftWork, p.rows[0].work, p.rows[0].rest, p.rows[0].offset], [true, 2, 2, 1]);
   assert.equal(p.rows[1].shiftWork, false);
   assert.equal(p.issues.length, 1); // a rhythm needs at least one working day
+});
+
+test("the leave plan file takes days or an end date and refuses a taken leave", () => {
+  const r = parseLeavePlan([
+    ["Ad Soyad", "FİN", "Başlama", "Gün sayı", "Bitmə", "Status"],
+    ["Aysel", "5ABC123", "2026-07-06", "14", "", "Təsdiqlənib"],
+    ["Orxan", "", "06.08.2026", "", "14.08.2026", ""],
+    ["Nigar", "", "2026-09-01", "", "", ""],
+    ["Cavid", "", "2026-10-01", "5", "", "Götürülüb"],
+    ["Dilarə", "", "2026-10-10", "", "2026-10-01", ""],
+  ]);
+  assert.deepEqual(r.rows.map((x) => [x.name, x.from, x.days, x.to, x.status]), [["Aysel", "2026-07-06", 14, "", "approved"], ["Orxan", "2026-08-06", 0, "2026-08-14", "proposed"]]);
+  assert.equal(r.issues.length, 3);
+});
+
+test("the safety file maps Azerbaijani words to records and reports the lines it cannot read", () => {
+  const r = parseOhsRows([
+    ["Qeyd növü", "Ad Soyad", "Tarix", "Növ", "Təlimatı keçən / klinika", "Nəticə", "Təsvir"],
+    ["Təlimat", "Aysel", "2026-03-02", "Təkrar təlimat", "Ə. Əliyev", "", ""],
+    ["Tibbi baxış", "Orxan", "2026-04-15", "Dövri", "Klinika", "Məhdudiyyətlə", ""],
+    ["Hadisə", "", "2026-05-20", "Yüngül zədə", "", "", "Əl zədələndi"],
+    ["Təlimat", "Nigar", "2026-03-02", "Naməlum növ", "", "", ""],
+    ["Cədvəl", "Cavid", "2026-03-02", "", "", "", ""],
+  ]);
+  assert.deepEqual(r.rows.map((x) => [x.raw.type, x.raw.kind]), [["briefing", "repeat"], ["medical", "periodic"], ["incident", "minor"]]);
+  assert.equal(r.rows[1].raw.result, "limited");
+  assert.equal(r.rows[0].raw.instructor, "Ə. Əliyev");
+  assert.equal(r.issues.length, 2);
 });

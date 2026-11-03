@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { POLICY_TEMPLATES } from "@/lib/policy-templates";
 import { RETENTION_CATEGORIES } from "@/lib/ohs";
 import PeoplePicker, { type PickPerson } from "./PeoplePicker";
+import { SheetImport } from "./StaffPages";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -32,6 +33,7 @@ export function OhsPanel({ notify }: { notify: Notify }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({ date: today(), kind: "repeat", result: "fit", signed: false, reported: false });
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
   const load = useCallback(() => {
     request<OhsData>("company/ohs").then(setData).catch((e) => notify((e as Error).message));
   }, [notify]);
@@ -72,6 +74,10 @@ export function OhsPanel({ notify }: { notify: Notify }) {
   return (
     <div className="company-page">
       <p className="muted">Əməyin mühafizəsi üzrə təlimat jurnalı, tibbi baxış qrafiki və qəza qeydləri. Növbəti təlimat və baxış tarixləri keçəndə burada qırmızı görünür.</p>
+      <div className="admin-actions">
+        <button type="button" className="secondary" onClick={() => setImporting(true)}>Excel-dən yüklə</button>
+      </div>
+      {importing && <SheetImport kind="ohs" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {!!data.due.length && (
         <div className="panel">
           <b>Vaxtı çatan və ya keçən ({data.due.length})</b>

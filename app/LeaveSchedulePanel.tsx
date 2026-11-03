@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Printer } from "lucide-react";
 import { planLeave } from "@/lib/leave-schedule";
 import { Field, Modal } from "./components";
+import { SheetImport } from "./StaffPages";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -30,6 +31,7 @@ export default function LeaveSchedulePanel({ notify }: { notify: Notify }) {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [data, setData] = useState<Data | null>(null);
+  const [importing, setImporting] = useState(false);
   const [edit, setEdit] = useState<{ id: string; employeeId: string; start: string; days: number; note: string } | null>(null);
   const notifyRef = useRef(notify);
   useEffect(() => {
@@ -73,6 +75,7 @@ export default function LeaveSchedulePanel({ notify }: { notify: Notify }) {
   const maxLoad = Math.max(1, ...data.load.flatMap((l) => l.months));
   return (
     <div className="company-page">
+      {importing && <SheetImport kind="leaveplan" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       <div className="section-heading">
         <div className="admin-actions">
           <select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="İl">
@@ -81,6 +84,7 @@ export default function LeaveSchedulePanel({ notify }: { notify: Notify }) {
         </div>
         <div className="admin-actions">
           <a className="secondary report-button" href={`/api/joblink/company/leave-schedule/export?year=${year}`} download><Download size={14} /> Excel</a>
+          <button type="button" className="secondary" onClick={() => setImporting(true)}>Excel-dən yüklə</button>
           <button type="button" className="secondary" onClick={print}><Printer size={14} /> Çap (imza vərəqi)</button>
           <button type="button" className="primary" onClick={() => setEdit({ id: "", employeeId: data.employees[0]?.id || "", start: "", days: 14, note: "" })}>+ Məzuniyyət planla</button>
         </div>
