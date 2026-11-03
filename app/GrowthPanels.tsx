@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { Field, Modal } from "./components";
 import { SheetImport } from "./StaffPages";
+import PeoplePicker from "./PeoplePicker";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -32,6 +33,22 @@ function useLoad<T>(path: string, notify: Notify) {
   }, [path]);
   useEffect(load, [load]);
   return [data, load] as const;
+}
+// Many people at once go to the server in parts of 200, with the count shown on the way.
+async function runChunked(notify: Notify, reload: () => void, path: string, ids: string[], base: Record<string, unknown>, done: string) {
+  try {
+    for (let i = 0; i < ids.length; i += 200) {
+      await request(path, { ...base, employeeIds: ids.slice(i, i + 200) });
+      if (ids.length > 200) notify(`${Math.min(i + 200, ids.length)} / ${ids.length} işçi…`);
+    }
+    notify(done);
+    return true;
+  } catch (error) {
+    notify((error as Error).message);
+    return false;
+  } finally {
+    reload();
+  }
 }
 async function run(notify: Notify, reload: () => void, path: string, body: Record<string, unknown>, done?: string) {
   try {
@@ -201,11 +218,7 @@ function PersonReview({ person, colleagues, cycleId, closed, rating, notify, onC
         {feedback?.comments.map((c, i) => <small key={i} className="skill-description">“{c}”</small>)}
         {!closed && (
           <>
-            <div className="hours-grid" style={{ maxHeight: 160, overflowY: "auto" }}>
-              {colleagues.filter((p) => p.id !== person.id).map((p) => (
-                <label key={p.id} className="check-row"><input type="checkbox" checked={givers.includes(p.id)} onChange={(e) => setGivers(e.target.checked ? [...givers, p.id] : givers.filter((x) => x !== p.id))} /> {p.name}</label>
-              ))}
-            </div>
+            <PeoplePicker people={colleagues.filter((p) => p.id !== person.id)} selected={givers} onChange={setGivers} height={160} label="Rəy verəcək kolleqalar" />
             <button type="button" className="secondary" disabled={!givers.length} onClick={async () => { if (await run(notify, loadFeedback, "company/performance/feedback-request", { cycleId, employeeId: person.id, giverIds: givers }, "Rəy sorğusu göndərildi.")) setGivers([]); }}>Rəy soruş</button>
           </>
         )}
@@ -307,11 +320,7 @@ function Participants({ training, employees, notify, onClose, onChanged }: { tra
   return (
     <Modal title={`İştirakçılar: ${training.title}`} onClose={onClose}>
       <div className="offer-composer">
-        <div className="hours-grid">
-          {employees.map((p) => (
-            <label key={p.id} className="check-row"><input type="checkbox" checked={chosen.has(p.id)} onChange={(e) => { const next = new Set(chosen); if (e.target.checked) next.add(p.id); else next.delete(p.id); setChosen(next); }} /> {p.name}</label>
-          ))}
-        </div>
+        <PeoplePicker people={employees} selected={[...chosen]} onChange={(ids) => setChosen(new Set(ids))} label="Təlimin iştirakçıları" />
         <button type="button" className="primary" onClick={async () => { if (await run(notify, onChanged, "company/training/participants", { trainingId: training.id, employeeIds: [...chosen] }, "İştirakçılar saxlanıldı.")) onClose(); }}>Saxla və dəvət göndər</button>
         {training.participants.length > 0 && (
           <>
@@ -344,8 +353,18 @@ export function Shifts({ notify }: { notify: Notify }) {
   const [assignWarnings, setAssignWarnings] = useState<string[]>([]);
   const [importing, setImporting] = useState<"shifts" | "shiftstaff" | null>(null);
   const [staffModal, setStaffModal] = useState(false);
+  const [gridQuery, setGridQuery] = useState("");
+  const [gridDept, setGridDept] = useState("");
+  const [gridPage, setGridPage] = useState(0);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const days = Array.from({ length: 14 }, (_, i) => addDays(data.from, i));
+  // A big company: the grid shows 40 people at a time, found by name or department.
+  const GRID_PAGE = 40;
+  const needle = gridQuery.trim().toLocaleLowerCase("az");
+  const gridPeople = data.employees.filter((p) => (!gridDept || p.department === gridDept) && (!needle || `${p.name} ${p.department}`.toLocaleLowerCase("az").includes(needle)));
+  const gridPages = Math.max(1, Math.ceil(gridPeople.length / GRID_PAGE));
+  const pageNow = Math.min(gridPage, gridPages - 1);
+  const gridRows = gridPeople.slice(pageNow * GRID_PAGE, (pageNow + 1) * GRID_PAGE);
   const at = (employeeId: string, day: string) => data.assignments.find((a) => a.employeeId === employeeId && a.day === day)?.shiftId || "";
   const view = data;
   // Hours of the shifts of one week (a week above 40 hours is shown in red: it is extra work).
@@ -391,11 +410,25 @@ export function Shifts({ notify }: { notify: Notify }) {
           ))}
         </p>
       )}
+      {data.employees.length > 15 && (
+        <div className="admin-actions">
+          <input className="search-input" type="search" aria-label="İşçi axtar" placeholder={`Qrafikdə axtar (${data.employees.length} növbəli işçi)`} value={gridQuery} onChange={(e) => { setGridQuery(e.target.value); setGridPage(0); }} />
+          {data.departments.length > 1 && (
+            <select aria-label="Departament" value={gridDept} onChange={(e) => { setGridDept(e.target.value); setGridPage(0); }}>
+              <option value="">Bütün departamentlər</option>
+              {data.departments.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          )}
+          <button type="button" disabled={pageNow === 0} onClick={() => setGridPage(pageNow - 1)}>←</button>
+          <span>{gridPeople.length ? `${pageNow * GRID_PAGE + 1}–${Math.min((pageNow + 1) * GRID_PAGE, gridPeople.length)} / ${gridPeople.length}` : "0"}</span>
+          <button type="button" disabled={pageNow >= gridPages - 1} onClick={() => setGridPage(pageNow + 1)}>→</button>
+        </div>
+      )}
       <div className="admin-table-wrap">
         <table className="admin-table shift-grid">
           <thead><tr><th>İşçi</th>{days.map((d) => <th key={d}>{d.slice(8, 10)}.{d.slice(5, 7)}<small className="skill-description">{WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]}</small></th>)}<th>Saat (1-ci / 2-ci həftə)</th></tr></thead>
           <tbody>
-            {data.employees.map((p) => (
+            {gridRows.map((p) => (
               <tr key={p.id}>
                 <td><b>{p.name}</b><small className="skill-description">{p.department}{p.usual ? ` · ${p.usual}, ${p.work} iş / ${p.rest} istirahət` : " · standart növbə seçilməyib"}</small></td>
                 {days.map((d) => (
@@ -466,12 +499,8 @@ export function Shifts({ notify }: { notify: Notify }) {
               <Field label="Ardıcıl istirahət günü"><input type="number" min={0} max={14} value={pattern.rest} onChange={(e) => setPattern({ ...pattern, rest: Number(e.target.value) })} /></Field>
               <Field label="Şablonun neçənci günündən başlasın (0 = birinci)"><input type="number" min={0} max={27} value={pattern.offset} onChange={(e) => setPattern({ ...pattern, offset: Number(e.target.value) })} /></Field>
             </div>
-            <div className="admin-table-wrap" style={{ maxHeight: 220, overflowY: "auto" }}>
-              {data.employees.map((p) => (
-                <label key={p.id} className="check-row"><input type="checkbox" checked={pattern.ids.includes(p.id)} onChange={(e) => setPattern({ ...pattern, ids: e.target.checked ? [...pattern.ids, p.id] : pattern.ids.filter((x) => x !== p.id) })} /> {p.name} <small className="skill-description">{p.department}</small></label>
-              ))}
-            </div>
-            <button type="button" className="primary" disabled={!pattern.ids.length || !pattern.shiftId} onClick={async () => { try { const r = await request<{ warnings?: { text: string }[] }>("company/shifts/assign", { employeeIds: pattern.ids, shiftId: pattern.shiftId, from: pattern.from, to: pattern.to, work: pattern.work, rest: pattern.rest, offset: pattern.offset }); setAssignWarnings((r.warnings || []).map((w) => w.text)); notify("Şablon tətbiq olundu."); setPattern(null); load(); } catch (error) { notify((error as Error).message); } }}>Tətbiq et</button>
+            <PeoplePicker people={data.employees} selected={pattern.ids} onChange={(ids) => setPattern({ ...pattern, ids })} label="Şablonun tətbiq olunacağı işçilər" />
+            <button type="button" className="primary" disabled={!pattern.ids.length || !pattern.shiftId} onClick={async () => { try { let warnings: string[] = []; for (let k = 0; k < pattern.ids.length; k += 200) { const r = await request<{ warnings?: { text: string }[] }>("company/shifts/assign", { employeeIds: pattern.ids.slice(k, k + 200), shiftId: pattern.shiftId, from: pattern.from, to: pattern.to, work: pattern.work, rest: pattern.rest, offset: pattern.offset }); warnings = [...warnings, ...(r.warnings || []).map((w) => w.text)]; } setAssignWarnings(warnings.slice(0, 40)); notify("Şablon tətbiq olundu."); setPattern(null); load(); } catch (error) { notify((error as Error).message); } }}>Tətbiq et</button>
           </div>
         </Modal>
       )}
@@ -810,34 +839,26 @@ export function SkillMatrix({ notify }: { notify: Notify }) {
 // Who works in shifts: switch employees over (or back) with the usual shift and rhythm; the same fields are on the employee card.
 function ShiftStaffModal({ data, notify, onClose, onDone }: { data: ShiftData; notify: Notify; onClose: () => void; onDone: () => void }) {
   const [chosen, setChosen] = useState<string[]>([]);
+  const [leaving, setLeaving] = useState<string[]>([]);
   const [shift, setShift] = useState(data.types[0]?.name || "");
   const [rhythm, setRhythm] = useState({ work: 5, rest: 2, offset: 0 });
   return (
     <Modal title="Növbəli işçilər" onClose={onClose}>
       <div className="offer-composer">
         <h4>Növbəli rejimə keçir</h4>
-        <div className="hours-grid" style={{ maxHeight: 200, overflowY: "auto" }}>
-          {data.candidates.map((p) => (
-            <label key={p.id} className="check-row"><input type="checkbox" checked={chosen.includes(p.id)} onChange={(e) => setChosen(e.target.checked ? [...chosen, p.id] : chosen.filter((x) => x !== p.id))} /> {p.name} <small className="skill-description">{p.department}</small></label>
-          ))}
-          {!data.candidates.length && <p className="muted">Bütün işçilər artıq növbəli rejimdədir.</p>}
-        </div>
+        <PeoplePicker people={data.candidates} selected={chosen} onChange={setChosen} label="Növbəli rejimə keçiriləcək işçilər" />
         <div className="form-grid">
           <Field label="Standart növbə"><select value={shift} onChange={(e) => setShift(e.target.value)}>{data.types.map((t) => <option key={t.id} value={t.name}>{t.name} {t.start}–{t.end}</option>)}</select></Field>
           <Field label="Ardıcıl iş günü"><input type="number" min={1} max={14} value={rhythm.work} onChange={(e) => setRhythm({ ...rhythm, work: Number(e.target.value) })} /></Field>
           <Field label="Ardıcıl istirahət günü"><input type="number" min={0} max={14} value={rhythm.rest} onChange={(e) => setRhythm({ ...rhythm, rest: Number(e.target.value) })} /></Field>
           <Field label="Ritm neçənci gündən başlasın (0 = birinci)"><input type="number" min={0} max={27} value={rhythm.offset} onChange={(e) => setRhythm({ ...rhythm, offset: Number(e.target.value) })} /></Field>
         </div>
-        <button type="button" className="primary" disabled={!chosen.length} onClick={async () => { if (await run(notify, onDone, "company/shifts/staff", { employeeIds: chosen, shiftWork: true, shiftDefault: shift, work: rhythm.work, rest: rhythm.rest, offset: rhythm.offset }, "İşçilər növbəli rejimə keçirildi.")) onClose(); }}>Növbəli rejimə keçir</button>
+        <button type="button" className="primary" disabled={!chosen.length} onClick={async () => { if (await runChunked(notify, onDone, "company/shifts/staff", chosen, { shiftWork: true, shiftDefault: shift, work: rhythm.work, rest: rhythm.rest, offset: rhythm.offset }, "İşçilər növbəli rejimə keçirildi.")) onClose(); }}>Növbəli rejimə keçir</button>
         {data.employees.length > 0 && (
           <>
             <h4>Növbəli rejimdən çıxar (adi iş rejiminə qaytar)</h4>
-            {data.employees.map((p) => (
-              <div key={p.id} className="bank-account">
-                <span>{p.name}{p.usual ? ` · ${p.usual}, ${p.work}/${p.rest}` : ""}</span>
-                <button type="button" onClick={() => window.confirm(`${p.name} adi iş rejiminə qaytarılsın? Növbə cədvəlindən çıxır, mövcud növbələri qalır.`) && void run(notify, onDone, "company/shifts/staff", { employeeIds: [p.id], shiftWork: false }, "Adi rejimə qaytarıldı.")}>Çıxar</button>
-              </div>
-            ))}
+            <PeoplePicker people={data.employees.map((p) => ({ id: p.id, name: p.name, department: p.department, position: p.usual ? `${p.usual} ${p.work}/${p.rest}` : "" }))} selected={leaving} onChange={setLeaving} height={180} label="Adi rejimə qaytarılacaq işçilər" />
+            <button type="button" className="secondary" disabled={!leaving.length} onClick={async () => { if (window.confirm(`${leaving.length} işçi adi iş rejiminə qaytarılsın? Növbə cədvəlindən çıxırlar, mövcud növbələri qalır.`) && (await runChunked(notify, onDone, "company/shifts/staff", leaving, { shiftWork: false }, "Adi rejimə qaytarıldı."))) { setLeaving([]); onClose(); } }}>Adi rejimə qaytar</button>
           </>
         )}
       </div>

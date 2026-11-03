@@ -294,3 +294,10 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - **Qəbul olunan təklifdən işçi kartı:** namizəd təklifi qəbul edəndə işçi kartı avtomatik yaranır (vəzifə, maaş, başlama tarixi, sınaq müddəti, qəbul tarixçəsi, işə adaptasiya tapşırıqları) və namizədin hesabı karta bağlanır, yəni «İş yerim» özü açılır. Kodda təsdiq edildi.
 - **Müsahibə vaxtı:** işəgötürən bir neçə vaxt təklif edir, namizəd birini seçir və ya təsdiqləyir. Kodda təsdiq edildi.
 - **Namizəd müqayisə cədvəli:** test nəticələri (nəticə faizi, keçid həddi, yoxlanılır) əlavə olundu.
+
+## 21. Böyük şirkətlər üçün işçi seçimi (2026-11-03)
+
+- Ortaq «İşçi seçici»: ad, vəzifə və şöbə üzrə axtarış, departament süzgəci, «siyahıdakı N nəfəri seç», «yalnız seçilənlər», seçilənlərin sayı; siyahı 100-ün hissələri ilə göstərilir (yüzlərlə və minlərlə işçidə səhifə ağırlaşmır).
+- İstifadə olunduğu yerlər: növbəli rejimə keçirmə və geri qaytarma, dövrü növbə şablonu, təlim iştirakçıları, kolleqa rəyi.
+- Çoxlu işçi serverə 200-lük hissələrlə göndərilir, gedişat göstərilir. Növbə cədvəli 40 işçilik səhifələrlə, axtarış və departament süzgəci ilə açılır.
+- 403 işçi ilə brauzerdə yoxlanıb (axtarış, hamısını seçmə, 3 hissəli yazma, cədvəl 1–40 / 403).

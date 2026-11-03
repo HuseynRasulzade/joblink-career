@@ -9844,7 +9844,7 @@ async function route(request: Request) {
     const b = await jsonBody(request);
     const training = await db.prepare("SELECT id,title,start_date FROM trainings WHERE id=? AND company_id=?").bind(str(b.trainingId, 100), id).first<{ id: string; title: string; start_date: string }>();
     if (!training) throw new HttpError(404, "Təlim tapılmadı.");
-    const wanted = new Set<string>((Array.isArray(b.employeeIds) ? (b.employeeIds as unknown[]) : []).map((x) => String(x)).slice(0, 500));
+    const wanted = new Set<string>((Array.isArray(b.employeeIds) ? (b.employeeIds as unknown[]) : []).map((x) => String(x)).slice(0, 5000));
     const valid = new Set((await db.prepare("SELECT id FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string }>()).results.map((r) => r.id));
     const current = new Set((await db.prepare("SELECT employee_id FROM training_participants WHERE training_id=?").bind(training.id).all<{ employee_id: string }>()).results.map((r) => r.employee_id));
     const added = [...wanted].filter((e) => valid.has(e) && !current.has(e));
@@ -9854,7 +9854,7 @@ async function route(request: Request) {
       ...removed.map((e) => db.prepare("DELETE FROM training_participants WHERE training_id=? AND employee_id=?").bind(training.id, e)),
     ];
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
-    for (const e of added) await tellEmployee(e, "Təlimə dəvət olundunuz", `${training.title}${training.start_date ? ` (${training.start_date})` : ""}. İş yerim → Təlimlərim bölməsində cavab verin.`);
+    if (added.length) await tellPayroll(added, "Təlimə dəvət olundunuz", `${training.title}${training.start_date ? ` (${training.start_date})` : ""}. İş yerim → Təlimlərim bölməsində cavab verin.`);
     return ok({ ok: true, added: added.length, removed: removed.length });
   }
   if (request.method === "POST" && path === "company/training/result") {
