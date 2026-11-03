@@ -48,6 +48,7 @@ import {
   BarChart3,
   Contact,
   UserCog,
+  Network,
   Receipt,
   BadgeCheck,
 } from "lucide-react";
@@ -103,6 +104,7 @@ import { ExamList } from "./ExamRoom";
 import { OFFER_STATUS, OfferResponse, type Offer } from "./Offers";
 import { CompareBar, JobComparison } from "./Comparison";
 import HrInbox from "./HrInbox";
+import GroupPage from "./GroupPage";
 import { LEVEL_NAMES } from "@/lib/role-level";
 import NotificationBell from "./NotificationBell";
 import { JobCertificationList } from "./CertificationPickers";
@@ -159,6 +161,7 @@ const hrNav = [
   { id: "hr-growth", label: "İnkişaf və kommunikasiya", icon: Sparkles },
   { id: "hr-attendance", label: "Davamiyyət", icon: CalendarCheck },
   { id: "hr-team", label: "Komanda və rollar", icon: UserCog },
+  { id: "hr-group", label: "Qrup (holdinq)", icon: Network },
   { id: "hr-company", label: "Şirkət məlumatları", icon: Building2 },
   { id: "hr-billing", label: "Hesablar və ödənişlər", icon: Receipt },
   { id: "hr-calculator", label: "Kalkulyatorlar", icon: Calculator },
@@ -2733,6 +2736,7 @@ export default function Joblink() {
               "hr-growth",
               "hr-workforce",
               "hr-team",
+              "hr-group",
               "hr-company",
               "hr-billing",
               "hr-calculator",
@@ -2776,6 +2780,7 @@ export default function Joblink() {
               {page === "hr-workforce" && (
                 <WorkforcePage me={companyMe} notify={notify} />
               )}
+              {page === "hr-group" && <GroupPage notify={notify} />}
               {page === "hr-team" && (
                 <TeamPage
                   me={companyMe}

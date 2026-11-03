@@ -371,6 +371,7 @@ import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
+import { groupTotals, snapshotTotals, turnoverPercent, type MemberFigures } from "@/lib/company-group";
 import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validCard, validIban, type EmployeeProfile } from "@/lib/employee-profile";
@@ -6256,6 +6257,125 @@ async function route(request: Request) {
       verification: profileRow?.verification_status || "none",
       awaitingApproval: awaiting,
     });
+  }
+  // ---- Holding (group): companies seen together, by their own consent, totals only ----
+  if (path === "company/group" || path.startsWith("company/group/")) {
+    if (!canAct("approve-director")) throw new HttpError(403, "Qrup (holdinq) məsələlərini yalnız hesab sahibi və ya direktor idarə edə bilər.");
+    const nowIso = new Date().toISOString();
+    const ownGroup = () => db.prepare("SELECT id,name,created FROM company_groups WHERE owner_company_id=?").bind(id).first<{ id: string; name: string; created: string }>();
+    const membership = () =>
+      db
+        .prepare("SELECT l.id,l.share_pay,l.joined_at,g.name,g.owner_company_id,(SELECT name FROM accounts WHERE id=g.owner_company_id) AS head_name FROM company_group_links l JOIN company_groups g ON g.id=l.group_id WHERE l.company_id=? AND l.status='active'")
+        .bind(id)
+        .first<{ id: string; share_pay: number; joined_at: string; name: string; owner_company_id: string; head_name: string }>();
+    if (request.method === "GET" && path === "company/group") {
+      const own = await ownGroup();
+      const links = own
+        ? (await db.prepare("SELECT l.id,l.company_id,l.code,l.expires,l.status,l.share_pay,l.joined_at,COALESCE(a.name,'') AS company_name FROM company_group_links l LEFT JOIN accounts a ON a.id=l.company_id WHERE l.group_id=? AND l.status IN ('invited','active') ORDER BY l.created").bind(own.id).all<{ id: string; company_id: string; code: string; expires: string; status: string; share_pay: number; joined_at: string; company_name: string }>()).results.filter((l) => l.status === "active" || l.expires >= nowIso)
+        : [];
+      const mine = await membership();
+      return ok({
+        group: own ? { id: own.id, name: own.name } : null,
+        links: links.map((l) => ({ id: l.id, companyName: l.company_name, status: l.status, sharePay: !!l.share_pay, joinedAt: l.joined_at, code: l.status === "invited" ? l.code : "", expires: l.expires })),
+        membership: mine ? { groupName: mine.name, headName: mine.head_name, sharePay: !!mine.share_pay, joinedAt: mine.joined_at } : null,
+      });
+    }
+    if (request.method === "GET" && path === "company/group/overview") {
+      const own = await ownGroup();
+      if (!own) throw new HttpError(404, "Şirkətinizin qrupu yoxdur.");
+      const members = (await db.prepare("SELECT l.company_id,l.share_pay,COALESCE(a.name,'') AS name FROM company_group_links l LEFT JOIN accounts a ON a.id=l.company_id WHERE l.group_id=? AND l.status='active' AND l.company_id<>''").bind(own.id).all<{ company_id: string; share_pay: number; name: string }>()).results;
+      const headName = (await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>())?.name || "";
+      const list = [{ company_id: id, share_pay: 1, name: headName, head: true }, ...members.map((m) => ({ ...m, head: false }))];
+      const today = nowIso.slice(0, 10);
+      const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+      const figures: MemberFigures[] = [];
+      for (const m of list) {
+        const [counts, depts, orders, jobsOpen, run] = await Promise.all([
+          db.prepare("SELECT SUM(CASE WHEN status IN ('active','leave') THEN 1 ELSE 0 END) AS headcount,SUM(CASE WHEN status='leave' THEN 1 ELSE 0 END) AS on_leave,SUM(CASE WHEN status<>'removed' AND start_date>=? AND start_date<=? THEN 1 ELSE 0 END) AS joiners,SUM(CASE WHEN status='left' AND end_date>=? THEN 1 ELSE 0 END) AS leavers FROM company_employees WHERE company_id=?").bind(yearAgo, today, yearAgo, m.company_id).first<{ headcount: number | null; on_leave: number | null; joiners: number | null; leavers: number | null }>(),
+          db.prepare("SELECT department,COUNT(*) AS n FROM company_employees WHERE company_id=? AND status IN ('active','leave') GROUP BY department").bind(m.company_id).all<{ department: string; n: number }>(),
+          db.prepare("SELECT COUNT(*) AS n FROM employee_orders WHERE company_id=? AND status<>'signed'").bind(m.company_id).first<{ n: number }>(),
+          db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND status='published'").bind(m.company_id).first<{ n: number }>(),
+          m.share_pay ? db.prepare("SELECT month,snapshot FROM payroll_runs WHERE company_id=? AND status='approved' ORDER BY month DESC LIMIT 1").bind(m.company_id).first<{ month: string; snapshot: string }>() : Promise.resolve(null),
+        ]);
+        const totals = run ? snapshotTotals(run.snapshot) : null;
+        const departments: Record<string, number> = {};
+        for (const d of depts.results) departments[d.department || "Departamentsiz"] = (departments[d.department || "Departamentsiz"] || 0) + d.n;
+        figures.push({ companyId: m.company_id, name: m.name, isHead: m.head, headcount: counts?.headcount || 0, onLeave: counts?.on_leave || 0, joiners12: counts?.joiners || 0, leavers12: counts?.leavers || 0, pendingOrders: orders?.n || 0, openJobs: jobsOpen?.n || 0, departments, pay: run && totals ? { month: run.month, ...totals } : null, paySharing: !!m.share_pay });
+        if (!m.head && m.share_pay) await companyAudit(db, m.company_id, userId, "group-pay-viewed", own.id, `Qrup (${own.name}) maaş yekununa baxdı`);
+      }
+      return ok({ group: { id: own.id, name: own.name }, companies: figures.map((f) => ({ ...f, turnover: turnoverPercent(f.headcount, f.leavers12) })), totals: groupTotals(figures) });
+    }
+    if (request.method === "POST" && path === "company/group/create") {
+      const b = await jsonBody(request);
+      const name = str(b.name, 80);
+      if (name.length < 2) throw new HttpError(400, "Qrupun adını yazın.");
+      if (await ownGroup()) throw new HttpError(409, "Şirkətinizin artıq qrupu var.");
+      if (await membership()) throw new HttpError(409, "Şirkətiniz başqa qrupun üzvüdür: əvvəlcə ondan çıxın.");
+      await db.prepare("INSERT INTO company_groups(id,name,owner_company_id,created) VALUES(?,?,?,?)").bind(crypto.randomUUID(), name, id, nowIso).run();
+      await companyAudit(db, id, userId, "group-created", "", name);
+      return ok({ ok: true }, 201);
+    }
+    if (request.method === "POST" && path === "company/group/invite") {
+      const own = await ownGroup();
+      if (!own) throw new HttpError(404, "Əvvəlcə qrup yaradın.");
+      const open = await db.prepare("SELECT COUNT(*) AS n FROM company_group_links WHERE group_id=? AND status='invited' AND expires>=?").bind(own.id, nowIso).first<{ n: number }>();
+      if ((open?.n || 0) >= 20) throw new HttpError(409, "Eyni vaxtda ən çox 20 açıq dəvət ola bilər.");
+      const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const bytes = crypto.getRandomValues(new Uint8Array(10));
+      const code = [...bytes].map((x) => alphabet[x % alphabet.length]).join("");
+      const expires = new Date(Date.now() + 14 * 86_400_000).toISOString();
+      await db.prepare("INSERT INTO company_group_links(id,group_id,company_id,code,expires,status,share_pay,created) VALUES(?,?,'',?,?,'invited',0,?)").bind(crypto.randomUUID(), own.id, code, expires, nowIso).run();
+      await companyAudit(db, id, userId, "group-invited", "", "Yeni dəvət kodu yaradıldı");
+      return ok({ ok: true, code, expires }, 201);
+    }
+    if (request.method === "POST" && path === "company/group/remove") {
+      const own = await ownGroup();
+      if (!own) throw new HttpError(404, "Şirkətinizin qrupu yoxdur.");
+      const b = await jsonBody(request);
+      const link = await db.prepare("SELECT id,company_id,status FROM company_group_links WHERE id=? AND group_id=?").bind(str(b.linkId, 100), own.id).first<{ id: string; company_id: string; status: string }>();
+      if (!link) throw new HttpError(404, "Dəvət və ya üzv tapılmadı.");
+      await db.prepare("UPDATE company_group_links SET status='removed',code='' WHERE id=?").bind(link.id).run();
+      if (link.company_id) await companyAudit(db, link.company_id, userId, "group-removed", own.id, `Qrup (${own.name}) şirkəti qrupdan çıxardı`);
+      await companyAudit(db, id, userId, "group-member-removed", link.company_id, "Üzv və ya dəvət silindi");
+      return ok({ ok: true });
+    }
+    if (request.method === "POST" && path === "company/group/delete") {
+      const own = await ownGroup();
+      if (!own) throw new HttpError(404, "Şirkətinizin qrupu yoxdur.");
+      await db.batch([db.prepare("UPDATE company_group_links SET status='removed',code='' WHERE group_id=? AND status IN ('invited','active')").bind(own.id), db.prepare("DELETE FROM company_groups WHERE id=?").bind(own.id)]);
+      await companyAudit(db, id, userId, "group-deleted", own.id, own.name);
+      return ok({ ok: true });
+    }
+    if (request.method === "POST" && path === "company/group/join") {
+      const b = await jsonBody(request);
+      const code = str(b.code, 20).toUpperCase().replace(/\s+/g, "");
+      if (!code) throw new HttpError(400, "Dəvət kodunu yazın.");
+      if (await ownGroup()) throw new HttpError(409, "Şirkətinizin öz qrupu var: başqa qrupa qoşulmaq üçün əvvəlcə onu silin.");
+      if (await membership()) throw new HttpError(409, "Şirkətiniz artıq bir qrupun üzvüdür.");
+      const link = await db.prepare("SELECT l.id,l.expires,g.name,g.owner_company_id FROM company_group_links l JOIN company_groups g ON g.id=l.group_id WHERE l.code=? AND l.status='invited'").bind(code).first<{ id: string; expires: string; name: string; owner_company_id: string }>();
+      if (!link || link.expires < nowIso) throw new HttpError(404, "Dəvət kodu tapılmadı və ya müddəti bitib.");
+      if (link.owner_company_id === id) throw new HttpError(409, "Öz qrupunuzun dəvətinə qoşula bilməzsiniz.");
+      const sharePay = b.sharePay === true;
+      await db.prepare("UPDATE company_group_links SET company_id=?,status='active',share_pay=?,code='',joined_at=? WHERE id=?").bind(id, sharePay ? 1 : 0, nowIso, link.id).run();
+      await companyAudit(db, id, userId, "group-joined", link.owner_company_id, `${link.name}: ${sharePay ? "maaş yekunu da paylaşılır" : "yalnız say və göstəricilər"}`);
+      return ok({ ok: true, groupName: link.name });
+    }
+    if (request.method === "POST" && path === "company/group/leave") {
+      const mine = await membership();
+      if (!mine) throw new HttpError(404, "Şirkətiniz heç bir qrupun üzvü deyil.");
+      await db.prepare("UPDATE company_group_links SET status='left' WHERE id=?").bind(mine.id).run();
+      await companyAudit(db, id, userId, "group-left", mine.owner_company_id, mine.name);
+      return ok({ ok: true });
+    }
+    if (request.method === "POST" && path === "company/group/share") {
+      const mine = await membership();
+      if (!mine) throw new HttpError(404, "Şirkətiniz heç bir qrupun üzvü deyil.");
+      const b = await jsonBody(request);
+      const sharePay = b.sharePay === true;
+      await db.prepare("UPDATE company_group_links SET share_pay=? WHERE id=?").bind(sharePay ? 1 : 0, mine.id).run();
+      await companyAudit(db, id, userId, "group-share", mine.owner_company_id, sharePay ? "maaş yekunu paylaşılır" : "maaş yekunu paylaşılmır");
+      return ok({ ok: true, sharePay });
+    }
   }
   if (request.method === "GET" && path === "company/team") {
     const owner = await db

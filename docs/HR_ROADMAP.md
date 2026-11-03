@@ -325,3 +325,16 @@ Məhdudiyyət: əvəzetmə, qrafik, uzatma, intizam əmrlərinin kart təsiri yo
 **Excel (işçilər).** Yeni "FİN" sütunu. Uyğunlaşdırma sırası: FİN → e-poçt → ad+başlama tarixi. FİN eyni adlı iki işçini ayırır; kartdakı FİN fayldakından fərqlidirsə sətir rədd edilir; kartda FİN yoxdursa ora yazılır; yanlış formatlı və ya faylda təkrar FİN bildirilir. Nümunə fayl yeniləndi.
 
 Məhdudiyyətlər: əmr növlərinin UI-da hər biri brauzerdə ayrıca yoxlanmayıb; yeni işçinin FİN-i şifrələmə açarı (`DATA_KEY`) qoyulanda şifrələnmiş saxlanır.
+
+## 24. Holdinq (qrup) girişi
+
+Qərarlar (9-cu bölmədəki açıq suallara cavab):
+- **Qrupa kim daxildir:** şirkət hesabları razılıqla. Baş şirkət (hesab sahibi və ya direktor) qrup yaradır və 14 gün keçərli, birdəfəlik **dəvət kodu** verir; digər şirkətin hesab sahibi/direktoru kodu yazıb qoşulur. Bir şirkət yalnız bir qrupda ola bilər; baş şirkət başqa qrupa qoşula bilməz.
+- **Qrup nəyi görür:** yalnız **yekunlar**: işçi sayı, məzuniyyətdə olanlar, 12 ayda işə qəbul/çıxış, axıcılıq, gözləyən əmr, açıq vakansiya, departamentlər üzrə say. İşçi adı, maaşı və şəxsi məlumat heç vaxt çıxmır. **Maaş yekunu** (son təsdiqlənmiş ayın gross/net/işəgötürən xərci) yalnız üzv şirkət özü işarələyəndə göstərilir və hər baxışda üzv şirkətin jurnalına yazılır.
+- **Razılıq və çıxış:** üzv istənilən vaxt qrupdan çıxa və maaş paylaşmasını dəyişə bilər; baş şirkət üzvü çıxara bilər; qoşulma, çıxış və paylaşma dəyişiklikləri hər iki şirkətin baxış jurnalında qalır.
+- **Giriş növü:** ayrıca yeni hesab növü yaradılmadı; baş şirkətin hesab sahibi/direktoru mövcud girişlə "Qrup (holdinq)" bölməsinə baxır. Holdinqin özü hüquqi şəxs deyilsə, ona ayrıca şirkət hesabı açmaq lazımdır.
+- Excel ixracı (icmal + departamentlər).
+
+Texniki: `company_groups`, `company_group_links` (miqrasiya 0091), `lib/company-group.ts` (yekunlar, axıcılıq, ay snapşotunun cəmi; test), `company/group*` endpoint-ləri, `app/GroupPage.tsx`.
+
+Hələ olmayanlar: qrup üzrə aylıq dinamika qrafiki, qrup səviyyəsində ayrıca hesab növü (şirkətə bağlı olmayan şəxs üçün), üzv şirkətlərin vahid kataloqu/ortaq vəzifə adları.

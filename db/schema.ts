@@ -1651,3 +1651,25 @@ export const orderEffects = sqliteTable(
   { id: text("id").primaryKey(), companyId: text("company_id").notNull(), orderId: text("order_id").notNull(), employeeId: text("employee_id").notNull(), kind: text("kind").notNull(), effectiveDate: text("effective_date").notNull(), status: text("status").notNull().default("applied"), plan: text("plan").notNull().default("{}"), before: text("before").notNull().default("{}"), summary: text("summary").notNull().default(""), appliedAt: text("applied_at").notNull().default(""), revertedAt: text("reverted_at").notNull().default(""), revertedBy: text("reverted_by").notNull().default(""), created: text("created").notNull() },
   (t) => [uniqueIndex("order_effects_order").on(t.orderId), index("order_effects_due").on(t.companyId, t.status, t.effectiveDate)],
 );
+
+// A holding: companies that agreed to be seen together. The head company sees totals only; each member can leave at any time.
+export const companyGroups = sqliteTable(
+  "company_groups",
+  { id: text("id").primaryKey(), name: text("name").notNull(), ownerCompanyId: text("owner_company_id").notNull(), created: text("created").notNull() },
+  (t) => [uniqueIndex("company_groups_owner").on(t.ownerCompanyId)],
+);
+export const companyGroupLinks = sqliteTable(
+  "company_group_links",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id").notNull(),
+    companyId: text("company_id").notNull().default(""),
+    code: text("code").notNull().default(""),
+    expires: text("expires").notNull().default(""),
+    status: text("status").notNull().default("invited"), // invited, active, left, removed
+    sharePay: integer("share_pay").notNull().default(0),
+    created: text("created").notNull(),
+    joinedAt: text("joined_at").notNull().default(""),
+  },
+  (t) => [index("company_group_links_group").on(t.groupId, t.status), index("company_group_links_company").on(t.companyId, t.status)],
+);

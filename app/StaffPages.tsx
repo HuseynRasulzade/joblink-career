@@ -78,7 +78,7 @@ function previewOf(kind: SheetKind, rows: unknown[]): { head: string[]; body: st
   const list = rows as Record<string, string | number | boolean | Record<string, unknown>>[];
   const str = (v: unknown) => String(v ?? "") || "—";
   if (kind === "employees")
-    return { head: ["Ad Soyad", "Vəzifə", "Departament / Şöbə", "Başlama", "Əmək haqqı"], body: list.map((r) => [str(r.name), str(r.position), [r.department, r.section].filter(Boolean).join(" / ") || "—", str(r.startDate), r.salary ? `${azn(Number(r.salary))} (${r.salaryType})` : "—"]) };
+    return { head: ["Ad Soyad", "FİN", "Vəzifə", "Departament / Şöbə", "Başlama", "Əmək haqqı"], body: list.map((r) => [str(r.name), str(r.fin), str(r.position), [r.department, r.section].filter(Boolean).join(" / ") || "—", str(r.startDate), r.salary ? `${azn(Number(r.salary))} (${r.salaryType})` : "—"]) };
   if (kind === "staff")
     return { head: ["Departament", "Şöbə", "Vəzifə", "Ştat", "Dərəcə", "Əmək haqqı"], body: list.map((r) => [str(r.department), str(r.section), str(r.position), str(r.planned), RATE_LABEL[Number(r.rate)] || "Tam ştat", r.salary ? (Number(r.salaryMax) > Number(r.salary) ? `${azn(Number(r.salary))} – ${azn(Number(r.salaryMax))}` : azn(Number(r.salary))) : "—"]) };
   if (kind === "structure") return { head: ["Departament", "Şöbə"], body: list.map((r) => [str(r.department), str(r.section)]) };
