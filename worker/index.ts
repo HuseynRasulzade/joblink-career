@@ -3,7 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import { runDeadlineReminders, runPayrollReminders } from "../lib/payroll-reminders.ts";
 import { runSurveyRecurrence } from "../lib/survey-recurrence.ts";
-import { runBankDrafts, runDueOrderEffects } from "../lib/cron-bank-drafts.ts";
+import { runBankDrafts, runCelebrations, runDueOrderEffects } from "../lib/cron-bank-drafts.ts";
 import { purgeOldJobViews, runApprovalReminders, runDigests, runInterviewReminders, runInvoiceReminders, runJobAlerts, runPlanReminders, runProbationReminders, runTestReminders, type Mailer } from "../lib/digest-job.ts";
 import { mailerOf } from "../lib/mail.ts";
 import { cacheable, edgeCacheSeconds } from "../lib/edge-cache.ts";
@@ -41,7 +41,7 @@ const worker = {
   },
   // Daily cron: sends the weekly and monthly summaries that are due and interview reminders.
   async scheduled(_controller: unknown, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(Promise.all([runDigests(env.DB, mailerOf(env), env.EMAIL_FROM), runInterviewReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runTestReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runProbationReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runJobAlerts(env.DB, mailerOf(env), env.EMAIL_FROM), runPlanReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runInvoiceReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runApprovalReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runPayrollReminders(env.DB), runDeadlineReminders(env.DB), runSurveyRecurrence(env.DB), runBankDrafts(env.DB, (request) => handler.fetch(request, env, ctx)), runDueOrderEffects(env.DB, (request) => handler.fetch(request, env, ctx)), purgeOldJobViews(env.DB)]));
+    ctx.waitUntil(Promise.all([runDigests(env.DB, mailerOf(env), env.EMAIL_FROM), runInterviewReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runTestReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runProbationReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runJobAlerts(env.DB, mailerOf(env), env.EMAIL_FROM), runPlanReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runInvoiceReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runApprovalReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runPayrollReminders(env.DB), runDeadlineReminders(env.DB), runSurveyRecurrence(env.DB), runBankDrafts(env.DB, (request) => handler.fetch(request, env, ctx)), runDueOrderEffects(env.DB, (request) => handler.fetch(request, env, ctx)), runCelebrations(env.DB, (request) => handler.fetch(request, env, ctx)), purgeOldJobViews(env.DB)]));
   },
 };
 

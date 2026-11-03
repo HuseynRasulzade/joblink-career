@@ -1108,6 +1108,8 @@ export const assetAssignments = sqliteTable(
     note: text("note").notNull().default(""),
     createdBy: text("created_by").notNull().default(""),
     created: text("created").notNull(),
+    // The employee confirms in the program that the property was handed over to them.
+    ackIssuedAt: text("ack_issued_at").notNull().default(""),
   },
   (t) => [index("asset_assignments_employee").on(t.companyId, t.employeeId), index("asset_assignments_asset").on(t.assetId)],
 );

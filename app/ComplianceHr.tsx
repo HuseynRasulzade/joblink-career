@@ -490,3 +490,58 @@ export function RetentionPanel({ notify }: { notify: Notify }) {
     </div>
   );
 }
+
+// ---------------- Birthdays and work anniversaries ----------------
+type Celebrations = { enabled: boolean; items: { employeeId: string; name: string; kind: "birthday" | "anniversary"; date: string; days: number; years: number }[] };
+export function CelebrationsPanel({ notify }: { notify: Notify }) {
+  const [data, setData] = useState<Celebrations | null>(null);
+  const load = useCallback(() => {
+    request<Celebrations>("company/celebrations").then(setData).catch((e) => notify((e as Error).message));
+  }, [notify]);
+  useEffect(load, [load]);
+  async function toggle(enabled: boolean) {
+    try {
+      await request("company/celebrations/setting", { enabled });
+      notify(enabled ? "Təbriklər açıldı." : "Təbriklər bağlandı.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  return (
+    <div className="company-page">
+      <p className="muted">Növbəti 30 gündə işçilərin ad günləri və il dönümləri (doğum tarixi və işə başlama tarixi işçi kartından götürülür).</p>
+      <div className="panel">
+        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input type="checkbox" checked={data.enabled} onChange={(e) => void toggle(e.target.checked)} /> İşçilərə göstər və həmin gün təbrik göndər
+        </label>
+        <small className="skill-description">Açıq olanda kolleqalar “İş yerim → İşçi təcrübəsi”ndə yalnız ad və gün/ayı (doğum ili yox) görür; ad günü və il dönümü sahibinə həmin gün bildiriş gedir. Bağlı olanda yalnız HR görür.</small>
+      </div>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <tbody>
+            {data.items.map((c) => (
+              <tr key={`${c.employeeId}-${c.kind}`}>
+                <td>
+                  <b>{c.name}</b>
+                </td>
+                <td>{c.kind === "birthday" ? "Ad günü" : `${c.years} illik il dönümü`}</td>
+                <td>
+                  {dmy(c.date)} {c.days === 0 ? "(bu gün)" : `(${c.days} gün sonra)`}
+                </td>
+              </tr>
+            ))}
+            {!data.items.length && (
+              <tr>
+                <td>
+                  <p className="admin-empty">Növbəti 30 gündə ad günü və ya il dönümü yoxdur (doğum tarixi işçinin şəxsi məlumatlarında yazılmalıdır).</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

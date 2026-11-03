@@ -1,5 +1,5 @@
 "use client";
-import { MyPolicies, MySafety } from "./WorkplaceCompliance";
+import { MyCelebrations, MyPolicies, MySafety } from "./WorkplaceCompliance";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Send, Trash2 } from "lucide-react";
 import { ORDER_KINDS, UNPAID_REASONS } from "@/lib/orders";
@@ -169,7 +169,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
             {tab === "clock" && <MyClock key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "shifts" && <MyShifts key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "trips" && <MyTrips key={place.id} employeeId={place.id} notify={notify} />}
-            {tab === "engage" && <MyEngage key={place.id} employeeId={place.id} notify={notify} />}
+            {tab === "engage" && <><MyCelebrations key={`${place.id}-cel`} employeeId={place.id} notify={notify} /><MyEngage key={place.id} employeeId={place.id} notify={notify} /></>}
             {tab === "leave" && <MyLeave key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "assets" && <MyAssets key={place.id} employeeId={place.id} notify={notify} />}
             {tab === "exit" && <ExitInterview key={place.id} employeeId={place.id} notify={notify} />}

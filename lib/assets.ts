@@ -12,6 +12,7 @@ export type ActInput = {
   asset: { name: string; serial: string; inventoryNo: string; valueCents: number };
   condition: string;
   note: string;
+  ackedAt?: string; // when the employee confirmed the handover in the program
 };
 
 export function assetActHtml(a: ActInput): string {
@@ -28,6 +29,7 @@ export function assetActHtml(a: ActInput): string {
 <body><h1>${esc(title)} № ${esc(a.number || "____")}</h1><p>${text}</p>
 <table><tr><th>Əmlak</th><th>Seriya №</th><th>İnventar №</th><th>Dəyər</th><th>Vəziyyət</th></tr><tr><td>${esc(a.asset.name)}</td><td>${esc(a.asset.serial || "—")}</td><td>${esc(a.asset.inventoryNo || "—")}</td><td>${value}</td><td>${esc(a.condition || "—")}</td></tr></table>
 ${a.note ? `<p>Qeyd: ${esc(a.note)}</p>` : ""}
+${a.kind === "issue" && a.ackedAt ? `<p>İşçi əmlakı proqramda elektron qaydada təhvil aldığını təsdiq edib: ${esc(a.ackedAt.slice(0, 16).replace("T", " "))}.</p>` : ""}
 <div class="sign"><div><b>Təhvil verən</b><div class="line">imza</div></div><div><b>Təhvil alan</b><br>${esc(a.employee)}<div class="line">imza</div></div></div></body></html>`;
 }
 

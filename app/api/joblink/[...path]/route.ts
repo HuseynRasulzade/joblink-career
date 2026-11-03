@@ -371,6 +371,7 @@ import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
+import { greeting, upcomingCelebrations } from "@/lib/celebrations";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS, RETENTION_CATEGORIES, cleanOhs, dueState, retentionEnd, retentionYears, textHash } from "@/lib/ohs";
 import { groupTotals, snapshotTotals, turnoverPercent, type MemberFigures } from "@/lib/company-group";
 import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
@@ -8242,10 +8243,58 @@ async function route(request: Request) {
     const today = new Date().toISOString().slice(0, 10);
     return ok({ items: rows.map((r) => { let data: Record<string, unknown> = {}; try { data = JSON.parse(r.data || "{}"); } catch { /* shown without details */ } return { id: r.id, type: r.type, date: r.record_date, due: r.due_date, state: dueState(r.due_date, today), kind: String(data.kind || ""), result: String(data.result || ""), topic: String(data.topic || "") }; }), labels: { briefing: BRIEFING_KINDS, medical: MEDICAL_KINDS, result: MEDICAL_RESULTS } });
   }
+  // ---- Birthdays and work anniversaries: shown to colleagues and greeted on the day, only when the company switches it on ----
+  const celebrationsOn = async (companyId: string) => (await db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key='celebrations'").bind(companyId).first<{ value: string }>())?.value === "on";
+  const celebrationList = async (companyId: string, withinDays: number) => {
+    const rows = (await db.prepare("SELECT id,name,start_date,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(companyId).all<{ id: string; name: string; start_date: string; profile: string }>()).results;
+    const opened = await revealAll(rows);
+    return upcomingCelebrations(rows.map((r) => ({ id: r.id, name: r.name, birthDate: opened.get(r.id)?.birthDate || "", startDate: r.start_date })), new Date().toISOString().slice(0, 10), withinDays);
+  };
+  if (request.method === "GET" && path === "company/celebrations") {
+    requirePermission("salaries", "Ad günü və il dönümlərini yalnız kadr işçisi görə bilər.");
+    return ok({ enabled: await celebrationsOn(id), items: await celebrationList(id, 30) });
+  }
+  if (request.method === "POST" && path === "company/celebrations/setting") {
+    requirePermission("salaries", "Bu ayarı yalnız kadr işçisi dəyişə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,'celebrations',?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, b.enabled === true ? "on" : "off").run();
+    await companyAudit(db, id, userId, "celebrations-setting", "", b.enabled === true ? "açıq" : "bağlı");
+    return ok({ ok: true, enabled: b.enabled === true });
+  }
+  // The daily job opens this: the people whose day it is get a greeting, once a day.
+  if (request.method === "GET" && path === "company/celebrations/run") {
+    requirePermission("salaries", "Təbrikləri yalnız kadr işçisi göndərə bilər.");
+    const today = new Date().toISOString().slice(0, 10);
+    if (!(await celebrationsOn(id))) return ok({ sent: 0 });
+    const marker = await db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key='celebrations_sent'").bind(id).first<{ value: string }>();
+    if (marker?.value === today) return ok({ sent: 0 });
+    let sent = 0;
+    for (const c of (await celebrationList(id, 0)).filter((x) => x.days === 0)) {
+      const g = greeting(c);
+      await tellEmployee(c.employeeId, g.title, g.body);
+      sent++;
+    }
+    await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,'celebrations_sent',?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, today).run();
+    return ok({ sent });
+  }
+  if (request.method === "GET" && path === "employee/celebrations") {
+    const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
+    if (!(await celebrationsOn(employee.company_id))) return ok({ enabled: false, items: [] });
+    const items = (await celebrationList(employee.company_id, 30)).filter((c) => c.employeeId !== employee.id).map((c) => ({ name: c.name, kind: c.kind, date: c.date, days: c.days, years: c.years }));
+    return ok({ enabled: true, items });
+  }
   if (request.method === "GET" && path === "employee/assets") {
     const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
-    const rows = await db.prepare("SELECT a.id,a.issued_on,a.returned_on,a.condition_out,s.name,s.serial,s.inventory_no FROM asset_assignments a JOIN assets s ON s.id=a.asset_id WHERE a.company_id=? AND a.employee_id=? ORDER BY a.issued_on DESC").bind(employee.company_id, employee.id).all<{ id: string; issued_on: string; returned_on: string; condition_out: string; name: string; serial: string; inventory_no: string }>();
-    return ok({ items: rows.results.map((r) => ({ id: r.id, name: r.name, serial: r.serial, inventoryNo: r.inventory_no, issuedOn: r.issued_on, returnedOn: r.returned_on, condition: r.condition_out })) });
+    const rows = await db.prepare("SELECT a.id,a.issued_on,a.returned_on,a.condition_out,a.ack_issued_at,s.name,s.serial,s.inventory_no FROM asset_assignments a JOIN assets s ON s.id=a.asset_id WHERE a.company_id=? AND a.employee_id=? ORDER BY a.issued_on DESC").bind(employee.company_id, employee.id).all<{ id: string; issued_on: string; returned_on: string; condition_out: string; ack_issued_at: string; name: string; serial: string; inventory_no: string }>();
+    return ok({ items: rows.results.map((r) => ({ id: r.id, name: r.name, serial: r.serial, inventoryNo: r.inventory_no, issuedOn: r.issued_on, returnedOn: r.returned_on, condition: r.condition_out, ackedAt: r.ack_issued_at })) });
+  }
+  if (request.method === "POST" && path === "employee/assets/ack") {
+    const b = await jsonBody(request);
+    const employee = await ownWorkplace(str(b.employeeId, 100));
+    const done = await db.prepare("UPDATE asset_assignments SET ack_issued_at=? WHERE id=? AND company_id=? AND employee_id=? AND ack_issued_at=''").bind(new Date().toISOString(), str(b.assignmentId, 100), employee.company_id, employee.id).run();
+    if (!done.meta.changes) throw new HttpError(404, "Təsdiq ediləcək verilmə qeydi tapılmadı və ya artıq təsdiq edilib.");
+    await companyAudit(db, employee.company_id, userId, "asset-acked", employee.id, `${employee.name}: əmlakın təhvil alınması təsdiq edildi`);
+    return ok({ ok: true });
   }
   if (request.method === "GET" && path === "employee/offboarding") {
     const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
@@ -9771,6 +9820,18 @@ async function route(request: Request) {
     for (const o of (await db.prepare("SELECT employee_id,kind,number,status FROM employee_orders WHERE company_id=? AND kind IN ('termination','reduction') ORDER BY created").bind(id).all<{ employee_id: string; kind: string; number: string; status: string }>()).results) exitOrders.set(o.employee_id, { number: o.number, status: o.status, kind: o.kind });
     const bondRows = (await db.prepare("SELECT p.employee_id,t.title,p.bond_until,p.bond_cost_cents FROM training_participants p JOIN trainings t ON t.id=p.training_id WHERE p.company_id=? AND p.bond_until<>''").bind(id).all<{ employee_id: string; title: string; bond_until: string; bond_cost_cents: number }>()).results;
     const withoutCase = [...people.values()].filter((p) => p.status === "left" && !cases.some((c) => c.employee_id === p.id));
+    // The last pay in advance: the unused main leave paid out when the contract ends (art. 143), worked out from the card.
+    const payRows = cases.length ? (await db.prepare("SELECT id,start_date,end_date,vacation_days,vacation_used,salary_cents,salary_type,sector,profile FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; start_date: string; end_date: string; vacation_days: number; vacation_used: number; salary_cents: number; salary_type: string; sector: string; profile: string }>()).results : [];
+    const finalPays = new Map<string, { unusedDays: number; dailyRate: number; compensation: number }>();
+    const todayIso = new Date().toISOString().slice(0, 10);
+    for (const c of cases) {
+      const p = payRows.find((r) => r.id === c.employee_id);
+      if (!p || !(p.salary_cents > 0)) continue;
+      const gross = employeePay(p.salary_cents / 100, p.salary_type === "net" ? "net" : "gross", p.sector === "public" ? "public" : "private", taxReduction(parseProfile(p.profile), todayIso)).gross;
+      const end = p.end_date || c.planned_end || todayIso;
+      const unused = unusedLeaveCompensation({ hireDate: p.start_date || end, endDate: end, mainLeaveDays: p.vacation_days ?? 21, usedDays: p.vacation_used ?? 0, monthlyEarnings: [gross] });
+      if (unused) finalPays.set(c.employee_id, { unusedDays: unused.unusedDays, dailyRate: unused.dailyRate, compensation: unused.compensation });
+    }
     return ok({
       items: OFFBOARDING_ITEMS,
       questions: EXIT_QUESTIONS,
@@ -9779,7 +9840,7 @@ async function route(request: Request) {
         const state = cleanChecklist(parseJson(c.checklist, {}));
         const endOf = p?.end_date || c.planned_end || new Date().toISOString().slice(0, 10);
         const bonds = bondRows.filter((x) => x.employee_id === c.employee_id && x.bond_until > endOf).map((x) => ({ title: x.title, until: x.bond_until, cost: x.bond_cost_cents / 100 }));
-        return { exitOrder: exitOrders.get(c.employee_id) || null, bonds, id: c.id, employeeId: c.employee_id, name: p?.name || "", position: p?.position || "", department: p?.department || "", employeeStatus: p?.status || "", endDate: p?.end_date || c.planned_end, exitType: p?.exit_type ? exitTypeLabel(p.exit_type) : "", exitReason: p?.exit_reason ? exitReasonLabel(p.exit_reason) : "", status: c.status, plannedEnd: c.planned_end, checklist: state, progress: checklistProgress(state), answers: parseJson(c.exit_interview, {}), note: c.note, heldAssets: held.get(c.employee_id) || 0, closedAt: c.closed_at };
+        return { exitOrder: exitOrders.get(c.employee_id) || null, finalPay: finalPays.get(c.employee_id) || null, bonds, id: c.id, employeeId: c.employee_id, name: p?.name || "", position: p?.position || "", department: p?.department || "", employeeStatus: p?.status || "", endDate: p?.end_date || c.planned_end, exitType: p?.exit_type ? exitTypeLabel(p.exit_type) : "", exitReason: p?.exit_reason ? exitReasonLabel(p.exit_reason) : "", status: c.status, plannedEnd: c.planned_end, checklist: state, progress: checklistProgress(state), answers: parseJson(c.exit_interview, {}), note: c.note, heldAssets: held.get(c.employee_id) || 0, closedAt: c.closed_at };
       }),
       withoutCase: withoutCase.map((p) => ({ id: p.id, name: p.name, position: p.position, department: p.department, endDate: p.end_date })),
       active: [...people.values()].filter((p) => p.status !== "left" && !cases.some((c) => c.employee_id === p.id && c.status === "open")).map((p) => ({ id: p.id, name: p.name, department: p.department })),
@@ -9852,6 +9913,7 @@ async function route(request: Request) {
         return { id: a.id, name: a.name, category: a.category, serial: a.serial, inventoryNo: a.inventory_no, value: a.value_cents / 100, status: a.status, statusText: ASSET_STATUS[a.status] || a.status, note: a.note, holderId: h?.employee_id || "", holder: h ? everyone.get(h.employee_id) || "" : "", assignmentId: h?.id || "", issuedOn: h?.issued_on || "" };
       }),
       employees: people.results.map((p) => ({ id: p.id, name: p.name, department: p.department })),
+      acked: (await db.prepare("SELECT id FROM asset_assignments WHERE company_id=? AND returned_on='' AND ack_issued_at<>''").bind(id).all<{ id: string }>()).results.map((r) => r.id),
       total: { count: assets.results.length, assigned: open.results.length, value: Math.round(assets.results.reduce((t, a) => t + a.value_cents, 0)) / 100 },
       names: Object.fromEntries(names),
     });
@@ -9933,13 +9995,13 @@ async function route(request: Request) {
   if (request.method === "GET" && path === "company/assets/act") {
     requirePermission("salaries", "Aktı yalnız kadr işçisi çap edə bilər.");
     const row = await db
-      .prepare("SELECT a.id,a.issued_on,a.returned_on,a.condition_out,a.condition_in,a.note,s.name,s.serial,s.inventory_no,s.value_cents,e.name AS employee,e.position,c.name AS company FROM asset_assignments a JOIN assets s ON s.id=a.asset_id JOIN company_employees e ON e.id=a.employee_id LEFT JOIN accounts c ON c.id=a.company_id WHERE a.id=? AND a.company_id=?")
+      .prepare("SELECT a.id,a.issued_on,a.returned_on,a.condition_out,a.condition_in,a.note,a.ack_issued_at,s.name,s.serial,s.inventory_no,s.value_cents,e.name AS employee,e.position,c.name AS company FROM asset_assignments a JOIN assets s ON s.id=a.asset_id JOIN company_employees e ON e.id=a.employee_id LEFT JOIN accounts c ON c.id=a.company_id WHERE a.id=? AND a.company_id=?")
       .bind(str(requestUrl.searchParams.get("id"), 100), id)
-      .first<{ id: string; issued_on: string; returned_on: string; condition_out: string; condition_in: string; note: string; name: string; serial: string; inventory_no: string; value_cents: number; employee: string; position: string; company: string }>();
+      .first<{ id: string; issued_on: string; returned_on: string; condition_out: string; condition_in: string; note: string; ack_issued_at: string; name: string; serial: string; inventory_no: string; value_cents: number; employee: string; position: string; company: string }>();
     if (!row) throw new HttpError(404, "Qeyd tapılmadı.");
     const kind = requestUrl.searchParams.get("kind") === "return" ? "return" : "issue";
     if (kind === "return" && !row.returned_on) throw new HttpError(409, "Əmlak hələ qaytarılmayıb.");
-    return ok({ html: assetActHtml({ kind, number: row.id.slice(0, 6).toUpperCase(), date: kind === "return" ? row.returned_on : row.issued_on, company: row.company || "", employee: row.employee, position: row.position, asset: { name: row.name, serial: row.serial, inventoryNo: row.inventory_no, valueCents: row.value_cents }, condition: kind === "return" ? row.condition_in : row.condition_out, note: row.note }) });
+    return ok({ html: assetActHtml({ kind, number: row.id.slice(0, 6).toUpperCase(), date: kind === "return" ? row.returned_on : row.issued_on, company: row.company || "", employee: row.employee, position: row.position, asset: { name: row.name, serial: row.serial, inventoryNo: row.inventory_no, valueCents: row.value_cents }, condition: kind === "return" ? row.condition_in : row.condition_out, note: row.note, ackedAt: row.ack_issued_at }) });
   }
   if (request.method === "GET" && path === "company/employees/assets") {
     requirePermission("salaries", "Aktivləri yalnız kadr işçisi görə bilər.");

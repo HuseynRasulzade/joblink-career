@@ -352,3 +352,15 @@ Statusu köhnə cədvəldə ❌ görünən "Performans, aktivlər, işçi təcr�
 Diqqət: saxlama illəri (şəxsi işlər 75, əmrlər 75, tabel 5 və s.) orientirdir, rəsmi cədvələ qarşı yoxlanmayıb; hüquqşünas və arxiv qaydaları ilə təsdiq etmək lazımdır. Hüquqi e-imza (ASAN imza və s.) xarici müqavilə tələb edir; daxili təsdiq hash ilə saxlanır, amma qanuni e-imza deyil.
 
 Texniki: miqrasiya 0092 (`ohs_records`, `policy_docs`, `policy_versions`, `policy_acks`, `retention_rules`), `lib/ohs.ts` (yoxlama, tarixlər, saxlama; test), `lib/policy-templates.ts`, `company/ohs*`, `company/policies*`, `company/retention*`, `employee/policies*`, `employee/ohs`, `app/ComplianceHr.tsx`, `app/WorkplaceCompliance.tsx`.
+
+## 26. İşçi təcrübəsi, aktivlər və çıxış: qalan boşluqlar
+
+Köhnə cədvəldəki "Performans və inkişaf, Aktivlər, İşçi təcrübəsi, Çıxış prosesi" sətirləri bölmə 3–25-də artıq tamamlanmışdı (məqsəd/dövr/360°/1:1/bacarıq matrisi/təlim planı və büdcəsi, aktivlər və təhvil-təslim aktı, elan/sorğu/eNPS/HR tiketi, çıxış siyahısı/müsahibə/son haqq-hesab). Real çatışmayanlar bunlar idi:
+
+- **Ad günü və il dönümü:** HR üçün növbəti 30 gün siyahısı (Kadr əməliyyatları → Ad günləri və il dönümləri). Şirkət açarı açanda kolleqalar "İş yerim → İşçi təcrübəsi"ndə yalnız ad və gün/ayı görür (doğum ili göstərilmir), həmin gün sahibinə təbrik bildirişi gedir (gündəlik cron, gündə bir dəfə). İlkin vəziyyət bağlıdır (doğum tarixi şəxsi məlumatdır). Qeyri-kəbisə il: 29 fevral adi ildə 28 fevrala düşür; 1 ildən az staj il dönümü sayılmır.
+- **Əmlakın təhvil alınması:** işçi "İş yerim → Aktivlər"də "Təhvil aldım" ilə verilməni elektron təsdiq edir; HR siyahıda "işçi təsdiq edib / hələ etməyib" görür; çap olunan verilmə aktına təsdiq tarixi yazılır. Qaytarma HR tərəfindən qeyd olunur.
+- **Son haqq-hesab:** çıxış prosesində istifadə olunmamış əsas məzuniyyətin kompensasiyası (md. 143) kartdakı məlumatdan təxmini hesablanıb göstərilir; dəqiq məbləğ son ayın əmək haqqında "məzuniyyət kompensasiyası" sütununda çıxır.
+
+Texniki: miqrasiya 0093 (`asset_assignments.ack_issued_at`), `lib/celebrations.ts` (test), `company/celebrations*`, `employee/celebrations`, `employee/assets/ack`, `runCelebrations` cron.
+
+Qalan yeganə boşluq: hüquqi e-imza (ASAN imza və s.) — xarici müqavilə tələb edir.

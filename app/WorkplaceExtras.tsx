@@ -84,15 +84,24 @@ export function MyLeave({ employeeId, notify }: { employeeId: string; notify: No
 }
 
 export function MyAssets({ employeeId, notify }: { employeeId: string; notify: Notify }) {
-  const [data] = useLoad<{ items: { id: string; name: string; serial: string; inventoryNo: string; issuedOn: string; returnedOn: string; condition: string }[] }>(`employee/assets?employeeId=${employeeId}`, notify);
+  const [data, reload] = useLoad<{ items: { id: string; name: string; serial: string; inventoryNo: string; issuedOn: string; returnedOn: string; condition: string; ackedAt?: string }[] }>(`employee/assets?employeeId=${employeeId}`, notify);
+  async function ack(assignmentId: string) {
+    try {
+      await request("employee/assets/ack", { employeeId, assignmentId });
+      notify("Əmlakı təhvil aldığınız təsdiq edildi.");
+      reload();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   if (!data) return <p className="muted">Yüklənir…</p>;
   if (!data.items.length) return <p className="muted">Sizə şirkət əmlakı verilməyib.</p>;
   return (
     <table className="admin-table">
-      <thead><tr><th>Əmlak</th><th>Nömrələr</th><th>Verilib</th><th>Qaytarılıb</th></tr></thead>
+      <thead><tr><th>Əmlak</th><th>Nömrələr</th><th>Verilib</th><th>Qaytarılıb</th><th></th></tr></thead>
       <tbody>
         {data.items.map((a) => (
-          <tr key={a.id}><td><b>{a.name}</b><small className="skill-description">{a.condition}</small></td><td>{a.serial || "—"}<small className="skill-description">{a.inventoryNo}</small></td><td>{dmy(a.issuedOn)}</td><td>{a.returnedOn ? dmy(a.returnedOn) : "sizdədir"}</td></tr>
+          <tr key={a.id}><td><b>{a.name}</b><small className="skill-description">{a.condition}</small></td><td>{a.serial || "—"}<small className="skill-description">{a.inventoryNo}</small></td><td>{dmy(a.issuedOn)}</td><td>{a.returnedOn ? dmy(a.returnedOn) : "sizdədir"}</td><td>{!a.returnedOn && (a.ackedAt ? <small className="muted">təhvil aldığınız təsdiq edilib ({dmy(a.ackedAt.slice(0, 10))})</small> : <button type="button" className="primary" onClick={() => void ack(a.id)}>Təhvil aldım</button>)}</td></tr>
         ))}
       </tbody>
     </table>

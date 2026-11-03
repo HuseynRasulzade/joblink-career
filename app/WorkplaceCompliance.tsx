@@ -108,3 +108,25 @@ export function MySafety({ employeeId, notify }: { employeeId: string; notify: N
     </div>
   );
 }
+
+type Celebs = { enabled: boolean; items: { name: string; kind: "birthday" | "anniversary"; date: string; days: number; years: number }[] };
+// Colleagues' birthdays and work anniversaries for the next weeks, when the company has switched it on.
+export function MyCelebrations({ employeeId, notify }: { employeeId: string; notify: Notify }) {
+  const [data, setData] = useState<Celebs | null>(null);
+  useEffect(() => {
+    request<Celebs>(`employee/celebrations?employeeId=${encodeURIComponent(employeeId)}`).then(setData).catch((e) => notify((e as Error).message));
+  }, [employeeId, notify]);
+  if (!data || !data.enabled || !data.items.length) return null;
+  return (
+    <div className="panel">
+      <h4>Yaxınlaşan ad günləri və il dönümləri</h4>
+      <ul style={{ paddingLeft: 18, margin: 0 }}>
+        {data.items.slice(0, 12).map((c) => (
+          <li key={`${c.name}-${c.kind}`}>
+            <b>{c.name}</b>: {c.kind === "birthday" ? "ad günü" : `${c.years} illik il dönümü`} — {c.date.slice(8, 10)}.{c.date.slice(5, 7)} {c.days === 0 ? "(bu gün!)" : `(${c.days} gün sonra)`}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

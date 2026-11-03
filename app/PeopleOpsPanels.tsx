@@ -98,7 +98,7 @@ export function DocRegistry({ notify }: { notify: Notify }) {
 // ---------- Offboarding ----------
 type Item = { id: string; label: string; hint: string };
 type Question = { id: string; label: string; kind: "choice" | "scale" | "yesno" | "text"; options?: string[] };
-type Case = { id: string; employeeId: string; name: string; position: string; department: string; employeeStatus: string; endDate: string; exitType: string; exitReason: string; status: string; checklist: Record<string, { done: boolean; at?: string; by?: string }>; progress: { done: number; total: number; percent: number }; answers: Record<string, string>; note: string; heldAssets: number; exitOrder?: { number: string; status: string; kind: string } | null; bonds?: { title: string; until: string; cost: number }[] };
+type Case = { finalPay?: { unusedDays: number; dailyRate: number; compensation: number } | null; id: string; employeeId: string; name: string; position: string; department: string; employeeStatus: string; endDate: string; exitType: string; exitReason: string; status: string; checklist: Record<string, { done: boolean; at?: string; by?: string }>; progress: { done: number; total: number; percent: number }; answers: Record<string, string>; note: string; heldAssets: number; exitOrder?: { number: string; status: string; kind: string } | null; bonds?: { title: string; until: string; cost: number }[] };
 type OffData = { items: Item[]; questions: Question[]; cases: Case[]; withoutCase: { id: string; name: string; position: string; department: string; endDate: string }[]; active: { id: string; name: string; department: string }[] };
 
 export function Offboarding({ notify }: { notify: Notify }) {
@@ -197,6 +197,7 @@ function CaseModal({ c, data, notify, onClose, onChanged }: { c: Case; data: Off
         ))}
         {c.exitOrder ? <p className="muted">{c.exitOrder.kind === "reduction" ? "Ştat ixtisarı" : "Xitam"} əmri: № {c.exitOrder.number || "—"} ({c.exitOrder.status === "signed" ? "imzalanıb, işçi kartı əmrə uyğun yenilənib" : "imza gözləyir"}).</p> : <p className="danger-text">Xitam əmri yoxdur: «Əmrlər reyestri»ndə xitam əmri hazırlayın; imzalananda işçi kartı və çıxış tarixi özü yenilənir.</p>}
         {(c.bonds || []).map((b) => <p key={b.title} className="danger-text">Təlim öhdəliyi: «{b.title}» üzrə {b.until.slice(8, 10)}.{b.until.slice(5, 7)}.{b.until.slice(0, 4)}-dək işləmə öhdəliyi var{b.cost ? `; xərc ${b.cost} AZN` : ""}. Çıxışdan əvvəl hüquqi cəhətdən yoxlayın.</p>)}
+        {c.finalPay && <p className="muted">Son haqq-hesab (təxmini): istifadə olunmamış əsas məzuniyyət {c.finalPay.unusedDays} gün × {c.finalPay.dailyRate.toFixed(2)} AZN = <b>{c.finalPay.compensation.toFixed(2)} AZN</b> kompensasiya. Dəqiq məbləğ işçinin son ayı “Əmək haqqı” bölməsində hesablananda (məzuniyyət kompensasiyası sütunu) çıxır.</p>}
         {c.heldAssets > 0 && <p className="danger-text">İşçidə {c.heldAssets} şirkət əmlakı qalıb: “Aktivlər” bölməsində qaytarma qeyd edin.</p>}
         <h4>Çıxış müsahibəsi</h4>
         <p className="muted">İşçi cavabları “İş yerim” bölməsindən özü də doldura bilər.</p>
@@ -236,7 +237,7 @@ function CaseModal({ c, data, notify, onClose, onChanged }: { c: Case; data: Off
 
 // ---------- Assets ----------
 type Asset = { id: string; name: string; category: string; serial: string; inventoryNo: string; value: number; status: string; statusText: string; note: string; holderId: string; holder: string; assignmentId: string; issuedOn: string };
-type AssetData = { categories: string[]; assets: Asset[]; employees: { id: string; name: string; department: string }[]; total: { count: number; assigned: number; value: number } };
+type AssetData = { acked?: string[]; categories: string[]; assets: Asset[]; employees: { id: string; name: string; department: string }[]; total: { count: number; assigned: number; value: number } };
 
 export function Assets({ notify }: { notify: Notify }) {
   const [data, load] = useLoad<AssetData>("company/assets", notify);
@@ -291,7 +292,7 @@ export function Assets({ notify }: { notify: Notify }) {
                 <td><b>{a.name}</b><small className="skill-description">{a.category}</small></td>
                 <td>{a.serial || "—"}<small className="skill-description">{a.inventoryNo}</small></td>
                 <td>{a.value ? azn(a.value) : "—"}</td>
-                <td>{a.statusText}{a.holder && <small className="skill-description">{a.holder} · {dmy(a.issuedOn)}</small>}</td>
+                <td>{a.statusText}{a.holder && <small className="skill-description">{a.holder} · {dmy(a.issuedOn)}{a.status === "assigned" && (data.acked || []).includes(a.assignmentId) ? " · işçi təhvil aldığını təsdiq edib" : a.status === "assigned" ? " · işçi hələ təsdiq etməyib" : ""}</small>}</td>
                 <td className="admin-actions">
                   {a.status === "stock" && <button type="button" className="primary" onClick={() => setAssign(a)}>İşçiyə ver</button>}
                   {a.status === "assigned" && (

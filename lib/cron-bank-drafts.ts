@@ -41,3 +41,13 @@ export function runDueOrderEffects(db: D1Database, call: (request: Request) => P
     .catch(() => ({ results: [] as { company_id: string }[] }))
     .then((companies) => openAsOwner(db, companies, "company/orders/registry", call, origin, now));
 }
+
+// Birthday and work anniversary greetings: the application sends them when the page is opened as the company's owner,
+// once a day, for the companies that switched greetings on.
+export function runCelebrations(db: D1Database, call: (request: Request) => Promise<Response>, origin = "https://cron.invalid", now = new Date()) {
+  return db
+    .prepare("SELECT DISTINCT company_id FROM hr_settings WHERE key='celebrations' AND value='on' LIMIT 500")
+    .all<{ company_id: string }>()
+    .catch(() => ({ results: [] as { company_id: string }[] }))
+    .then((companies) => openAsOwner(db, companies, "company/celebrations/run", call, origin, now));
+}
