@@ -396,3 +396,11 @@ Diqqət: şəkil `DATA_KEY` şifrələməsinə daxil deyil, bazada adi şəkild�
 Texniki: miqrasiya 0095 (`employee_photos`), `lib/photo.ts` (test), `company/employees/photo*`, `employee/photo*`, `app/EmployeePhoto.tsx`.
 
 Qalan: turniket inteqrasiyası (xarici cihaz), hüquqi e-imza, bank API, bir neçə xarici sayta eyni anda yerləşdirmə — hamısı xarici müqavilə və ya cihaz tələb edir.
+
+## 30. Bacarıq matrisi: admin kataloqundan seçim və Excel
+
+- **Bacarıqlar yalnız platformanın bacarıq kataloqundan seçilir** (admin panelindəki kataloq: daxili bacarıqlar və adminin əlavə etdikləri). Matris səhifəsində sərbəst mətn əvəzinə axtarış qutusu var: yazdıqca kataloqdan uyğunlar çıxır (ad, oxşar ad və kateqoriya üzrə), artıq matrisdə olanlar təklif edilmir. Kataloqda olmayan bacarıq server tərəfindən də rədd edilir; yenisi lazımdırsa admin kataloqa əlavə etməlidir. Matrisin limiti 40-dan 100 bacarığa qaldırıldı.
+- **Excel ilə yükləmə** ("Excel-dən yüklə"): Ad Soyad / FİN, Bacarıq, Səviyyə, Hədəf. Səviyyə 0–4 rəqəmi və ya söz (başlanğıc, işləyə bilir, yaxşı, ekspert) ola bilər; boş buraxılan dəyişmir. Fayldakı bacarıq adı kataloqda ada və ya oxşar adlara görə tapılır və matrisə avtomatik əlavə olunur; tapılmayan bacarıq və işçi sətir-sətir xəta kimi göstərilir. İşçi FİN ilə tapılır. Nümunə fayl kataloqdan olan bacarıqlarla hazırlanıb (testlə yoxlanır).
+- ESCO bacarıqları bu seçimə daxil edilməyib (yalnız admin panelinin əsas kataloqu).
+
+Texniki: miqrasiya 0096 (`skill_defs.catalog_id`), `lib/skill-matrix.ts` (testlərlə), `parseSkillMatrix`, `company/skill-matrix/catalog`, `company/skill-matrix/import`.

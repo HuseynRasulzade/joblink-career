@@ -1638,7 +1638,7 @@ export const announcementComments = sqliteTable(
 // The skills of the company and the level of each employee against a target (the skill matrix).
 export const skillDefs = sqliteTable(
   "skill_defs",
-  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), name: text("name").notNull(), created: text("created").notNull() },
+  { id: text("id").primaryKey(), companyId: text("company_id").notNull(), name: text("name").notNull(), created: text("created").notNull(), catalogId: text("catalog_id").notNull().default("") },
   (t) => [uniqueIndex("skill_defs_name").on(t.companyId, t.name)],
 );
 export const employeeSkills = sqliteTable(

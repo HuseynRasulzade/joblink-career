@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SHEET_TEMPLATES, templateSheets } from "../lib/sheet-templates.ts";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "../lib/staff-import.ts";
-import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows } from "../lib/sheet-imports.ts";
+import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix } from "../lib/sheet-imports.ts";
 import { parseAssetRows } from "../lib/assets.ts";
 import { parseHoursRows, parseHoursTotals } from "../lib/hours.ts";
 import { createXlsxBook } from "../lib/xlsx.ts";
@@ -28,6 +28,7 @@ test("every sample file is read back by its own importer without a problem", () 
     assets: parseAssetRows,
     leaveplan: parseLeavePlan,
     ohs: parseOhsRows,
+    skillmatrix: parseSkillMatrix,
   };
   for (const [kind, parse] of Object.entries(checks)) {
     const result = parse(asRows(kind));
@@ -204,4 +205,17 @@ test("the safety file maps Azerbaijani words to records and reports the lines it
   assert.equal(r.rows[1].raw.result, "limited");
   assert.equal(r.rows[0].raw.instructor, "Ə. Əliyev");
   assert.equal(r.issues.length, 2);
+});
+
+test("the skill matrix file reads levels as figures or words and refuses nonsense and empty rows", () => {
+  const r = parseSkillMatrix([
+    ["Ad Soyad", "FİN", "Bacarıq", "Səviyyə", "Hədəf"],
+    ["Aysel", "5ABC123", "Excel", "3", "ekspert"],
+    ["Orxan", "", "Excel", "", "3"],
+    ["Nigar", "", "Excel", "çox yaxşı", ""],
+    ["Cavid", "", "Excel", "", ""],
+    ["Dilarə", "", "", "2", ""],
+  ]);
+  assert.deepEqual(r.rows.map((x) => [x.name, x.skill, x.level, x.target]), [["Aysel", "Excel", 3, 4], ["Orxan", "Excel", null, 3]]);
+  assert.equal(r.issues.length, 3);
 });

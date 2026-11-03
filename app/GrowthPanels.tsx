@@ -809,18 +809,53 @@ type MatrixData = { trainings?: { id: string; title: string; start: string; skil
 export function SkillMatrix({ notify }: { notify: Notify }) {
   const [data, load] = useLoad<MatrixData>("company/skill-matrix", notify);
   const [name, setName] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [found, setFound] = useState<{ id: string; label: string; category: string }[]>([]);
+  // Skills are picked from the platform catalog (the one the admin panel keeps): the box offers matches while typing.
+  useEffect(() => {
+    if (name.trim().length < 2) return;
+    let live = true;
+    const timer = window.setTimeout(() => {
+      fetch(`/api/joblink/company/skill-matrix/catalog?q=${encodeURIComponent(name.trim())}`, { credentials: "same-origin", cache: "no-store" })
+        .then((r) => r.json() as Promise<{ items?: { id: string; label: string; category: string }[] }>)
+        .then((r) => live && setFound(r.items || []))
+        .catch(() => live && setFound([]));
+    }, 180);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, [name, data?.skills.length]);
+  const offered = name.trim().length >= 2 ? found : [];
+  async function addSkill(label: string) {
+    if (await run(notify, load, "company/skill-matrix/skill", { name: label }, "Bacarıq əlavə olundu.")) {
+      setName("");
+      setFound([]);
+    }
+  }
   if (!data) return <p className="muted">Yüklənir…</p>;
   const cell = (e: string, s: string) => data.cells.find((c) => c.employeeId === e && c.skillId === s) || { level: 0, target: 0 };
   const gaps = data.cells.filter((c) => c.target > c.level).length;
   const set = (employeeId: string, skillId: string, patch: { level?: number; target?: number }) => void run(notify, load, "company/skill-matrix/set", { employeeId, skillId, ...patch });
   return (
     <div className="company-page">
+      {importing && <SheetImport kind="skillmatrix" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       <div className="section-heading">
-        <div className="admin-actions">
-          <input className="search-input" placeholder="Yeni bacarıq (məs. Excel, xidmət standartı, forklift)" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
-          <button type="button" className="primary" disabled={name.trim().length < 2} onClick={async () => { if (await run(notify, load, "company/skill-matrix/skill", { name }, "Bacarıq əlavə olundu.")) setName(""); }}>+ Bacarıq</button>
+        <div className="admin-actions" style={{ position: "relative", flexWrap: "wrap" }}>
+          <input className="search-input" aria-label="Bacarıq axtar" placeholder="Bacarıq kataloqunda axtar (məs. Excel, forklift, xidmət)" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+          <button type="button" className="secondary" onClick={() => setImporting(true)}>Excel-dən yüklə</button>
+          {offered.length > 0 && (
+            <div className="panel" role="listbox" aria-label="Kataloqdan uyğun bacarıqlar" style={{ position: "absolute", top: "100%", left: 0, zIndex: 5, minWidth: 320, maxHeight: 260, overflowY: "auto" }}>
+              {offered.map((f) => (
+                <button key={f.id} type="button" role="option" aria-selected={false} className="ghost" style={{ display: "block", width: "100%", textAlign: "left" }} onClick={() => void addSkill(f.label)}>
+                  {f.label} <small className="skill-description">{f.category}</small>
+                </button>
+              ))}
+            </div>
+          )}
+          {name.trim().length >= 2 && offered.length === 0 && <small className="skill-description">Kataloqda tapılmadı: bacarıqlar yalnız admin panelindəki kataloqdan seçilir.</small>}
         </div>
-        <p className="muted">{data.skills.length ? `${gaps} xanada səviyyə hədəfdən aşağıdır (qırmızı).` : "Əvvəl bu vəzifələr üçün vacib bacarıqları əlavə edin."}</p>
+        <p className="muted">{data.skills.length ? `${gaps} xanada səviyyə hədəfdən aşağıdır (qırmızı).` : "Əvvəl bu vəzifələr üçün vacib bacarıqları kataloqdan seçin və ya Excel faylı yükləyin."}</p>
       </div>
       {data.skills.length > 0 && (
         <div className="admin-table-wrap">

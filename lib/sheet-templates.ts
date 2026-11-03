@@ -5,7 +5,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -296,6 +296,25 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       ["Hadisə", "", "", "2026-05-20", "Yüngül zədə", "", "", "", "", "", "Anbar", "Yük götürərkən əl zədələndi", "Əlcəksiz iş", "Əlcək verildi", 2, "Bağlanıb", "Xeyr"],
     ],
     rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Üç növ qeydi eyni faylda qarışıq yaza bilərsiniz; hər növ üçün lazım olmayan xanalar boş qalır.", "Ağır və ya ölümlə nəticələnən hadisə “Bildirilib” = Xeyr ilə yüklənəndə xəbərdarlıq göstərilir."],
+  },
+  skillmatrix: {
+    title: "Bacarıq matrisi",
+    file: "bacariq-matrisi-numune.xlsx",
+    sheet: "Bacarıqlar",
+    columns: [
+      { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. FİN yazılıbsa, ad boş ola bilər." },
+      { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "FİN", required: false, format: "7 simvol", description: "FİN yazılırsa işçi yalnız FİN ilə tapılır; işçi kartında FİN olmalıdır." },
+      { header: "Bacarıq", required: true, format: "Mətn", description: "Platformanın bacarıq kataloqundakı ad və ya ona bağlı oxşar ad (admin panelindəki kataloq). Kataloqda olmayan bacarıq yüklənmir; onu əvvəlcə admin kataloqa əlavə etməlidir." },
+      { header: "Səviyyə", required: false, format: "0–4 və ya söz", description: "İşçinin hazırkı səviyyəsi. Səviyyə və Hədəf sütunlarından ən azı biri doldurulmalıdır; boş buraxılan dəyişmir.", values: "0, 1 (başlanğıc), 2 (işləyə bilir), 3 (yaxşı), 4 (ekspert)" },
+      { header: "Hədəf", required: false, format: "0–4 və ya söz", description: "Vəzifənin tələb etdiyi səviyyə. Səviyyə hədəfdən aşağıdırsa matrisdə qırmızı görünür və təlim planının əsası olur.", values: "0, 1, 2, 3, 4" },
+    ],
+    examples: [
+      ["Aysel Məmmədova", "", "", "Microsoft Excel", 3, 3],
+      ["Aysel Məmmədova", "", "", "Mühasibatlıq", "yaxşı", 4],
+      ["Orxan Əliyev", "", "", "Microsoft Excel", 1, 3],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Faylda keçən bacarıqlar matrisə avtomatik əlavə olunur (kataloqdan), ayrıca əlavə etmək lazım deyil.", "Eyni işçi və bacarıq iki dəfə yazılsa, sonuncu sətir üstünlük təşkil edir."],
   },
   questions: {
     title: "Test sualları",

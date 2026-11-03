@@ -4,6 +4,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import { normalizeProfile, type EmployeeProfile } from "./employee-profile.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 import { parseDateCell, parseNumberCell, type RowIssue } from "./staff-import.ts";
+import { parseLevel } from "./skill-matrix.ts";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS } from "./ohs.ts";
 
 export const fold = (value: string) =>
@@ -707,6 +708,58 @@ export function parseOhsRows(rows: string[][], limit = 1000): { rows: OhsSheetRo
         daysLost: cell(row, header.map, "daysLost"), reported: yes(cell(row, header.map, "reported")),
       },
     });
+  }
+  return { rows: out, issues };
+}
+
+// ── Skill matrix: the level of each employee in each skill, and the level the job needs ──
+export type SkillMatrixRow = { line: number; name: string; email: string; fin: string; skill: string; level: number | null; target: number | null };
+type SkillMatrixField = "name" | "email" | "fin" | "skill" | "level" | "target";
+const SKILL_MATRIX_ALIASES: Aliases<SkillMatrixField> = {
+  name: ["ad soyad", "isci", "isci adi", "ad", "full name", "name", "employee"],
+  email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
+  skill: ["bacariq", "bacariqlar", "skill"],
+  level: ["seviyye", "isci seviyyesi", "level", "hazirki seviyye"],
+  target: ["hedef", "hedef seviyye", "vezifenin teleb etdiyi seviyye", "target"],
+};
+export function parseSkillMatrix(rows: string[][], limit = 2000): { rows: SkillMatrixRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, SKILL_MATRIX_ALIASES, "name|fin");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” və ya “FİN” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  if (!header.map.has("skill")) return { rows: [], issues: [{ line: header.index + 1, reason: "“Bacarıq” sütunu tapılmadı." }] };
+  if (!header.map.has("level") && !header.map.has("target")) return { rows: [], issues: [{ line: header.index + 1, reason: "“Səviyyə” və ya “Hədəf” sütunu tapılmadı." }] };
+  const out: SkillMatrixRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} sətir yüklənir.` });
+      break;
+    }
+    const fin = finOf(cell(row, header.map, "fin"));
+    const name = cell(row, header.map, "name").slice(0, 120) || fin;
+    if (name.length < 2) {
+      issues.push({ line, reason: "Ad Soyad və ya FİN yoxdur." });
+      continue;
+    }
+    const skill = cell(row, header.map, "skill").slice(0, 120);
+    if (!skill) {
+      issues.push({ line, reason: `${name}: bacarığın adı yoxdur.` });
+      continue;
+    }
+    const level = parseLevel(cell(row, header.map, "level"));
+    const target = parseLevel(cell(row, header.map, "target"));
+    if (level === "bad" || target === "bad") {
+      issues.push({ line, reason: `${name}: səviyyə 0–4 arası rəqəm və ya söz olmalıdır (başlanğıc, işləyə bilir, yaxşı, ekspert).` });
+      continue;
+    }
+    if (level === null && target === null) {
+      issues.push({ line, reason: `${name}: “${skill}” üçün nə səviyyə, nə hədəf yazılıb.` });
+      continue;
+    }
+    out.push({ line, name, email: cell(row, header.map, "email").slice(0, 160), fin, skill, level, target });
   }
   return { rows: out, issues };
 }

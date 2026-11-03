@@ -371,13 +371,14 @@ import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
+import { resolveCatalogSkill, searchCatalog, type CatalogSkill } from "@/lib/skill-matrix";
 import { parsePhotoDataUrl } from "@/lib/photo";
 import { GEO_MODES, checkLocation, validPoint, type GeoMode, type Office } from "@/lib/geofence";
 import { forecast, monthSeries, planFactAlerts } from "@/lib/hr-trends";
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS, RETENTION_CATEGORIES, cleanOhs, dueState, retentionEnd, retentionYears, textHash } from "@/lib/ohs";
 import { groupTotals, snapshotTotals, turnoverPercent, type MemberFigures } from "@/lib/company-group";
-import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validCard, validIban, type EmployeeProfile } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
@@ -10308,16 +10309,73 @@ async function route(request: Request) {
     const planned = (await db.prepare("SELECT id,title,start_date,skill_id,skill_level FROM trainings WHERE company_id=? AND skill_id<>'' AND status='planned' ORDER BY start_date").bind(id).all<{ id: string; title: string; start_date: string; skill_id: string; skill_level: number }>()).results;
     return ok({ employees: people, ...(await skillMatrix(id, people.map((p) => p.id))), trainings: planned.map((t) => ({ id: t.id, title: t.title, start: t.start_date, skillId: t.skill_id, level: t.skill_level })) });
   }
+  // The skills of the matrix come only from the platform catalog the admin panel keeps (built-in and admin-added skills).
+  const catalogSkills = async (): Promise<CatalogSkill[]> => (await readCustomSkills(db)).map((c) => ({ id: c.id, label: c.label, category: c.category, aliases: [c.label, c.labelEn, ...c.aliases].filter(Boolean) }));
+  const SKILL_LIMIT = 100;
+  const ensureSkillDef = async (skill: CatalogSkill): Promise<string> => {
+    const existing = await db.prepare("SELECT id FROM skill_defs WHERE company_id=? AND (catalog_id=? OR name=?)").bind(id, skill.id, skill.label).first<{ id: string }>();
+    if (existing) return existing.id;
+    const count = Number((await db.prepare("SELECT COUNT(*) AS n FROM skill_defs WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0);
+    if (count >= SKILL_LIMIT) throw new HttpError(409, `Matrisdə ən çox ${SKILL_LIMIT} bacarıq saxlamaq olar.`);
+    const defId = crypto.randomUUID();
+    await db.prepare("INSERT INTO skill_defs(id,company_id,name,created,catalog_id) VALUES(?,?,?,?,?)").bind(defId, id, skill.label, new Date().toISOString(), skill.id).run();
+    return defId;
+  };
+  if (request.method === "GET" && path === "company/skill-matrix/catalog") {
+    requirePermission("salaries", "Bacarıq kataloqunu yalnız kadr işçisi görə bilər.");
+    const taken = (await db.prepare("SELECT name FROM skill_defs WHERE company_id=?").bind(id).all<{ name: string }>()).results.map((r) => r.name);
+    return ok({ items: searchCatalog(str(requestUrl.searchParams.get("q"), 80), await catalogSkills(), taken, 12).map((s) => ({ id: s.id, label: s.label, category: s.category })) });
+  }
   if (request.method === "POST" && path === "company/skill-matrix/skill") {
     requirePermission("salaries", "Bacarığı yalnız kadr işçisi əlavə edə bilər.");
     const b = await jsonBody(request);
-    const name = str(b.name, 80);
-    if (name.length < 2) throw new HttpError(400, "Bacarığın adını yazın.");
-    const count = Number((await db.prepare("SELECT COUNT(*) AS n FROM skill_defs WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0);
-    if (count >= 40) throw new HttpError(409, "Ən çox 40 bacarıq saxlamaq olar.");
-    const res = await db.prepare("INSERT OR IGNORE INTO skill_defs(id,company_id,name,created) VALUES(?,?,?,?)").bind(crypto.randomUUID(), id, name, new Date().toISOString()).run();
-    if (!res.meta.changes) throw new HttpError(409, "Bu bacarıq artıq var.");
-    return ok({ ok: true }, 201);
+    const name = str(b.name, 120);
+    if (name.length < 2) throw new HttpError(400, "Bacarığı kataloqdan seçin.");
+    const skill = resolveCatalogSkill(name, await catalogSkills());
+    if (!skill) throw new HttpError(400, "Bu bacarıq platformanın bacarıq kataloqunda yoxdur. Bacarıqlar yalnız admin panelindəki kataloqdan seçilir; yenisi lazımdırsa admin kataloqa əlavə etməlidir.");
+    if (await db.prepare("SELECT 1 AS yes FROM skill_defs WHERE company_id=? AND (catalog_id=? OR name=?)").bind(id, skill.id, skill.label).first()) throw new HttpError(409, "Bu bacarıq artıq var.");
+    await ensureSkillDef(skill);
+    await companyAudit(db, id, userId, "skill-added", "", skill.label);
+    return ok({ ok: true, label: skill.label }, 201);
+  }
+  // Levels from a spreadsheet: each skill is looked up in the catalog (a skill that is not there is reported, not created).
+  if (request.method === "POST" && path === "company/skill-matrix/import") {
+    requirePermission("salaries", "Bacarıq səviyyəsini yalnız kadr işçisi yükləyə bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseSkillMatrix((Array.isArray(b.rows) ? b.rows : []).slice(0, 2001).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda sətir tapılmadı.");
+    const refs = await employeeRefs();
+    const custom = await catalogSkills();
+    const issues = [...parsed.issues];
+    const defIds = new Map<string, string>();
+    let applied = 0;
+    const added = new Set<string>();
+    for (const row of parsed.rows) {
+      const found = matchEmployee(refs, { name: row.name, email: row.email, fin: row.fin });
+      if ("error" in found) {
+        issues.push({ line: row.line, reason: found.error });
+        continue;
+      }
+      const skill = resolveCatalogSkill(row.skill, custom);
+      if (!skill) {
+        issues.push({ line: row.line, reason: `“${row.skill}” bacarıq kataloqunda tapılmadı (admin panelindəki kataloqa baxın).` });
+        continue;
+      }
+      try {
+        let defId = defIds.get(skill.id);
+        if (!defId) {
+          defId = await ensureSkillDef(skill);
+          defIds.set(skill.id, defId);
+          added.add(skill.label);
+        }
+        await setSkillLevel(id, found.id, defId, row.level, row.target);
+        applied++;
+      } catch (error) {
+        issues.push({ line: row.line, reason: `${row.name}: ${(error as Error).message}` });
+      }
+    }
+    await companyAudit(db, id, userId, "skill-matrix-imported", "", `${applied} səviyyə Excel faylından yükləndi`);
+    return ok({ applied, skills: added.size, issues });
   }
   if (request.method === "POST" && path === "company/skill-matrix/skill/delete") {
     requirePermission("salaries", "Bacarığı yalnız kadr işçisi silə bilər.");

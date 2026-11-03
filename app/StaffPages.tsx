@@ -9,7 +9,7 @@ import { readSheetRows } from "@/lib/question-file";
 import { parseHoursRows, parseHoursTotals } from "@/lib/hours";
 import { parseAssetRows } from "@/lib/assets";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "@/lib/staff-import";
-import { parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { SHEET_TEMPLATES, templateSheets } from "@/lib/sheet-templates";
 import { OTHER_REQUEST, REQUEST_KINDS, orderPrefill, requestKindLabel, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { ATTENDANCE_CODES } from "@/lib/calendar-az";
@@ -40,7 +40,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 const azn = (value: number) => `${value.toLocaleString("az-AZ", { maximumFractionDigits: 2 })} AZN`;
 
 // ---------- Excel file: template and import ----------
-export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs";
+export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix";
 const SHEET_META: Record<SheetKind, { title: string; endpoint: string; done: (r: SheetResult) => string }> = {
   employees: { title: "İşçiləri Excel faylından əlavə et", endpoint: "company/employees/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən işçi yadda saxlanıldı.` },
   staff: { title: "Ştat cədvəlini Excel faylından əlavə et", endpoint: "company/staff/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən ştat sətri yadda saxlanıldı.` },
@@ -54,6 +54,7 @@ const SHEET_META: Record<SheetKind, { title: string; endpoint: string; done: (r:
   hours: { title: "İşlənən saatları Excel faylından yüklə", endpoint: "company/hours/import", done: (r) => `${r.applied ?? 0} günün saatı yeniləndi.` },
   payroll: { title: "Ayın əlavə və tutulmalarını Excel faylından yüklə", endpoint: "company/payroll/inputs-import", done: (r) => `${r.applied ?? 0} işçinin mükafat, əlavə və tutulma məlumatı yeniləndi.` },
   leaveplan: { title: "Məzuniyyət qrafikini Excel faylından yüklə", endpoint: "company/leave-schedule/import", done: (r) => `${r.created} məzuniyyət qrafikə yazıldı.` },
+  skillmatrix: { title: "Bacarıq səviyyələrini Excel faylından yüklə", endpoint: "company/skill-matrix/import", done: (r) => `${r.applied ?? 0} səviyyə yazıldı (${(r as SheetResult & { skills?: number }).skills ?? 0} bacarıq matrisdə).` },
   ohs: { title: "Əməyin mühafizəsi qeydlərini Excel faylından yüklə", endpoint: "company/ohs/import", done: (r) => `${r.created} qeyd jurnala yazıldı.` },
   profiles: { title: "Şəxsi məlumatları Excel faylından yüklə", endpoint: "company/employees/profile-import", done: (r) => `${r.applied ?? 0} işçinin şəxsi məlumatı yeniləndi.` },
 };
@@ -87,6 +88,7 @@ function previewOf(kind: SheetKind, rows: unknown[]): { head: string[]; body: st
   if (kind === "structure") return { head: ["Departament", "Şöbə"], body: list.map((r) => [str(r.department), str(r.section)]) };
   if (kind === "attendance") return { head: ["Ad Soyad", "Başlama", "Bitmə", "Səbəb", "Qeyd"], body: list.map((r) => [str(r.name), str(r.from), str(r.to), codeName(String(r.code)), str(r.note)]) };
   if (kind === "calendar") return { head: ["Tarix", "Növ", "Ad"], body: list.map((r) => [str(r.day), KIND_NAME[String(r.kind)] || str(r.kind), str(r.label)]) };
+  if (kind === "skillmatrix") return { head: ["Ad Soyad / FİN", "Bacarıq", "Səviyyə", "Hədəf"], body: list.map((r) => [str(r.name), str(r.skill), r.level === null ? "—" : str(r.level), r.target === null ? "—" : str(r.target)]) };
   if (kind === "leaveplan") return { head: ["Ad Soyad / FİN", "Başlama", "Gün / Bitmə", "Status", "Qeyd"], body: list.map((r) => [str(r.name), str(r.from), r.days ? `${r.days} gün` : str(r.to), r.status === "approved" ? "Təsdiqlənib" : "Təklif", str(r.note)]) };
   if (kind === "ohs") return { head: ["Növ", "Ad Soyad / FİN", "Tarix", "Alt növ", "Qeyd"], body: list.map((r) => { const raw = (r.raw || {}) as Record<string, unknown>; return [raw.type === "briefing" ? "Təlimat" : raw.type === "medical" ? "Tibbi baxış" : "Hadisə", str(r.name), str(raw.date), str(raw.kind), str(raw.topic || raw.description)]; }) };
   if (kind === "assets") return { head: ["Ad", "Kateqoriya", "Seriya", "İnventar №", "Dəyər"], body: list.map((r) => [str(r.name), str(r.category), str(r.serial), str(r.inventoryNo), str(r.value)]) };
@@ -117,7 +119,7 @@ export function SheetImport({
   const template = SHEET_TEMPLATES[kind];
   const parsed = useMemo(() => {
     if (!rows) return null;
-    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows, payroll: parsePayrollRows, leaveplan: parseLeavePlan, ohs: parseOhsRows, hours: parseHoursRows, hourtotals: (r: string[][]) => parseHoursTotals(r, (extra?.month as string) || ""), shifts: parseShiftSchedule, shiftstaff: parseShiftStaff, assets: parseAssetRows }[kind];
+    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows, payroll: parsePayrollRows, leaveplan: parseLeavePlan, ohs: parseOhsRows, skillmatrix: parseSkillMatrix, hours: parseHoursRows, hourtotals: (r: string[][]) => parseHoursTotals(r, (extra?.month as string) || ""), shifts: parseShiftSchedule, shiftstaff: parseShiftStaff, assets: parseAssetRows }[kind];
     return parse(rows) as { rows: unknown[]; issues: { line: number; reason: string }[] };
   }, [rows, kind, extra]);
   async function pick(file: File | undefined) {

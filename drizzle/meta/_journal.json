@@ -673,6 +673,13 @@
       "when": 1799175600000,
       "tag": "0095_employee_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "6",
+      "when": 1799262000000,
+      "tag": "0096_skill_catalog_link",
+      "breakpoints": true
     }
   ]
 }
