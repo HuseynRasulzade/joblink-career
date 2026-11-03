@@ -81,6 +81,7 @@ export function CandidateComparison({
   onClose: () => void;
 }) {
   const [interviews, setInterviews] = useState<Record<string, InterviewSummary>>({});
+  const [tests, setTests] = useState<Record<string, { title: string; status: string; percent: number | null; passing: number; pending: boolean }[]>>({});
   useEffect(() => {
     fetch("/api/joblink/hr/interviews/compare", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? (r.json() as Promise<{ jobs: { candidates: (InterviewSummary & { applicationId: string })[] }[] }>) : null))
@@ -91,7 +92,19 @@ export function CandidateComparison({
       })
       .catch(() => undefined);
   }, []);
-  const results = candidates.map((c) => ({ ...c, fit: job ? match(c.profile, job) : null, iv: c.applicationId ? interviews[c.applicationId] : undefined }));
+  const applicationKey = candidates.map((c) => c.applicationId || "").filter(Boolean).join(",");
+  useEffect(() => {
+    if (!applicationKey) return;
+    fetch(`/api/joblink/hr/assessments/results?applications=${applicationKey}`, { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ results: { applicationId: string; title: string; status: string; percent: number | null; passing: number; pending: boolean }[] }>) : null))
+      .then((d) => {
+        const map: Record<string, { title: string; status: string; percent: number | null; passing: number; pending: boolean }[]> = {};
+        for (const x of d?.results || []) (map[x.applicationId] ||= []).push(x);
+        setTests(map);
+      })
+      .catch(() => undefined);
+  }, [applicationKey]);
+  const results = candidates.map((c) => ({ ...c, fit: job ? match(c.profile, job) : null, iv: c.applicationId ? interviews[c.applicationId] : undefined, tests: c.applicationId ? tests[c.applicationId] || [] : [] }));
   const best = Math.max(...results.map((r) => r.fit?.score || 0));
   const bestInterview = Math.max(...results.map((r) => r.iv?.average || 0));
   const lowestSalary = Math.min(...results.map((r) => r.profile.salary || Infinity));
@@ -119,6 +132,7 @@ export function CandidateComparison({
     if (certs.length) weak.push(`məcburi sertifikat yoxdur: ${certs.join(", ")}`);
     if (job && job.maxSalary && r.profile.salary > job.maxSalary) weak.push("maaş gözləntisi diapazondan yuxarıdır");
     if (r.iv && r.iv.reject > 0 && r.iv.reject >= r.iv.advance) weak.push("müsahibədə rədd səsi çoxdur");
+    if (r.tests.some((x) => x.percent !== null && x.passing > 0 && x.percent < x.passing)) weak.push("testdən keçməyib");
     return `${good.length ? `Güclü: ${good.join(", ")}. ` : ""}${weak.length ? `Diqqət: ${weak.join("; ")}.` : ""}` || "—";
   };
   const rows: [string, (r: (typeof results)[number]) => React.ReactNode, ((r: (typeof results)[number]) => Cell)?][] = [
@@ -139,6 +153,7 @@ export function CandidateComparison({
     ["Müsahibə orta qiyməti", (r) => (r.iv?.rated ? <b className={r.iv.average === bestInterview ? "compare-best" : ""}>{r.iv.average} / 5</b> : "—")],
     ["Müsahibə qərarları", (r) => (r.iv ? `davam: ${r.iv.advance}, gözlə: ${r.iv.hold}, rədd: ${r.iv.reject}` : "—")],
     ["Son müsahibə rəyi", (r) => r.iv?.lastFeedback || "—"],
+    ["Test nəticələri", (r) => (r.tests.length ? r.tests.map((x) => `${x.title}: ${x.status === "assigned" ? "göndərilib" : x.pending ? "yoxlanır" : x.percent !== null ? `${x.percent}%${x.passing > 0 ? (x.percent >= x.passing ? " (keçib)" : " (keçməyib)") : ""}` : x.status}`).join("; ") : r.applicationId ? "test göndərilməyib" : "—")],
     ["Uyğunluq balı", (r) => (r.fit ? <b className={r.fit.score === best ? "compare-best" : ""}>{r.fit.score}%</b> : "—")],
     ["Qısa nəticə", (r) => summary(r)],
   ];

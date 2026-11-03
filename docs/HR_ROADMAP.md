@@ -288,3 +288,9 @@ Mənbə: menyu, icazə cədvəli (`lib/company.ts`) və API yolları üzrə kod 
 - «Standart rejimlə doldur»: hər işçinin növbəsi və ritmi ilə seçilən iki həftənin boş günləri doldurulur (artıq təyin olunmuş günlərə toxunulmur).
 - «Növbəli işçilər» pəncərəsi: bir neçə işçini birdən növbəli rejimə keçirmək/qaytarmaq.
 - Excel: «Excel: növbə cədvəli» (işçi, tarix aralığı, növbə və ya İstirahət) və «Excel: növbəli işçilər» (rejim, standart növbə, ritm); hər ikisi nümunə fayl və təlimat ilə, FİN ilə işçi eyniləşdirilir.
+
+## 20. Yoxlanmış bəndlər və müqayisə cədvəlinə test nəticəsi (2026-11-03)
+
+- **Qəbul olunan təklifdən işçi kartı:** namizəd təklifi qəbul edəndə işçi kartı avtomatik yaranır (vəzifə, maaş, başlama tarixi, sınaq müddəti, qəbul tarixçəsi, işə adaptasiya tapşırıqları) və namizədin hesabı karta bağlanır, yəni «İş yerim» özü açılır. Kodda təsdiq edildi.
+- **Müsahibə vaxtı:** işəgötürən bir neçə vaxt təklif edir, namizəd birini seçir və ya təsdiqləyir. Kodda təsdiq edildi.
+- **Namizəd müqayisə cədvəli:** test nəticələri (nəticə faizi, keçid həddi, yoxlanılır) əlavə olundu.

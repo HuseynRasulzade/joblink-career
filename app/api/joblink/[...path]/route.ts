@@ -18270,6 +18270,14 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
   }
   const testsDenied =
     "Testləri yalnız HR, direktor, hesab sahibi və ya bu icazə verilmiş şəxs idarə edə bilər.";
+  // Test results of some applications side by side (used by the candidate comparison table).
+  if (request.method === "GET" && path === "hr/assessments/results") {
+    requirePermission("tests", testsDenied);
+    const wanted = str(requestUrl.searchParams.get("applications"), 2000).split(",").map((x) => x.trim()).filter((x) => /^[\w-]{8,64}$/.test(x)).slice(0, 8);
+    if (!wanted.length) return ok({ results: [] });
+    const rows = (await db.prepare(`SELECT s.application_id,COALESCE(json_extract(s.snapshot,'$.title'),a.title) AS title,s.status,s.score,s.max_score,s.review_status,COALESCE(json_extract(s.snapshot,'$.passingScore'),a.passing_score) AS passing FROM assessment_assignments s LEFT JOIN assessments a ON a.id=s.assessment_id WHERE s.company_id=? AND s.application_id IN (${wanted.map(() => "?").join(",")}) ORDER BY s.assigned_at`).bind(id, ...wanted).all<{ application_id: string; title: string; status: string; score: number; max_score: number; review_status: string; passing: number }>()).results;
+    return ok({ results: rows.map((r) => ({ applicationId: r.application_id, title: r.title || "Test", status: r.status, score: r.score, max: r.max_score, percent: r.max_score > 0 ? Math.round((r.score / r.max_score) * 100) : null, passing: r.passing, pending: r.review_status === "pending" })) });
+  }
   if (request.method === "GET" && path === "hr/assessments") {
     requirePermission("tests", testsDenied);
     await closeExpiredAssignments(db, { companyId: id });
