@@ -1,5 +1,8 @@
 # HR üçün tam funksiya xəritəsi və inkişaf təklifi
 
+> **Sadə xülasə üçün `docs/NE_QALIB.md`-ə baxın:** nə hazırdır, nə qalıb, sizdən nə lazımdır. Bu sənəd isə işin tam tarixçəsidir (hər bölmə bir addımdır, ən yenisi sonda).
+
+
 Tarix: 2026-10-29. Vəziyyət: canlı sayt `joblink-career.huseynresulzade04.workers.dev`, filial `claude/seed-demo-accounts`.
 
 Qiymətləndirmə: ✅ var · 🟡 qismən · ❌ yoxdur. Əmək: S (1–2 gün), M (3–7 gün), L (2+ həftə).
