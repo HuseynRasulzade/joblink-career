@@ -244,6 +244,7 @@ import {
   icsFor,
   sanitizeFeedback,
   sanitizeInterview,
+  type InterviewInput,
 } from "@/lib/interviews";
 import { normalizeFrequency } from "@/lib/digest";
 import { matchesTalent, sanitizeNote, sanitizeTags } from "@/lib/talent";
@@ -6173,6 +6174,7 @@ async function route(request: Request) {
     "hr/assessments/ai-parse",
     "hr/interviews",
     "hr/interviews/create",
+    "hr/interviews/invite",
     "hr/interviews/update",
     "hr/interviews/feedback",
     "hr/interviews/ics",
@@ -20386,29 +20388,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .all<FeedbackRow>();
     return ok({ jobs: compareInterviews(rows.results) });
   }
-  if (request.method === "POST" && path === "hr/interviews/create") {
-    const b = await jsonBody(request);
-    const input = sanitizeInterview(b);
-    if ("error" in input) throw new HttpError(400, input.error);
-    const jobIds = await interviewScope();
-    const app = await db
-      .prepare(
-        `SELECT a.id,a.status,a.candidate_id,a.job_id,json_extract(j.data,'$.title') AS title FROM applications a JOIN jobs j ON j.id=a.job_id
-        WHERE a.id=? AND j.owner=? AND j.id IN (SELECT value FROM json_each(?))`,
-      )
-      .bind(str(b.applicationId, 100), id, JSON.stringify(jobIds))
-      .first<{
-        id: string;
-        status: string;
-        candidate_id: string;
-        job_id: string;
-        title: string;
-      }>();
-    if (!app) throw new HttpError(404, "Müraciət tapılmadı.");
-    if (
-      ["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(app.status)
-    )
-      throw new HttpError(409, "Bu müraciət üçün müsahibə təyin etmək olmaz.");
+  type InvApp = { id: string; status: string; candidate_id: string; job_id: string; title: string };
+  const scheduleFor = async (app: InvApp, input: InterviewInput): Promise<string> => {
     const active = await db
       .prepare(
         `SELECT id FROM interviews WHERE application_id=? AND status IN ('scheduled','confirmed') AND scheduled_at>?`,
@@ -20498,6 +20479,104 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       app.id,
       bakuLocal(input.scheduledAt),
     );
+    return interviewId;
+  };
+  // Invite several candidates of one vacancy to an interview: people who applied (by application) and suitable people who did not
+  // (by candidate id; an application is opened for them). With a time the interview is set at once, without one they wait in Müsahibələr.
+  if (request.method === "POST" && path === "hr/interviews/invite") {
+    const b = await jsonBody(request);
+    const jobIds = await interviewScope();
+    const jobId = str(b.jobId, 100);
+    if (!jobIds.includes(jobId)) throw new HttpError(404, "Vakansiya tapılmadı.");
+    const job = await db.prepare("SELECT json_extract(data,'$.title') AS title FROM jobs WHERE id=? AND owner=?").bind(jobId, id).first<{ title: string }>();
+    if (!job) throw new HttpError(404, "Vakansiya tapılmadı.");
+    const appIds = (Array.isArray(b.applicationIds) ? b.applicationIds : []).map((x: unknown) => str(x, 100)).filter(Boolean);
+    const candIds = (Array.isArray(b.candidateIds) ? b.candidateIds : []).map((x: unknown) => str(x, 100)).filter(Boolean);
+    if (!appIds.length && !candIds.length) throw new HttpError(400, "Namizəd seçin.");
+    if (appIds.length + candIds.length > 30) throw new HttpError(400, "Bir dəfəyə ən çoxu 30 namizəd dəvət etmək olar.");
+    const timed = typeof b.scheduledAt === "string" && b.scheduledAt.trim() !== "";
+    let input: InterviewInput | null = null;
+    if (timed) {
+      const parsed = sanitizeInterview(b);
+      if ("error" in parsed) throw new HttpError(400, parsed.error);
+      input = parsed;
+    }
+    const company = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>();
+    const results: { name: string; ok: boolean; reason?: string }[] = [];
+    const targets: { appId: string; name: string }[] = [];
+    for (const appId of appIds) {
+      const row = await db.prepare("SELECT a.id,COALESCE(json_extract(a.data,'$.name'),'') AS name FROM applications a WHERE a.id=? AND a.job_id=?").bind(appId, jobId).first<{ id: string; name: string }>();
+      if (row) targets.push({ appId: row.id, name: row.name });
+    }
+    for (const candId of candIds) {
+      const prof = await db
+        .prepare(
+          `SELECT p.data FROM profiles p LEFT JOIN accounts a ON a.id=p.user_id WHERE p.user_id=? AND p.active='1' AND COALESCE(a.status,'active')='active' AND COALESCE(a.role,'candidate')='candidate'
+          AND NOT EXISTS(SELECT 1 FROM relations r WHERE r.kind='block' AND ((r.actor_id=? AND r.target_id=p.user_id) OR (r.actor_id=p.user_id AND r.target_id=?)))`,
+        )
+        .bind(candId, id, id)
+        .first<{ data: string }>();
+      if (!prof) { results.push({ name: candId, ok: false, reason: "Profil tapılmadı və ya əlçatmazdır" }); continue; }
+      const name = (JSON.parse(prof.data) as { name?: string }).name || "";
+      const existing = await db.prepare("SELECT id FROM applications WHERE job_id=? AND candidate_id=?").bind(jobId, candId).first<{ id: string }>();
+      if (existing) { targets.push({ appId: existing.id, name }); continue; }
+      const newId = crypto.randomUUID();
+      await db
+        .prepare("INSERT INTO applications(id,job_id,candidate_id,data,status,created,auto,source,updated) VALUES(?,?,?,?,'Göndərildi',?,0,'company-invite',?)")
+        .bind(newId, jobId, candId, prof.data, new Date().toISOString(), new Date().toISOString())
+        .run();
+      await recordApplicationEvent(db, { applicationId: newId, actorId: userId, actorRole: "company", type: "applied", to: "Göndərildi" });
+      targets.push({ appId: newId, name });
+    }
+    for (const t of targets) {
+      const app = await db.prepare("SELECT id,status,candidate_id,job_id FROM applications WHERE id=?").bind(t.appId).first<{ id: string; status: string; candidate_id: string; job_id: string }>();
+      if (!app) continue;
+      if (["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(app.status)) { results.push({ name: t.name, ok: false, reason: "Bu müraciət üçün müsahibə təyin etmək olmaz" }); continue; }
+      const active = await db.prepare("SELECT id FROM interviews WHERE application_id=? AND status IN ('scheduled','confirmed') AND scheduled_at>?").bind(app.id, new Date().toISOString()).first();
+      if (active) { results.push({ name: t.name, ok: false, reason: "Aktiv müsahibəsi var" }); continue; }
+      if (input) {
+        await scheduleFor({ ...app, title: job.title }, input);
+      } else if (app.status !== "Müsahibə") {
+        const now = new Date().toISOString();
+        await db.prepare("UPDATE applications SET status='Müsahibə',updated=? WHERE id=?").bind(now, app.id).run();
+        await recordApplicationEvent(db, { applicationId: app.id, actorId: userId, actorRole: "company", type: "status", from: app.status, to: "Müsahibə" });
+        await notify(db, {
+          userId: app.candidate_id,
+          type: "interview",
+          title: `Müsahibə dəvəti: ${job.title}`,
+          body: `${company?.name || "Şirkət"} sizi "${job.title}" vakansiyası üzrə müsahibəyə dəvət edir. Müsahibənin vaxtı təyin ediləndə bildiriş alacaqsınız.`,
+          link: "applications",
+        });
+      }
+      results.push({ name: t.name, ok: true });
+    }
+    await companyAudit(db, id, userId, "interview-invite", jobId, `${results.filter((r) => r.ok).length}/${results.length}`);
+    return ok({ ok: true, invited: results.filter((r) => r.ok).length, results }, 201);
+  }
+  if (request.method === "POST" && path === "hr/interviews/create") {
+    const b = await jsonBody(request);
+    const input = sanitizeInterview(b);
+    if ("error" in input) throw new HttpError(400, input.error);
+    const jobIds = await interviewScope();
+    const app = await db
+      .prepare(
+        `SELECT a.id,a.status,a.candidate_id,a.job_id,json_extract(j.data,'$.title') AS title FROM applications a JOIN jobs j ON j.id=a.job_id
+        WHERE a.id=? AND j.owner=? AND j.id IN (SELECT value FROM json_each(?))`,
+      )
+      .bind(str(b.applicationId, 100), id, JSON.stringify(jobIds))
+      .first<{
+        id: string;
+        status: string;
+        candidate_id: string;
+        job_id: string;
+        title: string;
+      }>();
+    if (!app) throw new HttpError(404, "Müraciət tapılmadı.");
+    if (
+      ["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(app.status)
+    )
+      throw new HttpError(409, "Bu müraciət üçün müsahibə təyin etmək olmaz.");
+    const interviewId = await scheduleFor(app, input);
     return ok({ ok: true, id: interviewId }, 201);
   }
   if (request.method === "POST" && path === "hr/interviews/update") {

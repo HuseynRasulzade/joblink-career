@@ -444,3 +444,7 @@ Nazirlər Kabinetinin 25.01.2008-ci il 14 nömrəli qərarı (26.10.2026-cı il�
 - **Vakansiya üzrə suallar:** əvvəlcə həmin vakansiyaya bağlanmış siyahı, sonra adında vəzifənin adı olan siyahı, yoxdursa vakansiyanın tələb olunan bacarıqlarından avtomatik yaradılmış suallar. "Müsahibə sualları" bölməsində siyahını vakansiyaya bağlamaq olar.
 
 Texniki: miqrasiya 0098 (`interview_templates.job_id`), `lib/interview-guide.ts` (testlərlə), `hr/interviews` GET indi `waiting`, `tests`, `guides` qaytarır. Qeyd: "Uyğun namizədlər" (istedad axtarışı) siyahısında dəvət düyməsi yoxdur, çünki orada hələ müraciət yoxdur; namizəd müraciət edəndən sonra dəvət olunur.
+
+## 36. Çoxlu müsahibə dəvəti (Uyğun namizədlər və Müraciət edənlər)
+
+Namizədlər bölməsində hər iki siyahıda (Uyğun namizədlər, Müraciət edənlər) və pipeline-da: hər namizəddə "Müsahibəyə dəvət et", həm də "Dəvət üçün seç" qutusu ilə bir neçəsini seçib "Seçilənləri müsahibəyə dəvət et". Açılan pəncərədə tarix/saat, müddət, format, link/ünvan, panel, alternativ vaxtlar və qeyd təyin olunur (vaxtı sonraya saxlamaq da olar: namizəd "Vaxt gözləyir" siyahısına düşür). Hamısı eyni vaxtla göndərilir; fərqli vaxt üçün ayrı-ayrı dəvət edilir. Müraciət etməmiş uyğun namizədə dəvət zamanı vakansiya üzrə müraciət (mənbə `company-invite`) avtomatik açılır. Aktiv müsahibəsi olan və ya rədd/qəbul/geri götürülmüş müraciətlər atlanır, nəticə siyahısı bildirişdə göstərilir. Endpoint: `POST hr/interviews/invite` (bir dəfəyə ən çoxu 30).

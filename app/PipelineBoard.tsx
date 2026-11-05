@@ -65,7 +65,7 @@ export default function PipelineBoard({
   onAssignTest: (application: Application) => void;
   onSchedule?: (application: Application) => void;
   onInvite?: (application: Application) => void;
-  onBulk?: (ids: string[], action: "status" | "message" | "pool" | "test") => void;
+  onBulk?: (ids: string[], action: "status" | "message" | "pool" | "test" | "interview") => void;
   testResults?: Record<string, { state: string; percent: number | null }>;
 }) {
   const lastStage = (stages || [])[(stages || []).length - 1] || "";
@@ -83,6 +83,7 @@ export default function PipelineBoard({
         <div className="info-bar" role="region" aria-label={t("Toplu əməliyyat")}>
           <span><b>{selected.length}</b> {t("namizəd seçilib")}</span>
           <div className="admin-actions">
+            <button type="button" className="primary" onClick={() => onBulk(selected, "interview")}>{t("Müsahibəyə dəvət et")}</button>
             <button type="button" onClick={() => onBulk(selected, "status")}>{t("Status dəyiş")}</button>
             <button type="button" onClick={() => onBulk(selected, "message")}>{t("Mesaj göndər")}</button>
             <button type="button" onClick={() => onBulk(selected, "pool")}>{t("Bazaya əlavə et")}</button>

@@ -121,6 +121,82 @@ export function ScheduleInterviewModal({ application, existing, onClose, onDone,
   );
 }
 
+
+export type InvitePerson = { applicationId?: string; candidateId?: string; name: string };
+// Invite one or several candidates of a vacancy at once: with a date and time (they get the interview offer) or without (they wait in "Vaxt gözləyir").
+export function InviteModal({ jobId, jobTitle, people, onClose, onDone, notify }: {
+  jobId: string;
+  jobTitle: string;
+  people: InvitePerson[];
+  onClose: () => void;
+  onDone: () => void;
+  notify: Notify;
+}) {
+  const [withTime, setWithTime] = useState(true);
+  const [form, setForm] = useState({ scheduledAt: "", durationMin: 45, kind: "online" as InterviewKind, location: "", note: "", panel: "", extraSlots: ["", ""] });
+  const [busy, setBusy] = useState(false);
+  const kind = INTERVIEW_KINDS.find((k) => k.id === form.kind)!;
+  async function send() {
+    setBusy(true);
+    try {
+      const body = {
+        jobId,
+        applicationIds: people.filter((p) => p.applicationId).map((p) => p.applicationId),
+        candidateIds: people.filter((p) => !p.applicationId && p.candidateId).map((p) => p.candidateId),
+        ...(withTime ? form : {}),
+      };
+      const r = await request<{ invited: number; results: { name: string; ok: boolean; reason?: string }[] }>("hr/interviews/invite", body);
+      const failed = r.results.filter((x) => !x.ok);
+      notify(`${r.invited} namizəd müsahibəyə dəvət olundu${withTime ? "" : " (vaxt sonra təyin olunacaq)"}.${failed.length ? ` Dəvət olunmayanlar: ${failed.map((f) => `${f.name} (${f.reason})`).join("; ")}.` : ""} Müsahibələr bölməsində görünür.`);
+      onDone();
+      onClose();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={`Müsahibəyə dəvət — ${jobTitle}`} onClose={onClose}>
+      <div className="offer-composer">
+        <p className="muted fine-print"><b>{people.length}</b> namizəd: {people.slice(0, 6).map((p) => p.name).join(", ")}{people.length > 6 ? ` və daha ${people.length - 6}` : ""}. Hamısı Müsahibələr bölməsinə düşür.</p>
+        <label className="compare-check"><input type="checkbox" checked={withTime} onChange={(e) => setWithTime(e.target.checked)} /> Tarix və saatı indi təyin et (hamıya eyni vaxt; fərqli vaxt üçün ayrı-ayrı dəvət edin)</label>
+        {withTime && (
+          <>
+            <div className="form-grid">
+              <Field label="Tarix və saat (Bakı vaxtı)"><input type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} /></Field>
+              <Field label="Müddət">
+                <select value={form.durationMin} onChange={(e) => setForm({ ...form, durationMin: Number(e.target.value) })}>
+                  {[15, 30, 45, 60, 90, 120].map((m) => <option key={m} value={m}>{m} dəqiqə</option>)}
+                </select>
+              </Field>
+              <Field label="Format">
+                <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as InterviewKind })}>
+                  {INTERVIEW_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
+                </select>
+              </Field>
+              <Field label={form.kind === "onsite" ? "Ünvan" : form.kind === "online" ? "Görüş linki" : "Telefon (istəyə bağlı)"}>
+                <input value={form.location} placeholder={kind.placeholder} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+              </Field>
+            </div>
+            <Field label="Müsahibə aparanlar (istəyə bağlı)"><input value={form.panel} onChange={(e) => setForm({ ...form, panel: e.target.value })} /></Field>
+            <div className="form-grid">
+              {[0, 1].map((n) => (
+                <Field key={n} label={`Alternativ vaxt ${n + 1} (istəyə bağlı)`}>
+                  <input type="datetime-local" value={form.extraSlots[n]} onChange={(e) => setForm({ ...form, extraSlots: form.extraSlots.map((x, k) => (k === n ? e.target.value : x)) })} />
+                </Field>
+              ))}
+            </div>
+            <Field label="Namizədlər üçün qeyd (istəyə bağlı)"><textarea rows={2} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
+          </>
+        )}
+        {!withTime && <p className="muted fine-print">Namizədə dəvət bildirişi gedir; vaxtı sonra Müsahibələr bölməsindən təyin edirsiniz.</p>}
+        <button className="primary" disabled={busy || (withTime && !form.scheduledAt)} onClick={send}><CalendarClock size={16} /> {withTime ? "Dəvət et və vaxt göndər" : "Dəvət et"}</button>
+      </div>
+    </Modal>
+  );
+}
+
 // Employer: all interviews, status, changes and feedback.
 // ---------- Interview feedback of all candidates of a vacancy, side by side ----------
 type ComparisonRow = {

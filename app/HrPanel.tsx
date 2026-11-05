@@ -30,7 +30,7 @@ import { CertificationBadges } from "./CertificationPickers";
 import ConversationList, { type ConversationSummary } from "./ConversationList";
 import PipelineBoard from "./PipelineBoard";
 import { AssignTestModal } from "./AssessmentsPage";
-import { ScheduleInterviewModal } from "./Interviews";
+import { InviteModal, ScheduleInterviewModal, type InvitePerson } from "./Interviews";
 import { BulkModal, SaveTalentModal } from "./BulkTalent";
 import { SavedSearches } from "./SavedSearches";
 import { SaveTemplateModal, TemplatesModal, duplicateJob } from "./JobTemplates";
@@ -176,6 +176,11 @@ export default function HrPanel({
   const [saveTemplate, setSaveTemplate] = useState<{ jobId?: string; job?: Job; name: string } | null>(null);
   const [saveTalent, setSaveTalent] = useState<{ candidateId: string; name: string } | null>(null);
   const [bulk, setBulk] = useState<{ ids: string[]; action: "status" | "message" | "pool" | "test" } | null>(null);
+  // People chosen for an interview invitation: "c:" + candidate id (suitable candidates) or "a:" + application id (applicants).
+  const [pick, setPick] = useState<string[]>([]);
+  const [invitePeople, setInvitePeople] = useState<InvitePerson[] | null>(null);
+  useEffect(() => setPick([]), [jobId]);
+  const togglePick = (key: string, on: boolean) => setPick((l) => (on ? [...new Set([...l, key])] : l.filter((x) => x !== key)));
   const [internalOffer, setInternalOffer] = useState<Job | null>(null);
   // Selection is finished when a candidate has passed every stage of the vacancy (the same rule as a candidate's offer).
   const selectionDone = (j: Job) => {
@@ -331,14 +336,22 @@ export default function HrPanel({
     }
   }
   // The invitation puts the candidate in the interview stage: the Interviews page lists the candidate there at once, waiting for a time.
-  async function inviteToInterview(application: Application) {
-    try {
-      await api("application-status", { id: application.id, status: "Müsahibə", stage: selectedJob?.stages?.[0] || "" });
-      await refresh();
-      notify(`${application.profile.name} müsahibəyə dəvət olundu. “Müsahibələr” bölməsində vaxt təyin edin və test göndərin.`);
-    } catch (e) {
-      notify((e as Error).message);
+  function inviteToInterview(application: Application) {
+    setInvitePeople([{ applicationId: application.id, name: application.profile.name }]);
+  }
+  function invitePicked() {
+    const people: InvitePerson[] = [];
+    for (const key of pick) {
+      const id = key.slice(2);
+      if (key.startsWith("a:")) {
+        const a = applications.find((x) => x.id === id);
+        if (a) people.push({ applicationId: a.id, name: a.profile.name });
+      } else {
+        const c = candidates.find((x) => x.id === id);
+        if (c) people.push({ candidateId: c.id, name: c.profile.name });
+      }
     }
+    if (people.length) setInvitePeople(people);
   }
   async function showHistory(application: Application) {
     try {
@@ -1053,6 +1066,15 @@ export default function HrPanel({
               </small>
             </div>
           )}
+          {!demo && pick.length > 0 && (
+            <div className="info-bar" role="region" aria-label="Toplu dəvət">
+              <span><b>{pick.length}</b> namizəd seçilib</span>
+              <div className="admin-actions">
+                <button type="button" className="primary" onClick={invitePicked}>Seçilənləri müsahibəyə dəvət et</button>
+                <button type="button" className="text-button" onClick={() => setPick([])}>Seçimi təmizlə</button>
+              </div>
+            </div>
+          )}
           <div className="search-input">
             <Search size={17} />
             <input
@@ -1080,6 +1102,12 @@ export default function HrPanel({
                       ))}
                     </div>
                     <CertificationBadges items={candidateCertifications(c.profile)} limit={4} />
+                    {!demo && (
+                      <label className="compare-check">
+                        <input type="checkbox" checked={pick.includes(`c:${c.id}`)} onChange={(e) => togglePick(`c:${c.id}`, e.target.checked)} />{" "}
+                        Dəvət üçün seç
+                      </label>
+                    )}
                     <label className="compare-check">
                       <input
                         type="checkbox"
@@ -1146,6 +1174,11 @@ export default function HrPanel({
                     >
                       Profilə bax ↗
                     </button>
+                    {!demo && selectedJob && (
+                      <button className="primary" onClick={() => setInvitePeople([{ candidateId: c.id, name: c.profile.name }])}>
+                        Müsahibəyə dəvət et
+                      </button>
+                    )}
                     {!demo && (
                       <button
                         className="text-button"
@@ -1235,8 +1268,11 @@ export default function HrPanel({
                   onOffer={setOfferFor}
                   onAssignTest={setTestFor}
                   onSchedule={setInterviewFor}
-                  onInvite={(application) => void inviteToInterview(application)}
-                  onBulk={(ids, action) => setBulk({ ids, action })}
+                  onInvite={(application) => inviteToInterview(application)}
+                  onBulk={(ids, action) => {
+                    if (action === "interview") setInvitePeople(ids.map((i) => ({ applicationId: i, name: applications.find((x) => x.id === i)?.profile.name || "" })));
+                    else setBulk({ ids, action });
+                  }}
                   onWithdrawOffer={async (offer) => {
                     if (!window.confirm("Təklif geri götürülsün?")) return;
                     try {
@@ -1264,6 +1300,12 @@ export default function HrPanel({
                       <h3>{a.profile.name}</h3>
                       <p>{a.profile.title}</p>
                       <CertificationBadges items={candidateCertifications(a.profile)} limit={4} />
+                      {!demo && ["Göndərildi", "Baxışda", "Müsahibə"].includes(a.status) && (
+                        <label className="compare-check">
+                          <input type="checkbox" checked={pick.includes(`a:${a.id}`)} onChange={(e) => togglePick(`a:${a.id}`, e.target.checked)} />{" "}
+                          Dəvət üçün seç
+                        </label>
+                      )}
                       <label className="compare-check">
                         <input
                           type="checkbox"
@@ -1373,6 +1415,7 @@ export default function HrPanel({
       {templatesOpen && <TemplatesModal onClose={() => setTemplatesOpen(false)} onUse={(d) => loadDraft(d, "Şablondan layihə yaradıldı. Son tarixi və yaranma səbəbini daxil edin.")} notify={notify} />}
       {saveTemplate && <SaveTemplateModal jobId={saveTemplate.jobId} job={saveTemplate.job} defaultName={saveTemplate.name} onClose={() => setSaveTemplate(null)} notify={notify} />}
       {saveTalent && <SaveTalentModal candidateId={saveTalent.candidateId} name={saveTalent.name} onClose={() => setSaveTalent(null)} notify={notify} />}
+      {invitePeople && selectedJob && <InviteModal jobId={selectedJob.id} jobTitle={selectedJob.title} people={invitePeople} onClose={() => setInvitePeople(null)} onDone={() => { setPick([]); void refresh(); }} notify={notify} />}
       {bulk && <BulkModal ids={bulk.ids} action={bulk.action} onClose={() => setBulk(null)} onDone={() => void refresh()} notify={notify} />}
       {interviewFor && <ScheduleInterviewModal application={interviewFor} onClose={() => setInterviewFor(null)} onDone={() => void refresh()} notify={notify} />}
       {internalOffer && <InternalOfferModal job={internalOffer} notify={notify} onClose={() => setInternalOffer(null)} />}
