@@ -378,7 +378,7 @@ import { forecast, monthSeries, planFactAlerts } from "@/lib/hr-trends";
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS, RETENTION_CATEGORIES, cleanOhs, dueState, retentionEnd, retentionYears, textHash } from "@/lib/ohs";
 import { groupTotals, snapshotTotals, turnoverPercent, type MemberFigures } from "@/lib/company-group";
-import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validCard, validIban, type EmployeeProfile } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
@@ -10236,6 +10236,62 @@ async function route(request: Request) {
     await tellEmployee(employee.id, "Sizə yeni məqsəd yazıldı", title);
     return ok({ ok: true }, 201);
   }
+  // Goals from a spreadsheet: each line is one goal of one employee in an open cycle.
+  if (request.method === "POST" && path === "company/performance/goals-import") {
+    requirePermission("salaries", "Məqsədi yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const parsed = parsePerfGoals((Array.isArray(b.rows) ? b.rows : []).slice(0, 2001).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda məqsəd tapılmadı.");
+    const cycles = (await db.prepare("SELECT id,name,status FROM perf_cycles WHERE company_id=? ORDER BY start_date DESC").bind(id).all<{ id: string; name: string; status: string }>()).results;
+    const open = cycles.filter((c) => c.status === "open");
+    const defaultCycle = str(b.cycleId, 100) ? cycles.find((c) => c.id === str(b.cycleId, 100)) : open.length === 1 ? open[0] : undefined;
+    const refs = await employeeRefs();
+    const counts = new Map<string, number>();
+    const seen = new Set<string>();
+    for (const g of (await db.prepare("SELECT cycle_id,employee_id,title FROM perf_goals WHERE company_id=?").bind(id).all<{ cycle_id: string; employee_id: string; title: string }>()).results) {
+      counts.set(`${g.cycle_id}|${g.employee_id}`, (counts.get(`${g.cycle_id}|${g.employee_id}`) || 0) + 1);
+      seen.add(`${g.cycle_id}|${g.employee_id}|${g.title.toLocaleLowerCase("az")}`);
+    }
+    const issues = [...parsed.issues];
+    const now = new Date().toISOString();
+    const statements: D1PreparedStatement[] = [];
+    const told = new Map<string, number>();
+    let created = 0;
+    for (const row of parsed.rows) {
+      const cycle = row.cycle ? cycles.find((c) => c.name.toLocaleLowerCase("az") === row.cycle.toLocaleLowerCase("az")) : defaultCycle;
+      if (!cycle) {
+        issues.push({ line: row.line, reason: row.cycle ? `${row.name}: “${row.cycle}” adlı dövr tapılmadı.` : `${row.name}: dövr seçilməyib (açıq dövr bir deyil): Dövr sütununu doldurun.` });
+        continue;
+      }
+      if (cycle.status === "closed") {
+        issues.push({ line: row.line, reason: `${row.name}: “${cycle.name}” dövrü bağlanıb.` });
+        continue;
+      }
+      const found = matchEmployee(refs, { name: row.name, email: row.email, fin: row.fin });
+      if ("error" in found) {
+        issues.push({ line: row.line, reason: found.error });
+        continue;
+      }
+      const key = `${cycle.id}|${found.id}`;
+      if (seen.has(`${key}|${row.title.toLocaleLowerCase("az")}`)) {
+        issues.push({ line: row.line, reason: `${row.name}: “${row.title}” məqsədi artıq yazılıb.` });
+        continue;
+      }
+      if ((counts.get(key) || 0) >= 12) {
+        issues.push({ line: row.line, reason: `${row.name}: bir işçi üçün ən çox 12 məqsəd yazılır.` });
+        continue;
+      }
+      counts.set(key, (counts.get(key) || 0) + 1);
+      seen.add(`${key}|${row.title.toLocaleLowerCase("az")}`);
+      statements.push(db.prepare("INSERT INTO perf_goals(id,company_id,cycle_id,employee_id,title,target,weight,created) VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, cycle.id, found.id, row.title, row.target, row.weight, now));
+      told.set(found.id, (told.get(found.id) || 0) + 1);
+      created++;
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    for (const [employeeId, n] of told) await tellEmployee(employeeId, n === 1 ? "Sizə yeni məqsəd yazıldı" : `Sizə ${n} yeni məqsəd yazıldı`, "İş yerim → Performans bölməsində baxın.");
+    await companyAudit(db, id, userId, "perf-goals-imported", "", `${created} məqsəd Excel faylından yükləndi`);
+    return ok({ created, issues });
+  }
   if (request.method === "POST" && path === "company/performance/goal/delete") {
     requirePermission("salaries", "Məqsədi yalnız kadr işçisi silə bilər.");
     const b = await jsonBody(request);
@@ -10646,6 +10702,66 @@ async function route(request: Request) {
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
     if (added.length) await tellPayroll(added, "Təlimə dəvət olundunuz", `${training.title}${training.start_date ? ` (${training.start_date})` : ""}. İş yerim → Təlimlərim bölməsində cavab verin.`);
     return ok({ ok: true, added: added.length, removed: removed.length });
+  }
+  // A training plan from a spreadsheet: lines with one title and start are one training, each line a participant.
+  if (request.method === "POST" && path === "company/training/import") {
+    requirePermission("salaries", "Təlimi yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseTrainings((Array.isArray(b.rows) ? b.rows : []).slice(0, 3001).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda təlim tapılmadı.");
+    const refs = await employeeRefs();
+    const custom = await catalogSkills();
+    const issues = [...parsed.issues];
+    const existing = (await db.prepare("SELECT id,title,start_date FROM trainings WHERE company_id=?").bind(id).all<{ id: string; title: string; start_date: string }>()).results;
+    const byKey = new Map(existing.map((t) => [`${t.title.toLocaleLowerCase("az")}|${t.start_date}`, t.id]));
+    const have = new Set((await db.prepare("SELECT training_id,employee_id FROM training_participants WHERE company_id=?").bind(id).all<{ training_id: string; employee_id: string }>()).results.map((p) => `${p.training_id}|${p.employee_id}`));
+    const invited = new Map<string, { title: string; start: string; ids: string[] }>();
+    let created = 0;
+    let participants = 0;
+    for (const row of parsed.rows) {
+      let skillId = "";
+      if (row.skill) {
+        const skill = resolveCatalogSkill(row.skill, custom);
+        if (!skill) {
+          issues.push({ line: row.line, reason: `${row.title}: “${row.skill}” bacarıq kataloqunda tapılmadı (admin panelindəki kataloqa baxın).` });
+          continue;
+        }
+        try {
+          skillId = await ensureSkillDef(skill);
+        } catch (error) {
+          issues.push({ line: row.line, reason: `${row.title}: ${(error as Error).message}` });
+          continue;
+        }
+      }
+      let employeeId = "";
+      if (row.name || row.fin) {
+        const found = matchEmployee(refs, { name: row.name, email: row.email, fin: row.fin });
+        if ("error" in found) {
+          issues.push({ line: row.line, reason: found.error });
+          continue;
+        }
+        employeeId = found.id;
+      }
+      const key = `${row.title.toLocaleLowerCase("az")}|${row.start}`;
+      let trainingId = byKey.get(key);
+      if (!trainingId) {
+        trainingId = crypto.randomUUID();
+        await db.prepare("INSERT INTO trainings(id,company_id,title,provider,kind,start_date,end_date,hours,cost_cents,status,note,valid_months,required_for,skill_id,skill_level,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(trainingId, id, row.title, row.provider, row.kind, row.start, row.end, row.hours, Math.round(row.cost * 100), row.status, "", row.validMonths, "", skillId, row.skillLevel, new Date().toISOString()).run();
+        byKey.set(key, trainingId);
+        created++;
+      }
+      if (employeeId && !have.has(`${trainingId}|${employeeId}`)) {
+        await db.prepare("INSERT INTO training_participants(training_id,company_id,employee_id,status) VALUES(?,?,?,'invited')").bind(trainingId, id, employeeId).run();
+        have.add(`${trainingId}|${employeeId}`);
+        const entry = invited.get(trainingId) || { title: row.title, start: row.start, ids: [] };
+        entry.ids.push(employeeId);
+        invited.set(trainingId, entry);
+        participants++;
+      }
+    }
+    for (const t of invited.values()) await tellPayroll(t.ids, "Təlimə dəvət olundunuz", `${t.title}${t.start ? ` (${t.start})` : ""}. İş yerim → Təlimlərim bölməsində cavab verin.`);
+    await companyAudit(db, id, userId, "training-imported", "", `${created} təlim, ${participants} iştirakçı Excel faylından yükləndi`);
+    return ok({ created, participants, issues });
   }
   if (request.method === "POST" && path === "company/training/result") {
     requirePermission("salaries", "Nəticəni yalnız kadr işçisi yaza bilər.");

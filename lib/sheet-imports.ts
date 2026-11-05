@@ -763,3 +763,132 @@ export function parseSkillMatrix(rows: string[][], limit = 2000): { rows: SkillM
   }
   return { rows: out, issues };
 }
+
+// ── Performance goals: one line per goal of an employee ──
+export type PerfGoalRow = { line: number; name: string; email: string; fin: string; title: string; target: string; weight: number; cycle: string };
+type PerfGoalField = "name" | "email" | "fin" | "title" | "target" | "weight" | "cycle";
+const PERF_GOAL_ALIASES: Aliases<PerfGoalField> = {
+  name: ["ad soyad", "isci", "isci adi", "ad", "full name", "name", "employee"],
+  email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
+  title: ["meqsed", "meqsedin adi", "goal", "title"],
+  target: ["hedef", "gosterici", "olcu", "target"],
+  weight: ["ceki", "ehemiyyet", "weight"],
+  cycle: ["dovr", "qiymetlendirme dovru", "cycle"],
+};
+export function parsePerfGoals(rows: string[][], limit = 2000): { rows: PerfGoalRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, PERF_GOAL_ALIASES, "name|fin");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Ad Soyad” və ya “FİN” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  if (!header.map.has("title")) return { rows: [], issues: [{ line: header.index + 1, reason: "“Məqsəd” sütunu tapılmadı." }] };
+  const out: PerfGoalRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} sətir yüklənir.` });
+      break;
+    }
+    const fin = finOf(cell(row, header.map, "fin"));
+    const name = cell(row, header.map, "name").slice(0, 120) || fin;
+    if (name.length < 2) {
+      issues.push({ line, reason: "Ad Soyad və ya FİN yoxdur." });
+      continue;
+    }
+    const title = cell(row, header.map, "title").slice(0, 200);
+    if (title.length < 3) {
+      issues.push({ line, reason: `${name}: məqsəd yazılmayıb (ən azı 3 simvol).` });
+      continue;
+    }
+    const weightText = cell(row, header.map, "weight");
+    const weight = weightText ? Math.round(parseNumberCell(weightText)) : 1;
+    if (weightText && !(weight >= 1 && weight <= 10)) {
+      issues.push({ line, reason: `${name}: çəki 1–10 arası olmalıdır.` });
+      continue;
+    }
+    out.push({ line, name, email: cell(row, header.map, "email").slice(0, 160), fin, title, target: cell(row, header.map, "target").slice(0, 300), weight: weightText ? weight : 1, cycle: cell(row, header.map, "cycle").slice(0, 120) });
+  }
+  return { rows: out, issues };
+}
+
+// ── Training plan: one line per participant; lines with the same title and start belong to one training ──
+export type TrainingRow = { line: number; title: string; kind: "internal" | "external" | "online" | "safety"; provider: string; start: string; end: string; hours: number; cost: number; status: "planned" | "done" | "cancelled"; skill: string; skillLevel: number; validMonths: number; name: string; email: string; fin: string };
+type TrainingField = "title" | "kind" | "provider" | "start" | "end" | "hours" | "cost" | "status" | "skill" | "skillLevel" | "validMonths" | "name" | "email" | "fin";
+const TRAINING_ALIASES: Aliases<TrainingField> = {
+  title: ["telimin adi", "telim", "movzu", "title", "training"],
+  kind: ["telimin novu", "nov", "novu", "kind"],
+  provider: ["telimci", "teskilatci", "telimci teskilatci", "telim kecen", "provider"],
+  start: ["baslama", "baslama tarixi", "baslangic", "start"],
+  end: ["bitme", "bitme tarixi", "son", "end"],
+  hours: ["saat", "muddet saat", "hours"],
+  cost: ["xerc", "xerc azn", "qiymet", "cost"],
+  status: ["status", "veziyyet"],
+  skill: ["bacariq", "inkisaf etdirilen bacariq", "skill"],
+  skillLevel: ["bacariq seviyyesi", "hedef seviyye", "seviyye", "skill level"],
+  validMonths: ["sertifikat muddeti ay", "etibarliliq ay", "sertifikat ay", "valid months"],
+  name: ["istirakci", "ad soyad", "isci", "isci adi", "participant", "name"],
+  email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
+};
+const TRAINING_KIND: [RegExp, TrainingRow["kind"]][] = [[/daxili|internal/, "internal"], [/xarici|external/, "external"], [/onlayn|online|distant/, "online"], [/emeyin muhafize|safety|tehlukesizlik/, "safety"]];
+const TRAINING_STATUS: [RegExp, TrainingRow["status"]][] = [[/planlas|planned|gozle/, "planned"], [/kecirilib|bitib|tamam|done/, "done"], [/leg|cancel/, "cancelled"]];
+export function parseTrainings(rows: string[][], limit = 3000): { rows: TrainingRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, TRAINING_ALIASES, "title");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Təlimin adı” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  const out: TrainingRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} sətir yüklənir.` });
+      break;
+    }
+    const title = cell(row, header.map, "title").slice(0, 200);
+    if (title.length < 3) {
+      issues.push({ line, reason: "Təlimin adı yoxdur (ən azı 3 simvol)." });
+      continue;
+    }
+    const startText = cell(row, header.map, "start");
+    const start = startText ? parseDateCell(startText) : "";
+    const endText = cell(row, header.map, "end");
+    const end = endText ? parseDateCell(endText) : start;
+    if ((startText && !start) || (endText && !end)) {
+      issues.push({ line, reason: `${title}: tarix oxunmadı.` });
+      continue;
+    }
+    if (start && end && end < start) {
+      issues.push({ line, reason: `${title}: bitmə tarixi başlamadan əvvəldir.` });
+      continue;
+    }
+    const kindText = fold(cell(row, header.map, "kind"));
+    const kind = kindText ? TRAINING_KIND.find(([re]) => re.test(kindText))?.[1] : "external";
+    if (!kind) {
+      issues.push({ line, reason: `${title}: növ tanınmadı (daxili, xarici, onlayn, əməyin mühafizəsi).` });
+      continue;
+    }
+    const statusText = fold(cell(row, header.map, "status"));
+    const status = statusText ? TRAINING_STATUS.find(([re]) => re.test(statusText))?.[1] : "planned";
+    if (!status) {
+      issues.push({ line, reason: `${title}: status tanınmadı (planlaşdırılıb, keçirilib, ləğv).` });
+      continue;
+    }
+    const level = cell(row, header.map, "skillLevel") ? parseLevel(cell(row, header.map, "skillLevel")) : null;
+    if (level === "bad") {
+      issues.push({ line, reason: `${title}: bacarıq səviyyəsi 0–4 arası olmalıdır.` });
+      continue;
+    }
+    const fin = finOf(cell(row, header.map, "fin"));
+    out.push({
+      line, title, kind, provider: cell(row, header.map, "provider").slice(0, 120), start, end: end || start,
+      hours: Math.max(0, Math.min(2000, Math.round(parseNumberCell(cell(row, header.map, "hours"))))),
+      cost: Math.max(0, parseNumberCell(cell(row, header.map, "cost"))),
+      status, skill: cell(row, header.map, "skill").slice(0, 120), skillLevel: level ?? 0,
+      validMonths: Math.max(0, Math.min(120, Math.round(parseNumberCell(cell(row, header.map, "validMonths"))))),
+      name: cell(row, header.map, "name").slice(0, 120), email: cell(row, header.map, "email").slice(0, 160), fin,
+    });
+  }
+  return { rows: out, issues };
+}

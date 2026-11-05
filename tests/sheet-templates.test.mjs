@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SHEET_TEMPLATES, templateSheets } from "../lib/sheet-templates.ts";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "../lib/staff-import.ts";
-import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix } from "../lib/sheet-imports.ts";
+import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings } from "../lib/sheet-imports.ts";
 import { parseAssetRows } from "../lib/assets.ts";
 import { parseHoursRows, parseHoursTotals } from "../lib/hours.ts";
 import { createXlsxBook } from "../lib/xlsx.ts";
@@ -29,6 +29,8 @@ test("every sample file is read back by its own importer without a problem", () 
     leaveplan: parseLeavePlan,
     ohs: parseOhsRows,
     skillmatrix: parseSkillMatrix,
+    perfgoals: parsePerfGoals,
+    trainings: parseTrainings,
   };
   for (const [kind, parse] of Object.entries(checks)) {
     const result = parse(asRows(kind));
@@ -217,5 +219,24 @@ test("the skill matrix file reads levels as figures or words and refuses nonsens
     ["Dilarə", "", "", "2", ""],
   ]);
   assert.deepEqual(r.rows.map((x) => [x.name, x.skill, x.level, x.target]), [["Aysel", "Excel", 3, 4], ["Orxan", "Excel", null, 3]]);
+  assert.equal(r.issues.length, 3);
+});
+
+test("the performance goals file takes a weight of 1-10 and refuses short goals", () => {
+  const r = parsePerfGoals([["Ad Soyad", "Məqsəd", "Çəki"], ["Aysel", "Satışı artırmaq", "3"], ["Orxan", "Xə", "2"], ["Nigar", "Hesabat vermək", "15"], ["Cavid", "Yeni məqsəd", ""]]);
+  assert.deepEqual(r.rows.map((x) => [x.name, x.weight]), [["Aysel", 3], ["Cavid", 1]]);
+  assert.equal(r.issues.length, 2);
+});
+
+test("the training file groups by title and refuses unknown kinds, statuses and dates", () => {
+  const r = parseTrainings([
+    ["Təlimin adı", "Növ", "Başlama", "Status", "Bacarıq səviyyəsi", "İştirakçı"],
+    ["Excel kursu", "Onlayn", "2026-12-07", "Keçirilib", "yaxşı", "Aysel"],
+    ["Excel kursu", "Onlayn", "2026-12-07", "Keçirilib", "yaxşı", "Orxan"],
+    ["Kurs", "Qəribə növ", "", "", "", ""],
+    ["Kurs 2", "", "07.13.2026", "", "", ""],
+    ["Kurs 3", "", "", "Naməlum", "", ""],
+  ]);
+  assert.deepEqual(r.rows.map((x) => [x.title, x.kind, x.status, x.skillLevel, x.name]), [["Excel kursu", "online", "done", 3, "Aysel"], ["Excel kursu", "online", "done", 3, "Orxan"]]);
   assert.equal(r.issues.length, 3);
 });

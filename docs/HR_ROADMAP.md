@@ -404,3 +404,11 @@ Qalan: turniket inteqrasiyası (xarici cihaz), hüquqi e-imza, bank API, bir ne�
 - ESCO bacarıqları bu seçimə daxil edilməyib (yalnız admin panelinin əsas kataloqu).
 
 Texniki: miqrasiya 0096 (`skill_defs.catalog_id`), `lib/skill-matrix.ts` (testlərlə), `parseSkillMatrix`, `company/skill-matrix/catalog`, `company/skill-matrix/import`.
+
+## 31. Excel ilə yükləmə: performans məqsədləri və təlim planı
+
+- **Performans → "Məqsədləri Excel-dən yüklə"** (açıq dövrdə): Ad Soyad / FİN, Məqsəd, Hədəf, Çəki (1–10), Dövr. Dövr sütunu boşdursa seçilmiş dövr götürülür. Eyni işçiyə eyni adlı məqsəd keçilir, bir işçiyə ən çox 12 məqsəd yazılır, bağlı dövrə yazılmır; işçilərə (bir işçiyə bir dəfə) bildiriş gedir.
+- **Təlim → "Excel-dən yüklə"**: bir sətir bir iştirakçıdır, eyni ad və başlama tarixi olan sətirlər bir təlimdir (artıq varsa təkrar yaradılmır, yeni iştirakçılar əlavə olunur). Növ, saat, xərc (büdcəyə yazılır), status, sertifikat müddəti; "Bacarıq" sütunu yalnız platformanın bacarıq kataloqundan qəbul edilir və matrisə avtomatik əlavə olunur. İştirakçılar FİN ilə tapılır və təlimə dəvət bildirişi alır.
+- Hər iki fayl üçün nümunə fayl və təlimat vərəqi var (testlə oxunur), yükləmədən əvvəl önizləmə göstərilir.
+
+Texniki: `parsePerfGoals`, `parseTrainings`, `company/performance/goals-import`, `company/training/import`. Yeni miqrasiya yoxdur.

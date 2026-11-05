@@ -74,6 +74,7 @@ export function Performance({ notify }: { notify: Notify }) {
   const [open, setOpen] = useState("");
   const [creating, setCreating] = useState(false);
   const [meet, setMeet] = useState("");
+  const [importing, setImporting] = useState(false);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const current = data.cycles.find((c) => c.id === data.cycle);
   const person = data.employees.find((p) => p.id === open);
@@ -89,6 +90,7 @@ export function Performance({ notify }: { notify: Notify }) {
         </div>
         <div className="admin-actions">
           {current && <a className="secondary report-button" href={`/api/joblink/company/performance/export?cycle=${current.id}`} download><Download size={14} /> Excel</a>}
+          {current && current.status === "open" && <button type="button" className="secondary" onClick={() => setImporting(true)}>Məqsədləri Excel-dən yüklə</button>}
           <button type="button" className="primary" onClick={() => setCreating(true)}>+ Yeni dövr</button>
         </div>
       </div>
@@ -113,6 +115,7 @@ export function Performance({ notify }: { notify: Notify }) {
         </div>
       ) : <p className="admin-empty">Hələ dövr yoxdur. “Yeni dövr” ilə başlayın.</p>}
       {meet && <OneOnOneModal person={data.employees.find((p) => p.id === meet)!} notify={notify} onClose={() => setMeet("")} />}
+      {importing && current && <SheetImport kind="perfgoals" extra={{ cycleId: current.id }} notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {creating && <CycleForm notify={notify} onClose={() => setCreating(false)} onSaved={load} />}
       {person && current && <PersonReview person={person} colleagues={data.employees} cycleId={current.id} closed={current.status === "closed"} rating={data.rating} notify={notify} onClose={() => setOpen("")} onChanged={load} />}
     </div>
@@ -247,16 +250,21 @@ export function Training({ notify }: { notify: Notify }) {
   const [data, load] = useLoad<TrainingData>(`company/training?year=${year}`, notify);
   const [edit, setEdit] = useState<Partial<Training> | null>(null);
   const [people, setPeople] = useState<Training | null>(null);
+  const [importing, setImporting] = useState(false);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const left = data.budget - data.spent;
   return (
     <div className="company-page">
+      {importing && <SheetImport kind="trainings" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       <div className="section-heading">
         <div className="admin-actions">
           <select value={year} onChange={(e) => setYear(e.target.value)} aria-label="İl">{[-1, 0, 1].map((d) => <option key={d} value={String(new Date().getFullYear() + d)}>{new Date().getFullYear() + d}</option>)}</select>
           <button type="button" className="secondary" onClick={() => { const v = window.prompt(`${year}-ci il üçün təlim büdcəsi (AZN):`, String(data.budget)); if (v !== null) void run(notify, load, "company/training/budget", { year, amount: Number(v) }, "Büdcə saxlanıldı."); }}>Büdcəni yaz</button>
         </div>
-        <button type="button" className="primary" onClick={() => setEdit({ title: "", kind: "external", status: "planned" })}>+ Təlim planla</button>
+        <div className="admin-actions">
+          <button type="button" className="secondary" onClick={() => setImporting(true)}>Excel-dən yüklə</button>
+          <button type="button" className="primary" onClick={() => setEdit({ title: "", kind: "external", status: "planned" })}>+ Təlim planla</button>
+        </div>
       </div>
       <div className="staff-kpis">
         <div className="staff-kpi"><small>Büdcə</small><strong>{azn(data.budget)}</strong></div>

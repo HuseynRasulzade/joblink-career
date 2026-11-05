@@ -5,7 +5,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix" | "perfgoals" | "trainings";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -315,6 +315,53 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       ["Orxan Əliyev", "", "", "Microsoft Excel", 1, 3],
     ],
     rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Faylda keçən bacarıqlar matrisə avtomatik əlavə olunur (kataloqdan), ayrıca əlavə etmək lazım deyil.", "Eyni işçi və bacarıq iki dəfə yazılsa, sonuncu sətir üstünlük təşkil edir."],
+  },
+  perfgoals: {
+    title: "Performans məqsədləri",
+    file: "performans-meqsedleri-numune.xlsx",
+    sheet: "Məqsədlər",
+    columns: [
+      { header: "Ad Soyad", required: true, format: "Mətn", description: "İşçi siyahısındakı ad. FİN yazılıbsa, ad boş ola bilər." },
+      { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "FİN", required: false, format: "7 simvol", description: "FİN yazılırsa işçi yalnız FİN ilə tapılır; işçi kartında FİN olmalıdır." },
+      { header: "Məqsəd", required: true, format: "Mətn", description: "Məqsədin adı (ən azı 3 simvol)." },
+      { header: "Hədəf", required: false, format: "Mətn", description: "Ölçü və ya göstərici (məsələn: aylıq satış 50 000 AZN)." },
+      { header: "Çəki", required: false, format: "1–10", description: "Məqsədin əhəmiyyəti; boşdursa 1." },
+      { header: "Dövr", required: false, format: "Mətn", description: "Qiymətləndirmə dövrünün adı. Boşdursa və yalnız bir açıq dövr varsa o götürülür." },
+    ],
+    examples: [
+      ["Aysel Məmmədova", "", "", "Aylıq hesabatların vaxtında təqdimi", "Hər ayın 5-nə qədər", 3, ""],
+      ["Aysel Məmmədova", "", "", "Qeydiyyat xətalarının azaldılması", "Xəta 2%-dən aşağı", 2, ""],
+      ["Orxan Əliyev", "", "", "Yeni müştəri cəlbi", "Rüblük 12 müştəri", 5, ""],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Eyni işçiyə eyni adlı məqsəd artıq yazılıbsa sətir keçilir; bir işçiyə ən çox 12 məqsəd yazılır.", "Bağlı dövrə məqsəd yazılmır. İşçilərə yeni məqsəd barədə bildiriş gedir."],
+  },
+  trainings: {
+    title: "Təlim planı",
+    file: "telim-plani-numune.xlsx",
+    sheet: "Təlimlər",
+    columns: [
+      { header: "Təlimin adı", required: true, format: "Mətn", description: "Təlimin adı. Eyni ad və başlama tarixi olan sətirlər bir təlim sayılır, hər sətir bir iştirakçıdır." },
+      { header: "Növ", required: false, format: "Mətn", description: "Boşdursa “xarici”.", values: "Daxili, Xarici, Onlayn, Əməyin mühafizəsi" },
+      { header: "Təlimçi / təşkilatçı", required: false, format: "Mətn", description: "Təlimi keçən şəxs və ya təşkilat." },
+      { header: "Başlama", required: false, format: "GGGG-AA-GG", description: "Təlimin ilk günü." },
+      { header: "Bitmə", required: false, format: "GGGG-AA-GG", description: "Təlimin son günü; boşdursa başlama günü." },
+      { header: "Saat", required: false, format: "Tam ədəd", description: "Təlimin davametmə saatı." },
+      { header: "Xərc", required: false, format: "Rəqəm, AZN", description: "Təlimin ümumi xərci (təlim büdcəsinə yazılır)." },
+      { header: "Status", required: false, format: "Mətn", description: "Boşdursa “planlaşdırılıb”.", values: "Planlaşdırılıb, Keçirilib, Ləğv" },
+      { header: "Bacarıq", required: false, format: "Mətn", description: "Təlimin inkişaf etdirdiyi bacarıq: platformanın bacarıq kataloqundakı ad (admin panelindəki kataloq); kataloqda olmayan bacarıq yüklənmir." },
+      { header: "Bacarıq səviyyəsi", required: false, format: "0–4 və ya söz", description: "Təlimi bitirən işçinin bacarıqda çatacağı səviyyə (başlanğıc, işləyə bilir, yaxşı, ekspert)." },
+      { header: "Sertifikat müddəti (ay)", required: false, format: "Tam ədəd", description: "Sertifikatın etibarlılıq müddəti; bitəndə HR-a xatırlatma gedir." },
+      { header: "İştirakçı", required: false, format: "Mətn", description: "İşçinin adı. FİN yazılıbsa, ad boş ola bilər. İştirakçı yazılmasa yalnız təlim yaradılır." },
+      { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "FİN", required: false, format: "7 simvol", description: "İştirakçının FİN kodu; yazılırsa işçi yalnız FİN ilə tapılır." },
+    ],
+    examples: [
+      ["Excel kursu", "Xarici", "Tədris mərkəzi", "2026-12-07", "2026-12-11", 20, 600, "Planlaşdırılıb", "Microsoft Excel", "Yaxşı", "", "Aysel Məmmədova", "", ""],
+      ["Excel kursu", "Xarici", "Tədris mərkəzi", "2026-12-07", "2026-12-11", 20, 600, "Planlaşdırılıb", "Microsoft Excel", "Yaxşı", "", "Orxan Əliyev", "", ""],
+      ["Yanğın təhlükəsizliyi", "Əməyin mühafizəsi", "Daxili", "2026-11-20", "", 2, "", "Planlaşdırılıb", "", "", 12, "", "", ""],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Eyni ad və başlama tarixi olan təlim artıq varsa, yenisi yaradılmır, yeni iştirakçılar ona əlavə olunur.", "İştirakçılara təlimə dəvət barədə bildiriş gedir. Bacarıq yazılıbsa, təlim bacarıq matrisində hədəfdən aşağı olanlar üçün təklif kimi görünür."],
   },
   questions: {
     title: "Test sualları",
