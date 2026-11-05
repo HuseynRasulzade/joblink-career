@@ -20,7 +20,6 @@ import {
   Building2,
   Calculator,
   Banknote,
-  Search,
   SlidersHorizontal,
   Check,
   Send,
@@ -73,6 +72,7 @@ import AccountSettings from "./AccountSettings";
 import { OrdersRegistry } from "./StaffPages";
 import { AttendancePage } from "./AttendancePage";
 import { JobAlerts } from "./JobAlerts";
+import JobsExplorer from "./JobsExplorer";
 import { AdminAiUsage, AdminOps, AdminReviews } from "./CompanyReviews";
 import AdminCatalogCheck from "./AdminCatalogCheck";
 import AdminAiFeedback from "./AdminAiFeedback";
@@ -1210,7 +1210,9 @@ export default function Joblink() {
     rankingConsent,
     rankingKey,
   ]);
-  async function apply() {
+  const jobOpen = job;
+  async function apply(target?: Job) {
+    const job = target || jobOpen;
     if (!job) return;
     setBusy(true);
     try {
@@ -2390,7 +2392,7 @@ export default function Joblink() {
                       <button
                         className="primary"
                         disabled={busy}
-                        onClick={apply}
+                        onClick={() => apply()}
                       >
                         {busy ? "Göndərilir..." : "Təsdiq et və göndər"}
                       </button>
@@ -3106,61 +3108,49 @@ export default function Joblink() {
               )}
               {page === "jobs" && (
                 <>
-                  {signedIn && accountRole === "candidate" && (
-                    <JobAlerts
-                      current={{
-                        query,
-                        city,
-                        mode,
-                        category,
-                        type,
-                        minSalary: salary,
-                      }}
-                      notify={notify}
-                    />
-                  )}
-                  <div className="jobs-toolbar">
-                    <div className="search-input">
-                      <Search size={18} />
-                      <input
-                        aria-label="Vakansiya axtar"
-                        placeholder="Vəzifə, şirkət və ya bacarıq axtar..."
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                      />
-                      {query && (
-                        <button
-                          aria-label="Axtarışı təmizlə"
-                          onClick={() => setQuery("")}
-                        >
-                          <X size={16} />
-                        </button>
-                      )}
-                    </div>
-                    <button
-                      className={`secondary ${savedOnly ? "selected" : ""}`}
-                      aria-pressed={savedOnly}
-                      onClick={() => setSavedOnly(!savedOnly)}
-                    >
-                      <Bookmark size={16} /> Yadda saxlananlar ({saved.length})
-                    </button>
-                    <button
-                      className={`secondary ${matchOnly ? "selected" : ""}`}
-                      aria-pressed={matchOnly}
-                      title="Profilinizə (bacarıq, təcrübə) və maaş aralığınıza uyğun vakansiyalar"
-                      onClick={() => setMatchOnly(!matchOnly)}
-                    >
-                      <Sparkles size={16} /> Yalnız mənə uyğun
-                    </button>
-                  </div>
-                  {filters(true)}
-                  <div className="results-heading">
-                    <strong>{filtered.length} vakansiya</strong>
-                    <button className="text-button" onClick={resetFilters}>
-                      Filtrləri sıfırla
-                    </button>
-                  </div>
-                  <div className="job-list-grid">{cards(filtered)}</div>
+                  <JobsExplorer
+                    jobs={filtered}
+                    all={ranked}
+                    filters={{ query, city, mode, category, type, salary, experience, minScore, savedOnly, matchOnly, sort }}
+                    setFilters={(patch) => {
+                      if (patch.query !== undefined) setQuery(patch.query);
+                      if (patch.city !== undefined) setCity(patch.city);
+                      if (patch.mode !== undefined) setMode(patch.mode);
+                      if (patch.category !== undefined) setCategory(patch.category);
+                      if (patch.type !== undefined) setType(patch.type);
+                      if (patch.salary !== undefined) setSalary(patch.salary);
+                      if (patch.experience !== undefined) setExperience(patch.experience);
+                      if (patch.minScore !== undefined) setMinScore(patch.minScore);
+                      if (patch.savedOnly !== undefined) setSavedOnly(patch.savedOnly);
+                      if (patch.matchOnly !== undefined) setMatchOnly(patch.matchOnly);
+                      if (patch.sort !== undefined) setSort(patch.sort);
+                    }}
+                    reset={resetFilters}
+                    saved={saved}
+                    onSave={saveJob}
+                    onOpen={openJob}
+                    onApply={(j) => {
+                      if (!signedIn) {
+                        setLogin(true);
+                        return;
+                      }
+                      if (sample) {
+                        go("profile");
+                        notify("Əvvəlcə öz profilinizi yaradın və yadda saxlayın.");
+                        return;
+                      }
+                      return apply(j);
+                    }}
+                    applied={(j) => applications.some((a) => a.jobId === j.id && a.status !== "Geri götürülüb")}
+                    onTailor={signedIn && accountRole === "candidate" && profile.name ? setTailorFor : undefined}
+                    signedIn={signedIn}
+                    language={language}
+                    alerts={
+                      signedIn && accountRole === "candidate" ? (
+                        <JobAlerts current={{ query, city, mode, category, type, minSalary: salary }} notify={notify} />
+                      ) : undefined
+                    }
+                  />
                 </>
               )}
               {page === "companies" && (
