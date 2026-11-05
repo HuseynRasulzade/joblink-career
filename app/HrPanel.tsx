@@ -330,6 +330,16 @@ export default function HrPanel({
       notify((e as Error).message);
     }
   }
+  // The invitation puts the candidate in the interview stage: the Interviews page lists the candidate there at once, waiting for a time.
+  async function inviteToInterview(application: Application) {
+    try {
+      await api("application-status", { id: application.id, status: "Müsahibə", stage: selectedJob?.stages?.[0] || "" });
+      await refresh();
+      notify(`${application.profile.name} müsahibəyə dəvət olundu. “Müsahibələr” bölməsində vaxt təyin edin və test göndərin.`);
+    } catch (e) {
+      notify((e as Error).message);
+    }
+  }
   async function showHistory(application: Application) {
     try {
       const data = await api(`hr/application-events?id=${encodeURIComponent(application.id)}`);
@@ -1225,6 +1235,7 @@ export default function HrPanel({
                   onOffer={setOfferFor}
                   onAssignTest={setTestFor}
                   onSchedule={setInterviewFor}
+                  onInvite={(application) => void inviteToInterview(application)}
                   onBulk={(ids, action) => setBulk({ ids, action })}
                   onWithdrawOffer={async (offer) => {
                     if (!window.confirm("Təklif geri götürülsün?")) return;
@@ -1285,6 +1296,12 @@ export default function HrPanel({
                           Mesaj yaz
                         </button>
                       )}
+                      {!demo && ["Göndərildi", "Baxışda"].includes(a.status) && (
+                        <button className="primary" onClick={() => void inviteToInterview(a)}>
+                          Müsahibəyə dəvət et
+                        </button>
+                      )}
+                      {a.status === "Müsahibə" && <small className="muted">Müsahibələr bölməsindədir</small>}
                     </div>
                     <Field label="Müraciət statusu">
                       <select

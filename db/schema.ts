@@ -1214,6 +1214,8 @@ export const interviewTemplates = sqliteTable(
     questions: text("questions").notNull().default("[]"),
     createdBy: text("created_by").notNull(),
     updated: text("updated").notNull(),
+    // The vacancy these questions are for; empty for a general list.
+    jobId: text("job_id").notNull().default(""),
   },
   (t) => [index("interview_templates_company").on(t.companyId, t.updated)],
 );

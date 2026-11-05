@@ -375,6 +375,7 @@ import { resolveCatalogSkill, searchCatalog, type CatalogSkill } from "@/lib/ski
 import { parsePhotoDataUrl } from "@/lib/photo";
 import { CURRENCY_NAME, DOMESTIC_NORMS, DOMESTIC_OTHER, FOREIGN_NORMS, HOTEL_SHARE, NORMS_SOURCE, NO_RECEIPT_HOTEL_PART, azNPerDay, lookupNorm, type NormCurrency } from "@/lib/trip-norms";
 import { GEO_MODES, checkLocation, validPoint, type GeoMode, type Office } from "@/lib/geofence";
+import { guideFor, type Guide, type GuideTemplate } from "@/lib/interview-guide";
 import { forecast, monthSeries, planFactAlerts, targetAlerts } from "@/lib/hr-trends";
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS, RETENTION_CATEGORIES, cleanOhs, dueState, retentionEnd, retentionYears, textHash } from "@/lib/ohs";
@@ -18624,7 +18625,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         title: `${job.title}: ${stage || b.status}`,
         body: rejection?.share
           ? `${job.company} müraciətinizin statusunu yenilədi. Səbəb: ${rejection.label}${rejection.note ? ` — ${rejection.note}` : ""}`
-          : `${job.company} müraciətinizin statusunu yenilədi.`,
+          : b.status === "Müsahibə" && row.status !== "Müsahibə"
+            ? `${job.company} sizi müsahibəyə dəvət edir. Müsahibənin vaxtı təyin ediləndə bildiriş alacaqsınız.`
+            : `${job.company} müraciətinizin statusunu yenilədi.`,
         link: "applications",
       });
     return ok({ ok: true });
@@ -20288,6 +20291,13 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     `${INTERVIEW_KINDS.find((k) => k.id === row.kind)?.label || row.kind}${row.location ? `: ${row.location}` : ""}`;
   // Roles without "publish" see and schedule interviews only for vacancies they created.
   const interviewScope = async () => (await reportScope()).jobIds;
+  const loadGuideTemplates = async (): Promise<GuideTemplate[]> =>
+    (await db.prepare("SELECT id,name,questions,job_id FROM interview_templates WHERE company_id=? ORDER BY name").bind(id).all<{ id: string; name: string; questions: string; job_id: string }>()).results.map((r) => ({
+      id: r.id,
+      name: r.name,
+      jobId: r.job_id || "",
+      questions: sanitizeGuideQuestions((() => { try { return JSON.parse(r.questions); } catch { return []; } })()),
+    }));
   if (request.method === "GET" && path === "hr/interviews") {
     const jobIds = await interviewScope();
     const rows = await db
@@ -20301,6 +20311,50 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         new Date(Date.now() - 45 * 86400000).toISOString(),
       )
       .all<InterviewRow>();
+    // Candidates the company invited to the interview stage who have no time yet: they wait here until a time is set.
+    type WaitingRow = { application_id: string; job_id: string; candidate_id: string; stage: string; updated: string; candidate: string; job_title: string };
+    const waiting = (
+      await db
+        .prepare(
+          `SELECT a.id AS application_id,a.job_id,a.candidate_id,a.stage,a.updated,COALESCE(c.name,json_extract(a.data,'$.name'),'') AS candidate,COALESCE(json_extract(j.data,'$.title'),'') AS job_title
+          FROM applications a JOIN jobs j ON j.id=a.job_id LEFT JOIN accounts c ON c.id=a.candidate_id
+          WHERE j.owner=? AND a.job_id IN (SELECT value FROM json_each(?)) AND a.status='Müsahibə'
+            AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.application_id=a.id AND (i.status IN ('scheduled','confirmed') OR (i.status='completed' AND i.scheduled_at>=a.updated)))
+          ORDER BY a.updated DESC LIMIT 200`,
+        )
+        .bind(id, JSON.stringify(jobIds))
+        .all<WaitingRow>()
+        .catch((e: unknown) => { console.error("interviews waiting", e); return { results: [] as WaitingRow[] }; })
+    ).results;
+    const appIds = [...new Set([...rows.results.map((r) => r.application_id).filter(Boolean), ...waiting.map((w) => w.application_id)])].slice(0, 400) as string[];
+    // The latest test sent to each of them, so the interviewer sees at a glance whether a test is pending or passed.
+    const tests: Record<string, { status: string; score: number | null; maxScore: number | null; title: string }> = {};
+    if (appIds.length) {
+      type AsgRow = { application_id: string; status: string; score: number | null; max_score: number | null; title: string };
+      const asg = (
+        await db
+          .prepare(
+            `SELECT x.application_id,x.status,x.score,x.max_score,COALESCE(t.title,'') AS title FROM assessment_assignments x LEFT JOIN assessments t ON t.id=x.assessment_id
+            WHERE x.company_id=? AND x.application_id IN (SELECT value FROM json_each(?)) ORDER BY x.assigned_at`,
+          )
+          .bind(id, JSON.stringify(appIds))
+          .all<AsgRow>()
+          .catch(() => ({ results: [] as AsgRow[] }))
+      ).results;
+      for (const a of asg) tests[a.application_id] = { status: a.status, score: a.score, maxScore: a.max_score, title: a.title };
+    }
+    // The questions of each vacancy that has an interview or a waiting candidate.
+    const guideJobIds = [...new Set([...rows.results.map((r) => r.job_id), ...waiting.map((w) => w.job_id)])];
+    const guides: Record<string, Guide> = {};
+    if (guideJobIds.length) {
+      const jobsData = (await db.prepare("SELECT id,COALESCE(json_extract(data,'$.title'),'') AS title,COALESCE(json_extract(data,'$.skills'),'[]') AS skills FROM jobs WHERE id IN (SELECT value FROM json_each(?))").bind(JSON.stringify(guideJobIds)).all<{ id: string; title: string; skills: string }>()).results;
+      const tpls = await loadGuideTemplates();
+      for (const j of jobsData) {
+        let skills: string[] = [];
+        try { skills = (JSON.parse(j.skills) as unknown[]).map(String); } catch { /* a vacancy without readable skills gets the general questions */ }
+        guides[j.id] = guideFor({ id: j.id, title: j.title, skills }, tpls);
+      }
+    }
     return ok({
       interviews: rows.results.map((r) => ({
         ...r,
@@ -20312,6 +20366,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           }
         })(),
       })),
+      waiting,
+      tests,
+      guides,
       statusLabels: INTERVIEW_STATUS_LABEL,
     });
   }
@@ -20644,14 +20701,18 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
   if (request.method === "GET" && path === "hr/interview-templates") {
     const rows = await db
       .prepare(
-        "SELECT id,name,questions FROM interview_templates WHERE company_id=? ORDER BY name",
+        "SELECT id,name,questions,job_id FROM interview_templates WHERE company_id=? ORDER BY name",
       )
       .bind(id)
-      .all<{ id: string; name: string; questions: string }>();
+      .all<{ id: string; name: string; questions: string; job_id: string }>();
+    const scope = await interviewScope();
+    const jobs = (await db.prepare("SELECT id,COALESCE(json_extract(data,'$.title'),'') AS title FROM jobs WHERE id IN (SELECT value FROM json_each(?)) ORDER BY title").bind(JSON.stringify(scope)).all<{ id: string; title: string }>()).results;
     return ok({
+      jobs,
       templates: rows.results.map((r) => ({
         id: r.id,
         name: r.name,
+        jobId: r.job_id || "",
         questions: sanitizeGuideQuestions(
           (() => {
             try {
@@ -20670,6 +20731,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     const questions = sanitizeGuideQuestions(b.questions);
     if (name.length < 3) throw new HttpError(400, "Şablonun adını yazın.");
     if (!questions.length) throw new HttpError(400, "Ən azı bir sual yazın.");
+    const jobId = str(b.jobId, 100);
+    if (jobId && !(await interviewScope()).includes(jobId)) throw new HttpError(404, "Vakansiya tapılmadı.");
     const existing = await db
       .prepare(
         "SELECT id FROM interview_templates WHERE company_id=? AND (id=? OR name=?)",
@@ -20688,14 +20751,14 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     if (existing)
       await db
         .prepare(
-          "UPDATE interview_templates SET name=?,questions=?,updated=? WHERE id=?",
+          "UPDATE interview_templates SET name=?,questions=?,updated=?,job_id=? WHERE id=?",
         )
-        .bind(name, JSON.stringify(questions), now, existing.id)
+        .bind(name, JSON.stringify(questions), now, jobId, existing.id)
         .run();
     else
       await db
         .prepare(
-          "INSERT INTO interview_templates(id,company_id,name,questions,created_by,updated) VALUES(?,?,?,?,?,?)",
+          "INSERT INTO interview_templates(id,company_id,name,questions,created_by,updated,job_id) VALUES(?,?,?,?,?,?,?)",
         )
         .bind(
           crypto.randomUUID(),
@@ -20704,6 +20767,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           JSON.stringify(questions),
           userId,
           now,
+          jobId,
         )
         .run();
     return ok({ ok: true }, 201);

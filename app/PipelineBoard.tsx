@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { BookmarkPlus, CalendarClock, ClipboardCheck, FileSignature, History, MessageCircle, UserRound } from "lucide-react";
+import { BookmarkPlus, CalendarClock, ClipboardCheck, FileSignature, History, MessageCircle, UserCheck, UserRound } from "lucide-react";
 import { OFFER_STATUS, type Offer } from "./Offers";
 import type { Application } from "@/lib/model";
 import { WITHDRAWN_STATUS } from "@/lib/recruitment";
@@ -48,6 +48,7 @@ export default function PipelineBoard({
   onWithdrawOffer,
   onAssignTest,
   onSchedule,
+  onInvite,
   onBulk,
   testResults = {},
 }: {
@@ -63,6 +64,7 @@ export default function PipelineBoard({
   onWithdrawOffer: (offer: Offer) => void;
   onAssignTest: (application: Application) => void;
   onSchedule?: (application: Application) => void;
+  onInvite?: (application: Application) => void;
   onBulk?: (ids: string[], action: "status" | "message" | "pool" | "test") => void;
   testResults?: Record<string, { state: string; percent: number | null }>;
 }) {
@@ -172,6 +174,9 @@ export default function PipelineBoard({
                     <button type="button" title={t("Tarixçə")} onClick={() => onHistory(app)}><History size={14} /></button>
                     {!disabled && onBulk && (
                       <button type="button" title={t("Bazaya əlavə et")} onClick={() => onBulk([app.id], "pool")}><BookmarkPlus size={14} /></button>
+                    )}
+                    {!disabled && onInvite && ["Göndərildi", "Baxışda"].includes(app.status) && (
+                      <button type="button" className="pipeline-invite" title={t("Müsahibəyə dəvət et")} onClick={() => onInvite(app)}><UserCheck size={14} /></button>
                     )}
                     {!disabled && onSchedule && !["Uyğun deyil", "İşə qəbul edildi"].includes(app.status) && (
                       <button type="button" title={t("Müsahibə təyin et")} onClick={() => onSchedule(app)}><CalendarClock size={14} /></button>

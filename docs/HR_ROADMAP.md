@@ -435,3 +435,12 @@ Diqqət: ESCO cədvəli canlı bazada admin tərəfindən yüklənibsə işləyi
 ## 34. Rəsmi gündəlik ezamiyyət cədvəli
 
 Nazirlər Kabinetinin 25.01.2008-ci il 14 nömrəli qərarı (26.10.2026-cı ilə qədər dəyişikliklərlə birləşdirilmiş mətn, istifadəçinin yüklədiyi fayl) əsasında: Azərbaycan daxilində şəhərə görə norma (125/100/95/90 AZN, mehmanxana 70%, sənədsiz 50%) və 106 xarici ölkənin (ayrıca şəhərləri ilə) normaları `lib/trip-norms-data.ts`-də (fayldan avtomatik yaradılıb) və `lib/trip-norms.ts`-də (axtarış: ölkə, şəhər, ingiliscə adlar; testlərlə). Gündəlik boş qalanda: təyinatın rəsmi normu; xarici normada şirkətin yazdığı valyuta məzənnəsi (hr_settings `trip_fx_*`) tələb olunur, məzənnə yoxdursa şirkətin ümumi norması işlənir. Endpoint-lər: `company/trips/norm`, `company/trips/norm-table`, `company/trips/norms` (+məzənnə). Ezamiyyət formasında norma göstərişi və bir kliklə doldurma, "Rəsmi norma cədvəli" pəncərəsi. Yeni miqrasiya yoxdur.
+
+## 35. Müsahibə mərkəzi: Namizədlər ↔ Müsahibələr ↔ Testlər
+
+- **Namizədlər → Müsahibələr:** "Müraciət edənlər" siyahısında və pipeline lövhəsində "Müsahibəyə dəvət et" düyməsi (status "Müsahibə"; namizədə bildiriş gedir). Dəvət olunub vaxtı təyin edilməyən namizəd Müsahibələr səhifəsində avtomatik "Vaxt gözləyir" siyahısına düşür; vaxt təyin ediləndə oradan çıxır.
+- **Müsahibələr səhifəsi yenidən quruldu:** dörd bölmə (Vaxt gözləyir, Gələcək, Rəy gözləyir, Keçmiş), vakansiya filtri və axtarış, hər kartda "Vaxt təyin et", "Test göndər", "Suallar".
+- **Testlər buradan göndərilir:** "Test göndər" mövcud test göndərmə pəncərəsini açır; kartda son testin vəziyyəti (göndərilib / bal) görünür.
+- **Vakansiya üzrə suallar:** əvvəlcə həmin vakansiyaya bağlanmış siyahı, sonra adında vəzifənin adı olan siyahı, yoxdursa vakansiyanın tələb olunan bacarıqlarından avtomatik yaradılmış suallar. "Müsahibə sualları" bölməsində siyahını vakansiyaya bağlamaq olar.
+
+Texniki: miqrasiya 0098 (`interview_templates.job_id`), `lib/interview-guide.ts` (testlərlə), `hr/interviews` GET indi `waiting`, `tests`, `guides` qaytarır. Qeyd: "Uyğun namizədlər" (istedad axtarışı) siyahısında dəvət düyməsi yoxdur, çünki orada hələ müraciət yoxdur; namizəd müraciət edəndən sonra dəvət olunur.
