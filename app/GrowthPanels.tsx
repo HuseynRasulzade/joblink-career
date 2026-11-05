@@ -562,6 +562,7 @@ export function Trips({ notify }: { notify: Notify }) {
   const [open, setOpen] = useState<Trip | null>(null);
   const [normTable, setNormTable] = useState(false);
   const [normSettings, setNormSettings] = useState(false);
+  const [importing, setImporting] = useState(false);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const current = open ? data.trips.find((t) => t.id === open.id) || null : null;
   return (
@@ -569,6 +570,7 @@ export function Trips({ notify }: { notify: Notify }) {
       <div className="section-heading">
         <p className="muted">Ezamiyyət sorğusu → təsdiq → xərc hesabatı → hesablaşma. Hesablaşmada işçiyə çatan məbləğ əmək haqqındakı “digər ödəniş” kimi qeyd olunur.</p>
         <div className="admin-actions">
+          <button type="button" className="secondary" onClick={() => setImporting(true)}>Excel-dən yüklə</button>
           <button type="button" className="secondary" onClick={() => setNormTable(true)}>Rəsmi norma cədvəli</button>
           <button type="button" className="secondary" onClick={() => setNormSettings(true)}>Gündəlik normalar və məzənnə</button>
           <button type="button" className="primary" onClick={() => setEdit({ employeeId: data.employees[0]?.id || "", destination: "", purpose: "", start: "", end: "", daily: 0, advance: 0, approve: true, abroad: false })}>+ Ezamiyyət</button>
@@ -597,6 +599,7 @@ export function Trips({ notify }: { notify: Notify }) {
           </tbody>
         </table>
       </div>
+      {importing && <SheetImport kind="trips" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {normTable && <NormTable onClose={() => setNormTable(false)} />}
       {normSettings && <NormSettings notify={notify} onClose={() => setNormSettings(false)} />}
       {edit && (

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SHEET_TEMPLATES, templateSheets } from "../lib/sheet-templates.ts";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "../lib/staff-import.ts";
-import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings } from "../lib/sheet-imports.ts";
+import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips } from "../lib/sheet-imports.ts";
 import { parseAssetRows } from "../lib/assets.ts";
 import { parseHoursRows, parseHoursTotals } from "../lib/hours.ts";
 import { createXlsxBook } from "../lib/xlsx.ts";
@@ -31,6 +31,7 @@ test("every sample file is read back by its own importer without a problem", () 
     skillmatrix: parseSkillMatrix,
     perfgoals: parsePerfGoals,
     trainings: parseTrainings,
+    trips: parseTrips,
   };
   for (const [kind, parse] of Object.entries(checks)) {
     const result = parse(asRows(kind));
@@ -239,4 +240,21 @@ test("the training file groups by title and refuses unknown kinds, statuses and 
   ]);
   assert.deepEqual(r.rows.map((x) => [x.title, x.kind, x.status, x.skillLevel, x.name]), [["Excel kursu", "online", "done", 3, "Aysel"], ["Excel kursu", "online", "done", 3, "Orxan"]]);
   assert.equal(r.issues.length, 3);
+});
+
+test("trip rows: employee, destination and dates are required; the foreign flag and amounts are read", () => {
+  const r = parseTrips([
+    ["İşçi", "FİN", "Təyinat", "Başlama", "Bitmə", "Məqsəd", "Gündəlik", "Avans", "Xarici"],
+    ["Aysel", "", "Gəncə", "2026-12-08", "2026-12-10", "Yoxlama", "", "100", "Xeyr"],
+    ["Orxan", "", "İstanbul", "2026-12-15", "", "", "400", "", "Bəli"],
+    ["", "", "Bakı", "2026-12-15", "", "", "", "", ""],
+    ["Elnur", "", "", "2026-12-15", "", "", "", "", ""],
+    ["Samir", "", "Quba", "2026-12-20", "2026-12-18", "", "", "", ""],
+    ["Nigar", "", "Quba", "tarix deyil", "", "", "", "", ""],
+  ]);
+  assert.equal(r.rows.length, 2);
+  assert.deepEqual([r.rows[0].destination, r.rows[0].start, r.rows[0].end, r.rows[0].advance, r.rows[0].abroad], ["Gəncə", "2026-12-08", "2026-12-10", 100, false]);
+  assert.deepEqual([r.rows[1].end, r.rows[1].daily, r.rows[1].abroad], ["2026-12-15", 400, true]);
+  assert.equal(r.issues.length, 4);
+  assert.deepEqual(r.issues.map((i) => i.line), [4, 5, 6, 7]);
 });

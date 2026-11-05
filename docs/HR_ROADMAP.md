@@ -473,3 +473,11 @@ Texniki: miqrasiya 0100 (`interviews.questions`), `GET hr/interviews/people?jobI
 ## 40. Vakansiyalarım: qısa siyahı və sağ panel
 
 Vakansiya kartlarından uzun təsvir mətni çıxarıldı (kart: başlıq, status, say göstəriciləri, maaş, əməliyyatlar). Vakansiyanın başlığına və ya kartın boş yerinə basanda sağda panel açılır (`app/JobDrawer.tsx`): maaş, məşğulluq, təcrübə, sahə, tarixlər, say göstəriciləri, işin təsviri və tələblər (bəndlərə bölünmüş), bacarıqlar, iş şəraiti, daxili məlumat (mərhələlər, yaranma səbəbi, departament), "Müraciətlərə bax" və "Redaktə et". Esc və ya kənara basmaqla bağlanır. Yeni miqrasiya yoxdur.
+
+## 41. Təsdiqlər bölməsi: necə işləyir, ezamiyyət idxalı
+
+**Təsdiqlər** səhifəsi üç hissədən ibarətdir: (1) vakansiya təsdiqi (rekruter/şöbə rəhbəri yaradan vakansiya HR menecerindən sonra direktora gedir; zəncir "Yalnız HR / yalnız direktor / ikisi" seçilir); (2) təklif, maaş dəyişikliyi, işçinin işdən çıxarılması və ştat planı sorğuları (`approval_requests`, qaydalar `company/approval-rules`: hansı əməliyyat təsdiq tələb edir, təklif həddi, maaş faizi həddi); (3) "Əvəzedici": təsdiqləyən məzuniyyətdə olanda səlahiyyətini tarixədək komanda üzvünə ötürür. Sorğunu göndərən özünü təsdiqləyə bilməz; "Məlumat istə" sorğunu göndərənə qaytarır; 5 gündən çox gözləyən sorğu hesab sahibinə bildirilir (cron); statistika və Excel tarixçə var.
+
+Bu sessiyada: səhifənin yuxarısına "Bu bölmə necə işləyir?" izahı (nə təsdiqə düşür, kim təsdiqləyir, təsdiqdən sonra nə olur), sorğular üçün süzgəc (hamısı / mənim qərarımı gözləyən / açıq / bağlanmış), qeyd sahələrinin üslubu. Ezamiyyət Excel idxalı: `parseTrips`, `company/trips/import`, nümunə fayl; yüklənən ezamiyyətlər "təsdiq gözləyir" statusunda yazılır, gündəlik boşdursa rəsmi norma işlənir.
+
+İnkişaf təklifləri: təsdiq zəncirini ümumiləşdirmək (məzuniyyət ərizəsi, ezamiyyət, əmr imzası və xərc hesabatı da eyni gələn qutuya), məbləğə görə pilləli təsdiq (məs. 5000 AZN-dən yuxarı iki direktor), son tarix (SLA) və avtomatik xatırlatma/yüksəltmə, e-poçtla təsdiq (linkdən bir kliklə), mobil bildiriş, təsdiq tarixçəsinin hər sorğunun daxilində zaman xətti, qaydaların şirkət şablonu kimi saxlanması, ən çox gecikənlərin hesabatı.

@@ -389,7 +389,7 @@ import { forecast, monthSeries, planFactAlerts, targetAlerts } from "@/lib/hr-tr
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS, RETENTION_CATEGORIES, cleanOhs, dueState, retentionEnd, retentionYears, textHash } from "@/lib/ohs";
 import { groupTotals, snapshotTotals, turnoverPercent, type MemberFigures } from "@/lib/company-group";
-import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validCard, validIban, type EmployeeProfile } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
@@ -11237,6 +11237,42 @@ async function route(request: Request) {
     if (b.approve === true) await createTripOrder(tripId).catch(() => "");
     if (b.approve === true) await tellEmployee(employee.id, "Ezamiyyətiniz təsdiqləndi", `${destination}, ${start} – ${end}.`);
     return ok({ ok: true, id: tripId }, 201);
+  }
+  // Trips from a spreadsheet: each line is a trip request (HR approves it afterwards); the per-diem follows the same rule as the form.
+  if (request.method === "POST" && path === "company/trips/import") {
+    requirePermission("salaries", "Ezamiyyəti yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseTrips((Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda ezamiyyət tapılmadı.");
+    const refs = await employeeRefs();
+    const issues = [...parsed.issues];
+    const have = new Set((await db.prepare("SELECT employee_id,destination,start_date,end_date FROM trips WHERE company_id=? AND status<>'rejected'").bind(id).all<{ employee_id: string; destination: string; start_date: string; end_date: string }>()).results.map((t) => `${t.employee_id}|${t.destination.toLocaleLowerCase("az")}|${t.start_date}|${t.end_date}`));
+    let created = 0;
+    const told = new Map<string, string>();
+    for (const row of parsed.rows) {
+      const found = matchEmployee(refs, { name: row.name, email: row.email, fin: row.fin });
+      if ("error" in found) {
+        issues.push({ line: row.line, reason: found.error });
+        continue;
+      }
+      const key = `${found.id}|${row.destination.toLocaleLowerCase("az")}|${row.start}|${row.end}`;
+      if (have.has(key)) {
+        issues.push({ line: row.line, reason: `${row.name || row.fin}: bu ezamiyyət artıq yazılıb.` });
+        continue;
+      }
+      const tripId = crypto.randomUUID();
+      const daily = row.daily > 0 ? row.daily : (await defaultDaily(row.destination, row.abroad)).amount;
+      await db.prepare("INSERT INTO trips(id,company_id,employee_id,destination,purpose,start_date,end_date,daily_cents,advance_cents,status,requested_by,decided_by_name,abroad,created) VALUES(?,?,?,?,?,?,?,?,?,'requested','hr','',?,?)")
+        .bind(tripId, id, found.id, row.destination, row.purpose, row.start, row.end, Math.round(daily * 100), Math.round(row.advance * 100), row.abroad ? 1 : 0, new Date().toISOString())
+        .run();
+      have.add(key);
+      created++;
+      if (daily === 0) issues.push({ line: row.line, reason: `${row.name || row.fin}: ezamiyyət yazıldı, amma gündəlik hesablanmadı (${row.abroad ? "xarici norma üçün “Gündəlik normalar və məzənnə”də məzənnəni yazın" : "norma tapılmadı"}); təsdiq zamanı əl ilə yazın.` });
+      told.set(found.id, `${row.destination}, ${row.start} – ${row.end}`);
+    }
+    for (const [employeeId, text] of told) await tellEmployee(employeeId, "Ezamiyyət sorğusu yazıldı", `${text}. Təsdiqdən sonra əmr hazırlanacaq.`);
+    await companyAudit(db, id, userId, "trips-imported", "", `${created} ezamiyyət Excel faylından yüklənib`);
+    return ok({ created, issues });
   }
   if (request.method === "GET" && path === "company/trips/norms") {
     requirePermission("salaries", "Gündəlik normanı yalnız kadr işçisi görə bilər.");

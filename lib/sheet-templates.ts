@@ -5,7 +5,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix" | "perfgoals" | "trainings";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix" | "perfgoals" | "trainings" | "trips";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -362,6 +362,28 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       ["Yanğın təhlükəsizliyi", "Əməyin mühafizəsi", "Daxili", "2026-11-20", "", 2, "", "Planlaşdırılıb", "", "", 12, "", "", ""],
     ],
     rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Eyni ad və başlama tarixi olan təlim artıq varsa, yenisi yaradılmır, yeni iştirakçılar ona əlavə olunur.", "İştirakçılara təlimə dəvət barədə bildiriş gedir. Bacarıq yazılıbsa, təlim bacarıq matrisində hədəfdən aşağı olanlar üçün təklif kimi görünür."],
+  },
+  trips: {
+    title: "Ezamiyyətlər",
+    file: "ezamiyyet-numune.xlsx",
+    sheet: "Ezamiyyətlər",
+    columns: [
+      { header: "İşçi", required: false, format: "Mətn", description: "İşçinin adı. FİN və ya e-poçt yazılıbsa, ad boş ola bilər." },
+      { header: "FİN", required: false, format: "7 simvol", description: "İşçinin FİN kodu; yazılırsa işçi yalnız FİN ilə tapılır." },
+      { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
+      { header: "Təyinat", required: true, format: "Mətn", description: "Şəhər, rayon və ya ölkə. Gündəlik boşdursa rəsmi norma bu yerə görə yazılır." },
+      { header: "Başlama", required: true, format: "GGGG-AA-GG", description: "Ezamiyyətin ilk günü." },
+      { header: "Bitmə", required: false, format: "GGGG-AA-GG", description: "Son gün; boşdursa başlama günü." },
+      { header: "Məqsəd", required: false, format: "Mətn", description: "Ezamiyyətin məqsədi." },
+      { header: "Gündəlik", required: false, format: "Rəqəm, AZN", description: "Boşdursa təyinat yerinin rəsmi normu, tapılmasa şirkətin ümumi norması işlənir." },
+      { header: "Avans", required: false, format: "Rəqəm, AZN", description: "Əvvəlcədən verilən məbləğ." },
+      { header: "Xarici", required: false, format: "Bəli / Xeyr", description: "Xarici ezamiyyətdirsə “Bəli”; xarici norma bu işarəyə görə seçilir." },
+    ],
+    examples: [
+      ["Aysel Məmmədova", "", "", "Gəncə", "2026-12-08", "2026-12-10", "Filialın yoxlanması", "", 100, "Xeyr"],
+      ["Orxan Əliyev", "", "", "İstanbul", "2026-12-15", "2026-12-18", "Tədarükçi ilə görüş", "", 400, "Bəli"],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Yüklənən ezamiyyətlər “sorğu” kimi yazılır: ayrıca “Təsdiqlə” düyməsi ilə təsdiq edilir, sonra əmr hazırlanır. Üst-üstə düşən tarixlərdə eyni təyinatlı ezamiyyət artıq varsa sətir keçilir.", "Xarici norma AZN-ə çevriləndə “Gündəlik normalar və məzənnə”də yazdığınız Mərkəzi Bank məzənnəsi işlənir."],
   },
   questions: {
     title: "Test sualları",

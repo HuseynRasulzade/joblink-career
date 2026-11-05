@@ -892,3 +892,64 @@ export function parseTrainings(rows: string[][], limit = 3000): { rows: Training
   }
   return { rows: out, issues };
 }
+
+// ── Business trips (ezamiyyət): one line per trip; the employee is found by FİN, e-mail or name ──
+export type TripImportRow = { line: number; name: string; email: string; fin: string; destination: string; start: string; end: string; purpose: string; daily: number; advance: number; abroad: boolean };
+type TripField = "name" | "email" | "fin" | "destination" | "start" | "end" | "purpose" | "daily" | "advance" | "abroad";
+const TRIP_ALIASES: Aliases<TripField> = {
+  name: ["isci", "ad soyad", "isci adi", "ad", "name", "employee"],
+  email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
+  destination: ["teyinat", "teyinat yeri", "sehir", "olke", "yer", "destination"],
+  start: ["baslama", "baslama tarixi", "baslangic", "tarixden", "start"],
+  end: ["bitme", "bitme tarixi", "son", "tarixe qeder", "end"],
+  purpose: ["meqsed", "sebeb", "ezamiyyet meqsedi", "purpose"],
+  daily: ["gundelik", "gundelik azn", "gundelik mebleg", "daily"],
+  advance: ["avans", "avans azn", "advance"],
+  abroad: ["xarici", "xarici ezamiyyet", "abroad"],
+};
+export function parseTrips(rows: string[][], limit = 500): { rows: TripImportRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, TRIP_ALIASES, "destination");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Təyinat” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  const out: TripImportRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} sətir yüklənir.` });
+      break;
+    }
+    const name = cell(row, header.map, "name").slice(0, 120);
+    const fin = finOf(cell(row, header.map, "fin"));
+    const who = name || fin || "sətir";
+    if (!name && !fin && !cell(row, header.map, "email")) {
+      issues.push({ line, reason: "İşçi (ad, FİN və ya e-poçt) yazılmayıb." });
+      continue;
+    }
+    const destination = cell(row, header.map, "destination").slice(0, 160);
+    if (destination.length < 2) {
+      issues.push({ line, reason: `${who}: təyinat yeri yazılmayıb.` });
+      continue;
+    }
+    const start = parseDateCell(cell(row, header.map, "start"));
+    const end = parseDateCell(cell(row, header.map, "end")) || start;
+    if (!start) {
+      issues.push({ line, reason: `${who}: başlama tarixi oxunmadı (GGGG-AA-GG).` });
+      continue;
+    }
+    if (end < start) {
+      issues.push({ line, reason: `${who}: bitmə tarixi başlamadan əvvəldir.` });
+      continue;
+    }
+    out.push({
+      line, name, email: cell(row, header.map, "email").slice(0, 160), fin, destination, start, end,
+      purpose: cell(row, header.map, "purpose").slice(0, 300),
+      daily: Math.max(0, parseNumberCell(cell(row, header.map, "daily"))),
+      advance: Math.max(0, parseNumberCell(cell(row, header.map, "advance"))),
+      abroad: yes(cell(row, header.map, "abroad")),
+    });
+  }
+  return { rows: out, issues };
+}

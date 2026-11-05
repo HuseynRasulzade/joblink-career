@@ -2,7 +2,9 @@
   "name": "joblink-career",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-05-15",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "workers_dev": true,
   "preview_urls": true,
   "vars": {
@@ -11,7 +13,6 @@
     "AI_PROVIDER": "openai",
     "ADMIN_EMAIL": "ec.alizade99@gmail.com"
   },
-  "ai": { "binding": "AI" },
   "d1_databases": [
     {
       "binding": "DB",
@@ -20,6 +21,12 @@
       "migrations_dir": "drizzle"
     }
   ],
-  "triggers": { "crons": ["0 5 * * *"] },
-  "observability": { "enabled": false }
+  "triggers": {
+    "crons": [
+      "0 5 * * *"
+    ]
+  },
+  "observability": {
+    "enabled": false
+  }
 }

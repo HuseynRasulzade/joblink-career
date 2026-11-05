@@ -679,11 +679,29 @@ export function ApprovalsPage({
   const decidable = data.jobs.filter((job) => job.canDecide);
   return (
     <div className="company-page">
-      <p className="muted">
-        Şöbə rəhbəri və ya rekruterin yaratdığı vakansiya şirkətin təsdiq
-        zəncirinə görə (standart: əvvəlcə HR meneceri, sonra direktor)
-        təsdiqlənir və yalnız bundan sonra yayımlanır.
-      </p>
+      <details className="panel approval-help" open={!data.jobs.length}>
+        <summary><b>Bu bölmə necə işləyir?</b></summary>
+        <p className="muted">
+          Pul, ştat və ya işçinin işini dəyişən qərarlar bir nəfərin qərarı ilə yox, təsdiq zənciri ilə keçir. Hər sorğu göndərən, təsdiq edən və nəticə ilə bağlı bildirişlə izlənir.
+        </p>
+        <table className="admin-table">
+          <thead><tr><th>Nə təsdiqə düşür</th><th>Kim təsdiqləyir</th><th>Təsdiqdən sonra</th></tr></thead>
+          <tbody>
+            <tr><td>Yeni vakansiya (rekruter və ya şöbə rəhbəri yaradanda)</td><td>Zəncirə görə: HR meneceri → direktor</td><td>Vakansiya yayımlanır</td></tr>
+            <tr><td>İş təklifi</td><td>Direktor (təklif həddindən yuxarı olanlar)</td><td>Təklif namizədə göndərilir</td></tr>
+            <tr><td>Maaş dəyişikliyi</td><td>Direktor (faiz həddindən yuxarı olanlar)</td><td>Maaş işçi kartında dəyişir</td></tr>
+            <tr><td>İşçinin işdən çıxarılması</td><td>Direktor</td><td>İşçi “işdən çıxıb” statusuna keçir, son iş günü yazılır</td></tr>
+            <tr><td>Ştat planı dəyişikliyi</td><td>Direktor</td><td>Ştat planı dəyişir</td></tr>
+          </tbody>
+        </table>
+        <ul className="muted">
+          <li>Sorğunu göndərən öz sorğusunu təsdiqləyə bilməz (hesab sahibi istisnadır).</li>
+          <li>“Məlumat istə” sorğunu göndərənə qaytarır: cavab yazılandan sonra yenidən təsdiqə düşür.</li>
+          <li>5 gündən çox gözləyən sorğu “gecikir” işarəsi alır və hesab sahibinə bildirilir.</li>
+          <li>Məzuniyyət və ya ezamiyyətdə olan təsdiqləyən aşağıdakı “Əvəzedici” bölməsində vəzifəsini komanda üzvünə müvəqqəti ötürür.</li>
+          <li>Qaydaları (hansı əməliyyat təsdiq tələb edir, həddlər, vakansiya zənciri) yalnız direktor və ya hesab sahibi dəyişir.</li>
+        </ul>
+      </details>
       {decidable.length > 1 && (
         <div className="form-actions">
           <button
@@ -993,6 +1011,7 @@ function RequestApprovals({
   const [replies, setReplies] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<string[]>([]);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [show, setShow] = useState<"all" | "mine" | "open" | "closed">("all");
   async function decide(
     item: ApprovalRequest,
     decision: "approve" | "reject" | "info",
@@ -1068,9 +1087,17 @@ function RequestApprovals({
     onChange();
   }
   const decidable = data?.requests.filter((item) => item.canDecide) || [];
+  const shown = (data?.requests || []).filter((item) =>
+    show === "mine" ? item.canDecide : show === "open" ? item.status === "pending" || item.status === "info" : show === "closed" ? item.status === "approved" || item.status === "rejected" : true,
+  );
   return (
     <section className="panel">
       <h3>Təklif, maaş, işdən çıxarılma və ştat təsdiqləri</h3>
+      <div className="approval-filter" role="group" aria-label="Sorğuları süz">
+        {([["all", "Hamısı"], ["mine", `Mənim qərarımı gözləyən (${decidable.length})`], ["open", "Açıq"], ["closed", "Bağlanmış"]] as const).map(([key, label]) => (
+          <button key={key} type="button" className={show === key ? "primary" : "secondary"} aria-pressed={show === key} onClick={() => setShow(key)}>{label}</button>
+        ))}
+      </div>
       {stats && (
         <p className="muted">
           Gözləyən: <b>{stats.pending}</b> · Məlumat gözləyən:{" "}
@@ -1218,7 +1245,7 @@ function RequestApprovals({
           </button>
         </div>
       )}
-      {data?.requests.map((item) => (
+      {shown.map((item) => (
         <article key={item.id} className="approval-card">
           {item.canDecide && decidable.length > 1 && (
             <label className="approval-pick">
@@ -1313,9 +1340,9 @@ function RequestApprovals({
           )}
         </article>
       ))}
-      {data && !data.requests.length && (
+      {data && !shown.length && (
         <p className="admin-empty">
-          Təsdiq gözləyən təklif və ya maaş dəyişikliyi yoxdur.
+          {show === "mine" ? "Sizin qərarınızı gözləyən sorğu yoxdur." : "Təsdiq gözləyən təklif və ya maaş dəyişikliyi yoxdur."}
         </p>
       )}
     </section>
