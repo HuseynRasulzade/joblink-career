@@ -127,6 +127,7 @@ test("approval rules and substitute dates", () => {
     chain: "both",
     offerMin: 0,
     raisePercent: 0,
+    approvers: { offer: [], salary: [], exit: [], headcount: [] },
   });
   assert.deepEqual(normalizeApprovalRules(null), {
     offers: false,
@@ -136,6 +137,7 @@ test("approval rules and substitute dates", () => {
     chain: "both",
     offerMin: 0,
     raisePercent: 0,
+    approvers: { offer: [], salary: [], exit: [], headcount: [] },
   });
   assert.equal(
     needsDirector(normalizeApprovalRules({ offers: true }), "offer", false),
