@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, TriangleAlert, X } from "lucide-react";
 import { bakuLocal } from "@/lib/interviews";
+import { STAGE_CATALOG, stageInfo, type StageInfo } from "@/lib/recruitment";
 import { Field } from "./components";
 
 type Person = { userId: string; name: string; role: string };
@@ -32,8 +33,6 @@ export function PanelFields({
   ignoreId,
   value,
   onChange,
-  round,
-  onRound,
   onConflicts,
 }: {
   jobId: string;
@@ -45,19 +44,13 @@ export function PanelFields({
   ignoreId?: string;
   value: { userId: string; role: string }[];
   onChange: (list: { userId: string; role: string }[]) => void;
-  round: string;
-  onRound: (round: string) => void;
   onConflicts?: (list: Conflict[]) => void;
 }) {
   const [people, setPeople] = useState<Person[]>([]);
-  const [rounds, setRounds] = useState<string[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   useEffect(() => {
-    call<{ people: Person[]; rounds: string[] }>("hr/interviews/people")
-      .then((d) => {
-        setPeople(d.people);
-        setRounds(d.rounds);
-      })
+    call<{ people: Person[] }>("hr/interviews/people")
+      .then((d) => setPeople(d.people))
       .catch(() => {});
   }, []);
   const key = JSON.stringify([jobId, applicationId, candidateId, count, scheduledAt, durationMin, ignoreId, value.map((v) => v.userId)]);
@@ -83,10 +76,6 @@ export function PanelFields({
   const toggle = (p: Person) => onChange(chosen(p.userId) ? value.filter((v) => v.userId !== p.userId) : [...value, { userId: p.userId, role: p.role }]);
   return (
     <>
-      <Field label="Mərhələ">
-        <input list="iv-rounds" value={round} placeholder="Məsələn: HR müsahibəsi" onChange={(e) => onRound(e.target.value)} />
-        <datalist id="iv-rounds">{rounds.map((r) => <option key={r} value={r} />)}</datalist>
-      </Field>
       <fieldset className="iv-people">
         <legend>Kimlər iştirak edəcək (əvvəl onlar təsdiqləyir, sonra namizədə göndərilir)</legend>
         {people.length ? people.map((p) => (
@@ -109,6 +98,103 @@ export function PanelFields({
   );
 }
 
+
+type StageOptions = { stages: string[]; tests: { id: string; title: string; question_count: number; duration_min: number }[]; guide: { name: string; questions: string[] } | null; canTests: boolean };
+// The stage of the selection this meeting or test belongs to (the vacancy's own stages, else the standard names), a test to send
+// with it and the questions to ask. A "test" stage sends a test instead of setting a time.
+export function StageFields({
+  jobId,
+  stage,
+  onStage,
+  testId,
+  onTest,
+  questions,
+  onQuestions,
+  allowTest = true,
+}: {
+  jobId: string;
+  stage: string;
+  onStage: (info: StageInfo) => void;
+  testId: string;
+  onTest: (id: string) => void;
+  questions: string;
+  onQuestions: (text: string) => void;
+  allowTest?: boolean;
+}) {
+  const [opts, setOpts] = useState<StageOptions | null>(null);
+  const [custom, setCustom] = useState(false);
+  useEffect(() => {
+    if (!jobId) return;
+    call<StageOptions>(`hr/interviews/people?jobId=${encodeURIComponent(jobId)}`)
+      .then((d) => {
+        setOpts(d);
+        if (!questions && d.guide?.questions.length) onQuestions(d.guide.questions.join("\n"));
+      })
+      .catch(() => {});
+    // Loaded once per vacancy.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId]);
+  const names = opts?.stages.length ? opts.stages : STAGE_CATALOG.map((c) => c.name);
+  const info = stageInfo(stage);
+  const isTest = !!stage && info.type === "test";
+  const known = names.includes(stage);
+  return (
+    <>
+      <Field label="Mərhələ (vakansiyanın seçim mərhələləri)">
+        <select
+          value={custom ? "__custom" : known ? stage : stage ? "__custom" : ""}
+          onChange={(e) => {
+            if (e.target.value === "__custom") {
+              setCustom(true);
+              return;
+            }
+            setCustom(false);
+            onStage(e.target.value ? stageInfo(e.target.value) : { name: "", type: "interview" });
+          }}
+        >
+          <option value="">Mərhələ seçilməyib</option>
+          {names.map((n) => <option key={n} value={n}>{n}{stageInfo(n).type === "test" ? " (test)" : ""}</option>)}
+          <option value="__custom">Digər (özüm yazım)…</option>
+        </select>
+      </Field>
+      {(custom || (!!stage && !known)) && (
+        <Field label="Mərhələnin adı"><input value={stage} placeholder="Məsələn: Direktorla söhbət" onChange={(e) => onStage(stageInfo(e.target.value))} /></Field>
+      )}
+      {opts && !opts.stages.length && <p className="iv-stage-hint">Bu vakansiyada seçim mərhələləri yazılmayıb, standart mərhələlər göstərilir. Vakansiyanı redaktə edəndə öz mərhələlərinizi əlavə edə bilərsiniz.</p>}
+      {allowTest && opts?.canTests && (isTest || opts.tests.length > 0) && (
+        <div className="iv-test-box">
+          <Field label={isTest ? "Göndəriləcək test" : "Görüşlə birlikdə test də göndər (istəyə bağlı)"}>
+            <select value={testId} onChange={(e) => onTest(e.target.value)}>
+              <option value="">{isTest ? "Test seçin" : "Test göndərilməsin"}</option>
+              {opts.tests.map((t) => <option key={t.id} value={t.id}>{t.title} · {t.question_count} sual · {t.duration_min} dəq</option>)}
+            </select>
+          </Field>
+          {isTest && <p className="iv-stage-hint">Bu test mərhələsidir: vaxt təyin etmək lazım deyil, test namizədə göndərilir və nəticəsi “Testlər” bölməsində görünür.</p>}
+          {isTest && !opts.tests.length && <p className="iv-stage-hint">Bu vakansiya üçün test yoxdur. Əvvəlcə “Testlər” bölməsində test yaradın.</p>}
+        </div>
+      )}
+      {allowTest && isTest && opts && !opts.canTests && <p className="iv-stage-hint">Test göndərmək üçün icazəniz yoxdur.</p>}
+      {!isTest && (
+        <Field label="Bu mərhələdə veriləcək suallar (daxili, hər sətir bir sual)">
+          <textarea rows={4} value={questions} placeholder="Suallar vakansiyanın siyahısından doldurulur; dəyişə bilərsiniz" onChange={(e) => onQuestions(e.target.value)} />
+        </Field>
+      )}
+    </>
+  );
+}
+
+// The questions planned for a meeting, shown to the colleagues who take part.
+export function QuestionList({ value }: { value?: string | string[] }) {
+  const list = Array.isArray(value) ? value : (() => { try { return JSON.parse(value || "[]") as string[]; } catch { return []; } })();
+  if (!list.length) return null;
+  return (
+    <details className="iv-questions">
+      <summary>Bu mərhələdə veriləcək suallar ({list.length})</summary>
+      <ol>{list.map((q, n) => <li key={n}>{q}</li>)}</ol>
+    </details>
+  );
+}
+
 // The chain a meeting goes through: colleagues first, then the candidate.
 export function PanelChain({ status, participants }: { status: string; participants?: Participant[] }) {
   if (!participants?.length) return null;
@@ -127,7 +213,7 @@ export function PanelChain({ status, participants }: { status: string; participa
   );
 }
 
-export type MyRequest = { id: string; scheduled_at: string; duration_min: number; kind: string; location: string; note: string; round: string; role: string; job_title: string; candidate: string };
+export type MyRequest = { id: string; scheduled_at: string; duration_min: number; kind: string; location: string; note: string; round: string; questions?: string | string[]; role: string; job_title: string; candidate: string };
 // Requests that wait for my own answer.
 export function MyRequests({ items, onDone, notify }: { items: MyRequest[]; onDone: () => void; notify: (m: string) => void }) {
   if (!items.length) return null;
@@ -156,6 +242,7 @@ export function MyRequests({ items, onDone, notify }: { items: MyRequest[]; onDo
             <h3>{r.candidate || "Namizəd"} · {r.job_title}</h3>
             <p>{r.round ? `${r.round} · ` : ""}{r.duration_min} dəq{r.location ? ` · ${r.location}` : ""}</p>
             <p className="muted">Rolunuz: {r.role}{r.note ? ` · ${r.note}` : ""}</p>
+            <QuestionList value={r.questions} />
           </div>
           <div className="iv-actions">
             <button className="primary" onClick={() => answer(r.id, true)}><Check size={14} /> Təsdiqlə</button>

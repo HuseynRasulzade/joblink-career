@@ -1496,6 +1496,8 @@ export const interviews = sqliteTable(
     remindedAt: text("reminded_at").notNull().default(""),
     // The round of the selection this interview belongs to, e.g. "HR müsahibəsi".
     round: text("round").notNull().default(""),
+    // Questions to ask at this meeting (internal: the colleagues see them, the candidate does not).
+    questions: text("questions").notNull().default("[]"),
     panel: text("panel").notNull().default(""),
     slots: text("slots").notNull().default("[]"),
     created: text("created").notNull(),

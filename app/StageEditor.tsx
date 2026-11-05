@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
-import { DEFAULT_STAGES } from "@/lib/recruitment";
+import { DEFAULT_STAGES, STAGE_CATALOG } from "@/lib/recruitment";
 import { siteLanguage, translate } from "./i18n";
 
 const t = (text: string) => translate(text, siteLanguage());
@@ -36,6 +36,13 @@ export default function StageEditor({ value, onChange }: { value: string[] | und
           </li>
         ))}
       </ol>
+      <div className="stage-catalog" role="group" aria-label={t("Hazır mərhələlər")}>
+        {STAGE_CATALOG.filter((c) => !stages.includes(c.name)).map((c) => (
+          <button key={c.name} type="button" className="secondary" disabled={stages.length >= 8} onClick={() => add(c.name)}>
+            + {t(c.name)}
+          </button>
+        ))}
+      </div>
       <div className="stage-add">
         <input
           value={draft}

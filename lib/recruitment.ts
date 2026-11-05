@@ -9,6 +9,36 @@ export const VACANCY_REASONS: { id: string; label: string; labelEn: string }[] =
   { id: "other", label: "Digər", labelEn: "Other" },
 ];
 export const DEFAULT_STAGES = ["CV-nin yoxlanılması", "Telefon müsahibəsi", "Texniki müsahibə / test", "Yekun müsahibə"];
+
+// The one list of selection stages: the vacancy form, the pipeline and the interview window all use these names.
+// "interview" stages have a time and a place (kind), "test" stages send a test, "review" stages are internal checks.
+export type StageType = "review" | "interview" | "test";
+export type StageInfo = { name: string; type: StageType; kind?: "onsite" | "online" | "phone" };
+export const STAGE_CATALOG: StageInfo[] = [
+  { name: "CV-nin yoxlanılması", type: "review" },
+  { name: "Telefon müsahibəsi", type: "interview", kind: "phone" },
+  { name: "Onlayn görüş", type: "interview", kind: "online" },
+  { name: "Üz-üzə görüş", type: "interview", kind: "onsite" },
+  { name: "Test", type: "test" },
+  { name: "Texniki tapşırıq", type: "test" },
+  { name: "Texniki müsahibə", type: "interview", kind: "online" },
+  { name: "Rəhbər müsahibəsi", type: "interview", kind: "onsite" },
+  { name: "Yekun müsahibə", type: "interview", kind: "onsite" },
+  { name: "Arayış və sənəd yoxlaması", type: "review" },
+];
+const fold = (v: string) => v.toLocaleLowerCase("az").replace(/ə/g, "e").replace(/ı/g, "i").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g");
+// What a stage named by the employer is: a catalog entry, else guessed from its words.
+export function stageInfo(name: string): StageInfo {
+  const exact = STAGE_CATALOG.find((s) => s.name === name);
+  if (exact) return exact;
+  const f = fold(name);
+  if (/\b(test|tapsir(?:iq|ig)|quiz|imtahan)/.test(f)) return { name, type: "test" };
+  if (/onlayn|online|zoom|meet/.test(f)) return { name, type: "interview", kind: "online" };
+  if (/telefon|zeng/.test(f)) return { name, type: "interview", kind: "phone" };
+  if (/muasahibe|musahibe|gorus|uz-uze|uz uze|ofis/.test(f)) return { name, type: "interview", kind: "onsite" };
+  if (/cv|yoxlan|arayis|sened|tehlukesizlik/.test(f)) return { name, type: "review" };
+  return { name, type: "interview", kind: "onsite" };
+}
 export const APPLICATION_STATUSES = [
   "Göndərildi",
   "Baxışda",
