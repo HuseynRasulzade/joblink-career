@@ -415,3 +415,13 @@ Texniki: miqrasiya 0096 (`skill_defs.catalog_id`), `lib/skill-matrix.ts` (testl�
 - Hər iki fayl üçün nümunə fayl və təlimat vərəqi var (testlə oxunur), yükləmədən əvvəl önizləmə göstərilir.
 
 Texniki: `parsePerfGoals`, `parseTrainings`, `company/performance/goals-import`, `company/training/import`. Yeni miqrasiya yoxdur.
+
+## 32. Plan-fakt hesabatında planı təyin etmək
+
+Hesabatlar → "Kadr dinamikası, proqnoz və plan-fakt" səhifəsində plan artıq yalnız oxunmur, orada təyin olunur (ştat planı icazəsi olan istifadəçi üçün):
+
+- **Aylıq hədəf işçi sayı:** il seçilir, hər ay üçün şirkətdə olmalı say yazılır və ya "ilin sonuna hədəf" yazılıb "Bərabər paylaşdır" ilə cari saydan həmin hədəfə qədər aylara bölünür (düzəliş etmək olar). Plan qrafikdə narıncı nöqtəli xətt kimi görünür.
+- **Sapma xəbərdarlığı:** son 3 ayda faktiki say plandan 5%-dən çox (ən azı 1 nəfər) kənara çıxırsa: azdırsa "işə qəbul lazım ola bilər" (sarı), artıqdırsa qırmızı xəbərdarlıq.
+- **Departament planı yerində:** departament bir ştat sətridirsə, plan sayı birbaşa dəyişdirilir (ştat planı kilidlidirsə dəyişiklik direktorun təsdiqinə gedir); bir neçə sətir varsa, ştat cədvəlində dəyişdirilir.
+
+Texniki: miqrasiya 0097 (`headcount_targets`), `linearTargets` və `targetAlerts` (`lib/hr-trends.ts`, testlə), `POST company/hr-trends/targets` (icazə: ştat planı).

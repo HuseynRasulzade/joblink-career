@@ -1,14 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { linearTargets } from "@/lib/hr-trends";
 
 type Notify = (message: string) => void;
 type Series = { month: string; headcount: number; joined: number; left: number; turnover: number };
-type Data = { series: Series[]; forecast: { month: string; headcount: number }[]; planFact: { department: string; planned: number; filled: number; unplaced: number }[]; alerts: { level: "red" | "amber"; text: string }[]; planned: number; filled: number };
+type Data = { targets: Record<string, number>; canPlan: boolean; series: Series[]; forecast: { month: string; headcount: number }[]; planFact: { department: string; planned: number; filled: number; unplaced: number; units: number }[]; alerts: { level: "red" | "amber"; text: string }[]; planned: number; filled: number };
 
 const W = 640, H = 220, PAD = 36;
 // Headcount line with the forecast dashed, joiners and leavers as bars below: plain SVG, no library.
-function Chart({ series, forecast }: { series: Series[]; forecast: Data["forecast"] }) {
-  const all = [...series.map((s) => s.headcount), ...forecast.map((f) => f.headcount)];
+function Chart({ series, forecast, targets }: { series: Series[]; forecast: Data["forecast"]; targets: Record<string, number> }) {
+  const months = [...series.map((s) => s.month), ...forecast.map((f) => f.month)];
+  const planPoints = months.map((m, i) => (targets[m] === undefined ? null : { i, v: targets[m] })).filter((p): p is { i: number; v: number } => p !== null);
+  const all = [...series.map((s) => s.headcount), ...forecast.map((f) => f.headcount), ...planPoints.map((p) => p.v)];
   const max = Math.max(1, ...all);
   const min = Math.max(0, Math.min(...all) - 1);
   const count = series.length + forecast.length;
@@ -17,11 +20,14 @@ function Chart({ series, forecast }: { series: Series[]; forecast: Data["forecas
   const line = series.map((s, i) => `${i ? "L" : "M"}${x(i)},${y(s.headcount)}`).join(" ");
   const dash = [series[series.length - 1] && { headcount: series[series.length - 1].headcount }, ...forecast].map((f, i) => `${i ? "L" : "M"}${x(series.length - 1 + i)},${y(f.headcount)}`).join(" ");
   const barMax = Math.max(1, ...series.map((s) => Math.max(s.joined, s.left)));
+  const planPath = planPoints.map((p, k) => `${k ? "L" : "M"}${x(p.i)},${y(p.v)}`).join(" ");
   return (
     <svg viewBox={`0 0 ${W} ${H + 90}`} role="img" aria-label="İşçi sayının aylar üzrə dəyişməsi və proqnoz" style={{ width: "100%", maxWidth: W }}>
       <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke="currentColor" opacity={0.2} />
       <text x={4} y={y(max) + 4} fontSize={11} fill="currentColor">{max}</text>
       <text x={4} y={y(min) + 4} fontSize={11} fill="currentColor">{min}</text>
+      {planPath && <path d={planPath} fill="none" stroke="#b45309" strokeWidth={2} strokeDasharray="2 4" />}
+      {planPoints.map((p) => <circle key={p.i} cx={x(p.i)} cy={y(p.v)} r={3} fill="#b45309"><title>{`${months[p.i]}: plan ${p.v}`}</title></circle>)}
       <path d={line} fill="none" stroke="var(--accent, #0f766e)" strokeWidth={2.5} />
       {forecast.length > 0 && <path d={dash} fill="none" stroke="var(--accent, #0f766e)" strokeWidth={2.5} strokeDasharray="6 5" opacity={0.7} />}
       {series.map((s, i) => (
@@ -42,7 +48,7 @@ function Chart({ series, forecast }: { series: Series[]; forecast: Data["forecas
           <text x={x(series.length + i)} y={H - PAD + 16} fontSize={10} textAnchor="middle" fill="currentColor" opacity={0.7}>{f.month.slice(2)}</text>
         </g>
       ))}
-      <text x={PAD} y={H + 75} fontSize={11} fill="currentColor">Yaşıl: işə qəbul · Qırmızı: çıxış · Qırıq xətt: proqnoz</text>
+      <text x={PAD} y={H + 75} fontSize={11} fill="currentColor">Yaşıl: işə qəbul · Qırmızı: çıxış · Qırıq xətt: proqnoz · Narıncı nöqtəli xətt: plan</text>
     </svg>
   );
 }
@@ -66,9 +72,97 @@ function PlanBars({ rows }: { rows: Data["planFact"] }) {
   );
 }
 
+async function post(path: string, body: unknown) {
+  const r = await fetch(`/api/joblink/${path}`, { method: "POST", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = (await r.json().catch(() => ({}))) as { error?: string; pending?: boolean };
+  if (!r.ok) throw new Error(d.error || "Saxlanmadı.");
+  return d;
+}
+
+// The plan of a year: one figure for each month, or a year-end figure spread in a straight line from today's number.
+function PlanEditor({ data, notify, onSaved }: { data: Data; notify: Notify; onSaved: () => void }) {
+  const now = data.series[data.series.length - 1]?.month || new Date().toISOString().slice(0, 7);
+  const [year, setYear] = useState(now.slice(0, 4));
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [end, setEnd] = useState("");
+  const [busy, setBusy] = useState(false);
+  const months = useMemo(() => Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`), [year]);
+  const shown = (m: string) => (values[m] !== undefined ? values[m] : data.targets[m] !== undefined ? String(data.targets[m]) : "");
+  const current = data.series[data.series.length - 1]?.headcount ?? 0;
+  function spread() {
+    const target = Number(end);
+    if (!Number.isFinite(target) || target < 0) return notify("İlin sonuna hədəf işçi sayını yazın.");
+    const from = year === now.slice(0, 4) ? now : `${year}-01`;
+    const start = year === now.slice(0, 4) ? current : data.targets[`${Number(year) - 1}-12`] ?? current;
+    const next: Record<string, string> = { ...values };
+    for (const t of linearTargets(start, target, from, `${year}-12`)) next[t.month] = String(t.target);
+    setValues(next);
+  }
+  async function save() {
+    const list = months.filter((m) => values[m] !== undefined).map((m) => ({ month: m, target: values[m] === "" ? null : Number(values[m]) }));
+    if (!list.length) return notify("Dəyişiklik yoxdur.");
+    setBusy(true);
+    try {
+      await post("company/hr-trends/targets", { targets: list });
+      notify(`${year} planı saxlanıldı.`);
+      setValues({});
+      onSaved();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="panel">
+      <h4 style={{ marginTop: 0 }}>Planı təyin et: aylıq hədəf işçi sayı</h4>
+      <p className="muted">Hər ay üçün şirkətdə olmalı işçi sayını yazın. Plan qrafikdə narıncı xətt kimi görünür; faktiki say plandan 5%-dən çox (ən azı 1 nəfər) kənara çıxanda xəbərdarlıq çıxır.</p>
+      <div className="admin-actions" style={{ flexWrap: "wrap" }}>
+        <select aria-label="İl" value={year} onChange={(e) => { setYear(e.target.value); setValues({}); }}>
+          {[Number(now.slice(0, 4)), Number(now.slice(0, 4)) + 1].map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <input inputMode="numeric" aria-label="İlin sonuna hədəf" placeholder={`Dekabr hədəfi (indi ${current})`} style={{ width: 190 }} value={end} onChange={(e) => setEnd(e.target.value)} />
+        <button type="button" className="secondary" onClick={spread}>Bərabər paylaşdır</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 8, margin: "10px 0", maxWidth: 720 }}>
+        {months.map((m) => (
+          <label key={m} style={{ display: "grid", gap: 2, fontSize: 12, minWidth: 0 }}>
+            {m.slice(5)}. ay
+            <input inputMode="numeric" aria-label={`${m} planı`} style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }} value={shown(m)} onChange={(e) => setValues({ ...values, [m]: e.target.value })} />
+          </label>
+        ))}
+      </div>
+      <div className="admin-actions">
+        <button type="button" className="primary" disabled={busy} onClick={() => void save()}>Planı saxla</button>
+      </div>
+    </div>
+  );
+}
+
+// A department's own plan, changed on the spot when it is one row of the staff table (more rows are changed in the table).
+function DeptPlan({ row, notify, onSaved }: { row: Data["planFact"][number]; notify: Notify; onSaved: () => void }) {
+  const [value, setValue] = useState(String(row.planned));
+  async function save() {
+    try {
+      const r = await post("company/headcount/save", { department: row.department, planned: value === "" ? null : Number(value) });
+      notify(r.pending ? "Ştat planı kilidlidir: dəyişiklik direktorun təsdiqinə göndərildi." : "Departament planı saxlanıldı.");
+      onSaved();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  if (row.units > 1) return <small className="muted">{row.units} sətir: ştat cədvəlində dəyişin</small>;
+  return (
+    <span className="admin-actions">
+      <input inputMode="numeric" aria-label={`${row.department} planı`} style={{ width: 64 }} value={value} onChange={(e) => setValue(e.target.value)} />
+      <button type="button" disabled={value === String(row.planned)} onClick={() => void save()}>Saxla</button>
+    </span>
+  );
+}
+
 export default function HrTrends({ notify }: { notify: Notify }) {
   const [data, setData] = useState<Data | null>(null);
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch("/api/joblink/company/hr-trends", { credentials: "same-origin", cache: "no-store" })
       .then(async (r) => {
         const d = (await r.json().catch(() => ({}))) as Data & { error?: string };
@@ -77,6 +171,7 @@ export default function HrTrends({ notify }: { notify: Notify }) {
       })
       .catch((e) => notify((e as Error).message));
   }, [notify]);
+  useEffect(load, [load]);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const last = data.series[data.series.length - 1];
   return (
@@ -88,7 +183,8 @@ export default function HrTrends({ notify }: { notify: Notify }) {
         <div className="panel" style={{ flex: "1 1 140px" }}><small className="muted">Bu ay dövriyyə</small><div style={{ fontSize: 22, fontWeight: 700 }}>{last?.turnover ?? 0}%</div></div>
         <div className="panel" style={{ flex: "1 1 140px" }}><small className="muted">3 aya proqnoz</small><div style={{ fontSize: 22, fontWeight: 700 }}>{data.forecast[data.forecast.length - 1]?.headcount ?? "—"}</div></div>
       </div>
-      <div className="panel"><Chart series={data.series} forecast={data.forecast} /></div>
+      <div className="panel"><Chart series={data.series} forecast={data.forecast} targets={data.targets} /></div>
+      {data.canPlan && <PlanEditor data={data} notify={notify} onSaved={load} />}
       <h4>Plan-fakt: ştat cədvəli və faktiki işçi</h4>
       {!!data.alerts.length && (
         <ul style={{ paddingLeft: 18 }}>
@@ -97,7 +193,7 @@ export default function HrTrends({ notify }: { notify: Notify }) {
           ))}
         </ul>
       )}
-      {data.planFact.length ? <div className="panel"><PlanBars rows={data.planFact} /><small className="muted">Qırıq çərçivə: ştat · dolu zolaq: faktiki (qırmızı: ştatdan artıq)</small></div> : <p className="admin-empty">Ştat cədvəli hələ doldurulmayıb.</p>}
+      {data.planFact.length ? <div className="panel"><PlanBars rows={data.planFact} />{data.canPlan && (<div style={{ margin: "10px 0" }}><b>Departament planını dəyiş</b>{data.planFact.map((r) => (<div key={r.department} style={{ display: "flex", gap: 8, alignItems: "center", margin: "4px 0" }}><span style={{ width: 150 }}>{r.department || "Departamentsiz"}</span><DeptPlan row={r} notify={notify} onSaved={load} /></div>))}</div>)}<small className="muted">Qırıq çərçivə: ştat · dolu zolaq: faktiki (qırmızı: ştatdan artıq)</small></div> : <p className="admin-empty">Ştat cədvəli hələ doldurulmayıb.</p>}
     </div>
   );
 }

@@ -374,7 +374,7 @@ import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode,
 import { resolveCatalogSkill, searchCatalog, type CatalogSkill } from "@/lib/skill-matrix";
 import { parsePhotoDataUrl } from "@/lib/photo";
 import { GEO_MODES, checkLocation, validPoint, type GeoMode, type Office } from "@/lib/geofence";
-import { forecast, monthSeries, planFactAlerts } from "@/lib/hr-trends";
+import { forecast, monthSeries, planFactAlerts, targetAlerts } from "@/lib/hr-trends";
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS, RETENTION_CATEGORIES, cleanOhs, dueState, retentionEnd, retentionYears, textHash } from "@/lib/ohs";
 import { groupTotals, snapshotTotals, turnoverPercent, type MemberFigures } from "@/lib/company-group";
@@ -13455,7 +13455,33 @@ async function route(request: Request) {
     const plan = await loadPlanData(db, id);
     const fact = summarize(plan.units, plan.people);
     const planFact = fact.departments.map((d) => ({ department: d.department, planned: d.planned, filled: d.filled, unplaced: d.unplaced }));
-    return ok({ series, forecast: forecast(series, 3, 6), planFact, alerts: planFactAlerts(planFact), planned: fact.total.planned, filled: fact.total.filled });
+    const targets: Record<string, number> = {};
+    for (const t of (await db.prepare("SELECT month,target FROM headcount_targets WHERE company_id=? ORDER BY month").bind(id).all<{ month: string; target: number }>().catch(() => ({ results: [] as { month: string; target: number }[] }))).results) targets[t.month] = t.target;
+    const units = new Map(fact.departments.map((d) => [d.department, d.units]));
+    return ok({ series, forecast: forecast(series, 3, 6), planFact: planFact.map((r) => ({ ...r, units: units.get(r.department) || 0 })), alerts: [...targetAlerts(series, targets), ...planFactAlerts(planFact)], planned: fact.total.planned, filled: fact.total.filled, targets, canPlan: canAct("staff") });
+  }
+  // The planned number of people per month: written here, shown as the plan line of the chart.
+  if (request.method === "POST" && path === "company/hr-trends/targets") {
+    requirePermission("salaries", "Plan hədəfini yalnız ştat planı icazəsi olan şəxs yaza bilər.");
+    const b = await jsonBody(request);
+    const list = (Array.isArray(b.targets) ? b.targets : []).slice(0, 60) as { month?: unknown; target?: unknown }[];
+    if (!list.length) throw new HttpError(400, "Plan hədəfi yazılmayıb.");
+    const now = new Date().toISOString();
+    const statements: D1PreparedStatement[] = [];
+    for (const t of list) {
+      const month = String(t.month ?? "");
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpError(400, `Ay düzgün deyil: “${month}”.`);
+      if (t.target === null || t.target === "") {
+        statements.push(db.prepare("DELETE FROM headcount_targets WHERE company_id=? AND month=?").bind(id, month));
+        continue;
+      }
+      const target = Math.round(Number(t.target));
+      if (!Number.isFinite(target) || target < 0 || target > 100000) throw new HttpError(400, `${month}: plan 0–100000 arası olmalıdır.`);
+      statements.push(db.prepare("INSERT INTO headcount_targets(company_id,month,target,updated,updated_by) VALUES(?,?,?,?,?) ON CONFLICT(company_id,month) DO UPDATE SET target=excluded.target,updated=excluded.updated,updated_by=excluded.updated_by").bind(id, month, target, now, userId));
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "headcount-targets", "", `${list.length} ay üçün plan yazıldı`);
+    return ok({ ok: true });
   }
   if (request.method === "GET" && path === "company/workforce") {
     requirePermission("reports");

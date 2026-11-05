@@ -142,6 +142,7 @@ export const GRANTABLE: { id: CompanyPermission; label: string; group: string; d
 // The HR endpoints behind the one broad "salaries" check each need their own permission.
 const PATH_PERMISSION: [RegExp, CompanyPermission][] = [
   [/^company\/(staff|headcount|org-names|structure)(\/|$)/, "staff"],
+  [/^company\/hr-trends\/targets$/, "staff"],
   [/^company\/payroll(\/|$)/, "payroll"],
   [/^company\/hr-report(\/|$)/, "payroll"],
   [/^company\/hours(\/|$)/, "attendance"],

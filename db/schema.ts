@@ -1757,3 +1757,10 @@ export const employeePhotos = sqliteTable(
   },
   (t) => [index("employee_photos_company").on(t.companyId)],
 );
+
+// The planned number of people for a month, set by the company in the plan-against-fact report.
+export const headcountTargets = sqliteTable(
+  "headcount_targets",
+  { companyId: text("company_id").notNull(), month: text("month").notNull(), target: integer("target").notNull(), updated: text("updated").notNull(), updatedBy: text("updated_by").notNull().default("") },
+  (t) => [primaryKey({ columns: [t.companyId, t.month] })],
+);

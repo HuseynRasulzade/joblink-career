@@ -61,3 +61,26 @@ export function planFactAlerts(rows: PlanFactRow[]): PlanFactAlert[] {
   }
   return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "red" ? -1 : 1));
 }
+
+// The months from `fromMonth` to `toMonth` with the figure moving in a straight line from `start` to `end`, rounded to whole people.
+export function linearTargets(start: number, end: number, fromMonth: string, toMonth: string): { month: string; target: number }[] {
+  const months: string[] = [];
+  for (let m = fromMonth; m <= toMonth && months.length < 60; m = addMonth(m, 1)) months.push(m);
+  if (!months.length) return [];
+  const steps = Math.max(1, months.length - 1);
+  return months.map((month, i) => ({ month, target: Math.max(0, Math.round(start + ((end - start) * i) / steps)) }));
+}
+
+// How far the last months are from the plan: under the plan is a hiring need, over the plan is a cost problem.
+export function targetAlerts(series: MonthPoint[], targets: Record<string, number>, last = 3): PlanFactAlert[] {
+  const out: PlanFactAlert[] = [];
+  for (const p of series.slice(-last)) {
+    const target = targets[p.month];
+    if (target === undefined) continue;
+    const diff = p.headcount - target;
+    const allowed = Math.max(1, Math.round(target * 0.05));
+    if (Math.abs(diff) <= allowed) continue;
+    out.push(diff < 0 ? { level: "amber", text: `${p.month}: plan ${target}, faktiki ${p.headcount} — plandan ${-diff} nəfər azdır (işə qəbul lazım ola bilər).` } : { level: "red", text: `${p.month}: plan ${target}, faktiki ${p.headcount} — plandan ${diff} nəfər artıqdır.` });
+  }
+  return out;
+}

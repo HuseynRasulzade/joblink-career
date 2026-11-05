@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { forecast, monthSeries, planFactAlerts } from "../lib/hr-trends.ts";
+import { forecast, linearTargets, monthSeries, planFactAlerts, targetAlerts } from "../lib/hr-trends.ts";
 
 const people = [
   { startDate: "2025-01-10", endDate: "", status: "active" },
@@ -37,4 +37,20 @@ test("plan against fact warns about people over the plan and about many free pla
   assert.equal(a[0].level, "red");
   assert.equal(a[a.length - 1].level, "amber");
   assert.match(a[0].text, /artıqdır/);
+});
+
+test("a plan spread in a straight line reaches the year-end figure", () => {
+  const t = linearTargets(40, 52, "2026-11", "2027-02");
+  assert.deepEqual(t.map((x) => [x.month, x.target]), [["2026-11", 40], ["2026-12", 44], ["2027-01", 48], ["2027-02", 52]]);
+  assert.deepEqual(linearTargets(10, 20, "2026-11", "2026-11"), [{ month: "2026-11", target: 10 }]);
+  assert.deepEqual(linearTargets(10, 20, "2026-12", "2026-11"), []);
+});
+
+test("months far from the plan are reported, small differences are not", () => {
+  const series = [{ month: "2026-09", headcount: 40, joined: 0, left: 0, turnover: 0 }, { month: "2026-10", headcount: 36, joined: 0, left: 0, turnover: 0 }, { month: "2026-11", headcount: 47, joined: 0, left: 0, turnover: 0 }];
+  const a = targetAlerts(series, { "2026-09": 41, "2026-10": 40, "2026-11": 42 });
+  assert.deepEqual(a.map((x) => x.level), ["amber", "red"]);
+  assert.match(a[0].text, /4 nəfər azdır/);
+  assert.match(a[1].text, /5 nəfər artıqdır/);
+  assert.deepEqual(targetAlerts(series, {}), []);
 });
