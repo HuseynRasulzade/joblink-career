@@ -1,6 +1,6 @@
 // Interview scheduling: validation, Baku time, calendar file and feedback.
 export type InterviewKind = "onsite" | "online" | "phone";
-export type InterviewStatus = "scheduled" | "confirmed" | "declined" | "completed" | "cancelled" | "no_show";
+export type InterviewStatus = "scheduled" | "confirmed" | "declined" | "completed" | "cancelled" | "no_show" | "pending_panel" | "panel_declined";
 
 export const INTERVIEW_KINDS: { id: InterviewKind; label: string; placeholder: string }[] = [
   { id: "onsite", label: "Ofisdə", placeholder: "Ünvan (məsələn: Nizami küç. 10, 3-cü mərtəbə)" },
@@ -8,6 +8,8 @@ export const INTERVIEW_KINDS: { id: InterviewKind; label: string; placeholder: s
   { id: "phone", label: "Telefon", placeholder: "Zəng ediləcək nömrə (istəyə bağlı)" },
 ];
 export const INTERVIEW_STATUS_LABEL: Record<InterviewStatus, string> = {
+  pending_panel: "İştirakçıların təsdiqi gözlənilir",
+  panel_declined: "İştirakçı imtina etdi",
   scheduled: "Cavab gözlənilir",
   confirmed: "Namizəd təsdiqlədi",
   declined: "Namizəd imtina etdi",
@@ -15,7 +17,7 @@ export const INTERVIEW_STATUS_LABEL: Record<InterviewStatus, string> = {
   cancelled: "Ləğv edildi",
   no_show: "Namizəd gəlmədi",
 };
-export const ACTIVE_INTERVIEW: InterviewStatus[] = ["scheduled", "confirmed"];
+export const ACTIVE_INTERVIEW: InterviewStatus[] = ["scheduled", "confirmed", "pending_panel", "panel_declined"];
 
 const text = (value: unknown, max: number) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
@@ -101,4 +103,37 @@ export function icsFor(input: { id: string; scheduledAt: string; durationMin: nu
     "END:VCALENDAR",
     "",
   ].join("\r\n");
+}
+
+// ---- Conflicts and the approval chain of an interview with a panel ----
+// An interview that blocks the time: waiting for the panel, waiting for the candidate or confirmed.
+export const BLOCKING_INTERVIEW = ["scheduled", "confirmed", "pending_panel"];
+export type BusySlot = { id: string; start: number; end: number; jobId: string; candidateId: string; people: string[]; label: string };
+export type Conflict = { kind: "job" | "person" | "candidate"; withId: string; message: string };
+export type ConflictQuery = { start: number; end: number; jobId: string; candidateId: string; people: string[]; ignoreId?: string };
+const hhmm = (ms: number) => new Date(ms + 4 * 3600000).toISOString().slice(11, 16);
+// Interviews of one vacancy may not overlap, nor may one colleague or one candidate be in two places at once.
+export function findConflicts(query: ConflictQuery, existing: BusySlot[], nameOf: (userId: string) => string = (u) => u): Conflict[] {
+  const out: Conflict[] = [];
+  for (const slot of existing) {
+    if (slot.id === query.ignoreId) continue;
+    if (!(query.start < slot.end && slot.start < query.end)) continue;
+    const when = `${hhmm(slot.start)}–${hhmm(slot.end)}`;
+    if (slot.jobId === query.jobId) out.push({ kind: "job", withId: slot.id, message: `Eyni vakansiya üzrə bu vaxtda başqa müsahibə var (${when}, ${slot.label}).` });
+    if (slot.candidateId && slot.candidateId === query.candidateId) out.push({ kind: "candidate", withId: slot.id, message: `Bu namizədin həmin vaxtda başqa müsahibəsi var (${when}).` });
+    for (const person of query.people) if (slot.people.includes(person)) out.push({ kind: "person", withId: slot.id, message: `${nameOf(person)} həmin vaxtda başqa müsahibədədir (${when}, ${slot.label}).` });
+  }
+  return out;
+}
+
+export type PanelStatus = "pending" | "accepted" | "declined";
+// No participants: the candidate is asked at once. Any refusal stops the chain; all accepted lets it go on to the candidate.
+export function panelState(statuses: PanelStatus[]): "none" | "pending" | "accepted" | "declined" {
+  if (!statuses.length) return "none";
+  if (statuses.includes("declined")) return "declined";
+  return statuses.every((s) => s === "accepted") ? "accepted" : "pending";
+}
+// Back-to-back start times for several candidates of one vacancy.
+export function staggerStarts(firstStartMs: number, count: number, durationMin: number, gapMin = 10): number[] {
+  return Array.from({ length: count }, (_, i) => firstStartMs + i * (durationMin + gapMin) * 60000);
 }

@@ -244,6 +244,12 @@ import {
   icsFor,
   sanitizeFeedback,
   sanitizeInterview,
+  findConflicts,
+  staggerStarts,
+  type BusySlot,
+  type PanelStatus,
+  panelState,
+  toIso,
   type InterviewInput,
 } from "@/lib/interviews";
 import { normalizeFrequency } from "@/lib/digest";
@@ -6175,6 +6181,9 @@ async function route(request: Request) {
     "hr/interviews",
     "hr/interviews/create",
     "hr/interviews/invite",
+    "hr/interviews/people",
+    "hr/interviews/check",
+    "hr/interviews/panel-respond",
     "hr/interviews/update",
     "hr/interviews/feedback",
     "hr/interviews/ics",
@@ -15499,7 +15508,7 @@ async function route(request: Request) {
       .prepare(
         `SELECT i.id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.panel,i.slots,i.status,i.candidate_note,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS company
         FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.company_id
-        WHERE i.candidate_id=? AND i.scheduled_at>=? ORDER BY i.scheduled_at LIMIT 100`,
+        WHERE i.candidate_id=? AND i.status NOT IN ('pending_panel','panel_declined') AND i.scheduled_at>=? ORDER BY i.scheduled_at LIMIT 100`,
       )
       .bind(id, new Date(Date.now() - 14 * 86400000).toISOString())
       .all();
@@ -15537,7 +15546,7 @@ async function route(request: Request) {
         application_id: string;
         job_title: string;
       }>();
-    if (!row) throw new HttpError(404, "Müsahibə tapılmadı.");
+    if (!row || row.status === "pending_panel" || row.status === "panel_declined") throw new HttpError(404, "Müsahibə tapılmadı.");
     let offered: string[] = [];
     try {
       offered = JSON.parse(row.slots || "[]") as string[];
@@ -20281,13 +20290,14 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     rating: number;
     feedback: string;
     decision: string;
+    round: string;
     created: string;
     job_title: string;
     candidate: string;
     application_status: string;
     job_data?: string;
   };
-  const INTERVIEW_COLUMNS = `i.id,i.application_id,i.job_id,i.company_id,i.candidate_id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.panel,i.slots,i.status,i.candidate_note,i.created_by,i.rating,i.feedback,i.decision,i.created,
+  const INTERVIEW_COLUMNS = `i.id,i.application_id,i.job_id,i.company_id,i.candidate_id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.panel,i.slots,i.status,i.candidate_note,i.created_by,i.rating,i.feedback,i.decision,i.round,i.created,
       COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS candidate,COALESCE(a.status,'') AS application_status`;
   const interviewKindText = (row: { kind: string; location: string }) =>
     `${INTERVIEW_KINDS.find((k) => k.id === row.kind)?.label || row.kind}${row.location ? `: ${row.location}` : ""}`;
@@ -20300,6 +20310,179 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       jobId: r.job_id || "",
       questions: sanitizeGuideQuestions((() => { try { return JSON.parse(r.questions); } catch { return []; } })()),
     }));
+  type InvApp = { id: string; status: string; candidate_id: string; job_id: string; title: string };
+  type Person = { userId: string; name: string; role: string };
+  // The people of the company who may take part in an interview: the account owner and the active members.
+  const loadPeople = async (): Promise<Person[]> => {
+    const owner = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>();
+    const members = await db
+      .prepare(
+        `SELECT m.user_id,m.role,COALESCE(a.name,m.email) AS name FROM company_members m LEFT JOIN accounts a ON a.id=m.user_id
+        WHERE m.company_id=? AND m.status='active' AND m.user_id<>''`,
+      )
+      .bind(id)
+      .all<{ user_id: string; role: string; name: string }>()
+      .catch(() => ({ results: [] as { user_id: string; role: string; name: string }[] }));
+    const ROLE: Record<string, string> = { owner: "Direktor", manager: "Şöbə rəhbəri", recruiter: "Rekruter", auditor: "Auditor" };
+    return [{ userId: id, name: owner?.name || "Şirkət", role: "Hesab sahibi" }, ...members.results.map((m) => ({ userId: m.user_id, name: m.name || "Üzv", role: ROLE[m.role] || m.role }))];
+  };
+  // [{userId, role}] from the form, kept only if the person belongs to the company.
+  const pickParticipants = async (raw: unknown): Promise<Person[]> => {
+    const list = Array.isArray(raw) ? raw : [];
+    if (!list.length) return [];
+    const people = await loadPeople();
+    const out: Person[] = [];
+    for (const item of list.slice(0, 10)) {
+      const rec = (item && typeof item === "object" ? item : { userId: item }) as { userId?: unknown; role?: unknown };
+      const who = people.find((p) => p.userId === str(rec.userId, 100));
+      if (!who) throw new HttpError(400, "İştirakçı komandanızda tapılmadı.");
+      if (!out.some((o) => o.userId === who.userId)) out.push({ ...who, role: str(rec.role, 60) || who.role });
+    }
+    return out;
+  };
+  // Interviews that block the time around a moment, with their participants, for the overlap check.
+  const conflictsOf = async (q: { scheduledAt: string; durationMin: number; jobId: string; candidateId: string; userIds: string[]; ignoreId?: string }) => {
+    const start = Date.parse(q.scheduledAt);
+    const rows = await db
+      .prepare(
+        `SELECT i.id,i.job_id,i.candidate_id,i.scheduled_at,i.duration_min,COALESCE(c.name,'') AS cand,COALESCE(json_extract(j.data,'$.title'),'') AS title
+        FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.candidate_id
+        WHERE i.company_id=? AND i.status IN ('scheduled','confirmed','pending_panel') AND i.scheduled_at>=? AND i.scheduled_at<=?`,
+      )
+      .bind(id, new Date(start - 86400000).toISOString(), new Date(start + 86400000).toISOString())
+      .all<{ id: string; job_id: string; candidate_id: string; scheduled_at: string; duration_min: number; cand: string; title: string }>();
+    const parts = rows.results.length
+      ? (await db.prepare("SELECT interview_id,user_id FROM interview_participants WHERE company_id=? AND interview_id IN (SELECT value FROM json_each(?))").bind(id, JSON.stringify(rows.results.map((r) => r.id))).all<{ interview_id: string; user_id: string }>()).results
+      : [];
+    const people = await loadPeople();
+    const slots: BusySlot[] = rows.results.map((r) => ({
+      id: r.id,
+      start: Date.parse(r.scheduled_at),
+      end: Date.parse(r.scheduled_at) + r.duration_min * 60000,
+      jobId: r.job_id,
+      candidateId: r.candidate_id,
+      people: parts.filter((x) => x.interview_id === r.id).map((x) => x.user_id),
+      label: `${r.cand || "namizəd"} · ${r.title}`,
+    }));
+    return findConflicts(
+      { start, end: start + q.durationMin * 60000, jobId: q.jobId, candidateId: q.candidateId, people: q.userIds, ignoreId: q.ignoreId },
+      slots,
+      (u) => people.find((p) => p.userId === u)?.name || "İştirakçı",
+    );
+  };
+  const failOnConflicts = async (q: Parameters<typeof conflictsOf>[0]) => {
+    const found = await conflictsOf(q);
+    if (found.length) throw new HttpError(409, `Vaxt üst-üstə düşür: ${found.map((c) => c.message).join(" ")}`);
+  };
+  // The invitation the candidate sees, sent once the colleagues (if any) have confirmed.
+  const inviteCandidate = async (row: { id: string; application_id: string; candidate_id: string; scheduled_at: string; duration_min: number; kind: string; location: string; panel: string; slots: string; title: string }) => {
+    const company = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>();
+    const slots = (() => { try { return JSON.parse(row.slots || "[]") as string[]; } catch { return [] as string[]; } })();
+    const when = slots.length ? `vaxt variantları: ${slots.map(bakuLocal).join(" / ")} (Bakı vaxtı)` : `${bakuLocal(row.scheduled_at)} (Bakı vaxtı)`;
+    const message = `${company?.name || "Şirkət"} sizi "${row.title}" vakansiyası üzrə müsahibəyə dəvət edir: ${when}, ${row.duration_min} dəq. ${interviewKindText(row)}${row.panel ? `. Müsahibə aparanlar: ${row.panel}` : ""}. Müraciətlərim bölməsində ${slots.length ? "sizə uyğun vaxtı seçib təsdiqləyin" : "təsdiqləyin"} və ya imtina edin.`;
+    await notify(db, { userId: row.candidate_id, type: "interview", title: `Müsahibə dəvəti: ${row.title}`, body: message, link: "applications" });
+    await sendUserEmail(db, row.candidate_id, `Müsahibə dəvəti: ${row.title}`, message, "interview");
+  };
+  // Ask the chosen colleagues first; the candidate hears nothing until all of them agree.
+  const askParticipants = async (interviewId: string, people: Person[], info: { title: string; candidate: string; scheduledAt: string; durationMin: number; round: string; kindText: string }) => {
+    const now = new Date().toISOString();
+    await db.prepare("DELETE FROM interview_participants WHERE interview_id=?").bind(interviewId).run();
+    for (const p of people) {
+      await db
+        .prepare("INSERT INTO interview_participants(id,interview_id,company_id,user_id,name,role,status,note,responded,created) VALUES(?,?,?,?,?,?,'pending','','',?)")
+        .bind(crypto.randomUUID(), interviewId, id, p.userId, p.name, p.role, now)
+        .run();
+      if (p.userId !== userId)
+        await notify(db, {
+          userId: p.userId,
+          type: "interview",
+          title: `Müsahibədə iştirakınız lazımdır: ${info.title}`,
+          body: `${info.candidate || "Namizəd"} ilə ${info.round ? `${info.round}, ` : ""}${bakuLocal(info.scheduledAt)} (Bakı vaxtı), ${info.durationMin} dəq. ${info.kindText}. Rolunuz: ${p.role}. Müsahibələr bölməsində təsdiqləyin və ya imtina edin.`,
+          link: "hr-interviews",
+        });
+    }
+    // The person who set it up needs no second question: their own answer is "accepted" at once.
+    await db.prepare("UPDATE interview_participants SET status='accepted',responded=? WHERE interview_id=? AND user_id=?").bind(now, interviewId, userId).run();
+  };
+  const scheduleFor = async (app: InvApp, input: InterviewInput, opts: { participants?: Person[]; round?: string; candidateName?: string } = {}): Promise<string> => {
+    const active = await db
+      .prepare(
+        `SELECT id FROM interviews WHERE application_id=? AND status IN ('scheduled','confirmed','pending_panel','panel_declined') AND scheduled_at>?`,
+      )
+      .bind(app.id, new Date().toISOString())
+      .first();
+    if (active)
+      throw new HttpError(
+        409,
+        "Bu müraciət üçün aktiv müsahibə var. Onu dəyişdirin və ya ləğv edin.",
+      );
+    const people = opts.participants || [];
+    await failOnConflicts({ scheduledAt: input.scheduledAt, durationMin: input.durationMin, jobId: app.job_id, candidateId: app.candidate_id, userIds: people.map((p) => p.userId) });
+    const now = new Date().toISOString();
+    const interviewId = crypto.randomUUID();
+    const panelText = people.length ? people.map((p) => p.name).join(", ") : input.panel;
+    // With colleagues to ask the interview first waits for them; otherwise the candidate is asked at once.
+    const status = people.some((p) => p.userId !== userId) ? "pending_panel" : "scheduled";
+    await db
+      .prepare(
+        `INSERT INTO interviews(id,application_id,job_id,company_id,candidate_id,scheduled_at,duration_min,kind,location,note,panel,slots,round,status,created_by,created,updated)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .bind(
+        interviewId,
+        app.id,
+        app.job_id,
+        id,
+        app.candidate_id,
+        input.scheduledAt,
+        input.durationMin,
+        input.kind,
+        input.location,
+        input.note,
+        panelText,
+        JSON.stringify(input.slots),
+        opts.round || "",
+        status,
+        userId,
+        now,
+        now,
+      )
+      .run();
+    if (["Göndərildi", "Baxışda"].includes(app.status)) {
+      await db
+        .prepare(
+          "UPDATE applications SET status='Müsahibə',updated=? WHERE id=?",
+        )
+        .bind(now, app.id)
+        .run();
+      await recordApplicationEvent(db, {
+        applicationId: app.id,
+        actorId: userId,
+        actorRole: "company",
+        type: "status",
+        from: app.status,
+        to: "Müsahibə",
+      });
+    }
+    await recordApplicationEvent(db, {
+      applicationId: app.id,
+      actorId: userId,
+      actorRole: "company",
+      type: "interview",
+      to: `${opts.round ? `${opts.round}: ` : ""}${bakuLocal(input.scheduledAt)} · ${interviewKindText(input)}`,
+    });
+    if (people.length) await askParticipants(interviewId, people, { title: app.title, candidate: opts.candidateName || "", scheduledAt: input.scheduledAt, durationMin: input.durationMin, round: opts.round || "", kindText: interviewKindText(input) });
+    if (status === "scheduled") await inviteCandidate({ id: interviewId, application_id: app.id, candidate_id: app.candidate_id, scheduled_at: input.scheduledAt, duration_min: input.durationMin, kind: input.kind, location: input.location, panel: panelText, slots: JSON.stringify(input.slots), title: app.title });
+    await companyAudit(
+      db,
+      id,
+      userId,
+      "interview-scheduled",
+      app.id,
+      bakuLocal(input.scheduledAt),
+    );
+    return interviewId;
+  };
   if (request.method === "GET" && path === "hr/interviews") {
     const jobIds = await interviewScope();
     const rows = await db
@@ -20321,7 +20504,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           `SELECT a.id AS application_id,a.job_id,a.candidate_id,a.stage,a.updated,COALESCE(c.name,json_extract(a.data,'$.name'),'') AS candidate,COALESCE(json_extract(j.data,'$.title'),'') AS job_title
           FROM applications a JOIN jobs j ON j.id=a.job_id LEFT JOIN accounts c ON c.id=a.candidate_id
           WHERE j.owner=? AND a.job_id IN (SELECT value FROM json_each(?)) AND a.status='Müsahibə'
-            AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.application_id=a.id AND (i.status IN ('scheduled','confirmed') OR (i.status='completed' AND i.scheduled_at>=a.updated)))
+            AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.application_id=a.id AND (i.status IN ('scheduled','confirmed','pending_panel','panel_declined') OR (i.status='completed' AND i.scheduled_at>=a.updated)))
           ORDER BY a.updated DESC LIMIT 200`,
         )
         .bind(id, JSON.stringify(jobIds))
@@ -20357,9 +20540,28 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         guides[j.id] = guideFor({ id: j.id, title: j.title, skills }, tpls);
       }
     }
+    // The colleagues of each interview and their answers, and the requests that wait for my own answer.
+    type PartRow = { interview_id: string; user_id: string; name: string; role: string; status: string; note: string };
+    const parts: Record<string, { userId: string; name: string; role: string; status: string; note: string }[]> = {};
+    const ids = rows.results.map((r) => r.id);
+    if (ids.length)
+      for (const p of (await db.prepare("SELECT interview_id,user_id,name,role,status,note FROM interview_participants WHERE company_id=? AND interview_id IN (SELECT value FROM json_each(?)) ORDER BY created").bind(id, JSON.stringify(ids)).all<PartRow>()).results)
+        (parts[p.interview_id] ||= []).push({ userId: p.user_id, name: p.name, role: p.role, status: p.status, note: p.note });
+    const mine = (
+      await db
+        .prepare(
+          `SELECT i.id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.round,p.role,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS candidate
+          FROM interview_participants p JOIN interviews i ON i.id=p.interview_id JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.candidate_id
+          WHERE p.company_id=? AND p.user_id=? AND p.status='pending' AND i.status='pending_panel' ORDER BY i.scheduled_at LIMIT 50`,
+        )
+        .bind(id, userId)
+        .all()
+        .catch(() => ({ results: [] }))
+    ).results;
     return ok({
       interviews: rows.results.map((r) => ({
         ...r,
+        participants: parts[r.id] || [],
         slots: (() => {
           try {
             return JSON.parse(r.slots || "[]") as string[];
@@ -20371,8 +20573,67 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       waiting,
       tests,
       guides,
+      mine,
+      me: userId,
       statusLabels: INTERVIEW_STATUS_LABEL,
     });
+  }
+  // The people who can be asked to an interview, and a live overlap check for the form.
+  if (request.method === "GET" && path === "hr/interviews/people") {
+    return ok({ people: await loadPeople(), rounds: ["HR müsahibəsi", "Texniki müsahibə", "Rəhbər müsahibəsi", "Yekun müsahibə"] });
+  }
+  if (request.method === "POST" && path === "hr/interviews/check") {
+    const b = await jsonBody(request);
+    const jobIds = await interviewScope();
+    const jobId = str(b.jobId, 100);
+    if (!jobIds.includes(jobId)) throw new HttpError(404, "Vakansiya tapılmadı.");
+    const at = toIso(b.scheduledAt);
+    if (!at) return ok({ conflicts: [] });
+    let candidateId = str(b.candidateId, 100);
+    if (!candidateId && b.applicationId) candidateId = (await db.prepare("SELECT candidate_id FROM applications WHERE id=?").bind(str(b.applicationId, 100)).first<{ candidate_id: string }>())?.candidate_id || "";
+    const userIds = (Array.isArray(b.participants) ? (b.participants as unknown[]) : []).map((x: unknown) => str((x as { userId?: unknown })?.userId ?? x, 100)).filter(Boolean);
+    const count = Math.max(1, Math.min(30, Math.round(Number(b.count) || 1)));
+    const duration = Math.max(15, Math.min(240, Math.round(Number(b.durationMin) || 45)));
+    const starts = staggerStarts(Date.parse(at), count, duration);
+    const found: { kind: string; withId: string; message: string }[] = [];
+    for (const st of starts.slice(0, 5)) found.push(...(await conflictsOf({ scheduledAt: new Date(st).toISOString(), durationMin: duration, jobId, candidateId: count > 1 ? "" : candidateId, userIds, ignoreId: str(b.ignoreId, 100) })));
+    return ok({ conflicts: found.filter((c, i) => found.findIndex((x) => x.message === c.message) === i) });
+  }
+  // A colleague answers the request to take part. Everyone agreeing sends the invitation on to the candidate.
+  if (request.method === "POST" && path === "hr/interviews/panel-respond") {
+    const b = await jsonBody(request);
+    const row = await db
+      .prepare(
+        `SELECT i.id,i.application_id,i.candidate_id,i.job_id,i.scheduled_at,i.duration_min,i.kind,i.location,i.panel,i.slots,i.status,i.created_by,i.round,COALESCE(json_extract(j.data,'$.title'),'') AS title,COALESCE(c.name,'') AS candidate
+        FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.candidate_id WHERE i.id=? AND i.company_id=?`,
+      )
+      .bind(str(b.id, 100), id)
+      .first<{ id: string; application_id: string; candidate_id: string; job_id: string; scheduled_at: string; duration_min: number; kind: string; location: string; panel: string; slots: string; status: string; created_by: string; round: string; title: string; candidate: string }>();
+    if (!row) throw new HttpError(404, "Müsahibə tapılmadı.");
+    const me = await db.prepare("SELECT id,status,name FROM interview_participants WHERE interview_id=? AND user_id=?").bind(row.id, userId).first<{ id: string; status: string; name: string }>();
+    if (!me) throw new HttpError(403, "Bu müsahibədə iştirakçı deyilsiniz.");
+    if (row.status !== "pending_panel") throw new HttpError(409, "Bu müsahibə artıq iştirakçı təsdiqi mərhələsində deyil.");
+    const accept = b.accept === true;
+    const note = str(b.note, 300);
+    const now = new Date().toISOString();
+    await db.prepare("UPDATE interview_participants SET status=?,note=?,responded=? WHERE id=?").bind(accept ? "accepted" : "declined", note, now, me.id).run();
+    const all = (await db.prepare("SELECT status FROM interview_participants WHERE interview_id=?").bind(row.id).all<{ status: PanelStatus }>()).results.map((r) => r.status);
+    const state = panelState(all);
+    const who = me.name || "İştirakçı";
+    if (state === "declined") {
+      await db.prepare("UPDATE interviews SET status='panel_declined',updated=? WHERE id=?").bind(now, row.id).run();
+      await notify(db, { userId: row.created_by, type: "interview", title: `İştirakçı imtina etdi: ${row.title}`, body: `${who} ${row.candidate} ilə ${bakuLocal(row.scheduled_at)} müsahibəsində iştirak edə bilmir${note ? `: ${note}` : ""}. Namizədə heç nə göndərilməyib. Vaxtı və ya iştirakçıları dəyişin.`, link: "hr-interviews" });
+      await recordApplicationEvent(db, { applicationId: row.application_id, actorId: userId, actorRole: "company", type: "interview", to: `iştirakçı imtina etdi: ${who}` });
+    } else if (state === "accepted") {
+      await db.prepare("UPDATE interviews SET status='scheduled',updated=? WHERE id=?").bind(now, row.id).run();
+      await inviteCandidate({ ...row, title: row.title });
+      await notify(db, { userId: row.created_by, type: "interview", title: `Hamı təsdiqlədi: ${row.title}`, body: `${row.candidate} ilə ${bakuLocal(row.scheduled_at)} müsahibəsini bütün iştirakçılar təsdiqlədi. Dəvət namizədə göndərildi.`, link: "hr-interviews" });
+      await recordApplicationEvent(db, { applicationId: row.application_id, actorId: userId, actorRole: "company", type: "interview", to: "iştirakçılar təsdiqlədi, namizədə göndərildi" });
+    } else if (row.created_by !== userId) {
+      await notify(db, { userId: row.created_by, type: "interview", title: `${who} təsdiqlədi: ${row.title}`, body: `${row.candidate} müsahibəsi: digər iştirakçıların cavabı gözlənilir.`, link: "hr-interviews" });
+    }
+    await companyAudit(db, id, userId, accept ? "interview-panel-accept" : "interview-panel-decline", row.application_id, bakuLocal(row.scheduled_at));
+    return ok({ ok: true, state });
   }
   // Feedback of all interviewed candidates, grouped by vacancy, best rated first.
   if (request.method === "GET" && path === "hr/interviews/compare") {
@@ -20388,99 +20649,6 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .all<FeedbackRow>();
     return ok({ jobs: compareInterviews(rows.results) });
   }
-  type InvApp = { id: string; status: string; candidate_id: string; job_id: string; title: string };
-  const scheduleFor = async (app: InvApp, input: InterviewInput): Promise<string> => {
-    const active = await db
-      .prepare(
-        `SELECT id FROM interviews WHERE application_id=? AND status IN ('scheduled','confirmed') AND scheduled_at>?`,
-      )
-      .bind(app.id, new Date().toISOString())
-      .first();
-    if (active)
-      throw new HttpError(
-        409,
-        "Bu müraciət üçün aktiv müsahibə var. Onu dəyişdirin və ya ləğv edin.",
-      );
-    const now = new Date().toISOString();
-    const interviewId = crypto.randomUUID();
-    await db
-      .prepare(
-        `INSERT INTO interviews(id,application_id,job_id,company_id,candidate_id,scheduled_at,duration_min,kind,location,note,panel,slots,status,created_by,created,updated)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'scheduled',?,?,?)`,
-      )
-      .bind(
-        interviewId,
-        app.id,
-        app.job_id,
-        id,
-        app.candidate_id,
-        input.scheduledAt,
-        input.durationMin,
-        input.kind,
-        input.location,
-        input.note,
-        input.panel,
-        JSON.stringify(input.slots),
-        userId,
-        now,
-        now,
-      )
-      .run();
-    if (["Göndərildi", "Baxışda"].includes(app.status)) {
-      await db
-        .prepare(
-          "UPDATE applications SET status='Müsahibə',updated=? WHERE id=?",
-        )
-        .bind(now, app.id)
-        .run();
-      await recordApplicationEvent(db, {
-        applicationId: app.id,
-        actorId: userId,
-        actorRole: "company",
-        type: "status",
-        from: app.status,
-        to: "Müsahibə",
-      });
-    }
-    await recordApplicationEvent(db, {
-      applicationId: app.id,
-      actorId: userId,
-      actorRole: "company",
-      type: "interview",
-      to: `${bakuLocal(input.scheduledAt)} · ${interviewKindText(input)}`,
-    });
-    const company = await db
-      .prepare("SELECT name FROM accounts WHERE id=?")
-      .bind(id)
-      .first<{ name: string }>();
-    const when = input.slots.length
-      ? `vaxt variantları: ${input.slots.map(bakuLocal).join(" / ")} (Bakı vaxtı)`
-      : `${bakuLocal(input.scheduledAt)} (Bakı vaxtı)`;
-    const message = `${company?.name || "Şirkət"} sizi "${app.title}" vakansiyası üzrə müsahibəyə dəvət edir: ${when}, ${input.durationMin} dəq. ${interviewKindText(input)}${input.panel ? `. Müsahibə aparanlar: ${input.panel}` : ""}. Müraciətlərim bölməsində ${input.slots.length ? "sizə uyğun vaxtı seçib təsdiqləyin" : "təsdiqləyin"} və ya imtina edin.`;
-    await notify(db, {
-      userId: app.candidate_id,
-      type: "interview",
-      title: `Müsahibə dəvəti: ${app.title}`,
-      body: message,
-      link: "applications",
-    });
-    await sendUserEmail(
-      db,
-      app.candidate_id,
-      `Müsahibə dəvəti: ${app.title}`,
-      message,
-      "interview",
-    );
-    await companyAudit(
-      db,
-      id,
-      userId,
-      "interview-scheduled",
-      app.id,
-      bakuLocal(input.scheduledAt),
-    );
-    return interviewId;
-  };
   // Invite several candidates of one vacancy to an interview: people who applied (by application) and suitable people who did not
   // (by candidate id; an application is opened for them). With a time the interview is set at once, without one they wait in Müsahibələr.
   if (request.method === "POST" && path === "hr/interviews/invite") {
@@ -20501,6 +20669,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       if ("error" in parsed) throw new HttpError(400, parsed.error);
       input = parsed;
     }
+    const people = await pickParticipants(b.participants);
+    const round = str(b.round, 80);
     const company = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>();
     const results: { name: string; ok: boolean; reason?: string }[] = [];
     const targets: { appId: string; name: string }[] = [];
@@ -20528,14 +20698,24 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       await recordApplicationEvent(db, { applicationId: newId, actorId: userId, actorRole: "company", type: "applied", to: "Göndərildi" });
       targets.push({ appId: newId, name });
     }
+    // Several candidates of one vacancy get back-to-back times: two meetings of one vacancy may not overlap.
+    const starts = input ? staggerStarts(Date.parse(input.scheduledAt), targets.length, input.durationMin) : [];
+    let n = -1;
     for (const t of targets) {
+      n += 1;
       const app = await db.prepare("SELECT id,status,candidate_id,job_id FROM applications WHERE id=?").bind(t.appId).first<{ id: string; status: string; candidate_id: string; job_id: string }>();
       if (!app) continue;
       if (["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(app.status)) { results.push({ name: t.name, ok: false, reason: "Bu müraciət üçün müsahibə təyin etmək olmaz" }); continue; }
-      const active = await db.prepare("SELECT id FROM interviews WHERE application_id=? AND status IN ('scheduled','confirmed') AND scheduled_at>?").bind(app.id, new Date().toISOString()).first();
+      const active = await db.prepare("SELECT id FROM interviews WHERE application_id=? AND status IN ('scheduled','confirmed','pending_panel','panel_declined') AND scheduled_at>?").bind(app.id, new Date().toISOString()).first();
       if (active) { results.push({ name: t.name, ok: false, reason: "Aktiv müsahibəsi var" }); continue; }
       if (input) {
-        await scheduleFor({ ...app, title: job.title }, input);
+        const mine = targets.length > 1 ? { ...input, scheduledAt: new Date(starts[n]).toISOString(), slots: [] } : input;
+        try {
+          await scheduleFor({ ...app, title: job.title }, mine, { participants: people, round, candidateName: t.name });
+        } catch (e) {
+          if (e instanceof HttpError && e.status === 409) { results.push({ name: t.name, ok: false, reason: e.message.replace(/^Vaxt üst-üstə düşür: /, "Vaxt üst-üstə düşür, ") }); continue; }
+          throw e;
+        }
       } else if (app.status !== "Müsahibə") {
         const now = new Date().toISOString();
         await db.prepare("UPDATE applications SET status='Müsahibə',updated=? WHERE id=?").bind(now, app.id).run();
@@ -20576,8 +20756,10 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       ["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(app.status)
     )
       throw new HttpError(409, "Bu müraciət üçün müsahibə təyin etmək olmaz.");
-    const interviewId = await scheduleFor(app, input);
-    return ok({ ok: true, id: interviewId }, 201);
+    const people = await pickParticipants(b.participants);
+    const candName = (await db.prepare("SELECT name FROM accounts WHERE id=?").bind(app.candidate_id).first<{ name: string }>())?.name || "";
+    const interviewId = await scheduleFor(app, input, { participants: people, round: str(b.round, 80), candidateName: candName });
+    return ok({ ok: true, id: interviewId, waitingForPanel: people.some((p) => p.userId !== userId) }, 201);
   }
   if (request.method === "POST" && path === "hr/interviews/update") {
     const b = await jsonBody(request);
@@ -20605,9 +20787,15 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         ...b,
       });
       if ("error" in input) throw new HttpError(400, input.error);
+      const existingPeople = (await db.prepare("SELECT user_id,name,role FROM interview_participants WHERE interview_id=?").bind(row.id).all<{ user_id: string; name: string; role: string }>()).results.map((p) => ({ userId: p.user_id, name: p.name, role: p.role }));
+      const people = Array.isArray(b.participants) ? await pickParticipants(b.participants) : existingPeople;
+      await failOnConflicts({ scheduledAt: input.scheduledAt, durationMin: input.durationMin, jobId: row.job_id, candidateId: row.candidate_id, userIds: people.map((p) => p.userId), ignoreId: row.id });
+      const round = typeof b.round === "string" ? str(b.round, 80) : row.round;
+      const panelText = people.length ? people.map((p) => p.name).join(", ") : input.panel;
+      const waitForPanel = people.some((p) => p.userId !== userId);
       await db
         .prepare(
-          "UPDATE interviews SET scheduled_at=?,duration_min=?,kind=?,location=?,note=?,panel=?,slots=?,status='scheduled',candidate_note='',reminded_at='',updated=? WHERE id=?",
+          "UPDATE interviews SET scheduled_at=?,duration_min=?,kind=?,location=?,note=?,panel=?,slots=?,round=?,status=?,candidate_note='',reminded_at='',updated=? WHERE id=?",
         )
         .bind(
           input.scheduledAt,
@@ -20615,27 +20803,23 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           input.kind,
           input.location,
           input.note,
-          input.panel,
+          panelText,
           JSON.stringify(input.slots),
+          round,
+          waitForPanel ? "pending_panel" : "scheduled",
           now,
           row.id,
         )
         .run();
-      const message = `"${row.job_title}" müsahibəsinin vaxtı dəyişdi: ${bakuLocal(input.scheduledAt)} (Bakı vaxtı). ${interviewKindText(input)}. Yenidən təsdiqləyin.`;
-      await notify(db, {
-        userId: row.candidate_id,
-        type: "interview",
-        title: `Müsahibə vaxtı dəyişdi: ${row.job_title}`,
-        body: message,
-        link: "applications",
-      });
-      await sendUserEmail(
-        db,
-        row.candidate_id,
-        `Müsahibə vaxtı dəyişdi: ${row.job_title}`,
-        message,
-        "interview",
-      );
+      if (people.length) await askParticipants(row.id, people, { title: row.job_title, candidate: row.candidate, scheduledAt: input.scheduledAt, durationMin: input.durationMin, round, kindText: interviewKindText(input) });
+      else await db.prepare("DELETE FROM interview_participants WHERE interview_id=?").bind(row.id).run();
+      if (waitForPanel) {
+        // The candidate keeps no stale time: they hear again once the colleagues agree to the new one.
+        if (row.status === "scheduled" || row.status === "confirmed" || row.status === "declined")
+          await notify(db, { userId: row.candidate_id, type: "interview", title: `Müsahibə vaxtı dəyişir: ${row.job_title}`, body: "Müsahibənin vaxtı dəyişdirilir. Yeni vaxt təsdiqlənən kimi sizə bildiriş göndəriləcək.", link: "applications" });
+      } else {
+        await inviteCandidate({ id: row.id, application_id: row.application_id, candidate_id: row.candidate_id, scheduled_at: input.scheduledAt, duration_min: input.durationMin, kind: input.kind, location: input.location, panel: panelText, slots: JSON.stringify(input.slots), title: row.job_title });
+      }
       await recordApplicationEvent(db, {
         applicationId: row.application_id,
         actorId: userId,
@@ -20651,6 +20835,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         )
         .bind(now, row.id)
         .run();
+      for (const p of (await db.prepare("SELECT user_id FROM interview_participants WHERE interview_id=?").bind(row.id).all<{ user_id: string }>()).results)
+        if (p.user_id !== userId) await notify(db, { userId: p.user_id, type: "interview", title: `Müsahibə ləğv edildi: ${row.job_title}`, body: `${row.candidate || "Namizəd"} ilə ${bakuLocal(row.scheduled_at)} müsahibəsi ləğv edildi.`, link: "hr-interviews" });
+      if (row.status !== "pending_panel" && row.status !== "panel_declined")
       await notify(db, {
         userId: row.candidate_id,
         type: "interview",
@@ -20658,6 +20845,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         body: str(b.reason, 300),
         link: "applications",
       });
+      if (row.status !== "pending_panel" && row.status !== "panel_declined")
       await sendUserEmail(
         db,
         row.candidate_id,
@@ -20673,7 +20861,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         to: "ləğv edildi",
       });
     } else if (action === "complete" || action === "no_show") {
-      if (!isActive) throw new HttpError(409, "Bu müsahibə artıq aktiv deyil.");
+      if (!isActive || row.status === "pending_panel" || row.status === "panel_declined") throw new HttpError(409, "İştirakçıların təsdiqi tamamlanmayıb və ya müsahibə aktiv deyil.");
       if (Date.parse(row.scheduled_at) > Date.now() + 15 * 60000)
         throw new HttpError(409, "Müsahibə vaxtı hələ çatmayıb.");
       await db

@@ -5,6 +5,7 @@ import type { Application } from "@/lib/model";
 import { ACTIVE_INTERVIEW, INTERVIEW_KINDS, bakuLocal, type InterviewKind } from "@/lib/interviews";
 import { Field, Modal } from "./components";
 import { AssignTestModal } from "./AssessmentsPage";
+import { MyRequests, PanelChain, PanelFields, ScheduleGrid, panelCall, type Conflict, type MyRequest, type Participant } from "./InterviewPanel";
 
 type Notify = (message: string) => void;
 export type InterviewItem = {
@@ -26,6 +27,8 @@ export type InterviewItem = {
   rating?: number;
   feedback?: string;
   decision?: string;
+  round?: string;
+  participants?: Participant[];
 };
 type Labels = Record<string, string>;
 
@@ -64,14 +67,23 @@ export function ScheduleInterviewModal({ application, existing, onClose, onDone,
     panel: existing?.panel || "",
     extraSlots: ["", ""],
   });
+  const [panel, setPanel] = useState<{ userId: string; role: string }[]>((existing?.participants || []).map((p) => ({ userId: p.userId, role: p.role })));
+  const [round, setRound] = useState(existing?.round || "");
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [busy, setBusy] = useState(false);
   const kind = INTERVIEW_KINDS.find((k) => k.id === form.kind)!;
   async function save() {
     setBusy(true);
     try {
-      if (existing) await request("hr/interviews/update", { id: existing.id, action: "reschedule", ...form });
-      else await request("hr/interviews/create", { applicationId: application!.id, ...form });
-      notify(existing ? "Müsahibə vaxtı dəyişdi, namizədə bildiriş göndərildi." : "Müsahibə təyin edildi, namizədə bildiriş göndərildi.");
+      let waiting = false;
+      if (existing) {
+        await request("hr/interviews/update", { id: existing.id, action: "reschedule", ...form, participants: panel, round });
+        waiting = panel.length > 0;
+      } else {
+        const r = await request<{ waitingForPanel?: boolean }>("hr/interviews/create", { applicationId: application!.id, ...form, participants: panel, round });
+        waiting = !!r.waitingForPanel;
+      }
+      notify(waiting ? "İştirakçılara təsdiq sorğusu göndərildi. Hamısı təsdiqləyəndən sonra dəvət namizədə gedəcək." : existing ? "Müsahibə vaxtı dəyişdi, namizədə bildiriş göndərildi." : "Müsahibə təyin edildi, namizədə bildiriş göndərildi.");
       onDone();
       onClose();
     } catch (error) {
@@ -101,9 +113,23 @@ export function ScheduleInterviewModal({ application, existing, onClose, onDone,
             <input value={form.location} placeholder={kind.placeholder} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           </Field>
         </div>
-        <Field label="Müsahibə aparanlar (panel, istəyə bağlı)">
-          <input value={form.panel} placeholder="Məsələn: Aynur M. (HR), Rəşad Ə. (şöbə rəhbəri)" onChange={(e) => setForm({ ...form, panel: e.target.value })} />
-        </Field>
+        <PanelFields
+          jobId={application?.jobId || existing?.job_id || ""}
+          applicationId={application?.id || existing?.application_id}
+          scheduledAt={form.scheduledAt}
+          durationMin={form.durationMin}
+          ignoreId={existing?.id}
+          value={panel}
+          onChange={setPanel}
+          round={round}
+          onRound={setRound}
+          onConflicts={setConflicts}
+        />
+        {!panel.length && (
+          <Field label="Müsahibə aparanlar (mətn, istəyə bağlı)">
+            <input value={form.panel} placeholder="Məsələn: Aynur M. (HR), Rəşad Ə. (şöbə rəhbəri)" onChange={(e) => setForm({ ...form, panel: e.target.value })} />
+          </Field>
+        )}
         <div className="form-grid">
           {[0, 1].map((n) => (
             <Field key={n} label={`Alternativ vaxt ${n + 1} (namizəd seçir, istəyə bağlı)`}>
@@ -115,7 +141,7 @@ export function ScheduleInterviewModal({ application, existing, onClose, onDone,
           <textarea rows={3} value={form.note} placeholder="Məsələn: şəxsiyyət vəsiqəsini götürün" onChange={(e) => setForm({ ...form, note: e.target.value })} />
         </Field>
         <p className="muted fine-print">Namizəd bildiriş və e-poçt alır, Müraciətlərim bölməsində təsdiq edir və ya imtina edir. Müsahibədən əvvəl hər iki tərəfə xatırlatma göndərilir.</p>
-        <button className="primary" disabled={busy || !form.scheduledAt} onClick={save}><CalendarClock size={16} /> {existing ? "Yadda saxla" : "Təyin et və göndər"}</button>
+        <button className="primary" disabled={busy || !form.scheduledAt || conflicts.length > 0} onClick={save}><CalendarClock size={16} /> {panel.some((p) => p.userId) ? "İştirakçılara göndər" : existing ? "Yadda saxla" : "Təyin et və göndər"}</button>
       </div>
     </Modal>
   );
@@ -135,6 +161,9 @@ export function InviteModal({ jobId, jobTitle, people, onClose, onDone, notify }
   const [withTime, setWithTime] = useState(true);
   const [form, setForm] = useState({ scheduledAt: "", durationMin: 45, kind: "online" as InterviewKind, location: "", note: "", panel: "", extraSlots: ["", ""] });
   const [busy, setBusy] = useState(false);
+  const [panel, setPanel] = useState<{ userId: string; role: string }[]>([]);
+  const [round, setRound] = useState("");
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const kind = INTERVIEW_KINDS.find((k) => k.id === form.kind)!;
   async function send() {
     setBusy(true);
@@ -143,11 +172,11 @@ export function InviteModal({ jobId, jobTitle, people, onClose, onDone, notify }
         jobId,
         applicationIds: people.filter((p) => p.applicationId).map((p) => p.applicationId),
         candidateIds: people.filter((p) => !p.applicationId && p.candidateId).map((p) => p.candidateId),
-        ...(withTime ? form : {}),
+        ...(withTime ? { ...form, participants: panel, round } : {}),
       };
       const r = await request<{ invited: number; results: { name: string; ok: boolean; reason?: string }[] }>("hr/interviews/invite", body);
       const failed = r.results.filter((x) => !x.ok);
-      notify(`${r.invited} namizəd müsahibəyə dəvət olundu${withTime ? "" : " (vaxt sonra təyin olunacaq)"}.${failed.length ? ` Dəvət olunmayanlar: ${failed.map((f) => `${f.name} (${f.reason})`).join("; ")}.` : ""} Müsahibələr bölməsində görünür.`);
+      notify(`${r.invited} namizəd müsahibəyə dəvət olundu${withTime ? "" : " (vaxt sonra təyin olunacaq)"}.${withTime && panel.length ? " İştirakçılara təsdiq sorğusu göndərildi, namizədlərə onlar təsdiqləyəndən sonra gedəcək." : ""}${failed.length ? ` Dəvət olunmayanlar: ${failed.map((f) => `${f.name} (${f.reason})`).join("; ")}.` : ""} Müsahibələr bölməsində görünür.`);
       onDone();
       onClose();
     } catch (error) {
@@ -179,7 +208,20 @@ export function InviteModal({ jobId, jobTitle, people, onClose, onDone, notify }
                 <input value={form.location} placeholder={kind.placeholder} onChange={(e) => setForm({ ...form, location: e.target.value })} />
               </Field>
             </div>
-            <Field label="Müsahibə aparanlar (istəyə bağlı)"><input value={form.panel} onChange={(e) => setForm({ ...form, panel: e.target.value })} /></Field>
+            <PanelFields
+              jobId={jobId}
+              applicationId={people.length === 1 ? people[0].applicationId : undefined}
+              candidateId={people.length === 1 ? people[0].candidateId : undefined}
+              count={people.length}
+              scheduledAt={form.scheduledAt}
+              durationMin={form.durationMin}
+              value={panel}
+              onChange={setPanel}
+              round={round}
+              onRound={setRound}
+              onConflicts={setConflicts}
+            />
+            {people.length > 1 && <p className="muted fine-print">Namizədlər ardıcıl vaxtlara düzülür (hər görüş arasında 10 dəq): eyni vakansiya üzrə görüşlər üst-üstə düşmür.</p>}
             <div className="form-grid">
               {[0, 1].map((n) => (
                 <Field key={n} label={`Alternativ vaxt ${n + 1} (istəyə bağlı)`}>
@@ -191,7 +233,7 @@ export function InviteModal({ jobId, jobTitle, people, onClose, onDone, notify }
           </>
         )}
         {!withTime && <p className="muted fine-print">Namizədə dəvət bildirişi gedir; vaxtı sonra Müsahibələr bölməsindən təyin edirsiniz.</p>}
-        <button className="primary" disabled={busy || (withTime && !form.scheduledAt)} onClick={send}><CalendarClock size={16} /> {withTime ? "Dəvət et və vaxt göndər" : "Dəvət et"}</button>
+        <button className="primary" disabled={busy || (withTime && (!form.scheduledAt || conflicts.length > 0))} onClick={send}><CalendarClock size={16} /> {withTime ? "Dəvət et və vaxt göndər" : "Dəvət et"}</button>
       </div>
     </Modal>
   );
@@ -299,7 +341,7 @@ function FeedbackComparison({ notify }: { notify: Notify }) {
 type Waiting = { application_id: string; job_id: string; candidate_id: string; stage: string; updated: string; candidate: string; job_title: string };
 type TestInfo = { status: string; score: number | null; maxScore: number | null; title: string };
 type GuideInfo = { name: string; source: "linked" | "matched" | "generated"; questions: string[] };
-type Tab = "waiting" | "upcoming" | "feedback" | "past";
+type Tab = "waiting" | "upcoming" | "feedback" | "past" | "schedule";
 const TEST_TEXT: Record<string, string> = { assigned: "göndərilib", started: "davam edir", pending: "yoxlanır", passed: "keçdi", failed: "keçmədi", graded: "yoxlanıb", submitted: "təhvil verilib" };
 const GUIDE_SOURCE: Record<GuideInfo["source"], string> = { linked: "Bu vakansiya üçün yazılıb", matched: "Adına görə seçildi", generated: "Vakansiyanın bacarıqlarından avtomatik" };
 const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "");
@@ -323,10 +365,16 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
   const [openGuide, setOpenGuide] = useState("");
   const [feedbackFor, setFeedbackFor] = useState<string | null>(null);
   const [fb, setFb] = useState({ rating: 4, decision: "hold", feedback: "" });
+  const [mine, setMine] = useState<MyRequest[]>([]);
+  const [people, setPeople] = useState<{ userId: string; name: string; role: string }[]>([]);
+  useEffect(() => {
+    panelCall<{ people: { userId: string; name: string; role: string }[] }>("hr/interviews/people").then((d) => setPeople(d.people)).catch(() => {});
+  }, []);
   const load = useCallback(() => {
-    request<{ interviews: InterviewItem[]; waiting?: Waiting[]; tests?: Record<string, TestInfo>; guides?: Record<string, GuideInfo>; statusLabels: Labels }>("hr/interviews")
+    request<{ interviews: InterviewItem[]; waiting?: Waiting[]; tests?: Record<string, TestInfo>; guides?: Record<string, GuideInfo>; mine?: MyRequest[]; statusLabels: Labels }>("hr/interviews")
       .then((d) => {
         setItems(d.interviews);
+        setMine(d.mine || []);
         setWaiting(d.waiting || []);
         setTests(d.tests || {});
         setGuides(d.guides || {});
@@ -364,7 +412,7 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
   const keep = (name: string, jobId: string, jobTitle: string) => (!jobFilter || jobId === jobFilter) && (!needle || `${name} ${jobTitle}`.toLocaleLowerCase("az").includes(needle));
   const fItems = (list: InterviewItem[]) => list.filter((i) => keep(i.candidate || "", i.job_id || "", i.job_title));
   const fWaiting = waiting.filter((w) => keep(w.candidate, w.job_id, w.job_title));
-  const counts = { waiting: fWaiting.length, upcoming: fItems(upcoming).length, feedback: fItems(needFeedback).length, past: fItems(closed).length };
+  const counts = { waiting: fWaiting.length, upcoming: fItems(upcoming).length, feedback: fItems(needFeedback).length, past: fItems(closed).length, schedule: fItems(upcoming).length };
   const active: Tab = (tab || (counts.waiting ? "waiting" : counts.upcoming ? "upcoming" : counts.feedback ? "feedback" : "waiting")) as Tab;
   const jobs = [...new Map([...waiting.map((w) => [w.job_id, w.job_title] as const), ...items.map((i) => [i.job_id || "", i.job_title] as const)]).entries()].filter(([jid]) => jid);
   const testChip = (appId?: string) => {
@@ -414,11 +462,14 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
           <h3>{i.candidate || "Namizəd"}</h3>
           <p>{i.job_title} · {i.duration_min} dəq · {kindLabel(i.kind)}{i.location ? `: ${i.location}` : ""}</p>
           <div className="iv-meta">
-            <span className={`iv-chip ${i.status === "confirmed" || i.status === "completed" ? "good" : i.status === "scheduled" ? "warn" : "bad"}`}>{labels[i.status] || i.status}</span>
+            <span className={`iv-chip ${i.status === "confirmed" || i.status === "completed" ? "good" : i.status === "scheduled" || i.status === "pending_panel" ? "warn" : "bad"}`}>{labels[i.status] || i.status}</span>
+            {i.round && <span className="iv-chip">{i.round}</span>}
             {i.slots?.length && i.status === "scheduled" ? <span className="muted">Variantlar: {i.slots.map(when).join(" / ")}</span> : null}
             {testChip(i.application_id)}
           </div>
-          {i.panel && <p className="muted">Müsahibə aparanlar: {i.panel}</p>}
+          <PanelChain status={i.status} participants={i.participants} />
+          {!i.participants?.length && i.panel && <p className="muted">Müsahibə aparanlar: {i.panel}</p>}
+          {i.status === "panel_declined" && <p className="iv-conflict-inline">İştirakçı imtina etdi. Namizədə heç nə göndərilməyib: vaxtı və ya iştirakçıları dəyişin.</p>}
           {i.candidate_note && <p className="muted">Namizəd yazdı: “{i.candidate_note}”</p>}
           {i.status === "completed" && i.rating ? <p className="muted">Rəy: {i.rating}/5 · {i.decision === "advance" ? "növbəti mərhələyə keçsin" : i.decision === "reject" ? "uyğun deyil" : "qərar gözlənilir"}{i.feedback ? ` · ${i.feedback}` : ""}</p> : null}
           {guideBox(`i:${i.id}`, jobId)}
@@ -441,11 +492,11 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
           )}
         </div>
         <div className="iv-actions">
-          {isActive(i.status) && !isPast && <button className="secondary" onClick={() => setEditing(i)}>Vaxtı dəyiş</button>}
-          {i.status === "declined" && <button className="primary" onClick={() => setEditing(i)}>Yeni vaxt təklif et</button>}
+          {isActive(i.status) && i.status !== "panel_declined" && !isPast && <button className="secondary" onClick={() => setEditing(i)}>Vaxtı / iştirakçıları dəyiş</button>}
+          {(i.status === "declined" || i.status === "panel_declined") && <button className="primary" onClick={() => setEditing(i)}>{i.status === "panel_declined" ? "Vaxtı / iştirakçıları dəyiş" : "Yeni vaxt təklif et"}</button>}
           {isActive(i.status) && !isPast && <button className="secondary" onClick={() => { const reason = window.prompt("Ləğv səbəbi (namizədə göndəriləcək, istəyə bağlı):"); if (reason !== null) void act({ id: i.id, action: "cancel", reason }, "Müsahibə ləğv edildi, namizədə bildiriş göndərildi."); }}>Ləğv et</button>}
-          {isActive(i.status) && isPast && <button className="primary" onClick={() => act({ id: i.id, action: "complete" }, "Müsahibə keçirilmiş kimi qeyd edildi.")}><Check size={14} /> Keçirildi</button>}
-          {isActive(i.status) && isPast && <button className="secondary" onClick={() => act({ id: i.id, action: "no_show" }, "Namizəd gəlmədi kimi qeyd edildi.")}><X size={14} /> Gəlmədi</button>}
+          {isActive(i.status) && isPast && i.status !== "pending_panel" && i.status !== "panel_declined" && <button className="primary" onClick={() => act({ id: i.id, action: "complete" }, "Müsahibə keçirilmiş kimi qeyd edildi.")}><Check size={14} /> Keçirildi</button>}
+          {isActive(i.status) && isPast && i.status !== "pending_panel" && i.status !== "panel_declined" && <button className="secondary" onClick={() => act({ id: i.id, action: "no_show" }, "Namizəd gəlmədi kimi qeyd edildi.")}><X size={14} /> Gəlmədi</button>}
           {i.status === "completed" && <button className={i.rating ? "secondary" : "primary"} onClick={() => { setFeedbackFor(feedbackFor === i.id ? null : i.id); setFb({ rating: i.rating || 4, decision: i.decision || "hold", feedback: i.feedback || "" }); }}>{i.rating ? "Rəyi dəyiş" : "Rəy yaz"}</button>}
           {i.application_id && <button className="secondary" onClick={() => setTestFor(stub({ application_id: i.application_id as string, job_id: jobId, candidate: i.candidate || "" }))}><ClipboardCheck size={14} /> Test göndər</button>}
           <button className="secondary" onClick={() => setOpenGuide(openGuide === `i:${i.id}` ? "" : `i:${i.id}`)}>Suallar</button>
@@ -459,14 +510,16 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
     { id: "upcoming", label: "Gələcək", hint: "Təyin olunmuş müsahibələr" },
     { id: "feedback", label: "Rəy gözləyir", hint: "Keçib, rəy yazılmayıb" },
     { id: "past", label: "Keçmiş", hint: "Rəy yazılmış və bağlanmış" },
+    { id: "schedule", label: "Cədvəl", hint: "Həftəlik dolu və boş saatlar" },
   ];
   return (
     <div className="company-page iv-page">
       <p className="muted">Müsahibəyə dəvət etmək üçün “Namizədlər” bölməsində namizədin yanındakı <b>“Müsahibəyə dəvət et”</b> düyməsini basın: namizəd avtomatik burada “Vaxt gözləyir” siyahısına düşür. Buradan vaxt təyin edir, test göndərir və vakansiyanın suallarını açırsınız.</p>
+      <MyRequests items={mine} onDone={load} notify={notify} />
       <div className="iv-tiles" role="tablist" aria-label="Müsahibə mərhələləri">
         {tabs.map((t) => (
           <button key={t.id} type="button" role="tab" aria-selected={active === t.id} className={`iv-tile ${active === t.id ? "active" : ""}`} onClick={() => setTab(t.id)} title={t.hint}>
-            <strong>{counts[t.id]}</strong>
+            <strong>{t.id === "schedule" ? "▦" : counts[t.id]}</strong>
             <span>{t.label}</span>
           </button>
         ))}
@@ -478,6 +531,7 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
         </select>
         <input className="search-input" type="search" aria-label="Namizəd axtar" placeholder="Namizəd və ya vakansiya axtar" value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
+      {active === "schedule" && <ScheduleGrid items={items} jobs={jobs} people={people} defaultJob={jobFilter} />}
       {active === "waiting" && (fWaiting.length ? fWaiting.map(waitingCard) : <p className="admin-empty">Vaxt gözləyən namizəd yoxdur. “Namizədlər” bölməsində namizədi müsahibəyə dəvət edin.</p>)}
       {active === "upcoming" && (fItems(upcoming).length ? fItems(upcoming).map(interviewCard) : <p className="admin-empty">Planlaşdırılmış müsahibə yoxdur.</p>)}
       {active === "feedback" && (fItems(needFeedback).length ? fItems(needFeedback).map(interviewCard) : <p className="admin-empty">Rəy gözləyən müsahibə yoxdur.</p>)}

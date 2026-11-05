@@ -1494,6 +1494,8 @@ export const interviews = sqliteTable(
     feedback: text("feedback").notNull().default(""),
     decision: text("decision").notNull().default(""),
     remindedAt: text("reminded_at").notNull().default(""),
+    // The round of the selection this interview belongs to, e.g. "HR müsahibəsi".
+    round: text("round").notNull().default(""),
     panel: text("panel").notNull().default(""),
     slots: text("slots").notNull().default("[]"),
     created: text("created").notNull(),
@@ -1504,6 +1506,24 @@ export const interviews = sqliteTable(
     index("interviews_candidate").on(t.candidateId, t.scheduledAt),
     index("interviews_application").on(t.applicationId),
   ],
+);
+
+// The colleagues who take part in an interview: they confirm first, then the candidate is asked.
+export const interviewParticipants = sqliteTable(
+  "interview_participants",
+  {
+    id: text("id").primaryKey(),
+    interviewId: text("interview_id").notNull(),
+    companyId: text("company_id").notNull(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull().default(""),
+    role: text("role").notNull().default(""),
+    status: text("status").notNull().default("pending"),
+    note: text("note").notNull().default(""),
+    responded: text("responded").notNull().default(""),
+    created: text("created").notNull(),
+  },
+  (t) => [index("interview_participants_interview").on(t.interviewId), index("interview_participants_user").on(t.userId, t.status)],
 );
 
 // The company's saved candidates with tags and a private note.

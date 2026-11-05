@@ -694,6 +694,13 @@
       "when": 1799434800000,
       "tag": "0098_interview_guide_job",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "6",
+      "when": 1799521200000,
+      "tag": "0099_interview_panel",
+      "breakpoints": true
     }
   ]
 }
