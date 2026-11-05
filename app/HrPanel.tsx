@@ -30,6 +30,7 @@ import { CertificationBadges } from "./CertificationPickers";
 import ConversationList, { type ConversationSummary } from "./ConversationList";
 import PipelineBoard from "./PipelineBoard";
 import { AssignTestModal } from "./AssessmentsPage";
+import JobDrawer from "./JobDrawer";
 import { InviteModal, ScheduleInterviewModal, type InvitePerson } from "./Interviews";
 import { BulkModal, SaveTalentModal } from "./BulkTalent";
 import { SavedSearches } from "./SavedSearches";
@@ -167,6 +168,7 @@ export default function HrPanel({
   const [interviewFor, setInterviewFor] = useState<Application | null>(null);
   const [views, setViews] = useState<Record<string, { views: number; unique: number; last7: number }>>({});
   const [editJob, setEditJob] = useState<Job | null>(null);
+  const [detailJob, setDetailJob] = useState<Job | null>(null);
   const [closeJob, setCloseJob] = useState<Job | null>(null);
   const [shareJob, setShareJob] = useState<Job | null>(null);
   const [jobQuery, setJobQuery] = useState("");
@@ -656,10 +658,12 @@ export default function HrPanel({
             </div>
             {!visibleJobs.length && <p className="admin-empty">Axtarışa uyğun vakansiya yoxdur.</p>}
             {visibleJobs.map((j) => (
-              <article className="job-card" key={j.id}>
+              <article className="job-card job-card-click" key={j.id} onClick={(e) => { if (!(e.target as HTMLElement).closest("button,select,a,option,input,label")) setDetailJob(j); }}>
                 <div className="section-heading">
                   <div>
-                    <h3>{j.title}</h3>
+                    <button type="button" className="job-card-title" aria-label={`${j.title}: təfərrüatlara bax`} onClick={() => setDetailJob(j)}>
+                      <h3>{j.title}</h3>
+                    </button>
                     <p>
                       {j.company} · {j.city} · {j.mode}
                     </p>
@@ -672,7 +676,6 @@ export default function HrPanel({
                     </span>
                   )}
                 </div>
-                <p className="job-description">{j.description}</p>
                 {!j.demo && (() => {
                   const n = jobNumbers(j.id);
                   const left = daysLeft(j.deadline);
@@ -1415,6 +1418,22 @@ export default function HrPanel({
       {templatesOpen && <TemplatesModal onClose={() => setTemplatesOpen(false)} onUse={(d) => loadDraft(d, "Şablondan layihə yaradıldı. Son tarixi və yaranma səbəbini daxil edin.")} notify={notify} />}
       {saveTemplate && <SaveTemplateModal jobId={saveTemplate.jobId} job={saveTemplate.job} defaultName={saveTemplate.name} onClose={() => setSaveTemplate(null)} notify={notify} />}
       {saveTalent && <SaveTalentModal candidateId={saveTalent.candidateId} name={saveTalent.name} onClose={() => setSaveTalent(null)} notify={notify} />}
+      {detailJob && (
+        <JobDrawer
+          job={detailJob}
+          statusLabel={detailJob.demo ? "Nümunə" : jobStatusLabel(detailJob)}
+          stats={{ unique: views[detailJob.id]?.unique, last7: views[detailJob.id]?.last7, ...jobNumbers(detailJob.id) }}
+          reasonLabel={detailJob.reason ? VACANCY_REASONS.find((r) => r.id === detailJob.reason)?.label || detailJob.reason : undefined}
+          onClose={() => setDetailJob(null)}
+          onApplications={() => {
+            setJobId(detailJob.id);
+            setTab("Müraciət edənlər");
+            setDetailJob(null);
+            go("hr-candidates");
+          }}
+          onEdit={canPublish && !detailJob.demo && ["published", "paused"].includes(detailJob.status || "published") ? () => { setEditJob(detailJob); setDetailJob(null); } : undefined}
+        />
+      )}
       {invitePeople && selectedJob && <InviteModal jobId={selectedJob.id} jobTitle={selectedJob.title} people={invitePeople} onClose={() => setInvitePeople(null)} onDone={() => { setPick([]); void refresh(); }} notify={notify} />}
       {bulk && <BulkModal ids={bulk.ids} action={bulk.action} onClose={() => setBulk(null)} onDone={() => void refresh()} notify={notify} />}
       {interviewFor && <ScheduleInterviewModal application={interviewFor} onClose={() => setInterviewFor(null)} onDone={() => void refresh()} notify={notify} />}

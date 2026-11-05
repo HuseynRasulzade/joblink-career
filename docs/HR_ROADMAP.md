@@ -469,3 +469,7 @@ Texniki: miqrasiya 0099 (`interviews.round`, `interview_participants`), `findCon
 - **Suallar:** mərhələdə veriləcək suallar vakansiyanın sual siyahısından avtomatik doldurulur, dəyişmək olar; yalnız iştirakçılar və HR görür (namizəd görmür), iştirakçının sorğusunda və görüş kartında "Suallar" açılır.
 
 Texniki: miqrasiya 0100 (`interviews.questions`), `GET hr/interviews/people?jobId=` vakansiyanın mərhələlərini, göndərilə bilən testləri (testlər icazəsi ilə) və sual siyahısını qaytarır; `hr/interviews/invite` indi `stage`, `questions` qəbul edir və hər nəticədə `applicationId` qaytarır.
+
+## 40. Vakansiyalarım: qısa siyahı və sağ panel
+
+Vakansiya kartlarından uzun təsvir mətni çıxarıldı (kart: başlıq, status, say göstəriciləri, maaş, əməliyyatlar). Vakansiyanın başlığına və ya kartın boş yerinə basanda sağda panel açılır (`app/JobDrawer.tsx`): maaş, məşğulluq, təcrübə, sahə, tarixlər, say göstəriciləri, işin təsviri və tələblər (bəndlərə bölünmüş), bacarıqlar, iş şəraiti, daxili məlumat (mərhələlər, yaranma səbəbi, departament), "Müraciətlərə bax" və "Redaktə et". Esc və ya kənara basmaqla bağlanır. Yeni miqrasiya yoxdur.

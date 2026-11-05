@@ -6237,3 +6237,23 @@ a svg {
 .iv-questions { margin-top: 8px; font-size: 13px; background: #f5f9f7; border-radius: 8px; padding: 8px 12px; }
 .iv-questions summary { cursor: pointer; font-weight: 600; color: #2d4a3d; }
 .iv-questions ol { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+/* The details of a vacancy of the company, in a panel on the right */
+dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-width: 100vw; height: 100vh; max-height: 100vh; border-radius: 16px 0 0 16px; animation: drawer-in 0.2s ease-out; }
+@keyframes drawer-in { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.jd { display: flex; flex-direction: column; gap: 18px; }
+.jd-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 14px; color: #4a6256; }
+.jd-status { margin-left: auto; font-size: 12px; background: #e8f3ef; color: var(--teal); padding: 3px 10px; border-radius: 999px; font-weight: 700; }
+.jd-facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: #e6eee9; border: 1px solid #e6eee9; border-radius: 10px; overflow: hidden; }
+.jd-facts > div { background: #fff; padding: 10px 14px; display: flex; flex-direction: column; gap: 3px; }
+.jd-facts span { font-size: 11px; color: #7a8c83; }
+.jd-facts b { font-size: 13px; color: #1d3a2e; }
+.jd-stats { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: #4a6256; }
+.jd section h3 { margin: 0 0 8px; font-size: 15px; }
+.jd ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.jd li { position: relative; padding-left: 22px; font-size: 14px; line-height: 1.55; color: #3b5246; }
+.jd li::before { content: ""; position: absolute; left: 2px; top: 6px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #3aa6d8; }
+.jd-actions { display: flex; flex-wrap: wrap; gap: 10px; position: sticky; bottom: -28px; background: #fff; padding: 14px 0 4px; border-top: 1px solid #eef3f0; }
+.job-card-title { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; color: inherit; }
+.job-card-title:hover h3 { color: var(--teal); text-decoration: underline; }
+.job-card-click { cursor: pointer; }
