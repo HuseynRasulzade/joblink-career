@@ -19,6 +19,8 @@ Hamısı canlı saytda işləyir (deploy keçib).
 | Holdinq (qrup) görünüşü | Qrup (holdinq) |
 | İşçinin öz səhifəsi | İş yerim |
 
+Bacarıq matrisi bacarıqları admin panelindəki kataloqdan və ESCO (həmçinin O*NET) siyahısından seçir.
+
 Excel ilə yükləmə işləyən bölmələr: işçilər, ştat, struktur, davamiyyət, təqvim, şəxsi məlumat, əmək haqqı əlavələri, saat uçotu, növbə, aktivlər, məzuniyyət qrafiki, əməyin mühafizəsi, bacarıq matrisi, performans məqsədləri, təlim planı. Hamısında nümunə fayl var, işçi FİN ilə tapılır.
 
 ## 2. Sizin qərarınız və ya məlumatınız lazımdır
@@ -30,7 +32,6 @@ Bunları mən öz başıma bağlaya bilmərəm.
 3. **Rəsmi gündəlik ezamiyyət cədvəli:** hazırda gündəlik boş qalanda ümumi norma tətbiq olunur.
 4. **Holdinq qərarları** (mən götürdüm, təsdiq edin və ya dəyişin): qrup yalnız yekunları görür, maaş yekunu yalnız üzv icazə verəndə; ayrıca "qrup rəhbəri" hesab növü yoxdur (baş şirkətin hesab sahibi baxır).
 5. **Ad günü və il dönümü təbriki ilkin olaraq bağlıdır** (doğum tarixi şəxsi məlumatdır). Açmaq istəyirsinizsə: Kadr əməliyyatları → Ad günləri.
-6. **Bacarıq matrisinə ESCO bacarıqları da daxil olsun?** İndi yalnız admin panelinin əsas kataloqu.
 
 ## 3. Xarici müqavilə və ya cihaz tələb edir (kodla həll olunmur)
 

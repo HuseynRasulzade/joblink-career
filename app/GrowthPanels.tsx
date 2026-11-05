@@ -850,18 +850,18 @@ export function SkillMatrix({ notify }: { notify: Notify }) {
       {importing && <SheetImport kind="skillmatrix" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       <div className="section-heading">
         <div className="admin-actions" style={{ position: "relative", flexWrap: "wrap" }}>
-          <input className="search-input" aria-label="Bacarıq axtar" placeholder="Bacarıq kataloqunda axtar (məs. Excel, forklift, xidmət)" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
+          <input className="search-input" aria-label="Bacarıq axtar" placeholder="Bacarıq axtar: kataloq və ESCO (məs. Excel, forklift, xidmət)" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
           <button type="button" className="secondary" onClick={() => setImporting(true)}>Excel-dən yüklə</button>
           {offered.length > 0 && (
             <div className="panel" role="listbox" aria-label="Kataloqdan uyğun bacarıqlar" style={{ position: "absolute", top: "100%", left: 0, zIndex: 5, minWidth: 320, maxHeight: 260, overflowY: "auto" }}>
               {offered.map((f) => (
                 <button key={f.id} type="button" role="option" aria-selected={false} className="ghost" style={{ display: "block", width: "100%", textAlign: "left" }} onClick={() => void addSkill(f.label)}>
-                  {f.label} <small className="skill-description">{f.category}</small>
+                  {f.label} <small className="skill-description">{f.category === "ESCO" || f.category === "O*NET" ? `${f.category} (ingiliscə ad)` : f.category}</small>
                 </button>
               ))}
             </div>
           )}
-          {name.trim().length >= 2 && offered.length === 0 && <small className="skill-description">Kataloqda tapılmadı: bacarıqlar yalnız admin panelindəki kataloqdan seçilir.</small>}
+          {name.trim().length >= 2 && offered.length === 0 && <small className="skill-description">Tapılmadı: bacarıqlar yalnız admin panelindəki kataloqdan və ESCO siyahısından seçilir.</small>}
         </div>
         <p className="muted">{data.skills.length ? `${gaps} xanada səviyyə hədəfdən aşağıdır (qırmızı).` : "Əvvəl bu vəzifələr üçün vacib bacarıqları kataloqdan seçin və ya Excel faylı yükləyin."}</p>
       </div>

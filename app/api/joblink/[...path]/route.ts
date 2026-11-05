@@ -10367,6 +10367,24 @@ async function route(request: Request) {
   }
   // The skills of the matrix come only from the platform catalog the admin panel keeps (built-in and admin-added skills).
   const catalogSkills = async (): Promise<CatalogSkill[]> => (await readCustomSkills(db)).map((c) => ({ id: c.id, label: c.label, category: c.category, aliases: [c.label, c.labelEn, ...c.aliases].filter(Boolean) }));
+  // Skills of the matrix: the platform catalog first, then the ESCO table and the O*NET names that the skill picker uses.
+  const resolveAnySkill = async (input: string, custom: CatalogSkill[]): Promise<CatalogSkill | null> => {
+    const curated = resolveCatalogSkill(input, custom);
+    if (curated) return curated;
+    const key = normalizeSkillKey(str(input, 120));
+    if (key.length < 2) return null;
+    const row = await db
+      .prepare("SELECT uri,label_en,normalized_label,alternative_labels,description_en,skill_type,reuse_level FROM esco_skills WHERE normalized_label=? OR (' | ' || normalized_alternatives || ' | ') LIKE ? LIMIT 1")
+      .bind(key, `% | ${key} | %`)
+      .first<EscoSkillRow>()
+      .catch(() => null);
+    if (row) {
+      const d = escoSkillDefinition(row);
+      return { id: d.id, label: d.label, category: "ESCO", aliases: [] };
+    }
+    const world = searchWorldSkills(key, 3).find((w) => normalizeSkillKey(w.label) === key);
+    return world ? { id: world.id, label: world.label, category: "O*NET", aliases: [] } : null;
+  };
   const SKILL_LIMIT = 100;
   const ensureSkillDef = async (skill: CatalogSkill): Promise<string> => {
     const existing = await db.prepare("SELECT id FROM skill_defs WHERE company_id=? AND (catalog_id=? OR name=?)").bind(id, skill.id, skill.label).first<{ id: string }>();
@@ -10380,15 +10398,19 @@ async function route(request: Request) {
   if (request.method === "GET" && path === "company/skill-matrix/catalog") {
     requirePermission("salaries", "Bacarıq kataloqunu yalnız kadr işçisi görə bilər.");
     const taken = (await db.prepare("SELECT name FROM skill_defs WHERE company_id=?").bind(id).all<{ name: string }>()).results.map((r) => r.name);
-    return ok({ items: searchCatalog(str(requestUrl.searchParams.get("q"), 80), await catalogSkills(), taken, 12).map((s) => ({ id: s.id, label: s.label, category: s.category })) });
+    const q = str(requestUrl.searchParams.get("q"), 80);
+    const own = searchCatalog(q, await catalogSkills(), taken, 12).map((s) => ({ id: s.id, label: s.label, category: s.category }));
+    const have = new Set([...taken, ...own.map((o) => o.label)].map((v) => normalizeSkillKey(v)));
+    const more = own.length >= 12 ? [] : (await searchEscoSkills(db, q, 12 - own.length).catch(() => [])).filter((e) => !have.has(normalizeSkillKey(e.label))).map((e) => ({ id: e.id, label: e.label, category: e.category }));
+    return ok({ items: [...own, ...more].slice(0, 12) });
   }
   if (request.method === "POST" && path === "company/skill-matrix/skill") {
     requirePermission("salaries", "Bacarığı yalnız kadr işçisi əlavə edə bilər.");
     const b = await jsonBody(request);
     const name = str(b.name, 120);
     if (name.length < 2) throw new HttpError(400, "Bacarığı kataloqdan seçin.");
-    const skill = resolveCatalogSkill(name, await catalogSkills());
-    if (!skill) throw new HttpError(400, "Bu bacarıq platformanın bacarıq kataloqunda yoxdur. Bacarıqlar yalnız admin panelindəki kataloqdan seçilir; yenisi lazımdırsa admin kataloqa əlavə etməlidir.");
+    const skill = await resolveAnySkill(name, await catalogSkills());
+    if (!skill) throw new HttpError(400, "Bu bacarıq nə admin panelindəki kataloqda, nə də ESCO siyahısında yoxdur. Bacarıqlar yalnız bu siyahılardan seçilir; yenisi lazımdırsa admin kataloqa əlavə etməlidir.");
     if (await db.prepare("SELECT 1 AS yes FROM skill_defs WHERE company_id=? AND (catalog_id=? OR name=?)").bind(id, skill.id, skill.label).first()) throw new HttpError(409, "Bu bacarıq artıq var.");
     await ensureSkillDef(skill);
     await companyAudit(db, id, userId, "skill-added", "", skill.label);
@@ -10412,9 +10434,9 @@ async function route(request: Request) {
         issues.push({ line: row.line, reason: found.error });
         continue;
       }
-      const skill = resolveCatalogSkill(row.skill, custom);
+      const skill = await resolveAnySkill(row.skill, custom);
       if (!skill) {
-        issues.push({ line: row.line, reason: `“${row.skill}” bacarıq kataloqunda tapılmadı (admin panelindəki kataloqa baxın).` });
+        issues.push({ line: row.line, reason: `“${row.skill}” bacarıq kataloqunda və ESCO siyahısında tapılmadı (admin panelindəki kataloqa baxın).` });
         continue;
       }
       try {
@@ -10721,9 +10743,9 @@ async function route(request: Request) {
     for (const row of parsed.rows) {
       let skillId = "";
       if (row.skill) {
-        const skill = resolveCatalogSkill(row.skill, custom);
+        const skill = await resolveAnySkill(row.skill, custom);
         if (!skill) {
-          issues.push({ line: row.line, reason: `${row.title}: “${row.skill}” bacarıq kataloqunda tapılmadı (admin panelindəki kataloqa baxın).` });
+          issues.push({ line: row.line, reason: `${row.title}: “${row.skill}” bacarıq kataloqunda və ESCO siyahısında tapılmadı (admin panelindəki kataloqa baxın).` });
           continue;
         }
         try {

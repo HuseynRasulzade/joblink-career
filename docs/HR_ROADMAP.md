@@ -404,7 +404,7 @@ Qalan: turniket inteqrasiyası (xarici cihaz), hüquqi e-imza, bank API, bir ne�
 
 - **Bacarıqlar yalnız platformanın bacarıq kataloqundan seçilir** (admin panelindəki kataloq: daxili bacarıqlar və adminin əlavə etdikləri). Matris səhifəsində sərbəst mətn əvəzinə axtarış qutusu var: yazdıqca kataloqdan uyğunlar çıxır (ad, oxşar ad və kateqoriya üzrə), artıq matrisdə olanlar təklif edilmir. Kataloqda olmayan bacarıq server tərəfindən də rədd edilir; yenisi lazımdırsa admin kataloqa əlavə etməlidir. Matrisin limiti 40-dan 100 bacarığa qaldırıldı.
 - **Excel ilə yükləmə** ("Excel-dən yüklə"): Ad Soyad / FİN, Bacarıq, Səviyyə, Hədəf. Səviyyə 0–4 rəqəmi və ya söz (başlanğıc, işləyə bilir, yaxşı, ekspert) ola bilər; boş buraxılan dəyişmir. Fayldakı bacarıq adı kataloqda ada və ya oxşar adlara görə tapılır və matrisə avtomatik əlavə olunur; tapılmayan bacarıq və işçi sətir-sətir xəta kimi göstərilir. İşçi FİN ilə tapılır. Nümunə fayl kataloqdan olan bacarıqlarla hazırlanıb (testlə yoxlanır).
-- ESCO bacarıqları bu seçimə daxil edilməyib (yalnız admin panelinin əsas kataloqu).
+- ESCO bacarıqları əvvəlcə daxil deyildi; bölmə 33-də əlavə olundu.
 
 Texniki: miqrasiya 0096 (`skill_defs.catalog_id`), `lib/skill-matrix.ts` (testlərlə), `parseSkillMatrix`, `company/skill-matrix/catalog`, `company/skill-matrix/import`.
 
@@ -425,3 +425,9 @@ Hesabatlar → "Kadr dinamikası, proqnoz və plan-fakt" səhifəsində plan art
 - **Departament planı yerində:** departament bir ştat sətridirsə, plan sayı birbaşa dəyişdirilir (ştat planı kilidlidirsə dəyişiklik direktorun təsdiqinə gedir); bir neçə sətir varsa, ştat cədvəlində dəyişdirilir.
 
 Texniki: miqrasiya 0097 (`headcount_targets`), `linearTargets` və `targetAlerts` (`lib/hr-trends.ts`, testlə), `POST company/hr-trends/targets` (icazə: ştat planı).
+
+## 33. Bacarıq matrisinə ESCO bacarıqları
+
+Bacarıq matrisində axtarış, əlavə etmə və Excel idxalı artıq üç mənbədən işləyir: admin panelindəki kataloq (əvvəlcə), sonra ESCO cədvəli və O*NET alət adları (platformanın bacarıq seçicisindəki eyni siyahılar). ESCO adları ingiliscədir: axtarışda "ESCO" / "O*NET" işarəsi ilə göstərilir; Excel-də həm əsas adı, həm oxşar ESCO adlarını yazmaq olar (məsələn "contract negotiation"). Siyahılarda olmayan bacarıq yenə də rədd edilir. Təlim planı faylındakı "Bacarıq" sütunu da eyni qaydada işləyir.
+
+Diqqət: ESCO cədvəli canlı bazada admin tərəfindən yüklənibsə işləyir (admin panelindəki ESCO idxalı); boşdursa yalnız kataloq və O*NET nəticə verir.
