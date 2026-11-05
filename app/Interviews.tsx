@@ -29,6 +29,7 @@ export type InterviewItem = {
   feedback?: string;
   decision?: string;
   round?: string;
+  created_by_name?: string;
   questions?: string[];
   participants?: Participant[];
 };
@@ -535,6 +536,8 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
           <PanelChain status={i.status} participants={i.participants} />
           <QuestionList value={i.questions} />
           {!i.participants?.length && i.panel && <p className="muted">Müsahibə aparanlar: {i.panel}</p>}
+          {!i.participants?.length && !i.panel && isActive(i.status) && <p className="muted">Müsahibə aparan işçi təyin edilməyib. {!past(i) && <button type="button" className="text-button" onClick={() => setEditing(i)}>İştirakçı əlavə et</button>}</p>}
+          {i.created_by_name && <p className="muted">Müsahibəni quran: {i.created_by_name}</p>}
           {i.status === "panel_declined" && <p className="iv-conflict-inline">İştirakçı imtina etdi. Namizədə heç nə göndərilməyib: vaxtı və ya iştirakçıları dəyişin.</p>}
           {i.candidate_note && <p className="muted">Namizəd yazdı: “{i.candidate_note}”</p>}
           {i.status === "completed" && i.rating ? <p className="muted">Rəy: {i.rating}/5 · {i.decision === "advance" ? "növbəti mərhələyə keçsin" : i.decision === "reject" ? "uyğun deyil" : "qərar gözlənilir"}{i.feedback ? ` · ${i.feedback}` : ""}</p> : null}

@@ -20298,10 +20298,11 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     job_title: string;
     candidate: string;
     application_status: string;
+    created_by_name?: string;
     job_data?: string;
   };
   const INTERVIEW_COLUMNS = `i.id,i.application_id,i.job_id,i.company_id,i.candidate_id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.panel,i.slots,i.status,i.candidate_note,i.created_by,i.rating,i.feedback,i.decision,i.round,i.questions,i.created,
-      COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS candidate,COALESCE(a.status,'') AS application_status`;
+      COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS candidate,COALESCE(a.status,'') AS application_status,COALESCE((SELECT name FROM accounts WHERE id=i.created_by),'') AS created_by_name`;
   const interviewKindText = (row: { kind: string; location: string }) =>
     `${INTERVIEW_KINDS.find((k) => k.id === row.kind)?.label || row.kind}${row.location ? `: ${row.location}` : ""}`;
   // Roles without "publish" see and schedule interviews only for vacancies they created.
