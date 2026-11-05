@@ -122,6 +122,8 @@ import {
   needsDirector,
   salaryChangePercent,
   normalizeApprovalRules,
+  mayDecide,
+  requestAmount,
   type ApprovalKind,
   GRANTABLE,
   INVITABLE_ROLES,
@@ -1882,6 +1884,8 @@ async function route(request: Request) {
   let memberGrants: string[] = [];
   // Approval rights lent by a colleague who is away (valid until the date they set).
   const delegated: CompanyPermission[] = [];
+  // The colleagues whose approval rights this person holds for now (named substitutes).
+  const lentFrom: string[] = [];
   if (accountRole === "company") {
     // Membership, a suspension and lent rights are independent, so they are read together.
     const [membership, suspended, lentAll] = await Promise.all([
@@ -1931,6 +1935,7 @@ async function route(request: Request) {
       memberRole = "owner";
     }
     for (const row of lentAll.results.filter((r) => r.company_id === id)) {
+      lentFrom.push(row.from_user);
       const from =
         row.from_user === id
           ? "owner"
@@ -2094,6 +2099,15 @@ async function route(request: Request) {
       requestId,
       `${APPROVAL_KIND_LABEL[kind]}: ${subject}`,
     );
+    const named = (await approvalRules()).approvers[kind];
+    if (named.length) {
+      // Only the people named for this kind (within their limit) hear about it, and the account owner.
+      const amount = requestAmount(kind, payload);
+      const people = new Set<string>([id, ...named.filter((a) => a.limit <= 0 || amount === null || amount <= a.limit).map((a) => a.userId)]);
+      for (const person of people)
+        if (person !== userId)
+          await notify(db, { userId: person, type: "approval", title: `Təsdiq gözləyir: ${APPROVAL_KIND_LABEL[kind]}`, body: subject, link: "hr-approvals" });
+    } else
     await notifyCompanyRoles(db, id, "approve-director", {
       type: "approval",
       title: `Təsdiq gözləyir: ${APPROVAL_KIND_LABEL[kind]}`,
@@ -18933,10 +18947,94 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     }
     return ok({ ok: true, id: await deliverOffer(row, data) }, 201);
   }
+  // Who can be named to decide: the account owner and the active members, by name.
+  const approverPeople = async (): Promise<{ userId: string; name: string; role: string }[]> => {
+    const owner = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(id).first<{ name: string }>();
+    const members = await db
+      .prepare("SELECT m.user_id,m.role,COALESCE(a.name,m.email) AS name FROM company_members m LEFT JOIN accounts a ON a.id=m.user_id WHERE m.company_id=? AND m.status='active' AND m.user_id<>''")
+      .bind(id)
+      .all<{ user_id: string; role: string; name: string }>()
+      .catch(() => ({ results: [] as { user_id: string; role: string; name: string }[] }));
+    const ROLE: Record<string, string> = { director: "Direktor", hr: "HR meneceri", manager: "Şöbə rəhbəri", recruiter: "Rekruter", auditor: "Auditor" };
+    return [{ userId: id, name: owner?.name || "Hesab sahibi", role: "Hesab sahibi" }, ...members.results.map((m) => ({ userId: m.user_id, name: m.name || "Üzv", role: ROLE[m.role] || m.role }))];
+  };
+  // Only the account owner and directors hold the director right, so only they can be named to decide these requests.
+  const approverCandidates = async () => (await approverPeople()).filter((p) => p.role === "Hesab sahibi" || p.role === "Direktor");
   if (request.method === "GET" && path === "company/approval-rules") {
     return ok({
       rules: await approvalRules(),
       canEdit: canAct("approve-director"),
+      people: await approverCandidates(),
+    });
+  }
+  // What a request is about, in plain words, for the person who is asked to decide.
+  if (request.method === "GET" && path === "company/requests/detail") {
+    const reqId = str(new URL(request.url).searchParams.get("id"), 100);
+    const row = await db
+      .prepare("SELECT id,kind,subject,payload,requested_by,requested_by_name,status,decided_by_name,note,reply,created,decided FROM approval_requests WHERE id=? AND company_id=?")
+      .bind(reqId, id)
+      .first<{ id: string; kind: string; subject: string; payload: string; requested_by: string; requested_by_name: string; status: string; decided_by_name: string; note: string; reply: string; created: string; decided: string }>();
+    if (!row) throw new HttpError(404, "Sorğu tapılmadı.");
+    if (!canAct("approve-director") && row.requested_by !== userId) throw new HttpError(403, "Bu sorğunun təfərrüatını yalnız təsdiqləyən və ya göndərən görə bilər.");
+    let payload: Record<string, unknown> = {};
+    try { payload = JSON.parse(row.payload); } catch { /* shown without details */ }
+    const facts: { label: string; value: string }[] = [];
+    const links: { label: string; page: string }[] = [];
+    const azn = (n: unknown) => `${Number(n).toLocaleString("az-AZ", { maximumFractionDigits: 2 })} AZN`;
+    const employee = payload.employeeId
+      ? await db.prepare("SELECT name,position,department,section,salary_cents,salary_type,start_date,status FROM company_employees WHERE id=? AND company_id=?").bind(String(payload.employeeId), id).first<{ name: string; position: string; department: string; section: string; salary_cents: number; salary_type: string; start_date: string; status: string }>()
+      : null;
+    if (row.kind === "salary" && employee) {
+      const oldPay = employee.salary_cents / 100;
+      const next = Number(payload.salary);
+      facts.push({ label: "İşçi", value: employee.name }, { label: "Vəzifə", value: `${employee.position || "—"}${employee.department ? ` · ${employee.department}` : ""}` }, { label: "İşə başlama", value: employee.start_date || "—" }, { label: "Hazırkı maaş", value: azn(oldPay) }, { label: "Təklif olunan maaş", value: azn(next) }, { label: "Dəyişiklik", value: `${next >= oldPay ? "+" : ""}${azn(next - oldPay)} (${oldPay > 0 ? `${Math.round(((next - oldPay) / oldPay) * 1000) / 10}%` : "yeni maaş"})` });
+      links.push({ label: "İşçinin kartı", page: "hr-employees" });
+    } else if (row.kind === "exit" && employee) {
+      facts.push({ label: "İşçi", value: employee.name }, { label: "Vəzifə", value: `${employee.position || "—"}${employee.department ? ` · ${employee.department}` : ""}` }, { label: "İşə başlama", value: employee.start_date || "—" }, { label: "Xitam növü", value: exitTypeLabel(String(payload.exitType || "")) }, { label: "Son iş günü", value: String(payload.endDate || "—") }, { label: "Səbəb", value: String(payload.exitReason || "—") });
+      if (payload.exitNote) facts.push({ label: "Qeyd", value: String(payload.exitNote) });
+      links.push({ label: "İşçinin kartı", page: "hr-employees" });
+    } else if (row.kind === "offer") {
+      const data = (payload.data && typeof payload.data === "object" ? payload.data : {}) as Record<string, unknown>;
+      const app = await db.prepare("SELECT a.candidate_id,json_extract(j.data,'$.title') AS title,json_extract(j.data,'$.department') AS department FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND j.owner=?").bind(String(payload.applicationId || ""), id).first<{ candidate_id: string; title: string; department: string }>();
+      const who = app ? (await db.prepare("SELECT name FROM accounts WHERE id=?").bind(app.candidate_id).first<{ name: string }>())?.name : "";
+      facts.push({ label: "Namizəd", value: who || "—" }, { label: "Vakansiya", value: app?.title || "—" }, { label: "Vəzifə", value: String(data.position || "—") }, { label: "Maaş", value: `${azn(data.salary)} (${data.salaryPeriod === "gross" ? "gross" : "net"})` });
+      if (data.startDate) facts.push({ label: "İşə başlama", value: String(data.startDate) });
+      if (data.message) facts.push({ label: "Namizədə mesaj", value: String(data.message) });
+      links.push({ label: "Namizəd və müraciət", page: "hr-candidates" });
+    } else if (row.kind === "headcount") {
+      if (payload.approvePlan) facts.push({ label: "Əməliyyat", value: "Ştat planının təsdiqi (təsdiqdən sonra plana dəyişiklik direktorun qərarı ilə olur)" });
+      else if (Array.isArray(payload.units)) facts.push({ label: "Əməliyyat", value: `Excel idxalı: ${payload.units.length} ştat sətri plana yazılacaq` }, ...(payload.units as { department?: string; position?: string; planned?: number }[]).slice(0, 8).map((u) => ({ label: u.department || "—", value: `${u.position || "—"}: ${u.planned ?? "?"} ştat` })));
+      else if (payload.unitDelete) facts.push({ label: "Əməliyyat", value: "Ştat sətri silinir" });
+      else if (payload.unit && typeof payload.unit === "object") {
+        const u = payload.unit as { department?: string; section?: string; position?: string; planned?: number; salaryCents?: number; note?: string };
+        facts.push({ label: "Departament / şöbə", value: [u.department, u.section].filter(Boolean).join(" / ") || "—" }, { label: "Vəzifə", value: u.position || "—" }, { label: "Ştat sayı", value: String(u.planned ?? "—") });
+        if (u.salaryCents) facts.push({ label: "Maaş", value: azn(u.salaryCents / 100) });
+        if (u.note) facts.push({ label: "Qeyd", value: u.note });
+      } else facts.push({ label: "Departament", value: String(payload.department || "—") }, { label: "Yeni plan", value: payload.planned === null ? "plan silinir" : `${payload.planned} ştat` });
+      links.push({ label: "Ştat planı", page: "hr-workforce" });
+    }
+    if (!facts.length) facts.push({ label: "Sorğu", value: row.subject });
+    const rules = await approvalRules();
+    const names = new Map((await approverPeople()).map((p) => [p.userId, p.name]));
+    const amount = requestAmount(row.kind, payload);
+    await auditView("approval-viewed", row.id, row.subject);
+    return ok({
+      id: row.id,
+      kind: row.kind,
+      subject: row.subject,
+      status: row.status,
+      requestedByName: row.requested_by_name,
+      created: row.created,
+      facts,
+      links,
+      amount,
+      approvers: (rules.approvers[row.kind as ApprovalKind] || []).map((a) => ({ name: names.get(a.userId) || "Üzv", limit: a.limit, ok: a.limit <= 0 || amount === null || amount <= a.limit })),
+      timeline: [
+        { at: row.created, text: `${row.requested_by_name || "—"} sorğu göndərdi` },
+        ...(row.decided ? [{ at: row.decided, text: `${row.decided_by_name || "—"}: ${row.status === "approved" ? "təsdiqlədi" : row.status === "rejected" ? "rədd etdi" : "əlavə məlumat istədi"}${row.note ? ` — ${row.note}` : ""}` }] : []),
+        ...(row.reply ? [{ at: row.decided, text: `Göndərənin cavabı: ${row.reply}` }] : []),
+      ],
+      canDecide: row.status === "pending" && canAct("approve-director") && mayDecide(rules, row.kind, [userId, ...lentFrom], memberRole === "owner", amount) && (row.requested_by !== userId || memberRole === "owner"),
     });
   }
   if (request.method === "POST" && path === "company/approval-rules") {
@@ -18947,6 +19045,10 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       );
     const b = await jsonBody(request);
     const rules = normalizeApprovalRules(b);
+    {
+      const valid = new Set((await approverCandidates()).map((p) => p.userId));
+      for (const kind of Object.keys(rules.approvers) as ApprovalKind[]) rules.approvers[kind] = rules.approvers[kind].filter((a) => valid.has(a.userId));
+    }
     await db
       .prepare(
         `INSERT INTO company_profiles(company_id,data,verification_status,updated,approval_rules) VALUES(?,?,?,?,?)
@@ -18967,25 +19069,37 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
   if (request.method === "GET" && path === "company/requests") {
     const rows = await db
       .prepare(
-        "SELECT id,kind,subject,requested_by,requested_by_name,status,decided_by_name,note,reply,escalated_at,created,decided FROM approval_requests WHERE company_id=? ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'info' THEN 1 ELSE 2 END,created DESC LIMIT 60",
+        "SELECT id,kind,subject,payload,requested_by,requested_by_name,status,decided_by_name,note,reply,escalated_at,created,decided FROM approval_requests WHERE company_id=? ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'info' THEN 1 ELSE 2 END,created DESC LIMIT 60",
       )
       .bind(id)
       .all<{
         id: string;
         kind: string;
         subject: string;
+        payload: string;
         requested_by: string;
         status: string;
       }>();
+    const rules = await approvalRules();
+    const names = new Map((await approverPeople()).map((p) => [p.userId, p.name]));
     return ok({
-      requests: rows.results.map((r) => ({
-        ...r,
-        canDecide:
-          r.status === "pending" &&
-          canAct("approve-director") &&
-          (r.requested_by !== userId || memberRole === "owner"),
-        canRespond: r.status === "info" && r.requested_by === userId,
-      })),
+      requests: rows.results.map(({ payload, ...r }) => {
+        let data: unknown = {};
+        try { data = JSON.parse(payload); } catch { /* an unreadable payload has no amount */ }
+        const amount = requestAmount(r.kind, data);
+        const named = rules.approvers[r.kind as ApprovalKind] || [];
+        return {
+          ...r,
+          amount,
+          approvers: named.length ? named.map((a) => ({ name: names.get(a.userId) || "Üzv", limit: a.limit, ok: a.limit <= 0 || amount === null || amount <= a.limit })) : [],
+          canDecide:
+            r.status === "pending" &&
+            canAct("approve-director") &&
+            mayDecide(rules, r.kind, [userId, ...lentFrom], memberRole === "owner", amount) &&
+            (r.requested_by !== userId || memberRole === "owner"),
+          canRespond: r.status === "info" && r.requested_by === userId,
+        };
+      }),
     });
   }
   if (request.method === "POST" && path === "company/requests/decide") {
@@ -19028,6 +19142,17 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         "Öz göndərdiyiniz sorğunu təsdiqləyə bilməzsiniz.",
       );
     const payload = JSON.parse(req.payload);
+    {
+      const rules = await approvalRules();
+      if (!mayDecide(rules, req.kind, [userId, ...lentFrom], memberRole === "owner", requestAmount(req.kind, payload))) {
+        const named = rules.approvers[req.kind as ApprovalKind] || [];
+        const mine = named.find((a) => a.userId === userId || lentFrom.includes(a.userId));
+        throw new HttpError(
+          403,
+          mine ? `Bu sorğunun məbləği sizin təsdiq limitinizdən (${mine.limit} AZN) çoxdur. Limiti yuxarı olan şəxs və ya hesab sahibi təsdiqləməlidir.` : "Bu növ sorğunu təsdiqləmək üçün siz “Təsdiq icazələri”ndə adı çəkilən şəxslərdən deyilsiniz.",
+        );
+      }
+    }
     // A question goes back to the sender; the request stays open until they reply.
     if (decision === "info") {
       await db

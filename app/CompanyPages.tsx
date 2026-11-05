@@ -598,9 +598,11 @@ type ApprovalJob = {
 export function ApprovalsPage({
   notify,
   onChange,
+  go,
 }: {
   notify: Notify;
   onChange: () => void;
+  go?: (page: string) => void;
 }) {
   const [data, load] = useLoad<{ jobs: ApprovalJob[] }>(
     "company/approvals",
@@ -882,7 +884,7 @@ export function ApprovalsPage({
       {!data.jobs.length && (
         <p className="admin-empty">Təsdiq gözləyən vakansiya yoxdur.</p>
       )}
-      <RequestApprovals notify={notify} onChange={onChange} />
+      <RequestApprovals notify={notify} onChange={onChange} go={go} />
       <DelegationPanel notify={notify} />
       {editing && (
         <Modal
@@ -959,7 +961,91 @@ type ApprovalRequest = {
   canRespond?: boolean;
   reply?: string;
   escalated_at?: string;
+  amount?: number | null;
+  approvers?: { name: string; limit: number; ok: boolean }[];
 };
+type RequestDetailData = {
+  id: string;
+  kind: string;
+  subject: string;
+  status: string;
+  requestedByName: string;
+  created: string;
+  facts: { label: string; value: string }[];
+  links: { label: string; page: string }[];
+  amount: number | null;
+  approvers: { name: string; limit: number; ok: boolean }[];
+  timeline: { at: string; text: string }[];
+  canDecide: boolean;
+};
+const APPROVER_KINDS: { id: "offer" | "salary" | "exit" | "headcount"; label: string; amount: boolean }[] = [
+  { id: "offer", label: "İş təklifi", amount: true },
+  { id: "salary", label: "Maaş dəyişikliyi", amount: true },
+  { id: "exit", label: "İşçinin işdən çıxarılması", amount: false },
+  { id: "headcount", label: "Ştat planı dəyişikliyi", amount: false },
+];
+const limitText = (a: { name: string; limit: number }) => `${a.name} (${a.limit > 0 ? `${a.limit.toLocaleString("az-AZ")} AZN-dək` : "limitsiz"})`;
+// What the request is about, who may decide it, the history, and the decision itself.
+function RequestDetail({ id, onClose, onDecided, go, notify }: { id: string; onClose: () => void; onDecided: () => void; go?: (page: string) => void; notify: Notify }) {
+  const [data, setData] = useState<RequestDetailData | null>(null);
+  const [note, setNote] = useState("");
+  useEffect(() => {
+    request<RequestDetailData>(`company/requests/detail?id=${encodeURIComponent(id)}`).then(setData).catch((e) => { notify((e as Error).message); onClose(); });
+    // Loaded once per request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+  async function decide(decision: "approve" | "reject" | "info") {
+    try {
+      await request("company/requests/decide", { id, decision, note });
+      notify(decision === "approve" ? "Təsdiqləndi." : decision === "reject" ? "Rədd edildi." : "Sual göndərənə göndərildi.");
+      onDecided();
+      onClose();
+    } catch (e) {
+      notify((e as Error).message);
+    }
+  }
+  return (
+    <Modal title={data ? `${REQUEST_KIND[data.kind] || "Sorğu"}` : "Sorğu"} onClose={onClose} className="side-drawer">
+      {!data ? (
+        <p className="muted">Yüklənir…</p>
+      ) : (
+        <div className="jd">
+          <p className="jd-sub"><b>{data.subject}</b><span className="jd-status">{REQUEST_STATUS[data.status] || data.status}</span></p>
+          <p className="muted">Göndərən: {data.requestedByName || "—"} · {when(data.created)}</p>
+          <div className="jd-facts">
+            {data.facts.map((f, i) => <div key={`${i}-${f.label}`}><span>{f.label}</span><b>{f.value}</b></div>)}
+          </div>
+          {data.approvers.length > 0 && (
+            <section>
+              <h3>Kim təsdiq edə bilər</h3>
+              <ul>{data.approvers.map((a) => <li key={a.name}>{limitText(a)}{data.amount !== null && !a.ok ? " — bu məbləğ limitdən çoxdur" : ""}</li>)}</ul>
+              <small className="muted">Hesab sahibi həmişə təsdiq edə bilər.</small>
+            </section>
+          )}
+          <section>
+            <h3>Gedişat</h3>
+            <ul>{data.timeline.map((t, i) => <li key={i}>{when(t.at)} · {t.text}</li>)}</ul>
+          </section>
+          {go && data.links.length > 0 && (
+            <div className="approval-filter">
+              {data.links.map((l) => <button key={l.label} type="button" className="secondary" onClick={() => { onClose(); go(l.page); }}>{l.label} ↗</button>)}
+            </div>
+          )}
+          {data.canDecide ? (
+            <div className="jd-actions">
+              <input aria-label="Qeyd" placeholder="Qeyd (rədd və sual üçün məcburi)" value={note} onChange={(e) => setNote(e.target.value)} />
+              <button type="button" className="secondary" onClick={() => decide("info")}>Məlumat istə</button>
+              <button type="button" className="secondary" onClick={() => decide("reject")}>Rədd et</button>
+              <button type="button" className="primary" onClick={() => decide("approve")}>Təsdiqlə</button>
+            </div>
+          ) : data.status === "pending" ? (
+            <p className="muted">Bu sorğunu siz təsdiqləyə bilməzsiniz (ya sizin limitinizdən çoxdur, ya adınız bu növ üçün təyin olunmayıb, ya da sorğunu özünüz göndərmisiniz).</p>
+          ) : null}
+        </div>
+      )}
+    </Modal>
+  );
+}
 const REQUEST_STATUS: Record<string, string> = {
   pending: "Təsdiq gözləyir",
   info: "Əlavə məlumat gözlənilir",
@@ -980,6 +1066,7 @@ type ApprovalRulesData = {
   chain: string;
   offerMin: number;
   raisePercent: number;
+  approvers: Record<"offer" | "salary" | "exit" | "headcount", { userId: string; limit: number }[]>;
 };
 type ApprovalStats = {
   pending: number;
@@ -992,9 +1079,11 @@ type ApprovalStats = {
 function RequestApprovals({
   notify,
   onChange,
+  go,
 }: {
   notify: Notify;
   onChange: () => void;
+  go?: (page: string) => void;
 }) {
   const [data, load] = useLoad<{ requests: ApprovalRequest[] }>(
     "company/requests",
@@ -1003,7 +1092,9 @@ function RequestApprovals({
   const [rules, loadRules] = useLoad<{
     rules: ApprovalRulesData;
     canEdit: boolean;
+    people: { userId: string; name: string; role: string }[];
   }>("company/approval-rules", notify);
+  const [detailId, setDetailId] = useState("");
   const [stats, loadStats] = useLoad<ApprovalStats>(
     "company/approvals/stats",
     notify,
@@ -1051,7 +1142,7 @@ function RequestApprovals({
   }
   async function setRule(
     key: keyof ApprovalRulesData,
-    value: boolean | string | number,
+    value: boolean | string | number | ApprovalRulesData["approvers"],
   ) {
     if (!rules) return;
     try {
@@ -1202,6 +1293,47 @@ function RequestApprovals({
               düşür)
             </small>
           </label>
+          <div className="approver-config">
+            <b>Kim təsdiq edə bilər (adla)</b>
+            <small className="muted">
+              Bir növ üçün ad seçməsəniz, direktor hüququ olan hər kəs təsdiqləyir. Ad seçsəniz, yalnız seçilənlər (və hesab sahibi) təsdiqləyir; məbləğ limiti olanlar həddən çox sorğunu təsdiqləyə bilmir.
+            </small>
+            {APPROVER_KINDS.map((kind) => {
+              const chosen = rules.rules.approvers?.[kind.id] || [];
+              const save = (list: { userId: string; limit: number }[]) => setRule("approvers", { ...rules.rules.approvers, [kind.id]: list });
+              return (
+                <fieldset key={kind.id} className="approver-kind">
+                  <legend>{kind.label}</legend>
+                  {rules.people.map((person) => {
+                    const row = chosen.find((c) => c.userId === person.userId);
+                    return (
+                      <div key={person.userId} className="approver-row">
+                        <label>
+                          <input type="checkbox" checked={!!row} onChange={(e) => save(e.target.checked ? [...chosen, { userId: person.userId, limit: 0 }] : chosen.filter((c) => c.userId !== person.userId))} />{" "}
+                          <b>{person.name}</b> <small>{person.role}</small>
+                        </label>
+                        {row && kind.amount && (
+                          <label className="approver-limit">
+                            ən çox{" "}
+                            <input
+                              type="number"
+                              min={0}
+                              defaultValue={row.limit || ""}
+                              placeholder="limitsiz"
+                              aria-label={`${person.name} limiti`}
+                              onBlur={(e) => save(chosen.map((c) => (c.userId === person.userId ? { ...c, limit: Number(e.target.value) || 0 } : c)))}
+                            />{" "}
+                            AZN
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {!chosen.length && <small className="muted">Seçilməyib: direktor hüququ olan hər kəs təsdiqləyə bilər.</small>}
+                </fieldset>
+              );
+            })}
+          </div>
           <label>
             Vakansiya təsdiq zənciri:{" "}
             <select
@@ -1265,8 +1397,13 @@ function RequestApprovals({
           )}
           <div className="section-heading">
             <div>
-              <h4>{REQUEST_KIND[item.kind] || item.kind}</h4>
+              <button type="button" className="job-card-title" onClick={() => setDetailId(item.id)} aria-label={`${REQUEST_KIND[item.kind] || item.kind}: təfərrüatlara bax`}>
+                <h4>{REQUEST_KIND[item.kind] || item.kind}</h4>
+              </button>
               <p>{item.subject}</p>
+              {!!item.approvers?.length && (
+                <p className="muted">Təsdiq edə bilər: {item.approvers.map((a) => limitText(a)).join(", ")}</p>
+              )}
               <p className="muted">
                 göndərən: {item.requested_by_name || "—"} · {when(item.created)}
               </p>
@@ -1292,6 +1429,9 @@ function RequestApprovals({
             >
               {REQUEST_STATUS[item.status] || item.status}
             </span>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="secondary" onClick={() => setDetailId(item.id)}>Ətraflı bax</button>
           </div>
           {item.canDecide && (
             <div className="form-actions">
@@ -1340,6 +1480,7 @@ function RequestApprovals({
           )}
         </article>
       ))}
+      {detailId && <RequestDetail id={detailId} go={go} notify={notify} onClose={() => setDetailId("")} onDecided={() => { load(); loadStats(); onChange(); }} />}
       {data && !shown.length && (
         <p className="admin-empty">
           {show === "mine" ? "Sizin qərarınızı gözləyən sorğu yoxdur." : "Təsdiq gözləyən təklif və ya maaş dəyişikliyi yoxdur."}

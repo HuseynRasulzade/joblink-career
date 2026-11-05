@@ -525,7 +525,11 @@ export type ApprovalRules = {
   offerMin: number;
   // Salary changes smaller than this share (%) go through; 0 = every change waits.
   raisePercent: number;
+  // Named people who may decide each kind of request, each with the largest amount (AZN, 0 = no limit) they may approve.
+  // A kind with no names is decided by anyone with the director right, as before. The account owner may always decide.
+  approvers: Record<ApprovalKind, ApproverLimit[]>;
 };
+export type ApproverLimit = { userId: string; limit: number };
 const wholeNumber = (value: unknown, max: number) => {
   const n = Math.round(Number(value));
   return Number.isFinite(n) ? Math.max(0, Math.min(max, n)) : 0;
@@ -540,7 +544,43 @@ export function normalizeApprovalRules(value: unknown): ApprovalRules {
     chain: v.chain === "hr" || v.chain === "director" ? v.chain : "both",
     offerMin: wholeNumber(v.offerMin, 1_000_000),
     raisePercent: wholeNumber(v.raisePercent, 500),
+    approvers: normalizeApprovers(v.approvers),
   };
+}
+const KINDS: ApprovalKind[] = ["offer", "salary", "exit", "headcount"];
+export function normalizeApprovers(value: unknown): Record<ApprovalKind, ApproverLimit[]> {
+  const v = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const out = { offer: [], salary: [], exit: [], headcount: [] } as Record<ApprovalKind, ApproverLimit[]>;
+  for (const kind of KINDS) {
+    const list = Array.isArray(v[kind]) ? (v[kind] as unknown[]) : [];
+    for (const item of list.slice(0, 20)) {
+      const rec = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      const userId = typeof rec.userId === "string" ? rec.userId.slice(0, 100) : "";
+      if (userId && !out[kind].some((a) => a.userId === userId)) out[kind].push({ userId, limit: kind === "offer" || kind === "salary" ? wholeNumber(rec.limit, 100_000_000) : 0 });
+    }
+  }
+  return out;
+}
+// The amount a request is about: the offered pay or the new pay (AZN); none for the others.
+export function requestAmount(kind: string, payload: unknown): number | null {
+  const p = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  if (kind === "offer") {
+    const data = p.data && typeof p.data === "object" ? (p.data as Record<string, unknown>) : {};
+    const n = Number(data.salary);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (kind === "salary") {
+    const n = Number(p.salary);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+// Whether this person (or the colleague whose rights they hold) is named for the kind and the amount is within their limit.
+export function mayDecide(rules: ApprovalRules, kind: string, actorIds: string[], isOwner: boolean, amount: number | null): boolean {
+  if (isOwner) return true;
+  const named = rules.approvers[kind as ApprovalKind] || [];
+  if (!named.length) return true;
+  return named.some((a) => actorIds.includes(a.userId) && (a.limit <= 0 || amount === null || amount <= a.limit));
 }
 export type ApprovalKind = "offer" | "salary" | "exit" | "headcount";
 export const APPROVAL_KIND_LABEL: Record<ApprovalKind, string> = {

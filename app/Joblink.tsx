@@ -2757,6 +2757,7 @@ export default function Joblink() {
               </section>
               {page === "hr-approvals" && (
                 <ApprovalsPage
+                  go={go}
                   notify={notify}
                   onChange={() => {
                     void refreshCompany();
