@@ -560,6 +560,8 @@ export function Trips({ notify }: { notify: Notify }) {
   const [data, load] = useLoad<{ employees: { id: string; name: string }[]; trips: Trip[] }>("company/trips", notify);
   const [edit, setEdit] = useState<Record<string, unknown> | null>(null);
   const [open, setOpen] = useState<Trip | null>(null);
+  const [normTable, setNormTable] = useState(false);
+  const [normSettings, setNormSettings] = useState(false);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const current = open ? data.trips.find((t) => t.id === open.id) || null : null;
   return (
@@ -567,7 +569,8 @@ export function Trips({ notify }: { notify: Notify }) {
       <div className="section-heading">
         <p className="muted">Ezamiyyət sorğusu → təsdiq → xərc hesabatı → hesablaşma. Hesablaşmada işçiyə çatan məbləğ əmək haqqındakı “digər ödəniş” kimi qeyd olunur.</p>
         <div className="admin-actions">
-          <button type="button" className="secondary" onClick={async () => { try { const n = await request<{ domestic: number; abroad: number }>("company/trips/norms"); const d = window.prompt("Ölkə daxili gündəlik norma (AZN):", String(n.domestic)); if (d === null) return; const a = window.prompt("Xarici ezamiyyət gündəliyi (AZN):", String(n.abroad)); if (a === null) return; await request("company/trips/norms", { domestic: Number(d), abroad: Number(a) }); notify("Gündəlik normalar saxlanıldı."); } catch (error) { notify((error as Error).message); } }}>Gündəlik normalar</button>
+          <button type="button" className="secondary" onClick={() => setNormTable(true)}>Rəsmi norma cədvəli</button>
+          <button type="button" className="secondary" onClick={() => setNormSettings(true)}>Gündəlik normalar və məzənnə</button>
           <button type="button" className="primary" onClick={() => setEdit({ employeeId: data.employees[0]?.id || "", destination: "", purpose: "", start: "", end: "", daily: 0, advance: 0, approve: true, abroad: false })}>+ Ezamiyyət</button>
         </div>
       </div>
@@ -594,6 +597,8 @@ export function Trips({ notify }: { notify: Notify }) {
           </tbody>
         </table>
       </div>
+      {normTable && <NormTable onClose={() => setNormTable(false)} />}
+      {normSettings && <NormSettings notify={notify} onClose={() => setNormSettings(false)} />}
       {edit && (
         <Modal title="Yeni ezamiyyət" onClose={() => setEdit(null)}>
           <div className="offer-composer">
@@ -606,7 +611,8 @@ export function Trips({ notify }: { notify: Notify }) {
               <Field label="Gündəlik (AZN)"><input type="number" min={0} value={Number(edit.daily) || ""} onChange={(e) => setEdit({ ...edit, daily: Number(e.target.value) })} /></Field>
               <Field label="Avans (AZN)"><input type="number" min={0} value={Number(edit.advance) || ""} onChange={(e) => setEdit({ ...edit, advance: Number(e.target.value) })} /></Field>
             </div>
-            <label className="check"><input type="checkbox" checked={edit.abroad === true} onChange={(e) => setEdit({ ...edit, abroad: e.target.checked })} /> Xarici ezamiyyət (gündəlik boşdursa «Gündəlik normalar»dakı xarici norma işlənir)</label>
+            <TripNormHint destination={String(edit.destination)} abroad={edit.abroad === true} onFill={(daily, abroad) => setEdit({ ...edit, daily, abroad })} />
+            <label className="check"><input type="checkbox" checked={edit.abroad === true} onChange={(e) => setEdit({ ...edit, abroad: e.target.checked })} /> Xarici ezamiyyət (gündəlik boşdursa təyinat yerinin rəsmi normu işlənir)</label>
             <button type="button" className="primary" onClick={async () => { if (await run(notify, load, "company/trips/save", edit, "Ezamiyyət yaradıldı.")) setEdit(null); }}>Saxla (təsdiqlənmiş)</button>
           </div>
         </Modal>
@@ -615,6 +621,120 @@ export function Trips({ notify }: { notify: Notify }) {
     </div>
   );
 }
+// ---------- The official per-diem norms of a trip ----------
+type NormFound = { kind: "domestic" | "foreign"; label: string; amount: number; currency: string; hotel?: number; daily?: number; noReceipt?: number };
+type NormAnswer = { found: NormFound | null; azn: number | null; needsRate: boolean; source: string };
+// Shows the official norm of the place typed in the form and writes it into the daily amount on a click.
+function TripNormHint({ destination, abroad, onFill }: { destination: string; abroad: boolean; onFill: (daily: number, abroad: boolean) => void }) {
+  const [answer, setAnswer] = useState<NormAnswer | null>(null);
+  useEffect(() => {
+    if (destination.trim().length < 2) return;
+    let live = true;
+    const timer = window.setTimeout(() => {
+      fetch(`/api/joblink/company/trips/norm?destination=${encodeURIComponent(destination)}&abroad=${abroad ? 1 : 0}`, { credentials: "same-origin", cache: "no-store" })
+        .then((r) => r.json() as Promise<NormAnswer>)
+        .then((r) => live && setAnswer(r))
+        .catch(() => live && setAnswer(null));
+    }, 250);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+  }, [destination, abroad]);
+  if (destination.trim().length < 2 || !answer) return null;
+  const f = answer.found;
+  if (!f) return <p className="muted">Bu təyinat rəsmi cədvəldə tapılmadı{abroad ? ": gündəliyi əllə yazın və ya şirkətin ümumi xarici normu işlənəcək" : ""}.</p>;
+  return (
+    <div className="panel" style={{ margin: "8px 0" }}>
+      <b>Rəsmi norma: {f.label}</b>
+      <p style={{ margin: "4px 0" }}>
+        {f.amount} {f.currency} / gün
+        {f.kind === "domestic" && f.hotel !== undefined && <small className="muted"> (mehmanxana {f.hotel} + gündəlik xərc {f.daily}; mehmanxana sənədi yoxdursa {f.noReceipt} AZN)</small>}
+        {f.kind === "foreign" && (answer.azn !== null ? <small className="muted"> ≈ {answer.azn} AZN (şirkətin yazdığı məzənnə ilə)</small> : <small className="danger-text"> · AZN üçün «Gündəlik normalar və məzənnə»də {f.currency} məzənnəsini yazın</small>)}
+      </p>
+      {answer.azn !== null && (
+        <button type="button" className="secondary" onClick={() => onFill(answer.azn as number, f.kind === "foreign")}>
+          {answer.azn} AZN-i gündəliyə yaz
+        </button>
+      )}
+      <small className="skill-description">Mənbə: {answer.source}. Norma mehmanxana və gündəlik xərcləri (yemək, şəhərdaxili nəqliyyat, rabitə) əhatə edir; yol xərci sənədlərə əsasən ayrıca ödənilir.</small>
+    </div>
+  );
+}
+
+type NormTableData = { source: string; hotelShare: number; noReceiptHotelPart: number; domestic: { label: string; norm: number }[]; foreign: { n: number; country: string; currency: string; norm: number; cities: { name: string; norm: number }[] }[]; currencies: Record<string, string> };
+function NormTable({ onClose }: { onClose: () => void }) {
+  const [data, setData] = useState<NormTableData | null>(null);
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    fetch("/api/joblink/company/trips/norm-table", { credentials: "same-origin", cache: "no-store" }).then((r) => r.json() as Promise<NormTableData>).then(setData).catch(() => setData(null));
+  }, []);
+  const needle = q.toLocaleLowerCase("az").trim();
+  const rows = (data?.foreign || []).filter((r) => !needle || `${r.country} ${r.cities.map((c) => c.name).join(" ")}`.toLocaleLowerCase("az").includes(needle));
+  return (
+    <Modal title="Ezamiyyə xərclərinin rəsmi normaları" onClose={onClose}>
+      {!data ? <p className="muted">Yüklənir…</p> : (
+        <div className="offer-composer">
+          <p className="muted">{data.source}. Bir günlük norma mehmanxana ({Math.round(data.hotelShare * 100)}%) və gündəlik xərcləri (yemək, şəhərdaxili nəqliyyat, rabitə) əhatə edir. Ölkə daxilində mehmanxana sənədi təqdim edilməyəndə mehmanxana hissəsinin {Math.round(data.noReceiptHotelPart * 100)}%-i ödənilir. Yol xərci sənədlərə əsasən ayrıca ödənilir.</p>
+          <h4>Azərbaycan daxilində (AZN / gün)</h4>
+          <table className="admin-table"><tbody>{data.domestic.map((d) => <tr key={d.label}><td>{d.label}</td><td style={{ width: 110 }}><b>{d.norm}</b></td></tr>)}</tbody></table>
+          <h4>Xarici ölkələr ({data.foreign.length})</h4>
+          <input className="search-input" aria-label="Ölkə və ya şəhər axtar" placeholder="Ölkə və ya şəhər axtar" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="admin-table-wrap" style={{ maxHeight: 340, overflowY: "auto" }}>
+            <table className="admin-table">
+              <thead><tr><th>№</th><th>Ölkə</th><th>Valyuta</th><th>Norma / gün</th><th>Ayrıca şəhər</th></tr></thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.n}><td>{r.n}</td><td>{r.country}</td><td>{data.currencies[r.currency] || r.currency}</td><td><b>{r.norm}</b></td><td>{r.cities.map((c) => `${c.name}: ${c.norm}`).join("; ") || "—"}</td></tr>
+                ))}
+                {!rows.length && <tr><td colSpan={5}><p className="admin-empty">Tapılmadı.</p></td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+const FX_CODES = ["USD", "EUR", "GBP", "JPY"] as const;
+function NormSettings({ notify, onClose }: { notify: Notify; onClose: () => void }) {
+  const [form, setForm] = useState<{ domestic: string; abroad: string; fx: Record<string, string> } | null>(null);
+  useEffect(() => {
+    fetch("/api/joblink/company/trips/norms", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => r.json() as Promise<{ domestic: number; abroad: number; fx: Record<string, number> }>)
+      .then((n) => setForm({ domestic: n.domestic ? String(n.domestic) : "", abroad: n.abroad ? String(n.abroad) : "", fx: Object.fromEntries(FX_CODES.map((c) => [c, n.fx?.[c] ? String(n.fx[c]) : ""])) }))
+      .catch(() => setForm({ domestic: "", abroad: "", fx: {} }));
+  }, []);
+  async function save() {
+    if (!form) return;
+    try {
+      await request("company/trips/norms", { domestic: Number(form.domestic) || 0, abroad: Number(form.abroad) || 0, fx: form.fx });
+      notify("Saxlanıldı.");
+      onClose();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  return (
+    <Modal title="Gündəlik normalar və məzənnə" onClose={onClose}>
+      {!form ? <p className="muted">Yüklənir…</p> : (
+        <div className="offer-composer">
+          <p className="muted">Gündəlik boş qalanda təyinat yerinin <b>rəsmi normu</b> işlənir (Azərbaycan daxilində AZN ilə avtomatik). Xarici norma xarici valyutadadır: AZN-ə çevirmək üçün ezamiyyət tarixinə Mərkəzi Bankın rəsmi məzənnəsini yazın. Aşağıdakı ümumi normlar yalnız rəsmi cədvəldə tapılmayan təyinat üçündür.</p>
+          <div className="form-grid">
+            {FX_CODES.map((c) => (
+              <Field key={c} label={`1 ${c} = ... AZN`}><input inputMode="decimal" value={form.fx[c] || ""} onChange={(e) => setForm({ ...form, fx: { ...form.fx, [c]: e.target.value } })} /></Field>
+            ))}
+            <Field label="Cədvəldə tapılmayan yer üçün ölkə daxili norma (AZN)"><input inputMode="decimal" value={form.domestic} onChange={(e) => setForm({ ...form, domestic: e.target.value })} /></Field>
+            <Field label="Cədvəldə tapılmayan xarici yer üçün norma (AZN)"><input inputMode="decimal" value={form.abroad} onChange={(e) => setForm({ ...form, abroad: e.target.value })} /></Field>
+          </div>
+          <button type="button" className="primary" onClick={() => void save()}>Saxla</button>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function TripDetail({ trip, notify, onClose, onChanged }: { trip: Trip; notify: Notify; onClose: () => void; onChanged: () => void }) {
   const [form, setForm] = useState({ label: "", amount: 0, day: "" });
   const settled = trip.status === "settled";

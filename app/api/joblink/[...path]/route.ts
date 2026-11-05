@@ -373,6 +373,7 @@ import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, request
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
 import { resolveCatalogSkill, searchCatalog, type CatalogSkill } from "@/lib/skill-matrix";
 import { parsePhotoDataUrl } from "@/lib/photo";
+import { CURRENCY_NAME, DOMESTIC_NORMS, DOMESTIC_OTHER, FOREIGN_NORMS, HOTEL_SHARE, NORMS_SOURCE, NO_RECEIPT_HOTEL_PART, azNPerDay, lookupNorm, type NormCurrency } from "@/lib/trip-norms";
 import { GEO_MODES, checkLocation, validPoint, type GeoMode, type Office } from "@/lib/geofence";
 import { forecast, monthSeries, planFactAlerts, targetAlerts } from "@/lib/hr-trends";
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
@@ -11169,6 +11170,40 @@ async function route(request: Request) {
     await tellCompany(id, `Ezamiyyət əmri hazırlandı: ${employee.name}`, `${trip.destination}, ${trip.start_date} – ${trip.end_date}. Əmrlər reyestrində nömrə verib imzalamağa göndərin.`, "hr-orders");
     return orderId;
   };
+  // The per-diem of a trip when nobody types one: the official norm of the decision No. 14 for the destination; a foreign norm
+  // is in foreign currency and needs the rate the company set; with no match the general norm of the company is used.
+  const FX: NormCurrency[] = ["USD", "EUR", "GBP", "JPY"];
+  const tripRates = async (): Promise<Partial<Record<NormCurrency, number>>> => {
+    const rows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key LIKE 'trip_fx_%'").bind(id).all<{ key: string; value: string }>()).results;
+    const out: Partial<Record<NormCurrency, number>> = {};
+    for (const c of FX) {
+      const v = Number(rows.find((r) => r.key === `trip_fx_${c}`)?.value);
+      if (v > 0) out[c] = v;
+    }
+    return out;
+  };
+  const defaultDaily = async (destination: string, abroad: boolean): Promise<{ amount: number; source: string }> => {
+    const found = lookupNorm(destination, abroad);
+    if (found) {
+      const azn = azNPerDay(found, await tripRates());
+      if (azn !== null) return { amount: azn, source: found.kind === "domestic" ? `rəsmi norma: ${found.label}` : `rəsmi norma: ${found.label} (${found.amount} ${found.currency})` };
+    }
+    const own = await db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key=?").bind(id, abroad ? "trip_daily_abroad" : "trip_daily_domestic").first<{ value: string }>();
+    return { amount: Number(own?.value) > 0 ? Number(own!.value) : 0, source: "şirkətin ümumi normu" };
+  };
+  if (request.method === "GET" && path === "company/trips/norm") {
+    requirePermission("salaries", "Gündəlik normanı yalnız kadr işçisi görə bilər.");
+    const destination = str(requestUrl.searchParams.get("destination"), 160);
+    const abroad = requestUrl.searchParams.get("abroad") === "1";
+    const found = lookupNorm(destination, abroad);
+    const rates = await tripRates();
+    const azn = found ? azNPerDay(found, rates) : null;
+    return ok({ found, azn, needsRate: !!found && found.kind === "foreign" && azn === null, rates, source: NORMS_SOURCE });
+  }
+  if (request.method === "GET" && path === "company/trips/norm-table") {
+    requirePermission("salaries", "Gündəlik normanı yalnız kadr işçisi görə bilər.");
+    return ok({ source: NORMS_SOURCE, hotelShare: HOTEL_SHARE, noReceiptHotelPart: NO_RECEIPT_HOTEL_PART, domestic: [...DOMESTIC_NORMS.map((d) => ({ label: d.label, norm: d.norm })), { label: "Digər şəhərlər, rayon mərkəzləri, qəsəbələr və kəndlər", norm: DOMESTIC_OTHER }], foreign: FOREIGN_NORMS, currencies: CURRENCY_NAME });
+  }
   if (request.method === "POST" && path === "company/trips/save") {
     requirePermission("salaries", "Ezamiyyəti yalnız kadr işçisi yaza bilər.");
     const b = await jsonBody(request);
@@ -11183,8 +11218,8 @@ async function route(request: Request) {
     const tripId = crypto.randomUUID();
     await db.prepare("INSERT INTO trips(id,company_id,employee_id,destination,purpose,start_date,end_date,daily_cents,advance_cents,status,requested_by,decided_by_name,created) VALUES(?,?,?,?,?,?,?,?,?,?,'hr',?,?)").bind(tripId, id, employee.id, ...values, b.approve === true ? "approved" : "requested", b.approve === true ? await requesterName() : "", new Date().toISOString()).run();
     // The foreign flag picks the per-diem norm; with no daily amount typed, the norm of the company is used right away.
-    const normRow = await db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key=?").bind(id, b.abroad === true ? "trip_daily_abroad" : "trip_daily_domestic").first<{ value: string }>();
-    await db.prepare("UPDATE trips SET abroad=?,daily_cents=CASE WHEN daily_cents=0 THEN ? ELSE daily_cents END WHERE id=?").bind(b.abroad === true ? 1 : 0, Math.round(Number(normRow?.value || 0) * 100), tripId).run();
+    const fallback = await defaultDaily(destination, b.abroad === true);
+    await db.prepare("UPDATE trips SET abroad=?,daily_cents=CASE WHEN daily_cents=0 THEN ? ELSE daily_cents END WHERE id=?").bind(b.abroad === true ? 1 : 0, Math.round(fallback.amount * 100), tripId).run();
     if (b.approve === true) await createTripOrder(tripId).catch(() => "");
     if (b.approve === true) await tellEmployee(employee.id, "Ezamiyyətiniz təsdiqləndi", `${destination}, ${start} – ${end}.`);
     return ok({ ok: true, id: tripId }, 201);
@@ -11192,7 +11227,7 @@ async function route(request: Request) {
   if (request.method === "GET" && path === "company/trips/norms") {
     requirePermission("salaries", "Gündəlik normanı yalnız kadr işçisi görə bilər.");
     const rows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('trip_daily_domestic','trip_daily_abroad')").bind(id).all<{ key: string; value: string }>()).results;
-    return ok({ domestic: Number(rows.find((r) => r.key === "trip_daily_domestic")?.value || 0), abroad: Number(rows.find((r) => r.key === "trip_daily_abroad")?.value || 0) });
+    return ok({ domestic: Number(rows.find((r) => r.key === "trip_daily_domestic")?.value || 0), abroad: Number(rows.find((r) => r.key === "trip_daily_abroad")?.value || 0), fx: await tripRates() });
   }
   if (request.method === "POST" && path === "company/trips/norms") {
     requirePermission("salaries", "Gündəlik normanı yalnız kadr işçisi dəyişə bilər.");
@@ -11200,6 +11235,13 @@ async function route(request: Request) {
     const put = async (key: string, v: unknown) => { await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, key, String(Math.max(0, Math.min(10000, Number(v) || 0)))).run(); };
     await put("trip_daily_domestic", b.domestic);
     await put("trip_daily_abroad", b.abroad);
+    const fx = (b.fx && typeof b.fx === "object" ? b.fx : {}) as Record<string, unknown>;
+    for (const c of FX) {
+      if (fx[c] === undefined) continue;
+      const v = Number(fx[c]);
+      if (fx[c] !== "" && fx[c] !== null && !(v > 0 && v < 1000)) throw new HttpError(400, `${c} məzənnəsi 0-dan böyük rəqəm olmalıdır.`);
+      await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, `trip_fx_${c}`, fx[c] === "" || fx[c] === null ? "" : String(v)).run();
+    }
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/trips/decide") {
@@ -11213,8 +11255,8 @@ async function route(request: Request) {
     const approve = b.decision === "approve";
     // When no daily amount is typed, the company's per-diem norm for domestic or foreign trips applies.
     if (approve && !(Number(b.daily) > 0)) {
-      const norm = await db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key=?").bind(id, gate?.abroad ? "trip_daily_abroad" : "trip_daily_domestic").first<{ value: string }>();
-      if (Number(norm?.value) > 0) b.daily = Number(norm?.value);
+      const fallback = await defaultDaily(t.destination, !!gate?.abroad);
+      if (fallback.amount > 0) b.daily = fallback.amount;
     }
     await db.prepare("UPDATE trips SET status=?,decided_by_name=?,daily_cents=CASE WHEN ? THEN ? ELSE daily_cents END,advance_cents=CASE WHEN ? THEN ? ELSE advance_cents END WHERE id=? AND company_id=?").bind(approve ? "approved" : "rejected", await requesterName(), approve && b.daily !== undefined ? 1 : 0, Math.max(0, Math.round((Number(b.daily) || 0) * 100)), approve && b.advance !== undefined ? 1 : 0, Math.max(0, Math.round((Number(b.advance) || 0) * 100)), t.id, id).run();
     if (approve) await createTripOrder(t.id).catch(() => "");

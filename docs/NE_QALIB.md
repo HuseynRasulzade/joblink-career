@@ -29,7 +29,7 @@ Bunları mən öz başıma bağlaya bilmərəm.
 
 1. **`DATA_KEY` açarı** (Cloudflare secret): qoyulmasa şəxsi məlumatlar (FİN, vəsiqə, bank) bazada şifrələnmir. Şəkil bu açara daxil deyil.
 2. **Hüquqşünas yoxlaması:** nümunə mətnlər (daxili əmək qaydaları, razılıq, vəzifə təlimatı, əmr və müqavilə şablonları) və saxlama illəri (75 il, 5 il və s.) layihədir, rəsmi cədvələ qarşı yoxlanmayıb.
-3. **Rəsmi gündəlik ezamiyyət cədvəli:** hazırda gündəlik boş qalanda ümumi norma tətbiq olunur.
+3. ~~Rəsmi gündəlik ezamiyyət cədvəli~~: hazırdır (aşağıda 8-ci bölmə). Qalan yalnız ezamiyyət tarixinə Mərkəzi Bankın məzənnəsini yazmaqdır.
 4. **Holdinq qərarları** (mən götürdüm, təsdiq edin və ya dəyişin): qrup yalnız yekunları görür, maaş yekunu yalnız üzv icazə verəndə; ayrıca "qrup rəhbəri" hesab növü yoxdur (baş şirkətin hesab sahibi baxır).
 5. **Ad günü və il dönümü təbriki ilkin olaraq bağlıdır** (doğum tarixi şəxsi məlumatdır). Açmaq istəyirsinizsə: Kadr əməliyyatları → Ad günləri.
 
@@ -77,3 +77,14 @@ Bunu mən edə bilmirəm: Cloudflare-ə və GitHub secret-lərinə girişim yoxd
 5. Sınaq: bir işçinin kartında FİN-i açın (görünməlidir), sonra təsdiq edin ki, qutuda "şifrələnmiş profil" sayı artıb.
 
 Qeyd: açar qoyulmayana qədər hər şey əvvəlki kimi işləyir, yəni bu addım təhlükəsizlik üçündür, sayt onsuz da dayanmır.
+
+## 8. Rəsmi gündəlik ezamiyyət cədvəli (hazırdır)
+
+Mənbə: sizin yüklədiyiniz Nazirlər Kabinetinin 25.01.2008-ci il 14 nömrəli qərarı, 26.10.2026-cı il dəyişikliklərinədək birləşdirilmiş mətn (106 xarici ölkə).
+
+- **Azərbaycan daxilində:** Bakı 125, Naxçıvan 100, Gəncə və Sumqayıt 95, digər şəhər, rayon mərkəzi, qəsəbə və kənd 90 AZN. Gündəlik boş qalanda təyinata görə avtomatik yazılır.
+- **Xarici ölkələr:** ölkə və ayrıca şəhər üzrə norma (məsələn Rusiya 170, Moskva və Sankt-Peterburq 260 ABŞ dolları; Türkiyə 180, Ankara 200, İstanbul 220 avro). Norma xarici valyutadadır: AZN-ə çevirmək üçün **Ezamiyyət → Gündəlik normalar və məzənnə**də ezamiyyət tarixinə Mərkəzi Bankın rəsmi məzənnəsini (USD, EUR, GBP, JPY) siz yazırsınız; məzənnə yoxdursa gündəliyi əllə yazırsınız.
+- Ezamiyyət formasında təyinat yazılan kimi rəsmi norma göstərilir və bir kliklə gündəliyə yazılır. "Rəsmi norma cədvəli" düyməsi bütün ölkələri axtarışla göstərir.
+- Norma mehmanxana (70%) və gündəlik xərcləri əhatə edir; ölkə daxilində mehmanxana sənədi yoxdursa mehmanxana hissəsinin 50%-i ödənilir; yol xərci sənədlərə görə ayrıca.
+- Rəsmi cədvəldə tapılmayan yer üçün şirkətin əvvəlki ümumi norması qalır.
+- Rəhbər işçilər üçün 2 nömrəli əlavə (əlavə faizlər, biznes klass nəqliyyat) proqrama daxil edilməyib: bu, yalnız dövlət rəhbər vəzifələrinə aiddir.
