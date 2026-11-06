@@ -1355,23 +1355,7 @@ export default function Joblink() {
                   />
                 </button>
               </div>
-              <label className="compare-check">
-                <input
-                  type="checkbox"
-                  checked={compareJobs.includes(j.id)}
-                  disabled={
-                    !compareJobs.includes(j.id) && compareJobs.length >= 4
-                  }
-                  onChange={(e) =>
-                    setCompareJobs((list) =>
-                      e.target.checked
-                        ? [...list, j.id]
-                        : list.filter((x) => x !== j.id),
-                    )
-                  }
-                />{" "}
-                Müqayisə et
-              </label>
+              
               <div className="job-meta">
                 <span>
                   <MapPin size={13} /> {j.city}
@@ -1414,6 +1398,23 @@ export default function Joblink() {
                     "Razılaşma yolu ilə"
                   )}
                 </strong>
+<label className="compare-check">
+                <input
+                  type="checkbox"
+                  checked={compareJobs.includes(j.id)}
+                  disabled={
+                    !compareJobs.includes(j.id) && compareJobs.length >= 4
+                  }
+                  onChange={(e) =>
+                    setCompareJobs((list) =>
+                      e.target.checked
+                        ? [...list, j.id]
+                        : list.filter((x) => x !== j.id),
+                    )
+                  }
+                />{" "}
+                Müqayisə et
+              </label>
                 <button
                   className="match-score"
                   onClick={() => openJob(j)}

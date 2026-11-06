@@ -194,8 +194,8 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 .jobs .job-card .job-meta > span { display: inline-flex; align-items: center; gap: 5px; }
 .jobs .job-card .skill-tags { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .jobs .job-card .skill-tags span { padding: 4px 10px; border-radius: 999px; background: #eef5f3; border: 0; color: #3d5a57; font-size: 12px; font-weight: 600; }
-.jobs .job-card .job-footer { margin-top: 2px; padding-top: 14px; border-top: 1px solid #edf2f1; }
+.jobs .job-card .job-footer { flex-wrap: wrap; gap: 8px 12px; margin-top: 2px; padding-top: 14px; border-top: 1px solid #edf2f1; }
 .jobs .job-card .job-footer strong { font-size: 16px; }
-.jobs .job-card .compare-check { order: 99; align-self: flex-end; margin: -6px 0 0; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #5d7073; background: #f4f8f7; transition: background-color .15s var(--ease), color .15s var(--ease); }
+.jobs .job-card .compare-check { margin: 0 auto 0 4px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #5d7073; background: #f4f8f7; transition: background-color .15s var(--ease), color .15s var(--ease); }
 .jobs .job-card .compare-check:hover { background: #e6f4f1; color: var(--teal-strong); }
 .jobs .job-card .match-score { border-radius: 999px; padding: 5px 12px; font-weight: 700; }
