@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, CalendarPlus, Check, ClipboardCheck, X } from "lucide-react";
+import { BriefcaseBusiness, CalendarClock, CalendarPlus, Check, ClipboardCheck, Clock3, MapPin, X } from "lucide-react";
 import type { Application } from "@/lib/model";
 import { stageInfo } from "@/lib/recruitment";
 import { ACTIVE_INTERVIEW, INTERVIEW_KINDS, bakuLocal, type InterviewKind } from "@/lib/interviews";
@@ -503,7 +503,8 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
       <div className="iv-avatar" aria-hidden>{initials(w.candidate)}</div>
       <div className="iv-main">
         <h3>{w.candidate || "Namizəd"}</h3>
-        <p>{w.job_title}{w.stage ? ` · ${w.stage}` : ""}</p>
+        <p className="iv-job"><BriefcaseBusiness size={15} /> <b>{w.job_title || "Vakansiya"}</b></p>
+        {w.stage && <div className="iv-facts"><span>Mərhələ: {w.stage}</span></div>}
         <div className="iv-meta"><span className="iv-chip warn">Vaxt təyin edilməyib</span><span className="muted">Dəvət olunub: {dmy(w.updated)}</span>{testChip(w.application_id)}</div>
         {guideBox(`w:${w.application_id}`, w.job_id)}
       </div>
@@ -526,7 +527,14 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
         </div>
         <div className="iv-main">
           <h3>{i.candidate || "Namizəd"}</h3>
-          <p>{i.job_title} · {i.duration_min} dəq · {kindLabel(i.kind)}{i.location ? `: ${i.location}` : ""}</p>
+          <p className="iv-job"><BriefcaseBusiness size={15} /> <b>{i.job_title || "Vakansiya"}</b></p>
+          <div className="iv-facts">
+            <span><CalendarClock size={13} /> {when_.slice(8, 10)}.{when_.slice(5, 7)}.{when_.slice(0, 4)} · {when_.slice(11, 16)}</span>
+            <span><Clock3 size={13} /> {i.duration_min} dəq</span>
+            <span>{kindLabel(i.kind)}</span>
+            {i.location && <span><MapPin size={13} /> {i.location}</span>}
+            {i.round && <span>Mərhələ: {i.round}</span>}
+          </div>
           <div className="iv-meta">
             <span className={`iv-chip ${i.status === "confirmed" || i.status === "completed" ? "good" : i.status === "scheduled" || i.status === "pending_panel" ? "warn" : "bad"}`}>{labels[i.status] || i.status}</span>
             {i.round && <span className="iv-chip">{i.round}</span>}
