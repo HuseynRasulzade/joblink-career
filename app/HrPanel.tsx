@@ -272,6 +272,8 @@ export default function HrPanel({
   const selectedJob = ownJobs.find((j) => j.id === jobId) || ownJobs[0];
   // A link from another screen (an approval) opens exactly one application or one vacancy here.
   const [focusApp, setFocusApp] = useState("");
+  const [detailTalent, setDetailTalent] = useState<(typeof results)[number] | null>(null);
+  const [detailApp, setDetailApp] = useState<Application | null>(null);
   const [focusJob, setFocusJob] = useState("");
   useEffect(() => {
     const f = takeFocus("application", "job");
@@ -1127,43 +1129,11 @@ export default function HrPanel({
                         </span>
                       ))}
                     </div>
-                    <CertificationBadges items={candidateCertifications(c.profile)} limit={4} />
                     {!demo && (
                       <label className="compare-check">
                         <input type="checkbox" checked={pick.includes(`c:${c.id}`)} onChange={(e) => togglePick(`c:${c.id}`, e.target.checked)} />{" "}
                         Dəvət üçün seç
                       </label>
-                    )}
-                    <label className="compare-check">
-                      <input
-                        type="checkbox"
-                        checked={compareIds.includes(`c:${c.id}`)}
-                        onChange={(e) => toggleCompare(`c:${c.id}`, e.target.checked)}
-                      />{" "}
-                      Müqayisə et
-                    </label>
-                    {aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id] && (
-                      <div className={`hr-ai-note ${aiRatings.items[c.id].recommendation}`}>
-                        <b>
-                          AI: {aiRatings.items[c.id].recommendation === "interview" ? "Müsahibəyə dəvət et" : aiRatings.items[c.id].recommendation === "reject" ? "Uyğun deyil" : "Nəzərə al"}
-                        </b>
-                        {aiRatings.items[c.id].strengths && <p>✓ {aiRatings.items[c.id].strengths}</p>}
-                        {aiRatings.items[c.id].gaps && <p>△ {aiRatings.items[c.id].gaps}</p>}
-                        {!demo && selectedJob && (
-                          <AiFeedback
-                            api={api}
-                            kind="rank"
-                            jobId={selectedJob.id}
-                            candidateId={c.id}
-                            aiScore={aiRatings.items[c.id].aiScore ?? aiRatings.items[c.id].score}
-                            ruleScore={aiRatings.items[c.id].ruleScore}
-                            aiRecommendation={aiRatings.items[c.id].recommendation}
-                          />
-                        )}
-                      </div>
-                    )}
-                    {!demo && selectedJob && (
-                      <FitReviewPanel api={api} jobId={selectedJob.id} candidateId={c.id} language={language} audience="employer" />
                     )}
                   </div>
                   <div className="candidate-actions">
@@ -1176,82 +1146,12 @@ export default function HrPanel({
                           ? `${c.ranking.fit.bandLabel} · ${c.ranking.score}%`
                           : `${c.ranking?.score}% uyğun`}
                     </span>
-                    {aiEnabled && !demo && !aiRanking && !(aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]) && (
-                      <small className="fit-reasons">
-                        <b>AI yoxlamayıb:</b> bal yalnız qaydalarla hesablanıb, nəticəni özünüz yoxlayın.
-                      </small>
-                    )}
-                    {!!c.ranking?.fit && !(aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]) && (
-                      <small className="fit-reasons">
-                        {c.ranking.fit.fieldChange && "Sahə dəyişir. "}
-                        {c.ranking.fit.strengths.slice(0, 2).join("; ")}
-                        {!!(c.ranking.fit.risks?.length || c.ranking.fit.gaps.length) &&
-                          ` · Risk: ${[...(c.ranking.fit.risks || []), ...c.ranking.fit.gaps].slice(0, 3).join("; ")}`}
-                      </small>
-                    )}
-                    {(duplicateCount[duplicateKey(c.profile)] || 0) > 1 && (
-                      <small className="fit-reasons">
-                        Eyni ad və təhsilə malik {duplicateCount[duplicateKey(c.profile)]} profil var, təkrar ola bilər.
-                      </small>
-                    )}
-                    <button
-                      className="text-button"
-                      onClick={() => setCandidate(c.profile)}
-                    >
-                      Profilə bax ↗
-                    </button>
                     {!demo && selectedJob && (
                       <button className="primary" onClick={() => setInvitePeople([{ candidateId: c.id, name: c.profile.name }])}>
                         Müsahibəyə dəvət et
                       </button>
                     )}
-                    {!demo && (
-                      <button
-                        className="text-button"
-                        onClick={() => onMessage({ candidateId: c.id, name: c.profile.name, jobId: undefined })}
-                      >
-                        Mesaj yaz
-                      </button>
-                    )}
-                    {!demo && (
-                      <button className="text-button" onClick={() => setSaveTalent({ candidateId: c.id, name: c.profile.name })}>
-                        Bazaya əlavə et
-                      </button>
-                    )}
-                    {!demo && (
-                      <button
-                        className="text-button"
-                        onClick={async () => {
-                          const on = !relations.following.includes(c.id);
-                          try {
-                            await api("relations/follow", { targetId: c.id, on });
-                            setRelations((r) => ({ ...r, following: on ? [...r.following, c.id] : r.following.filter((x) => x !== c.id) }));
-                            notify(on ? `${c.profile.name} izlənilənlərə əlavə edildi; namizədə bildiriş göndərildi.` : "İzləmə dayandırıldı.");
-                          } catch (e) {
-                            notify((e as Error).message);
-                          }
-                        }}
-                      >
-                        {relations.following.includes(c.id) ? "İzlənilir ✓" : "İzlə"}
-                      </button>
-                    )}
-                    {!demo && (
-                      <button
-                        className="text-button danger-text"
-                        onClick={async () => {
-                          if (!window.confirm(`${c.profile.name} bloklansın? Namizədə bildiriş gedəcək.`)) return;
-                          try {
-                            await api("relations/block", { targetId: c.id, on: true });
-                            await refresh();
-                            notify(`${c.profile.name} bloklandı.`);
-                          } catch (e) {
-                            notify((e as Error).message);
-                          }
-                        }}
-                      >
-                        Blokla
-                      </button>
-                    )}
+                    <button type="button" className="text-button" onClick={() => setDetailTalent(c)}>Ətraflı ›</button>
                   </div>
                 </article>
               ))
@@ -1325,44 +1225,11 @@ export default function HrPanel({
                     <div className="candidate-info">
                       <h3>{a.profile.name}</h3>
                       <p>{a.profile.title}</p>
-                      <CertificationBadges items={candidateCertifications(a.profile)} limit={4} />
                       {!demo && ["Göndərildi", "Baxışda", "Müsahibə"].includes(a.status) && (
                         <label className="compare-check">
                           <input type="checkbox" checked={pick.includes(`a:${a.id}`)} onChange={(e) => togglePick(`a:${a.id}`, e.target.checked)} />{" "}
                           Dəvət üçün seç
                         </label>
-                      )}
-                      <label className="compare-check">
-                        <input
-                          type="checkbox"
-                          checked={compareIds.includes(`a:${a.id}`)}
-                          onChange={(e) => toggleCompare(`a:${a.id}`, e.target.checked)}
-                        />{" "}
-                        Müqayisə et
-                      </label>
-                      <button
-                        className="text-button"
-                        onClick={() => setCandidate(a.profile)}
-                      >
-                        Müraciət CV-si ↗
-                      </button>
-                      {!demo && a.candidateId && selectedJob && (
-                        <FitReviewPanel api={api} jobId={selectedJob.id} candidateId={a.candidateId} language={language} audience="employer" />
-                      )}
-                      {!demo && a.candidateId && (
-                        <button
-                          className="text-button"
-                          onClick={() =>
-                            onMessage({
-                              candidateId: a.candidateId!,
-                              jobId: a.jobId,
-                              name: a.profile.name,
-                              jobTitle: selectedJob?.title,
-                            })
-                          }
-                        >
-                          Mesaj yaz
-                        </button>
                       )}
                       {!demo && ["Göndərildi", "Baxışda"].includes(a.status) && (
                         <button className="primary" onClick={() => void inviteToInterview(a)}>
@@ -1370,6 +1237,7 @@ export default function HrPanel({
                         </button>
                       )}
                       {a.status === "Müsahibə" && <small className="muted">Müsahibələr bölməsindədir</small>}
+                      <button type="button" className="text-button" onClick={() => setDetailApp(a)}>Ətraflı ›</button>
                     </div>
                     <Field label="Müraciət statusu">
                       <select
@@ -1441,6 +1309,168 @@ export default function HrPanel({
       {templatesOpen && <TemplatesModal onClose={() => setTemplatesOpen(false)} onUse={(d) => loadDraft(d, "Şablondan layihə yaradıldı. Son tarixi və yaranma səbəbini daxil edin.")} notify={notify} />}
       {saveTemplate && <SaveTemplateModal jobId={saveTemplate.jobId} job={saveTemplate.job} defaultName={saveTemplate.name} onClose={() => setSaveTemplate(null)} notify={notify} />}
       {saveTalent && <SaveTalentModal candidateId={saveTalent.candidateId} name={saveTalent.name} onClose={() => setSaveTalent(null)} notify={notify} />}
+      {detailTalent && (() => {
+        const c = detailTalent;
+        return (
+          <Modal title={c.profile.name} onClose={() => setDetailTalent(null)} className="side-drawer">
+            <div className="candidate-detail">
+              <p className="muted">{c.profile.title} · {years(c.profile)} il təcrübə</p>
+              {!!c.ranking?.matched.length && <div className="skill-tags">{c.ranking.matched.map((sk) => <span className="matched" key={sk}>{sk}</span>)}</div>}
+                    <CertificationBadges items={candidateCertifications(c.profile)} limit={4} />
+                    <label className="compare-check">
+                      <input
+                        type="checkbox"
+                        checked={compareIds.includes(`c:${c.id}`)}
+                        onChange={(e) => toggleCompare(`c:${c.id}`, e.target.checked)}
+                      />{" "}
+                      Müqayisə et
+                    </label>
+                    {aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id] && (
+                      <div className={`hr-ai-note ${aiRatings.items[c.id].recommendation}`}>
+                        <b>
+                          AI: {aiRatings.items[c.id].recommendation === "interview" ? "Müsahibəyə dəvət et" : aiRatings.items[c.id].recommendation === "reject" ? "Uyğun deyil" : "Nəzərə al"}
+                        </b>
+                        {aiRatings.items[c.id].strengths && <p>✓ {aiRatings.items[c.id].strengths}</p>}
+                        {aiRatings.items[c.id].gaps && <p>△ {aiRatings.items[c.id].gaps}</p>}
+                        {!demo && selectedJob && (
+                          <AiFeedback
+                            api={api}
+                            kind="rank"
+                            jobId={selectedJob.id}
+                            candidateId={c.id}
+                            aiScore={aiRatings.items[c.id].aiScore ?? aiRatings.items[c.id].score}
+                            ruleScore={aiRatings.items[c.id].ruleScore}
+                            aiRecommendation={aiRatings.items[c.id].recommendation}
+                          />
+                        )}
+                      </div>
+                    )}
+                    {!demo && selectedJob && (
+                      <FitReviewPanel api={api} jobId={selectedJob.id} candidateId={c.id} language={language} audience="employer" />
+                    )}
+                    {aiEnabled && !demo && !aiRanking && !(aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]) && (
+                      <small className="fit-reasons">
+                        <b>AI yoxlamayıb:</b> bal yalnız qaydalarla hesablanıb, nəticəni özünüz yoxlayın.
+                      </small>
+                    )}
+                    {!!c.ranking?.fit && !(aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]) && (
+                      <small className="fit-reasons">
+                        {c.ranking.fit.fieldChange && "Sahə dəyişir. "}
+                        {c.ranking.fit.strengths.slice(0, 2).join("; ")}
+                        {!!(c.ranking.fit.risks?.length || c.ranking.fit.gaps.length) &&
+                          ` · Risk: ${[...(c.ranking.fit.risks || []), ...c.ranking.fit.gaps].slice(0, 3).join("; ")}`}
+                      </small>
+                    )}
+                    {(duplicateCount[duplicateKey(c.profile)] || 0) > 1 && (
+                      <small className="fit-reasons">
+                        Eyni ad və təhsilə malik {duplicateCount[duplicateKey(c.profile)]} profil var, təkrar ola bilər.
+                      </small>
+                    )}
+                    <button
+                      className="text-button"
+                      onClick={() => setCandidate(c.profile)}
+                    >
+                      Profilə bax ↗
+                    </button>
+                    {!demo && (
+                      <button
+                        className="text-button"
+                        onClick={() => onMessage({ candidateId: c.id, name: c.profile.name, jobId: undefined })}
+                      >
+                        Mesaj yaz
+                      </button>
+                    )}
+                    {!demo && (
+                      <button className="text-button" onClick={() => setSaveTalent({ candidateId: c.id, name: c.profile.name })}>
+                        Bazaya əlavə et
+                      </button>
+                    )}
+                    {!demo && (
+                      <button
+                        className="text-button"
+                        onClick={async () => {
+                          const on = !relations.following.includes(c.id);
+                          try {
+                            await api("relations/follow", { targetId: c.id, on });
+                            setRelations((r) => ({ ...r, following: on ? [...r.following, c.id] : r.following.filter((x) => x !== c.id) }));
+                            notify(on ? `${c.profile.name} izlənilənlərə əlavə edildi; namizədə bildiriş göndərildi.` : "İzləmə dayandırıldı.");
+                          } catch (e) {
+                            notify((e as Error).message);
+                          }
+                        }}
+                      >
+                        {relations.following.includes(c.id) ? "İzlənilir ✓" : "İzlə"}
+                      </button>
+                    )}
+                    {!demo && (
+                      <button
+                        className="text-button danger-text"
+                        onClick={async () => {
+                          if (!window.confirm(`${c.profile.name} bloklansın? Namizədə bildiriş gedəcək.`)) return;
+                          try {
+                            await api("relations/block", { targetId: c.id, on: true });
+                            await refresh();
+                            notify(`${c.profile.name} bloklandı.`);
+                          } catch (e) {
+                            notify((e as Error).message);
+                          }
+                        }}
+                      >
+                        Blokla
+                      </button>
+                    )}
+              {!demo && selectedJob && (
+                <button className="primary" onClick={() => { setDetailTalent(null); setInvitePeople([{ candidateId: c.id, name: c.profile.name }]); }}>
+                  Müsahibəyə dəvət et
+                </button>
+              )}
+            </div>
+          </Modal>
+        );
+      })()}
+      {detailApp && (() => {
+        const a = detailApp;
+        return (
+          <Modal title={a.profile.name} onClose={() => setDetailApp(null)} className="side-drawer">
+            <div className="candidate-detail">
+              <p className="muted">{a.profile.title} · müraciət statusu: {a.status}</p>
+                      <CertificationBadges items={candidateCertifications(a.profile)} limit={4} />
+                      <label className="compare-check">
+                        <input
+                          type="checkbox"
+                          checked={compareIds.includes(`a:${a.id}`)}
+                          onChange={(e) => toggleCompare(`a:${a.id}`, e.target.checked)}
+                        />{" "}
+                        Müqayisə et
+                      </label>
+                      <button
+                        className="text-button"
+                        onClick={() => setCandidate(a.profile)}
+                      >
+                        Müraciət CV-si ↗
+                      </button>
+                      {!demo && a.candidateId && selectedJob && (
+                        <FitReviewPanel api={api} jobId={selectedJob.id} candidateId={a.candidateId} language={language} audience="employer" />
+                      )}
+                      {!demo && a.candidateId && (
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            onMessage({
+                              candidateId: a.candidateId!,
+                              jobId: a.jobId,
+                              name: a.profile.name,
+                              jobTitle: selectedJob?.title,
+                            })
+                          }
+                        >
+                          Mesaj yaz
+                        </button>
+                      )}
+            </div>
+          </Modal>
+        );
+      })()}
       {detailJob && (
         <JobDrawer
           job={detailJob}

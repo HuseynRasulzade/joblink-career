@@ -500,3 +500,7 @@ Səhifə üç pəncərədir: solda bölmələr (**Vakansiya təsdiqləri**, **T�
 ## 45. İşçi siyahısında şəkil, elanlar üçün Excel idxalı
 
 İşçilər siyahısında hər işçinin yanında kiçik dairəvi şəkil (yoxdursa adın baş hərfi) göstərilir: `EmployeeAvatar` (`app/EmployeePhoto.tsx`) şəkli sətir ekrana girəndə bir dəfə yükləyir və ziyarət boyu yadda saxlayır; yalnız şəxsi məlumat icazəsi olanlara görünür. Elanlar: `parseAnnouncements`, `POST company/announcements/import`, nümunə fayl (başlıq, mətn, auditoriya, bitmə tarixi, sancılmış, oxu təsdiqi, şərhlər); eyni başlıqlı elan keçilir, bildiriş getmir. Yeni miqrasiya yoxdur.
+
+## 46. Namizədlər: yığcam kartlar və sağ panel
+
+"Uyğun namizədlər" və "Müraciət edənlər" (siyahı görünüşü) kartları Vakansiyalarım kimi yığcam oldu: ad, vəzifə və təcrübə, uyğun bacarıqlar, dəvət üçün seçmə qutusu, uyğunluq balı və "Müsahibəyə dəvət et". "Ətraflı ›" sağ paneli açır: sertifikatlar, müqayisə, AI qiymətləndirməsi və uyğunluq izahı (AI qeydi, risklər, təkrar profil xəbərdarlığı), profilə baxış, mesaj, bazaya əlavə, izlə, blokla, dəvət. Müraciət edənlərdə CV, müqayisə, uyğunluq yoxlaması və mesaj paneldədir; status seçimi kartda qalır. Pipeline lövhəsi dəyişməyib. Yeni miqrasiya yoxdur.
