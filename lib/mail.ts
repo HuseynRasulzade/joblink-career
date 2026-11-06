@@ -22,10 +22,10 @@ export const mailConfigured = (settings: MailSettings) =>
 // Throws when the provider refuses the message; callers decide whether that matters.
 export async function sendMail(
   settings: MailSettings,
-  message: { to: string; subject: string; text: string; action?: MailAction; html?: string },
+  message: { to: string; subject: string; text: string; action?: MailAction; greeting?: string; eyebrow?: string; html?: string },
 ) {
   // Every message goes out as a branded HTML mail with the plain-text part beside it.
-  const rendered = message.html ? { html: message.html, text: message.text } : renderMail({ subject: message.subject, text: message.text, action: message.action, siteUrl: settings.SITE_URL });
+  const rendered = message.html ? { html: message.html, text: message.text } : renderMail({ subject: message.subject, text: message.text, action: message.action, greeting: message.greeting, eyebrow: message.eyebrow, siteUrl: settings.SITE_URL });
   if (!settings.EMAIL_FROM) throw new Error("E-poçt göndərən ünvanı qurulmayıb.");
   if (settings.RESEND_API_KEY) {
     const response = await fetch("https://api.resend.com/emails", {

@@ -1,5 +1,6 @@
 import { mailConfigured, sendMail } from "./mail.ts";
 import { siteUrl } from "./seo.ts";
+import { greetingFor, mailPlan } from "./mail-copy.ts";
 // Shared helpers of the API route: notifications and e-mail, audit trail, application events,
 // message bookkeeping and the closing of expired employer tests.
 import { runtime, HttpError } from "./server";
@@ -31,7 +32,7 @@ export async function blockedBetween(db: D1Database, a: string, b: string) {
     return false;
   }
 }
-export async function sendUserEmail(db: D1Database, userId: string, subject: string, text: string, type = "") {
+export async function sendUserEmail(db: D1Database, userId: string, subject: string, text: string, type = "", link = "") {
   const settings = runtime();
   if (!mailConfigured(settings)) return;
   // The person may have switched this category of e-mail off.
@@ -44,7 +45,9 @@ export async function sendUserEmail(db: D1Database, userId: string, subject: str
   const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(userId).first<{ email: string }>();
   if (!account?.email) return;
   try {
-    await sendMail(settings, { to: account.email, subject, text, action: { label: "Joblink-də aç", url: siteUrl(settings.SITE_URL) } });
+    const plan = mailPlan(type, link, siteUrl(settings.SITE_URL));
+    const person = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(userId).first<{ name: string }>().catch(() => null);
+    await sendMail(settings, { to: account.email, subject, text, action: { label: plan.label, url: plan.url }, eyebrow: plan.eyebrow, greeting: greetingFor(person?.name || "") });
   } catch {
     // E-mail is best-effort; the in-app notification is the record.
   }
@@ -64,7 +67,7 @@ export async function notify(
   // Status, offer, test, billing and review notifications also go out by e-mail.
   // Notices on the employee's own page (link "workplace") are one category the person can switch off.
   const emailType = emailTypeOf(input.type, input.link);
-  if (shouldEmail(input)) await sendUserEmail(db, input.userId, input.title, input.body || input.title, emailType);
+  if (shouldEmail(input)) await sendUserEmail(db, input.userId, input.title, input.body || input.title, emailType, input.link);
 }
 // Followers hear about new vacancies (in-app; e-mail when configured).
 export async function notifyFollowers(db: D1Database, companyId: string, j: Job) {

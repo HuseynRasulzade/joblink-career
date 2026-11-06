@@ -207,6 +207,8 @@ const normalizedProfileRecord = (
 // and its application deadline (when set) has not passed.
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
 import { mailConfigured, mailerOf, sendMail } from "@/lib/mail";
+import { greetingFor } from "@/lib/mail-copy";
+import { siteUrl } from "@/lib/seo";
 import { aiLanguage, aiLanguageName } from "@/lib/ai-language";
 import {
   ADMIN_HEALTH_TEXT,
@@ -2045,7 +2047,7 @@ async function route(request: Request) {
         await Promise.allSettled(
           list.slice(i, i + 20).flatMap((r) => [
             r.user_id ? notify(db, { userId: r.user_id, type: "application", title, body, link: "workplace", email: send && r.email ? false : undefined }) : Promise.resolve(),
-            send && r.email && !mutedUsers.has(r.user_id) ? sendMail(settings, { to: r.email, subject: title, text: `Salam, ${r.name}.\n\n${body}\n\nJoblink` }) : Promise.resolve(),
+            send && r.email && !mutedUsers.has(r.user_id) ? sendMail(settings, { to: r.email, subject: title, text: body, greeting: greetingFor(r.name), eyebrow: "İş yerim", action: { label: "İş yerimə keç", url: `${siteUrl(settings.SITE_URL)}/#workplace` } }) : Promise.resolve(),
           ]),
         );
     } catch {

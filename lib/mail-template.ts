@@ -1,7 +1,7 @@
 // The HTML of every e-mail Joblink sends: one branded layout (table-based, inline styles, so it reads the same in
 // Gmail, Outlook and phones). The plain-text part is always sent too. All text is escaped; web addresses become links.
 export type MailAction = { label: string; url: string };
-export type MailContent = { subject: string; text: string; action?: MailAction; siteUrl?: string };
+export type MailContent = { subject: string; text: string; action?: MailAction; siteUrl?: string; greeting?: string; eyebrow?: string };
 
 const BRAND = "#147b70";
 const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -22,7 +22,7 @@ function paragraphs(text: string): string {
     .join("");
 }
 
-export function renderMail({ subject, text, action, siteUrl }: MailContent): { html: string; text: string } {
+export function renderMail({ subject, text, action, siteUrl, greeting, eyebrow }: MailContent): { html: string; text: string } {
   const home = safeUrl(siteUrl || "");
   const button = action && safeUrl(action.url)
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;"><tr><td style="border-radius:10px;background:${BRAND};"><a href="${escapeHtml(action.url)}" style="display:inline-block;padding:13px 24px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;">${escapeHtml(action.label)}</a></td></tr></table>`
@@ -36,11 +36,12 @@ export function renderMail({ subject, text, action, siteUrl }: MailContent): { h
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e3ebea;">
 <tr><td style="background:#0f3d38;padding:22px 32px;"><span style="font-size:26px;font-weight:800;letter-spacing:-1px;color:#ffffff;">joblink</span><span style="font-size:26px;font-weight:800;color:#7fd6c8;">&#10035;</span></td></tr>
 <tr><td style="padding:32px 32px 8px;">
-<h1 style="margin:0 0 18px;font-size:22px;line-height:1.3;color:#172d31;">${escapeHtml(subject)}</h1>
-${paragraphs(text)}
+${eyebrow ? `<div style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${BRAND};">${escapeHtml(eyebrow)}</div>` : ""}<h1 style="margin:0 0 18px;font-size:22px;line-height:1.3;color:#172d31;">${escapeHtml(subject)}</h1>
+${greeting ? `<p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#27393d;">${escapeHtml(greeting)},</p>` : ""}${paragraphs(text)}
 ${button}
 </td></tr>
 <tr><td style="padding:0 32px 28px;"><div style="border-top:1px solid #e3ebea;padding-top:18px;font-size:13px;line-height:1.6;color:#6b7a7d;">Bu e-poçt Joblink platformasından avtomatik göndərilib.${home ? ` <a href="${home}" style="color:${BRAND};">${escapeHtml(home.replace(/^https?:\/\//, ""))}</a>` : ""}<br>Hansı bildirişləri e-poçtla almaq istədiyinizi Hesab ayarlarında dəyişə bilərsiniz.</div></td></tr>
 </table></td></tr></table></body></html>`;
-  return { html, text: action && safeUrl(action.url) ? `${text.trim()}\n\n${action.label}: ${action.url}` : text };
+  const body = greeting ? `${greeting},\n\n${text.trim()}` : text.trim();
+  return { html, text: action && safeUrl(action.url) ? `${body}\n\n${action.label}: ${action.url}` : body };
 }
