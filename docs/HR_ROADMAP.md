@@ -508,3 +508,7 @@ Səhifə üç pəncərədir: solda bölmələr (**Vakansiya təsdiqləri**, **T�
 ## 47. İşəgötürənin "Ümumi baxış" səhifəsi: diaqramlar
 
 "Ümumi baxış" (işəgötürən) yenidən quruldu (`app/OverviewDashboard.tsx`, server `GET company/overview-charts`): dörd rəngli göstərici kartı (aktiv vakansiyalar, müraciətlər 30 günlük dəyişmə və mini xəttlə, 14 günlük müsahibələr, vakansiya baxışları), tünd kartda son 12 həftənin müraciət dinamikası (sütunlar, üzərinə gələndə həftənin sayı), müraciət mərhələləri (hər mərhələ üçün ölçü zolağı və faiz), "Kollektiv göstəriciləri": davamiyyət isti xəritəsi (son 4 həftə, gün üzrə işdə olanların faizi; tabel qeydləri varsa), departamentlər üzrə işçi sayı və iş stajı paylanması. Rəng yalnız bir rəngdən (şirkətin yaşıl-mavi tonu) alınır, mərhələ və isti xəritə üçün sıralı rampa `validate_palette --ordinal` ilə işıqlı və tünd səth üçün yoxlanıb; hər diaqramın altında rəqəm cədvəli var. Nümunə rejimində köhnə kartlar qalır. Yeni miqrasiya yoxdur.
+
+## 48. Ümumi baxış: gözləyən işlər ayrı pəncərədə
+
+"Bu gün nə etməli" və "Diqqət tələb edənlər" uzun siyahıları "Ümumi baxış"dan çıxarıldı. Yerinə bir nazik giriş kartı qoyuldu (`app/OverviewAttention.tsx`): "N iş sizi gözləyir", ilk iki maddənin qısa mətni və "Hamısına bax". Basanda sağda "Gözləyən işlər" pəncərəsi açılır: hər iki bölmə orada, hər maddənin yanında "Aç" düyməsi (pəncərəni bağlayıb müvafiq səhifəyə aparır). Təcili (qırmızı) maddə varsa kart qırmızımtıl olur.

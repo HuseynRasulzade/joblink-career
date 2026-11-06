@@ -33,6 +33,7 @@ import { AssignTestModal } from "./AssessmentsPage";
 import JobDrawer from "./JobDrawer";
 import { takeFocus } from "./focus";
 import OverviewDashboard from "./OverviewDashboard";
+import OverviewAttention from "./OverviewAttention";
 import { InviteModal, ScheduleInterviewModal, type InvitePerson } from "./Interviews";
 import { BulkModal, SaveTalentModal } from "./BulkTalent";
 import { SavedSearches } from "./SavedSearches";
@@ -48,7 +49,6 @@ import { formatDate } from "@/lib/dates";
 import { certificationById } from "@/lib/certification-catalog";
 import { candidateCertifications } from "@/lib/model";
 import { localizeTree } from "./i18n";
-import HrToday from "./HrToday";
 import { normalizeSkills } from "@/lib/skill-catalog";
 import { skillMatches } from "@/lib/skill-synonyms";
 type Candidate = { id: string; profile: Profile };
@@ -607,20 +607,7 @@ export default function HrPanel({
             </label>
           </div>
           {error && !demo && <div className="notice error">{error}</div>}
-          {page === "hr-overview" && !demo && <HrToday go={go} />}
-          {page === "hr-overview" && !demo && attention.length > 0 && (
-            <section className="panel" aria-label="Diqqət tələb edənlər">
-              <h3>Diqqət tələb edənlər</h3>
-              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
-                {attention.map((item) => (
-                  <li key={item.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                    <span><b>{item.count}</b> {item.label}</span>
-                    <button className="secondary" onClick={() => go(item.link)}>Aç</button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          {page === "hr-overview" && !demo && <OverviewAttention go={go} attention={attention} />}
           {page === "hr-overview" && !demo ? <OverviewDashboard go={go} /> : (
           <div className="stats">
             {[
