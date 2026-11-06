@@ -141,3 +141,33 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 .job-card .ja-danger { color: #b3382c !important; }
 .job-card .ja-danger:hover:not(:disabled) { background: #fdf1ef !important; border-color: #efb8b1 !important; }
 @media (max-width: 720px) { .job-card .ja::before { flex-basis: 100%; } .job-card .job-footer > .text-button { order: 2; } }
+
+/* Namizəd paneli: müsahibə, test, müraciət və tövsiyə kartları */
+.exam-list { gap: 12px; }
+.exam-list > h3 { display: flex; align-items: center; gap: 8px; font-size: 17px; margin-bottom: 4px; }
+.exam-row { border: 1px solid #e3ebea; border-top: 1px solid #e3ebea; border-radius: 12px; padding: 14px 16px; background: #fbfdfc; gap: 16px; align-items: center; }
+.exam-row > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.exam-row > div:first-child > strong { font-size: 15px; }
+.exam-row small { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.exam-row small:first-of-type { color: var(--ink); font-weight: 600; }
+.exam-row .admin-actions { flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; gap: 8px; }
+.exam-row .admin-actions button, .exam-row .admin-actions a.secondary { height: 36px; padding: 0 14px; font-size: 13px; font-weight: 600; border-radius: 9px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dbe5e3; background: #fff; color: #33484c; }
+.exam-row .admin-actions button:hover { background: #f1f8f6; border-color: #9fcac2; color: var(--teal-strong); }
+.exam-row .admin-actions button.primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+.exam-row .admin-actions button.primary:hover { background: var(--teal-strong); color: #fff; }
+@media (max-width: 720px) { .exam-row { flex-direction: column; align-items: stretch; } .exam-row .admin-actions { justify-content: flex-start; } }
+
+.application-list { padding: 8px 22px; }
+.application-row { flex-wrap: wrap; gap: 10px 14px; padding: 18px 0; }
+.application-row > div:nth-child(2) { flex: 1 1 220px; min-width: 0; }
+.application-row .company-mark { flex: 0 0 auto; }
+.application-row h3 { margin-bottom: 4px; }
+.application-row p { font-size: 13px; }
+.application-row .status-badge { margin-left: auto; border-radius: 999px; padding: 5px 12px; font-weight: 600; }
+.application-row .text-button { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--teal); background: #eef7f5; }
+.application-row .text-button:hover:not(:disabled) { background: #dff0ec; }
+.application-row .application-progress { flex: 1 0 100%; }
+.application-row .application-progress summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--teal); }
+
+.next-step { margin-bottom: 18px; }
+.advice-grid { margin-top: 0; }
