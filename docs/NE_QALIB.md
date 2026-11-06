@@ -60,7 +60,7 @@ Mühüm olan, amma hələ edilməyənlər:
 2. **Excel idxalı olmayan bölmələr:** elanlar və sorğular, sənəd reyestrində müddətlər. (Ezamiyyət artıq var: İnkişaf və kommunikasiya → Ezamiyyət → “Excel-dən yüklə”.)
 3. **Əmrlərin kartda təsiri:** müqavilə uzatma (kartda “Müqavilə: tarixədək”), iş rejimi (kartda “İş rejimi”) artıq kartı dəyişir, geri qaytarmaq olur və müqavilə 30 gün ərzində bitəndə “Bu gün” panelində xəbərdarlıq çıxır. Əvəzetmə və intizam əmrləri müvəqqəti/tənbeh xarakterli olduğu üçün yalnız kartın tarixçəsinə yazılır (bilərəkdən).
 4. **Şəkil:** işçilər siyahısında və təşkilat sxemində göstərilmir (yük və məxfilik səbəbi ilə).
-5. **Avtomatik brauzer testləri:** indi yalnız kod səviyyəsində testlər var (551), tam ekran testləri yoxdur.
+5. **Avtomatik brauzer testləri:** `npm test` kod səviyyəsində testlərdir. Əsas ekranlar üçün brauzer smoke testi də var: `npm run e2e` (lokal serveri açın, `npm i --no-save playwright-core` quraşdırın; namizəd və işəgötürən hesabları ilə vakansiyalar, müsahibələr, təsdiqlər və vakansiya panelini yoxlayır). Hələ yalnız 6 yoxlamadır və avtomatik (CI) işə düşmür: tam ekran testləri hələ yoxdur.
 
 ## 6. Mən nəyi seçməyi tövsiyə edirəm
 
