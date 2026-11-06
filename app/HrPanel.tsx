@@ -15,6 +15,7 @@ import {
   SlidersHorizontal,
   FileText,
   BadgeCheck,
+  X,
 } from "lucide-react";
 import {
   type Job,
@@ -654,26 +655,37 @@ export default function HrPanel({
             />
           ) : (
             <>
-            <div className="form-grid">
-              <Field label="Axtarış">
-                <input value={jobQuery} placeholder="Vəzifə, şəhər, kateqoriya" onChange={(e) => setJobQuery(e.target.value)} />
-              </Field>
-              <Field label="Status">
-                <select value={jobFilter} onChange={(e) => setJobFilter(e.target.value)}>
-                  <option value="all">Hamısı ({ownJobs.length})</option>
-                  {[["published", "Yayımlanıb"], ["paused", "Dayandırılıb"], ["expired", "Müddəti bitib"], ["pending_approval", "Təsdiq gözləyir"], ["rejected", "Təsdiqlənmədi"], ["archived", "Bağlanıb"]].map(([value, label]) => {
-                    const n = ownJobs.filter((j) => jobStatus(j) === value).length;
-                    return n ? <option key={value} value={value}>{label} ({n})</option> : null;
-                  })}
-                </select>
-              </Field>
-              <Field label="Sıralama">
+            <div className="vf" role="search">
+              <label className="vf-search">
+                <Search size={16} aria-hidden="true" />
+                <input value={jobQuery} placeholder="Vəzifə, şəhər, kateqoriya axtar" aria-label="Axtarış" onChange={(e) => setJobQuery(e.target.value)} />
+                {jobQuery && (
+                  <button type="button" aria-label="Axtarışı təmizlə" onClick={() => setJobQuery("")}>
+                    <X size={14} />
+                  </button>
+                )}
+              </label>
+              <div className="vf-chips" role="group" aria-label="Status">
+                <button type="button" className={jobFilter === "all" ? "on" : ""} aria-pressed={jobFilter === "all"} onClick={() => setJobFilter("all")}>
+                  Hamısı <b>{ownJobs.length}</b>
+                </button>
+                {[["published", "Yayımlanıb"], ["paused", "Dayandırılıb"], ["expired", "Müddəti bitib"], ["pending_approval", "Təsdiq gözləyir"], ["rejected", "Təsdiqlənmədi"], ["archived", "Bağlanıb"]].map(([value, label]) => {
+                  const n = ownJobs.filter((j) => jobStatus(j) === value).length;
+                  return n ? (
+                    <button type="button" key={value} className={jobFilter === value ? "on" : ""} aria-pressed={jobFilter === value} onClick={() => setJobFilter(value)}>
+                      {label} <b>{n}</b>
+                    </button>
+                  ) : null;
+                })}
+              </div>
+              <label className="vf-sort">
+                <span>Sıralama</span>
                 <select value={jobSort} onChange={(e) => setJobSort(e.target.value)}>
                   <option value="new">Ən yenilər</option>
                   <option value="applications">Ən çox müraciət</option>
                   <option value="deadline">Son tarixə görə</option>
                 </select>
-              </Field>
+              </label>
             </div>
             {!visibleJobs.length && <p className="admin-empty">Axtarışa uyğun vakansiya yoxdur.</p>}
             {visibleJobs.map((j) => (
