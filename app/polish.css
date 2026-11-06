@@ -199,3 +199,7 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 .jobs .job-card .compare-check { margin: 0 auto 0 4px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #5d7073; background: #f4f8f7; transition: background-color .15s var(--ease), color .15s var(--ease); }
 .jobs .job-card .compare-check:hover { background: #e6f4f1; color: var(--teal-strong); }
 .jobs .job-card .match-score { border-radius: 999px; padding: 5px 12px; font-weight: 700; }
+
+/* Ezamiyyət: Mərkəzi Bankın rəsmi məzənnəsi */
+.fx-official { padding: 12px 14px; border: 1px solid #cfe5df; background: #eef7f5; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+.fx-official a { color: var(--teal); font-weight: 600; }

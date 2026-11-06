@@ -703,9 +703,11 @@ function NormTable({ onClose }: { onClose: () => void }) {
 const FX_CODES = ["USD", "EUR", "GBP", "JPY"] as const;
 function NormSettings({ notify, onClose }: { notify: Notify; onClose: () => void }) {
   const [form, setForm] = useState<{ domestic: string; abroad: string; fx: Record<string, string> } | null>(null);
+  const [official, setOfficial] = useState<{ date: string; perUnit: Record<string, number> } | null>(null);
   useEffect(() => {
     fetch("/api/joblink/company/trips/norms", { credentials: "same-origin", cache: "no-store" })
-      .then((r) => r.json() as Promise<{ domestic: number; abroad: number; fx: Record<string, number> }>)
+      .then((r) => r.json() as Promise<{ domestic: number; abroad: number; fx: Record<string, number>; official?: { date: string; perUnit: Record<string, number> } | null }>)
+      .then((n) => { setOfficial(n.official || null); return n; })
       .then((n) => setForm({ domestic: n.domestic ? String(n.domestic) : "", abroad: n.abroad ? String(n.abroad) : "", fx: Object.fromEntries(FX_CODES.map((c) => [c, n.fx?.[c] ? String(n.fx[c]) : ""])) }))
       .catch(() => setForm({ domestic: "", abroad: "", fx: {} }));
   }, []);
@@ -723,15 +725,28 @@ function NormSettings({ notify, onClose }: { notify: Notify; onClose: () => void
     <Modal title="Gündəlik normalar və məzənnə" onClose={onClose}>
       {!form ? <p className="muted">Yüklənir…</p> : (
         <div className="offer-composer">
-          <p className="muted">Gündəlik boş qalanda təyinat yerinin <b>rəsmi normu</b> işlənir (Azərbaycan daxilində AZN ilə avtomatik). Xarici norma xarici valyutadadır: AZN-ə çevirmək üçün ezamiyyət tarixinə Mərkəzi Bankın rəsmi məzənnəsini yazın. Aşağıdakı ümumi normlar yalnız rəsmi cədvəldə tapılmayan təyinat üçündür.</p>
+          <p className="muted">Gündəlik boş qalanda təyinat yerinin <b>rəsmi normu</b> işlənir (Azərbaycan daxilində AZN ilə avtomatik). Xarici norma xarici valyutadadır: AZN-ə çevirmək üçün ezamiyyətin başlama gününə Mərkəzi Bankın rəsmi məzənnəsi <b>avtomatik</b> işlənir. Aşağıdakı ümumi normlar yalnız rəsmi cədvəldə tapılmayan təyinat üçündür.</p>
+          <div className="fx-official">
+            {official ? (
+              <>
+                <b>Mərkəzi Bankın rəsmi məzənnəsi ({dmy(official.date)}):</b>{" "}
+                {FX_CODES.filter((c) => official.perUnit[c]).map((c) => `1 ${c} = ${official.perUnit[c]} AZN`).join(" · ")}{" "}
+                <a href="https://www.cbar.az/currency/rates" target="_blank" rel="noreferrer">cbar.az</a>
+              </>
+            ) : <span className="muted">Mərkəzi Bankın saytından məzənnə hazırda alına bilmədi: aşağıdakı ehtiyat məzənnələr işlənəcək.</span>}
+          </div>
+          <p className="muted fine-print">Aşağıdakı məzənnələr yalnız <b>ehtiyat</b>dır: Mərkəzi Bankın saytı əlçatmaz olanda işlənir.</p>
           <div className="form-grid">
             {FX_CODES.map((c) => (
-              <Field key={c} label={`1 ${c} = ... AZN`}><input inputMode="decimal" value={form.fx[c] || ""} onChange={(e) => setForm({ ...form, fx: { ...form.fx, [c]: e.target.value } })} /></Field>
+              <Field key={c} label={`Ehtiyat: 1 ${c} = ... AZN`}><input inputMode="decimal" value={form.fx[c] || ""} onChange={(e) => setForm({ ...form, fx: { ...form.fx, [c]: e.target.value } })} /></Field>
             ))}
             <Field label="Cədvəldə tapılmayan yer üçün ölkə daxili norma (AZN)"><input inputMode="decimal" value={form.domestic} onChange={(e) => setForm({ ...form, domestic: e.target.value })} /></Field>
             <Field label="Cədvəldə tapılmayan xarici yer üçün norma (AZN)"><input inputMode="decimal" value={form.abroad} onChange={(e) => setForm({ ...form, abroad: e.target.value })} /></Field>
           </div>
-          <button type="button" className="primary" onClick={() => void save()}>Saxla</button>
+          <div className="admin-actions">
+            {official && <button type="button" className="secondary" onClick={() => setForm({ ...form, fx: { ...form.fx, ...Object.fromEntries(FX_CODES.filter((c) => official.perUnit[c]).map((c) => [c, String(official.perUnit[c])])) } })}>Bugünkü rəsmi məzənnəni ehtiyat kimi yaz</button>}
+            <button type="button" className="primary" onClick={() => void save()}>Saxla</button>
+          </div>
         </div>
       )}
     </Modal>
