@@ -70,7 +70,7 @@ import {
   cleanWhere,
   errorFingerprint,
 } from "@/lib/error-log";
-import { EMAIL_CATEGORIES, sanitizeEmailOff } from "@/lib/notification-prefs";
+import { EMAIL_CATEGORIES, emailAllowedFor, sanitizeEmailOff } from "@/lib/notification-prefs";
 import {
   alertIsEmpty,
   describeAlert,
@@ -2033,11 +2033,18 @@ async function route(request: Request) {
       const list = rows.filter((r) => wanted.has(r.id)).slice(0, 400);
       const settings = runtime();
       const send = mail && mailConfigured(settings);
+      // A person who switched off the e-mail of their own page does not get the pay slip mail either.
+      const mutedUsers = new Set<string>();
+      if (send)
+        for (const r of list.filter((x) => x.user_id)) {
+          const prefs = await db.prepare("SELECT email_off FROM notification_prefs WHERE user_id=?").bind(r.user_id).first<{ email_off: string }>().catch(() => null);
+          try { if (prefs && !emailAllowedFor(sanitizeEmailOff(JSON.parse(prefs.email_off)), "workplace")) mutedUsers.add(r.user_id); } catch { /* unreadable settings: send */ }
+        }
       for (let i = 0; i < list.length; i += 20)
         await Promise.allSettled(
           list.slice(i, i + 20).flatMap((r) => [
             r.user_id ? notify(db, { userId: r.user_id, type: "application", title, body, link: "workplace", email: send && r.email ? false : undefined }) : Promise.resolve(),
-            send && r.email ? sendMail(settings, { to: r.email, subject: title, text: `Salam, ${r.name}.\n\n${body}\n\nJoblink` }) : Promise.resolve(),
+            send && r.email && !mutedUsers.has(r.user_id) ? sendMail(settings, { to: r.email, subject: title, text: `Salam, ${r.name}.\n\n${body}\n\nJoblink` }) : Promise.resolve(),
           ]),
         );
     } catch {
