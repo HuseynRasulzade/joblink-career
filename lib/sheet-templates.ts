@@ -371,7 +371,7 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       { header: "İşçi", required: false, format: "Mətn", description: "İşçinin adı. FİN və ya e-poçt yazılıbsa, ad boş ola bilər." },
       { header: "FİN", required: false, format: "7 simvol", description: "İşçinin FİN kodu; yazılırsa işçi yalnız FİN ilə tapılır." },
       { header: "E-poçt", required: false, format: "E-poçt", description: "Eyni adlı işçiləri fərqləndirmək üçün." },
-      { header: "Təyinat", required: true, format: "Mətn", description: "Şəhər, rayon və ya ölkə. Gündəlik boşdursa rəsmi norma bu yerə görə yazılır." },
+      { header: "Təyinat", required: true, format: "Mətn", description: "Azərbaycan daxilində şəhər, rayon, kənd; xarici ezamiyyətdə qanunun cədvəlindəki ölkə və ya şəhər (məs. “Türkiyə”, “Rusiya Federasiyası, Moskva və Sankt-Peterburq şəhərləri”). Gündəlik boşdursa rəsmi norma bu yerə görə yazılır." },
       { header: "Başlama", required: true, format: "GGGG-AA-GG", description: "Ezamiyyətin ilk günü." },
       { header: "Bitmə", required: false, format: "GGGG-AA-GG", description: "Son gün; boşdursa başlama günü." },
       { header: "Məqsəd", required: false, format: "Mətn", description: "Ezamiyyətin məqsədi." },
@@ -383,7 +383,7 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       ["Aysel Məmmədova", "", "", "Gəncə", "2026-12-08", "2026-12-10", "Filialın yoxlanması", "", 100, "Xeyr"],
       ["Orxan Əliyev", "", "", "İstanbul", "2026-12-15", "2026-12-18", "Tədarükçi ilə görüş", "", 400, "Bəli"],
     ],
-    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Yüklənən ezamiyyətlər “sorğu” kimi yazılır: ayrıca “Təsdiqlə” düyməsi ilə təsdiq edilir, sonra əmr hazırlanır. Üst-üstə düşən tarixlərdə eyni təyinatlı ezamiyyət artıq varsa sətir keçilir.", "Xarici norma AZN-ə çevriləndə “Gündəlik normalar və məzənnə”də yazdığınız Mərkəzi Bank məzənnəsi işlənir."],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Yüklənən ezamiyyətlər “sorğu” kimi yazılır: ayrıca “Təsdiqlə” düyməsi ilə təsdiq edilir, sonra əmr hazırlanır. Üst-üstə düşən tarixlərdə eyni təyinatlı ezamiyyət artıq varsa sətir keçilir.", "Xarici ezamiyyətdə təyinat qanunun (Nazirlər Kabinetinin 14 nömrəli qərarı) cədvəlindəki ölkə və ya şəhər olmalıdır, əks halda sətir keçilir. Xarici norma AZN-ə çevriləndə Mərkəzi Bankın ezamiyyətin başlama gününə rəsmi məzənnəsi avtomatik işlənir."],
   },
   announcements: {
     title: "Elanlar",

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { Field, Modal } from "./components";
+import TripPlacePicker from "./TripPlacePicker";
 import { SheetImport } from "./StaffPages";
 import PeoplePicker from "./PeoplePicker";
 
@@ -607,7 +608,7 @@ export function Trips({ notify }: { notify: Notify }) {
           <div className="offer-composer">
             <div className="form-grid">
               <Field label="İşçi"><select value={String(edit.employeeId)} onChange={(e) => setEdit({ ...edit, employeeId: e.target.value })}>{data.employees.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-              <Field label="Təyinat"><input value={String(edit.destination)} onChange={(e) => setEdit({ ...edit, destination: e.target.value })} /></Field>
+              <div className="form-wide"><TripPlacePicker destination={String(edit.destination)} abroad={edit.abroad === true} onChange={(destination, abroad) => setEdit({ ...edit, destination, abroad })} /></div>
               <Field label="Məqsəd"><input value={String(edit.purpose)} onChange={(e) => setEdit({ ...edit, purpose: e.target.value })} /></Field>
               <Field label="Başlanğıc"><input type="date" value={String(edit.start)} onChange={(e) => setEdit({ ...edit, start: e.target.value })} /></Field>
               <Field label="Bitmə"><input type="date" value={String(edit.end)} onChange={(e) => setEdit({ ...edit, end: e.target.value })} /></Field>
@@ -615,7 +616,7 @@ export function Trips({ notify }: { notify: Notify }) {
               <Field label="Avans (AZN)"><input type="number" min={0} value={Number(edit.advance) || ""} onChange={(e) => setEdit({ ...edit, advance: Number(e.target.value) })} /></Field>
             </div>
             <TripNormHint destination={String(edit.destination)} abroad={edit.abroad === true} onFill={(daily, abroad) => setEdit({ ...edit, daily, abroad })} />
-            <label className="check"><input type="checkbox" checked={edit.abroad === true} onChange={(e) => setEdit({ ...edit, abroad: e.target.checked })} /> Xarici ezamiyyət (gündəlik boşdursa təyinat yerinin rəsmi normu işlənir)</label>
+            <p className="muted fine-print">Gündəlik boş qalarsa seçilən yerin rəsmi normu işlənir.</p>
             <button type="button" className="primary" onClick={async () => { if (await run(notify, load, "company/trips/save", edit, "Ezamiyyət yaradıldı.")) setEdit(null); }}>Saxla (təsdiqlənmiş)</button>
           </div>
         </Modal>

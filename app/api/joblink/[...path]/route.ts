@@ -208,6 +208,7 @@ const normalizedProfileRecord = (
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
 import { mailConfigured, mailerOf, sendMail } from "@/lib/mail";
 import { greetingFor } from "@/lib/mail-copy";
+import { checkDestination } from "@/lib/trip-places";
 import { siteUrl } from "@/lib/seo";
 import { aiLanguage, aiLanguageName } from "@/lib/ai-language";
 import {
@@ -8888,7 +8889,9 @@ async function route(request: Request) {
     const end = str(b.end, 10);
     if (!tripDays(start, end)) throw new HttpError(400, "Tarixləri düzgün yazın.");
     const destination = str(b.destination, 160);
-    if (destination.length < 2) throw new HttpError(400, "Təyinat yerini yazın.");
+    const place = checkDestination(destination, b.abroad === true);
+    if (!place.ok) throw new HttpError(400, place.error);
+    b.abroad = place.abroad;
     await db.prepare("INSERT INTO trips(id,company_id,employee_id,destination,purpose,start_date,end_date,status,requested_by,created) VALUES(?,?,?,?,?,?,?,'requested','employee',?)").bind(crypto.randomUUID(), employee.company_id, employee.id, destination, str(b.purpose, 300), start, end, new Date().toISOString()).run();
     // A trip goes to the direct manager first, then to HR; "abroad" picks the per-diem norm of foreign trips.
     const tripId = (await db.prepare("SELECT id FROM trips WHERE company_id=? AND employee_id=? ORDER BY created DESC LIMIT 1").bind(employee.company_id, employee.id).first<{ id: string }>())?.id || "";
@@ -11270,7 +11273,9 @@ async function route(request: Request) {
     const end = str(b.end, 10);
     if (!tripDays(start, end)) throw new HttpError(400, "Tarixləri düzgün yazın.");
     const destination = str(b.destination, 160);
-    if (destination.length < 2) throw new HttpError(400, "Təyinat yerini yazın.");
+    const place = checkDestination(destination, b.abroad === true);
+    if (!place.ok) throw new HttpError(400, place.error);
+    b.abroad = place.abroad;
     const values = [destination, str(b.purpose, 300), start, end, Math.max(0, Math.round((Number(b.daily) || 0) * 100)), Math.max(0, Math.round((Number(b.advance) || 0) * 100))];
     const tripId = crypto.randomUUID();
     await db.prepare("INSERT INTO trips(id,company_id,employee_id,destination,purpose,start_date,end_date,daily_cents,advance_cents,status,requested_by,decided_by_name,created) VALUES(?,?,?,?,?,?,?,?,?,?,'hr',?,?)").bind(tripId, id, employee.id, ...values, b.approve === true ? "approved" : "requested", b.approve === true ? await requesterName() : "", new Date().toISOString()).run();
@@ -11303,6 +11308,12 @@ async function route(request: Request) {
         issues.push({ line: row.line, reason: `${row.name || row.fin}: bu ezamiyyət artıq yazılıb.` });
         continue;
       }
+      const place = checkDestination(row.destination, row.abroad);
+      if (!place.ok) {
+        issues.push({ line: row.line, reason: `${row.name || row.fin}: ${place.error}` });
+        continue;
+      }
+      row.abroad = place.abroad;
       const tripId = crypto.randomUUID();
       const daily = row.daily > 0 ? row.daily : (await defaultDaily(row.destination, row.abroad, row.start)).amount;
       await db.prepare("INSERT INTO trips(id,company_id,employee_id,destination,purpose,start_date,end_date,daily_cents,advance_cents,status,requested_by,decided_by_name,abroad,created) VALUES(?,?,?,?,?,?,?,?,?,'requested','hr','',?,?)")

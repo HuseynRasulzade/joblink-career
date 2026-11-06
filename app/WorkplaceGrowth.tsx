@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Field } from "./components";
+import TripPlacePicker from "./TripPlacePicker";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -250,12 +251,11 @@ export function MyTrips({ employeeId, notify }: { employeeId: string; notify: No
       ))}
       <h4>Ezamiyyət sorğusu</h4>
       <div className="form-grid">
-        <Field label="Təyinat"><input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} /></Field>
+        <TripPlacePicker destination={form.destination} abroad={form.abroad} onChange={(destination, abroad) => setForm({ ...form, destination, abroad })} />
         <Field label="Məqsəd"><input value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /></Field>
         <Field label="Başlanğıc"><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></Field>
         <Field label="Bitmə"><input type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></Field>
       </div>
-      <label className="check"><input type="checkbox" checked={form.abroad} onChange={(e) => setForm({ ...form, abroad: e.target.checked })} /> Xarici ezamiyyət</label>
       <button type="button" className="primary" disabled={form.destination.trim().length < 2 || !form.start || !form.end} onClick={async () => { if (await act(notify, load, "employee/trips/request", { employeeId, ...form }, "Sorğu göndərildi.")) setForm({ destination: "", purpose: "", start: "", end: "", abroad: false }); }}>Sorğu göndər</button>
     </div>
   );
