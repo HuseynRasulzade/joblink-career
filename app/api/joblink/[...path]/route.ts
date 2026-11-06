@@ -21869,6 +21869,78 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .all();
     return ok({ events: rows.results });
   }
+  // Numbers for the overview charts of the employer: applications over the weeks, the stages, interviews, views and the workforce.
+  if (request.method === "GET" && path === "company/overview-charts") {
+    const jobIds = (await reportScope()).jobIds;
+    const list = JSON.stringify(jobIds);
+    const DAY = 86400000;
+    const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+    const now = Date.now();
+    // Weeks start on Monday; twelve of them, the last one is the current week.
+    const dow = (new Date(now).getUTCDay() + 6) % 7;
+    const thisMonday = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate()) - dow * DAY;
+    const weeks = Array.from({ length: 12 }, (_, i) => ({ start: isoDay(thisMonday - (11 - i) * 7 * DAY), apps: 0, views: 0 }));
+    const weekOf = (day: string) => {
+      const t = Date.parse(day.slice(0, 10));
+      const idx = 11 - Math.floor((thisMonday - (t - ((new Date(t).getUTCDay() + 6) % 7) * DAY)) / (7 * DAY));
+      return idx >= 0 && idx < 12 ? idx : -1;
+    };
+    const apps = (await db.prepare("SELECT a.created,a.status FROM applications a WHERE a.job_id IN (SELECT value FROM json_each(?)) ORDER BY a.created DESC LIMIT 5000").bind(list).all<{ created: string; status: string }>().catch(() => ({ results: [] as { created: string; status: string }[] }))).results;
+    const statusCount = new Map<string, number>();
+    let apps30 = 0;
+    let appsPrev30 = 0;
+    for (const a of apps) {
+      statusCount.set(a.status, (statusCount.get(a.status) || 0) + 1);
+      const w = weekOf(a.created);
+      if (w >= 0) weeks[w].apps += 1;
+      const age = (now - Date.parse(a.created)) / DAY;
+      if (age <= 30) apps30 += 1;
+      else if (age <= 60) appsPrev30 += 1;
+    }
+    const views = (await db.prepare("SELECT day,COUNT(*) AS n FROM job_views WHERE job_id IN (SELECT value FROM json_each(?)) AND day>=? GROUP BY day").bind(list, weeks[0].start).all<{ day: string; n: number }>().catch(() => ({ results: [] as { day: string; n: number }[] }))).results;
+    let viewsTotal = 0;
+    for (const v of views) {
+      const w = weekOf(v.day);
+      if (w >= 0) weeks[w].views += v.n;
+      viewsTotal += v.n;
+    }
+    const interviews14 = Number((await db.prepare("SELECT COUNT(*) AS n FROM interviews WHERE company_id=? AND status IN ('scheduled','confirmed','pending_panel') AND scheduled_at>=? AND scheduled_at<=?").bind(id, new Date(now).toISOString(), new Date(now + 14 * DAY).toISOString()).first<{ n: number }>().catch(() => ({ n: 0 })))?.n || 0);
+    const activeJobs = Number((await db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE owner=? AND status='published'").bind(id).first<{ n: number }>().catch(() => ({ n: 0 })))?.n || 0);
+    // The workforce: headcount by department, length of service and how many were away on each weekday of the last four weeks.
+    const people = (await db.prepare("SELECT id,department,start_date FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).all<{ id: string; department: string; start_date: string }>().catch(() => ({ results: [] as { id: string; department: string; start_date: string }[] }))).results;
+    const byDept = new Map<string, number>();
+    const tenure = [{ label: "1 ilə qədər", count: 0 }, { label: "1–3 il", count: 0 }, { label: "3–5 il", count: 0 }, { label: "5 ildən çox", count: 0 }];
+    for (const p of people) {
+      byDept.set(p.department || "Departamentsiz", (byDept.get(p.department || "Departamentsiz") || 0) + 1);
+      const years = p.start_date ? (now - Date.parse(p.start_date)) / (365.25 * DAY) : 0;
+      tenure[years < 1 ? 0 : years < 3 ? 1 : years < 5 ? 2 : 3].count += 1;
+    }
+    const since = isoDay(thisMonday - 3 * 7 * DAY);
+    const marks = (await db.prepare("SELECT day,code FROM attendance_marks WHERE company_id=? AND day>=?").bind(id, since).all<{ day: string; code: string }>().catch(() => ({ results: [] as { day: string; code: string }[] }))).results;
+    const away = new Map<string, number>();
+    const marked = new Set<string>();
+    for (const m of marks) {
+      marked.add(m.day);
+      if (ATTENDANCE_CODES.find((c) => c.id === m.code)?.counts !== "work") away.set(m.day, (away.get(m.day) || 0) + 1);
+    }
+    const heat = Array.from({ length: 4 }, (_, w) => ({
+      start: isoDay(thisMonday - (3 - w) * 7 * DAY),
+      days: Array.from({ length: 5 }, (_, d) => {
+        const day = isoDay(thisMonday - (3 - w) * 7 * DAY + d * DAY);
+        if (day > isoDay(now) || !marked.size || !people.length) return null;
+        return Math.max(0, Math.round((1 - (away.get(day) || 0) / people.length) * 100));
+      }),
+    }));
+    return ok({
+      tiles: { jobs: activeJobs, applications: apps.length, apps30, appsPrev30, interviews14, views: viewsTotal, hired: statusCount.get("İşə qəbul edildi") || 0, employees: people.length },
+      weeks,
+      statuses: APPLICATION_STATUSES.map((status) => ({ status, count: statusCount.get(status) || 0 })),
+      departments: [...byDept.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name, count })),
+      tenure,
+      heat,
+      hasAttendance: marked.size > 0,
+    });
+  }
   if (request.method === "GET" && path === "hr/job-views") {
     const jobIds = (await reportScope()).jobIds;
     const today = new Date().toISOString().slice(0, 10);

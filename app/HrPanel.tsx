@@ -32,6 +32,7 @@ import PipelineBoard from "./PipelineBoard";
 import { AssignTestModal } from "./AssessmentsPage";
 import JobDrawer from "./JobDrawer";
 import { takeFocus } from "./focus";
+import OverviewDashboard from "./OverviewDashboard";
 import { InviteModal, ScheduleInterviewModal, type InvitePerson } from "./Interviews";
 import { BulkModal, SaveTalentModal } from "./BulkTalent";
 import { SavedSearches } from "./SavedSearches";
@@ -620,6 +621,7 @@ export default function HrPanel({
               </ul>
             </section>
           )}
+          {page === "hr-overview" && !demo ? <OverviewDashboard go={go} /> : (
           <div className="stats">
             {[
               [
@@ -644,6 +646,7 @@ export default function HrPanel({
               );
             })}
           </div>
+          )}
         </>
       )}
       {page === "hr-jobs" ? (
