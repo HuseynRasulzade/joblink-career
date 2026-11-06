@@ -12832,6 +12832,20 @@ async function route(request: Request) {
       else await db.prepare("INSERT INTO leave_schedule(id,company_id,employee_id,year,start_date,end_date,days,status,proposed_by,note,decided_by_name,decided_at,created) VALUES(?,?,?,?,?,?,?,'taken','order',?,?,?,?)").bind(crypto.randomUUID(), id, order.employeeId, Number(from.slice(0, 4)), from, to, vacationDaysBetween(from, to), `Əmr № ${order.number}`, "", "", new Date().toISOString()).run();
     }
     await applyOrderEffect(order.id).catch(() => undefined);
+    // The employee whose order it is hears of it (in the app and by e-mail); the text carries no details.
+    try {
+      const person = await db.prepare("SELECT user_id FROM company_employees WHERE id=? AND company_id=?").bind(order.employeeId, id).first<{ user_id: string }>();
+      if (person?.user_id)
+        await notify(db, {
+          userId: person.user_id,
+          type: "application",
+          title: `Sizin barənizdə əmr imzalandı${order.number ? ` (№ ${order.number})` : ""}`,
+          body: `${ORDER_KINDS.find((k) => k.id === order.kind)?.label || "Əmr"}. Təfərrüat üçün İş yerim bölməsinə baxın və ya kadr şöbəsinə müraciət edin.`,
+          link: "workplace",
+        });
+    } catch {
+      // A notice that does not go out never stops the signing.
+    }
     return marked;
   };
   if (request.method === "GET" && path === "company/orders") {
