@@ -1,4 +1,5 @@
 import { mailConfigured, sendMail } from "./mail.ts";
+import { siteUrl } from "./seo.ts";
 // Shared helpers of the API route: notifications and e-mail, audit trail, application events,
 // message bookkeeping and the closing of expired employer tests.
 import { runtime, HttpError } from "./server";
@@ -43,7 +44,7 @@ export async function sendUserEmail(db: D1Database, userId: string, subject: str
   const account = await db.prepare("SELECT email FROM password_accounts WHERE user_id=?").bind(userId).first<{ email: string }>();
   if (!account?.email) return;
   try {
-    await sendMail(settings, { to: account.email, subject, text });
+    await sendMail(settings, { to: account.email, subject, text, action: { label: "Joblink-də aç", url: siteUrl(settings.SITE_URL) } });
   } catch {
     // E-mail is best-effort; the in-app notification is the record.
   }
@@ -63,7 +64,7 @@ export async function notify(
   // Status, offer, test, billing and review notifications also go out by e-mail.
   // Notices on the employee's own page (link "workplace") are one category the person can switch off.
   const emailType = emailTypeOf(input.type, input.link);
-  if (shouldEmail(input)) await sendUserEmail(db, input.userId, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`, emailType);
+  if (shouldEmail(input)) await sendUserEmail(db, input.userId, input.title, input.body || input.title, emailType);
 }
 // Followers hear about new vacancies (in-app; e-mail when configured).
 export async function notifyFollowers(db: D1Database, companyId: string, j: Job) {
@@ -140,7 +141,7 @@ export async function notifyCompanyRoles(db: D1Database, companyId: string, perm
   // with the permission also get an e-mail when sending is configured.
   await notify(db, { userId: companyId, ...input });
   for (const user of (await companyUsersWith(db, companyId, permission)).slice(1))
-    await sendUserEmail(db, user, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`, input.type);
+    await sendUserEmail(db, user, input.title, input.body || input.title, input.type);
 }
 // A test that was started but not handed in by its deadline (plus one minute) is
 // closed with the answers saved so far, instead of staying "in progress" forever.
