@@ -61,7 +61,9 @@ export async function notify(
     // Notifications are best-effort.
   }
   // Status, offer, test, billing and review notifications also go out by e-mail.
-  if (input.email || AUTO_EMAIL_TYPES.has(input.type)) await sendUserEmail(db, input.userId, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`, input.type);
+  // Notices on the employee's own page (link "workplace") are one category the person can switch off.
+  const emailType = input.link === "workplace" ? "workplace" : input.type;
+  if (input.email ?? AUTO_EMAIL_TYPES.has(emailType)) await sendUserEmail(db, input.userId, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`, emailType);
 }
 // Followers hear about new vacancies (in-app; e-mail when configured).
 export async function notifyFollowers(db: D1Database, companyId: string, j: Job) {

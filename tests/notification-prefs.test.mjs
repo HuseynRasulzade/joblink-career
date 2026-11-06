@@ -28,3 +28,10 @@ test("approval requests are e-mailed and can be switched off as their own catego
   assert.equal(emailAllowedFor(sanitizeEmailOff(["approval"]), "approval"), false);
   assert.equal(emailAllowedFor(sanitizeEmailOff(["approval"]), "offer"), true);
 });
+
+test("employee-page notices are their own e-mail category", () => {
+  assert.equal(AUTO_EMAIL_TYPES.has("workplace"), true);
+  assert.equal(categoryOfType("workplace"), "workplace");
+  assert.equal(emailAllowedFor(sanitizeEmailOff(["workplace"]), "workplace"), false);
+  assert.equal(emailAllowedFor(sanitizeEmailOff(["workplace"]), "offer"), true);
+});

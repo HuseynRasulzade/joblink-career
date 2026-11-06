@@ -2036,7 +2036,7 @@ async function route(request: Request) {
       for (let i = 0; i < list.length; i += 20)
         await Promise.allSettled(
           list.slice(i, i + 20).flatMap((r) => [
-            r.user_id ? notify(db, { userId: r.user_id, type: "application", title, body, link: "workplace" }) : Promise.resolve(),
+            r.user_id ? notify(db, { userId: r.user_id, type: "application", title, body, link: "workplace", email: send && r.email ? false : undefined }) : Promise.resolve(),
             send && r.email ? sendMail(settings, { to: r.email, subject: title, text: `Salam, ${r.name}.\n\n${body}\n\nJoblink` }) : Promise.resolve(),
           ]),
         );

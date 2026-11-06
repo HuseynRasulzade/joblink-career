@@ -1,6 +1,7 @@
 // Which notifications also go out by e-mail, and the categories a person can switch off.
 export const EMAIL_CATEGORIES: { id: string; label: string; types: string[] }[] = [
   { id: "application", label: "Müraciət statusu və yeni müraciətlər", types: ["application-status", "application"] },
+  { id: "workplace", label: "İş yerim: işçi bildirişləri (ərizə, növbə, performans, ezamiyyət, elan, təlim)", types: ["workplace"] },
   { id: "approval", label: "Təsdiq sorğuları və qərarları", types: ["approval"] },
   { id: "interview", label: "Müsahibə dəvət və xatırlatmaları", types: ["interview"] },
   { id: "offer", label: "İş təklifləri", types: ["offer"] },
@@ -12,7 +13,7 @@ export const EMAIL_CATEGORIES: { id: string; label: string; types: string[] }[] 
 ];
 export const categoryOfType = (type: string) => EMAIL_CATEGORIES.find((c) => c.types.includes(type))?.id || "other";
 // Types that always travel with an e-mail (when sending is configured); the rest are sent by their own code.
-export const AUTO_EMAIL_TYPES = new Set(["application-status", "offer", "test", "billing", "review", "message", "approval"]);
+export const AUTO_EMAIL_TYPES = new Set(["application-status", "offer", "test", "billing", "review", "message", "approval", "workplace"]);
 export const sanitizeEmailOff = (value: unknown): string[] =>
   [...new Set((Array.isArray(value) ? value : []).map(String))].filter((id) => EMAIL_CATEGORIES.some((c) => c.id === id));
 export const emailAllowedFor = (off: string[], type: string) => !off.includes(categoryOfType(type));
