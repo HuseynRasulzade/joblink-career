@@ -371,7 +371,7 @@ import { WORLD_SKILLS } from "@/lib/world-skills-data";
 import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
 import { pickSigners, sameName } from "@/lib/order-signers";
 import { DOC_KINDS, normalizeDocType } from "@/lib/employee-docs";
-import { ORDER_KINDS } from "@/lib/orders";
+import { ORDER_KINDS, signedOrderNotice } from "@/lib/orders";
 import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
@@ -12843,13 +12843,7 @@ async function route(request: Request) {
     try {
       const person = await db.prepare("SELECT user_id FROM company_employees WHERE id=? AND company_id=?").bind(order.employeeId, id).first<{ user_id: string }>();
       if (person?.user_id)
-        await notify(db, {
-          userId: person.user_id,
-          type: "application",
-          title: `Sizin barənizdə əmr imzalandı${order.number ? ` (№ ${order.number})` : ""}`,
-          body: `${ORDER_KINDS.find((k) => k.id === order.kind)?.label || "Əmr"}. Təfərrüat üçün İş yerim bölməsinə baxın və ya kadr şöbəsinə müraciət edin.`,
-          link: "workplace",
-        });
+        await notify(db, { userId: person.user_id, ...signedOrderNotice(order) });
     } catch {
       // A notice that does not go out never stops the signing.
     }

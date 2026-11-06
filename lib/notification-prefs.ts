@@ -26,3 +26,8 @@ export const workplaceMailMuted = (stored: string | null | undefined): boolean =
     return false;
   }
 };
+
+// The type the e-mail settings and the automatic list see: notices on the employee's own page form one category.
+export const emailTypeOf = (type: string, link = "") => (link === "workplace" ? "workplace" : type);
+// An explicit true/false wins; otherwise the types that always travel with an e-mail do.
+export const shouldEmail = (input: { type: string; link?: string; email?: boolean }) => input.email ?? AUTO_EMAIL_TYPES.has(emailTypeOf(input.type, input.link));

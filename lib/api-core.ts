@@ -3,7 +3,7 @@ import { mailConfigured, sendMail } from "./mail.ts";
 // message bookkeeping and the closing of expired employer tests.
 import { runtime, HttpError } from "./server";
 import type { Job } from "./model";
-import { AUTO_EMAIL_TYPES, emailAllowedFor, sanitizeEmailOff } from "./notification-prefs";
+import { emailAllowedFor, emailTypeOf, sanitizeEmailOff, shouldEmail } from "./notification-prefs";
 import { planOf } from "./plan-service";
 import { providerFor } from "./payments";
 import type { University } from "./university-catalog";
@@ -62,8 +62,8 @@ export async function notify(
   }
   // Status, offer, test, billing and review notifications also go out by e-mail.
   // Notices on the employee's own page (link "workplace") are one category the person can switch off.
-  const emailType = input.link === "workplace" ? "workplace" : input.type;
-  if (input.email ?? AUTO_EMAIL_TYPES.has(emailType)) await sendUserEmail(db, input.userId, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`, emailType);
+  const emailType = emailTypeOf(input.type, input.link);
+  if (shouldEmail(input)) await sendUserEmail(db, input.userId, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`, emailType);
 }
 // Followers hear about new vacancies (in-app; e-mail when configured).
 export async function notifyFollowers(db: D1Database, companyId: string, j: Job) {

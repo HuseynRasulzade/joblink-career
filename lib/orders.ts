@@ -446,3 +446,11 @@ export function buildEmployeeOffer(input: EmployeeOfferInput): EmployeeOffer {
     text: [`${input.city || "Bakı"}, ${dmy(input.date)}`, "", ...lines, "", signature].join("\n"),
   };
 }
+
+// The notice the employee gets when an order about them is signed: the kind and number only, no details.
+export const signedOrderNotice = (order: { kind: string; number?: string }) => ({
+  type: "application",
+  title: `Sizin barənizdə əmr imzalandı${order.number ? ` (№ ${order.number})` : ""}`,
+  body: `${ORDER_KINDS.find((k) => k.id === order.kind)?.label || "Əmr"}. Təfərrüat üçün İş yerim bölməsinə baxın və ya kadr şöbəsinə müraciət edin.`,
+  link: "workplace",
+});
