@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { beforeOf, hasEffect, planOrderEffect } from "../lib/order-effects.ts";
 
-const card = { name: "Aysel Məmmədova", position: "Mühasib", department: "Maliyyə", salaryCents: 150000, salaryType: "gross", status: "active", endDate: "", exitType: "", exitReason: "", probationEnd: "2026-05-01" };
+const card = { name: "Aysel Məmmədova", position: "Mühasib", department: "Maliyyə", salaryCents: 150000, salaryType: "gross", status: "active", endDate: "", exitType: "", exitReason: "", probationEnd: "2026-05-01", contractEnd: "2026-12-31", workMode: "" };
 
 test("a transfer changes position, department and pay, and remembers what was there", () => {
   const plan = planOrderEffect("transfer", { from: "2026-04-01", newPosition: "Baş mühasib", newDepartment: "Maliyyə", salary: "2000" }, card, "2026-03-20");
@@ -38,7 +38,7 @@ test("kinds without an effect on the card are left alone", () => {
 });
 
 test("discipline, extension, substitution and schedule orders leave a line in the card history", () => {
-  const card = { name: "A", position: "Mühasib", department: "Maliyyə", salaryCents: 100000, salaryType: "gross", status: "active", endDate: "", exitType: "", exitReason: "", probationEnd: "" };
+  const card = { name: "A", position: "Mühasib", department: "Maliyyə", salaryCents: 100000, salaryType: "gross", status: "active", endDate: "", exitType: "", exitReason: "", probationEnd: "", contractEnd: "", workMode: "" };
   const d = planOrderEffect("discipline", { penalty: "Töhmət", basis: "Gecikmə" }, card, "2026-11-03");
   assert.deepEqual(d.patch, {});
   assert.equal(d.events[0].type, "discipline");
@@ -46,4 +46,15 @@ test("discipline, extension, substitution and schedule orders leave a line in th
   assert.equal(planOrderEffect("extend", { to: "2027-12-31" }, card, "2026-11-03").events[0].type, "contract");
   assert.equal(planOrderEffect("substitute", { newPosition: "Baş mühasib", from: "2026-12-01", to: "2026-12-31" }, card, "2026-11-03").events[0].to, "Baş mühasib");
   assert.equal(planOrderEffect("schedule", { schedule: "5/2, 10:00-19:00" }, card, "2026-11-03").events[0].to, "5/2, 10:00-19:00");
+});
+
+test("a contract extension moves the end date on the card and a schedule order sets the work regime", () => {
+  const c = { name: "A", position: "Mühasib", department: "Maliyyə", salaryCents: 100000, salaryType: "gross", status: "active", endDate: "", exitType: "", exitReason: "", probationEnd: "", contractEnd: "2026-12-31", workMode: "" };
+  const e = planOrderEffect("extend", { to: "2027-12-31" }, c, "2026-11-03");
+  assert.equal(e.patch.contractEnd, "2027-12-31");
+  assert.match(e.summary[0], /31\.12\.2026 → 31\.12\.2027/);
+  assert.equal(planOrderEffect("extend", { to: "2026-12-31" }, c, "2026-11-03").patch.contractEnd, undefined);
+  const s = planOrderEffect("schedule", { schedule: "Natamam iş vaxtı, 4 saat" }, c, "2026-11-03");
+  assert.equal(s.patch.workMode, "Natamam iş vaxtı, 4 saat");
+  assert.deepEqual(beforeOf(c, s.patch), { workMode: "" });
 });

@@ -1,6 +1,6 @@
 // What a signed order changes in the employee card, worked out as a plan: the new values, the date they take effect, the
 // days to mark and a bonus to pay. The server applies the plan, keeps what was there before and can take it back.
-export type CardSnapshot = { name: string; position: string; department: string; salaryCents: number; salaryType: string; status: string; endDate: string; exitType: string; exitReason: string; probationEnd: string };
+export type CardSnapshot = { name: string; position: string; department: string; salaryCents: number; salaryType: string; status: string; endDate: string; exitType: string; exitReason: string; probationEnd: string; contractEnd: string; workMode: string };
 export type CardPatch = Partial<CardSnapshot>;
 export type EffectPlan = {
   kind: string;
@@ -92,8 +92,11 @@ export function planOrderEffect(kind: string, input: Record<string, unknown>, ca
   }
   if (kind === "extend") {
     const to = isDate(input.to) ? input.to : "";
-    summary.push(`Kartın tarixçəsinə yazılır: əmək müqaviləsi ${to ? `${day(to)} tarixinədək ` : ""}uzadıldı`);
-    return plan({ events: [{ type: "contract", from: "", to: to || "uzadıldı", note: text(input.basis) }] });
+    if (to && to !== card.contractEnd) {
+      patch.contractEnd = to;
+      summary.push(`Müqavilənin bitmə tarixi: ${card.contractEnd ? day(card.contractEnd) : "müddətsiz"} → ${day(to)}`);
+    }
+    return plan({ events: [{ type: "contract", from: card.contractEnd, to: to || "uzadıldı", note: text(input.basis) }] });
   }
   if (kind === "substitute") {
     const to = isDate(input.to) ? input.to : "";
@@ -103,8 +106,11 @@ export function planOrderEffect(kind: string, input: Record<string, unknown>, ca
   }
   if (kind === "schedule") {
     const schedule = text(input.schedule) || "yeni iş rejimi";
-    summary.push(`Kartın tarixçəsinə yazılır: iş rejimi — ${schedule}`);
-    return plan({ events: [{ type: "schedule", from: "", to: schedule, note: text(input.basis) }] });
+    if (schedule !== card.workMode) {
+      patch.workMode = schedule;
+      summary.push(`İş rejimi: ${card.workMode || "standart"} → ${schedule}`);
+    }
+    return plan({ events: [{ type: "schedule", from: card.workMode, to: schedule, note: text(input.basis) }] });
   }
   return null;
 }

@@ -563,7 +563,7 @@ function OrderFormField({ field, kind, form, salaryType, set }: { field: OrderFi
   );
 }
 
-type OrderEmployee = { id: string; name: string; position: string; department: string; section: string; startDate: string; salary: number | null; salaryType: SalaryType; probationEnd: string; endDate: string };
+type OrderEmployee = { id: string; name: string; position: string; department: string; section: string; startDate: string; salary: number | null; salaryType: SalaryType; probationEnd: string; endDate: string; contractEnd?: string; workMode?: string };
 
 // Draws an order up, or (with `editing`) changes one that was sent back.
 export type OrderPrefill = { requestId: string; kind: OrderKind; from: string; to: string; quantity: string; vacationKind: string; basis: string };
@@ -657,7 +657,7 @@ export function OrderMaker({ employee, notify, editing, onSaved, prefill, initia
   const willHappen = previewOrder(
     kind,
     input as unknown as Record<string, unknown>,
-    { name: employee.name, position: employee.position, department: employee.department, salaryCents: Math.round((employee.salary || 0) * 100), salaryType: employee.salaryType, status: "active", endDate: employee.endDate || "", exitType: "", exitReason: "", probationEnd: employee.probationEnd || "" },
+    { name: employee.name, position: employee.position, department: employee.department, salaryCents: Math.round((employee.salary || 0) * 100), salaryType: employee.salaryType, status: "active", endDate: employee.endDate || "", exitType: "", exitReason: "", probationEnd: employee.probationEnd || "", contractEnd: employee.contractEnd || "", workMode: employee.workMode || "" },
     form.date,
     ORDER_KINDS.find((item) => item.id === kind)?.leaveCode,
   );

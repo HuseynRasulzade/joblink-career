@@ -58,7 +58,7 @@ Mühüm olan, amma hələ edilməyənlər:
 
 1. **Pilot sınaq:** 1–2 real şirkət və bir neçə işçi ilə canlıda yoxlama; ən çox xətanı bu tapar.
 2. **Excel idxalı olmayan bölmələr:** elanlar və sorğular, sənəd reyestrində müddətlər. (Ezamiyyət artıq var: İnkişaf və kommunikasiya → Ezamiyyət → “Excel-dən yüklə”.)
-3. **Əmrlərin kartda təsiri:** əvəzetmə, müqavilə uzatma, iş rejimi və intizam əmrləri yalnız kartın tarixçəsinə yazılır, kartın sahəsini dəyişmir.
+3. **Əmrlərin kartda təsiri:** müqavilə uzatma (kartda “Müqavilə: tarixədək”), iş rejimi (kartda “İş rejimi”) artıq kartı dəyişir, geri qaytarmaq olur və müqavilə 30 gün ərzində bitəndə “Bu gün” panelində xəbərdarlıq çıxır. Əvəzetmə və intizam əmrləri müvəqqəti/tənbeh xarakterli olduğu üçün yalnız kartın tarixçəsinə yazılır (bilərəkdən).
 4. **Şəkil:** işçilər siyahısında və təşkilat sxemində göstərilmir (yük və məxfilik səbəbi ilə).
 5. **Avtomatik brauzer testləri:** indi yalnız kod səviyyəsində testlər var (551), tam ekran testləri yoxdur.
 

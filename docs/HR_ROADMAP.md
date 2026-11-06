@@ -488,3 +488,7 @@ Bu sessiyada: səhifənin yuxarısına "Bu bölmə necə işləyir?" izahı (nə
 - **Adla təsdiq icazələri:** qaydalarda hər növ (təklif, maaş, işdən çıxarma, ştat) üçün təsdiq edə biləcək direktorlar/hesab sahibi adla seçilir; təklif və maaş üçün hər birinə ən çox təsdiq edəcəyi məbləğ (AZN) yazılır (0 = limitsiz). Ad seçilməyibsə əvvəlki qayda: direktor hüququ olan hər kəs. Seçilibsə yalnız adı çəkilənlər (limit daxilində) və hesab sahibi təsdiqləyir; limitdən çox sorğuda xəbərdarlıq mesajı verilir; əvəzedici ötürülən şəxsin icazəsi ilə qərar verir. Yeni sorğu barədə bildiriş də yalnız bu şəxslərə gedir. Kartda "Təsdiq edə bilər: Ad (limit)" yazılır.
 
 Texniki: `ApprovalRules.approvers`, `mayDecide`, `requestAmount` (`lib/company.ts`, testlərlə); yeni miqrasiya yoxdur (qaydalar mövcud `approval_rules` JSON-undadır).
+
+## 43. Müqavilə uzatma və iş rejimi əmrləri kartı dəyişir
+
+Əmək müqaviləsinin uzadılması əmri imzalananda kartda "Müqavilə: tarixədək" yazılır, iş rejimi əmri isə kartda "İş rejimi" sahəsini yeniləyir (hər ikisini əmrin səhifəsindən geri qaytarmaq olur, əvvəlki dəyər qayıdır). Müqavilənin bitməsinə 30 gündən az qalan (və ya bitmiş) işçilər HR "Bu gün" panelində "Əmək müqaviləsi 30 gün ərzində bitir" kimi çıxır. Miqrasiya 0101 (`company_employees.contract_end`, `work_mode`); `planOrderEffect` (`lib/order-effects.ts`, testlərlə). Əvəzetmə və intizam əmrləri kart sahəsini dəyişmir, tarixçəyə yazılır.

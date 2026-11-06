@@ -708,6 +708,13 @@
       "when": 1799607600000,
       "tag": "0100_interview_questions",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "6",
+      "when": 1799694000000,
+      "tag": "0101_card_contract_workmode",
+      "breakpoints": true
     }
   ]
 }

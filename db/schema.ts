@@ -775,6 +775,9 @@ export const companyEmployees = sqliteTable(
     exitNote: text("exit_note").notNull().default(""),
     jobId: text("job_id").notNull().default(""),
     probationEnd: text("probation_end").notNull().default(""),
+    // The end of a fixed-term contract and the work regime (e.g. part-time) set by orders; empty = open-ended / standard.
+    contractEnd: text("contract_end").notNull().default(""),
+    workMode: text("work_mode").notNull().default(""),
     probationReminded: integer("probation_reminded").notNull().default(0),
     // Department > section > employee. The salary is in `salaryType` terms (gross or net).
     section: text("section").notNull().default(""),

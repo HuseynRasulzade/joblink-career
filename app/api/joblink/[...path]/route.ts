@@ -7303,6 +7303,8 @@ async function route(request: Request) {
         exit_reason?: string;
         exit_note?: string;
         probation_end?: string;
+        contract_end?: string;
+        work_mode?: string;
         section?: string;
         salary_type?: string;
         sector?: string;
@@ -7362,6 +7364,8 @@ async function route(request: Request) {
         source: r.source,
         endDate: r.end_date || "",
         probationEnd: r.probation_end || "",
+        contractEnd: r.contract_end || "",
+        workMode: r.work_mode || "",
         section: r.section || sectionBy.get(r.id) || "",
         salaryType: r.salary_type === "net" ? "net" : "gross",
         sector: r.sector === "public" ? "public" : "private",
@@ -7844,10 +7848,10 @@ async function route(request: Request) {
   };
   // ── What a signed order does to the employee card ──
   type EffectRow = { id: string; order_id: string; employee_id: string; kind: string; effective_date: string; status: string; plan: string; before: string; summary: string; applied_at: string; reverted_at: string; reverted_by: string };
-  const CARD_COLUMN: Record<keyof CardSnapshot, string> = { name: "name", position: "position", department: "department", salaryCents: "salary_cents", salaryType: "salary_type", status: "status", endDate: "end_date", exitType: "exit_type", exitReason: "exit_reason", probationEnd: "probation_end" };
+  const CARD_COLUMN: Record<keyof CardSnapshot, string> = { name: "name", position: "position", department: "department", salaryCents: "salary_cents", salaryType: "salary_type", status: "status", endDate: "end_date", exitType: "exit_type", exitReason: "exit_reason", probationEnd: "probation_end", contractEnd: "contract_end", workMode: "work_mode" };
   const cardOf = async (employeeId: string): Promise<CardSnapshot | null> => {
-    const r = await db.prepare("SELECT name,position,department,salary_cents,salary_type,status,end_date,exit_type,exit_reason,probation_end FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(employeeId, id).first<{ name: string; position: string; department: string; salary_cents: number; salary_type: string; status: string; end_date: string; exit_type: string; exit_reason: string; probation_end: string }>();
-    return r ? { name: r.name, position: r.position, department: r.department, salaryCents: r.salary_cents, salaryType: r.salary_type || "gross", status: r.status, endDate: r.end_date || "", exitType: r.exit_type || "", exitReason: r.exit_reason || "", probationEnd: r.probation_end || "" } : null;
+    const r = await db.prepare("SELECT name,position,department,salary_cents,salary_type,status,end_date,exit_type,exit_reason,probation_end,contract_end,work_mode FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(employeeId, id).first<{ name: string; position: string; department: string; salary_cents: number; salary_type: string; status: string; end_date: string; exit_type: string; exit_reason: string; probation_end: string; contract_end: string; work_mode: string }>();
+    return r ? { name: r.name, position: r.position, department: r.department, salaryCents: r.salary_cents, salaryType: r.salary_type || "gross", status: r.status, endDate: r.end_date || "", exitType: r.exit_type || "", exitReason: r.exit_reason || "", probationEnd: r.probation_end || "", contractEnd: r.contract_end || "", workMode: r.work_mode || "" } : null;
   };
   const writeCard = (employeeId: string, patch: CardPatch) => {
     const keys = Object.keys(patch) as (keyof CardSnapshot)[];
@@ -10357,7 +10361,7 @@ async function route(request: Request) {
     const today = new Date().toISOString().slice(0, 10);
     const soon = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
     const count = async (query: string, ...binds: unknown[]) => Number((await db.prepare(query).bind(...binds).first<{ n: number }>())?.n || 0);
-    const [apps, overdue, managerWaiting, changes, trips, plans, approvals, probation, people, docs, certs] = await Promise.all([
+    const [apps, overdue, managerWaiting, changes, trips, plans, approvals, probation, contracts, people, docs, certs] = await Promise.all([
       count("SELECT COUNT(*) AS n FROM employee_requests WHERE company_id=? AND status='new' AND manager_status IN ('','approved')", id),
       count("SELECT COUNT(*) AS n FROM employee_requests WHERE company_id=? AND status='new' AND manager_status IN ('','approved') AND created<?", id, new Date(Date.now() - 3 * 86_400_000).toISOString()),
       count("SELECT COUNT(*) AS n FROM employee_requests WHERE company_id=? AND status='new' AND manager_status='pending' AND created<?", id, new Date(Date.now() - 2 * 86_400_000).toISOString()),
@@ -10366,6 +10370,7 @@ async function route(request: Request) {
       count("SELECT COUNT(*) AS n FROM leave_schedule WHERE company_id=? AND status='proposed'", id),
       count("SELECT COUNT(*) AS n FROM approval_requests WHERE company_id=? AND status IN ('pending','info')", id),
       db.prepare("SELECT name,probation_end FROM company_employees WHERE company_id=? AND status='active' AND probation_end<>'' AND probation_end BETWEEN ? AND ? ORDER BY probation_end").bind(id, today, soon).all<{ name: string; probation_end: string }>(),
+      db.prepare("SELECT name,contract_end FROM company_employees WHERE company_id=? AND status='active' AND contract_end<>'' AND contract_end<=? ORDER BY contract_end LIMIT 50").bind(id, new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)).all<{ name: string; contract_end: string }>().catch(() => ({ results: [] as { name: string; contract_end: string }[] })),
       db.prepare("SELECT id,name,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).all<{ id: string; name: string; profile: string }>(),
       db.prepare("SELECT id,employee_id,subtype,name,expires FROM employee_documents WHERE company_id=? AND expires<>''").bind(id).all<{ id: string; employee_id: string; subtype: string; name: string; expires: string }>(),
       db.prepare("SELECT p.training_id,p.employee_id,t.title,p.valid_until FROM training_participants p JOIN trainings t ON t.id=p.training_id WHERE p.company_id=? AND p.valid_until<>''").bind(id).all<{ training_id: string; employee_id: string; title: string; valid_until: string }>(),
@@ -10383,6 +10388,7 @@ async function route(request: Request) {
       item("plans", "Təklif olunmuş məzuniyyət qrafiki", plans, "hr-approvals", "info"),
       item("approvals", "Direktor/HR təsdiqi gözləyən sorğu", approvals, "hr-approvals", "amber"),
       item("probation", "Sınaq müddəti 14 gün ərzində bitir", probation.results.length, "hr-employees", "amber", probation.results.slice(0, 5).map((p) => `${p.name}: ${p.probation_end}`)),
+      item("contracts", "Əmək müqaviləsi 30 gün ərzində bitir", contracts.results.length, "hr-employees", contracts.results.some((c) => c.contract_end < today) ? "red" : "amber", contracts.results.slice(0, 5).map((c) => `${c.name}: ${c.contract_end}${c.contract_end < today ? " (bitib)" : ""}`)),
       item("deadlines", "Sənəd və sertifikat müddəti 30 gün ərzində bitir", deadlines.length, "hr-people-ops", deadlines.some((d) => d.days < 0) ? "red" : "amber", deadlines.slice(0, 5).map((d) => `${d.employeeName}: ${d.what} — ${d.days < 0 ? "müddəti bitib" : `${d.days} gün`}`)),
       item("birthdays", "Yaxınlaşan ad günləri (14 gün)", upcoming.length, "hr-employees", "info", upcoming.slice(0, 6).map((p) => `${p.name}: ${p.md.slice(3)}.${p.md.slice(0, 2)}`)),
     ].filter((i) => i.count > 0);

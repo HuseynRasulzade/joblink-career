@@ -2639,6 +2639,8 @@ type Employee = {
   exitReason?: string;
   exitNote?: string;
   probationEnd?: string;
+  contractEnd?: string;
+  workMode?: string;
   onboarding?: { total: number; done: number; overdue: number };
   section?: string;
   salaryType?: "gross" | "net";
@@ -2849,6 +2851,12 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                       Sınaq: {day(e.probationEnd)}
                     </small>
                   )}
+                  {e.status === "active" && e.contractEnd && (
+                    <small className="skill-description" style={{ color: e.contractEnd < new Date().toISOString().slice(0, 10) ? "#b45309" : undefined }}>
+                      Müqavilə: {day(e.contractEnd)}-dək
+                    </small>
+                  )}
+                  {e.status === "active" && e.workMode && <small className="skill-description">İş rejimi: {e.workMode}</small>}
                   {e.status === "active" &&
                     !!e.onboarding?.total &&
                     e.onboarding.done < e.onboarding.total && (
