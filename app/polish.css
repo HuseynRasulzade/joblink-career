@@ -1,0 +1,107 @@
+/* Vahid vizual təbəqə: şrift, kölgə, hərəkət, fokus, forma elementləri.
+   Ən sonda yüklənir; yalnız görünüşü yaxşılaşdırır, düzümü dəyişmir. */
+:root {
+  --font-ui: var(--font-inter), "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --shadow-1: 0 1px 2px rgba(23, 45, 49, 0.05), 0 1px 1px rgba(23, 45, 49, 0.03);
+  --shadow-2: 0 4px 14px rgba(23, 45, 49, 0.07), 0 1px 3px rgba(23, 45, 49, 0.05);
+  --shadow-3: 0 18px 44px rgba(23, 45, 49, 0.14), 0 4px 10px rgba(23, 45, 49, 0.06);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --teal-strong: #0f6b61;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+body {
+  font-family: var(--font-ui);
+  font-feature-settings: "cv11", "ss01", "tnum" 0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
+}
+button, input, textarea, select { font-family: inherit; }
+::selection { background: #bfe6df; color: #0b3b35; }
+
+/* Fokus: görünən, yumşaq halqa */
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible, [role="tab"]:focus-visible {
+  outline: 2px solid #2aa595;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Düymələr: hərəkətli, basılanda geri çəkilən */
+button { transition: background-color 0.15s var(--ease), box-shadow 0.15s var(--ease), transform 0.12s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease); }
+button:hover { filter: none; }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+.primary {
+  border-radius: 10px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 2px 6px rgba(20, 123, 112, 0.28);
+}
+.primary:hover:not(:disabled) { background: var(--teal-strong); box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 4px 12px rgba(20, 123, 112, 0.34); }
+.secondary { border-radius: 10px; background: #fff; transition: border-color .15s var(--ease), background-color .15s var(--ease), box-shadow .15s var(--ease); }
+.secondary:hover:not(:disabled) { border-color: #b9d3c9; background: #f4faf7; box-shadow: var(--shadow-1); }
+
+/* Kartlar, panellər, statistika: eyni radius və yüngül kölgə */
+.panel, .stat { border-radius: 14px; box-shadow: var(--shadow-1); border-color: #e3ebea; }
+.panel { transition: box-shadow .2s var(--ease), border-color .2s var(--ease); }
+.stat { transition: box-shadow .2s var(--ease), transform .2s var(--ease); }
+.stat:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); }
+
+/* Forma sahələri */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+textarea, select {
+  border-radius: 10px;
+  border: 1px solid #d9e3e2;
+  background-color: #fff;
+  transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):hover,
+textarea:hover, select:hover { border-color: #b8cdca; }
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus,
+textarea:focus, select:focus {
+  outline: none;
+  border-color: #1b9a8a;
+  box-shadow: 0 0 0 4px rgba(27, 154, 138, 0.16);
+}
+input::placeholder, textarea::placeholder { color: #93a0a2; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--teal); }
+
+/* Yan menyu: seçilmiş və üzərinə gələn element */
+.nav-item { border-radius: 10px; transition: background-color .15s var(--ease), color .15s var(--ease); }
+.nav-item:hover { background: #f1f6f5; }
+
+/* Üst panel: tünd mətn linkləri və dil seçimi daha səliqəli */
+.topbar { backdrop-filter: saturate(1.4) blur(10px); }
+.topbar select {
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+  background: #fff;
+  box-shadow: none;
+}
+
+/* Modal və yan pəncərələr: dərin kölgə, yumşaq arxa fon */
+[class*="modal"] [class*="card"], .modal-card, .drawer, [class*="drawer"] > section {
+  box-shadow: var(--shadow-3);
+}
+[class*="backdrop"], [class*="overlay"] { backdrop-filter: blur(3px); }
+
+/* Cədvəllər: səliqəli başlıq və sətir üzərinə gəlmə */
+table { border-collapse: collapse; }
+thead th { font-weight: 600; letter-spacing: .01em; }
+tbody tr { transition: background-color .12s var(--ease); }
+tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
+
+/* Skrollbarlar */
+* { scrollbar-width: thin; scrollbar-color: #c5d3ce transparent; }
+
+/* Hərəkət: səhifə dəyişəndə yumşaq görünmə; azaldılmış hərəkət seçilibsə söndür */
+@keyframes jl-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.content > *, main > section { animation: jl-fade-up .28s var(--ease) both; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

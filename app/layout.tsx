@@ -1,13 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./joblink.css";
 import "./features.css";
+import "./polish.css";
 import RegisterServiceWorker from "./RegisterServiceWorker";
 import ClientErrorReporter from "./ClientErrorReporter";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+});
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -38,7 +45,7 @@ export default function RootLayout({
   return (
     <html lang="az">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
         <noscript>
