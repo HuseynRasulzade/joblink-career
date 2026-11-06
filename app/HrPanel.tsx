@@ -991,7 +991,7 @@ export default function HrPanel({
             )}
           </section>
         </div>
-      ) : (
+      ) : page !== "hr-candidates" ? null : (
         <section className="panel candidate-panel">
           <div className="section-heading">
             <div>
