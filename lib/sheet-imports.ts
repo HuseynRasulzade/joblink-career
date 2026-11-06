@@ -953,3 +953,45 @@ export function parseTrips(rows: string[][], limit = 500): { rows: TripImportRow
   }
   return { rows: out, issues };
 }
+
+// ── Announcements: one line per announcement ──
+export type AnnouncementImportRow = { line: number; title: string; body: string; audience: string; expires: string; pinned: boolean; requiresAck: boolean; allowComments: boolean };
+type AnnouncementField = "title" | "body" | "audience" | "expires" | "pinned" | "requiresAck" | "allowComments";
+const ANNOUNCEMENT_ALIASES: Aliases<AnnouncementField> = {
+  title: ["basliq", "elanin basligi", "movzu", "title"],
+  body: ["metn", "elanin metni", "mezmun", "body", "text"],
+  audience: ["auditoriya", "departament", "kime", "audience"],
+  expires: ["bitme tarixi", "son tarix", "muddet", "expires"],
+  pinned: ["sancilmis", "yuxarida", "sabit", "pinned"],
+  requiresAck: ["oxu tesdiqi", "tesdiq teleb olunur", "oxudum tesdiqi", "ack"],
+  allowComments: ["serhler", "serhlere icaze", "comments"],
+};
+export function parseAnnouncements(rows: string[][], limit = 200): { rows: AnnouncementImportRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, ANNOUNCEMENT_ALIASES, "title");
+  if (!header) return { rows: [], issues: [{ line: 1, reason: "“Başlıq” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  const out: AnnouncementImportRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} elan yüklənir.` });
+      break;
+    }
+    const title = cell(row, header.map, "title").slice(0, 160);
+    const body = cell(row, header.map, "body").slice(0, 3000);
+    if (title.length < 3 || body.length < 3) {
+      issues.push({ line, reason: "Başlıq və mətn yazılmalıdır (hər biri ən azı 3 simvol)." });
+      continue;
+    }
+    const expiresText = cell(row, header.map, "expires");
+    const expires = expiresText ? parseDateCell(expiresText) : "";
+    if (expiresText && !expires) {
+      issues.push({ line, reason: `${title}: bitmə tarixi oxunmadı (GGGG-AA-GG).` });
+      continue;
+    }
+    out.push({ line, title, body, audience: cell(row, header.map, "audience").slice(0, 120), expires, pinned: yes(cell(row, header.map, "pinned")), requiresAck: yes(cell(row, header.map, "requiresAck")), allowComments: yes(cell(row, header.map, "allowComments")) });
+  }
+  return { rows: out, issues };
+}

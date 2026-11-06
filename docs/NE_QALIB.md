@@ -21,7 +21,7 @@ Hamısı canlı saytda işləyir (deploy keçib).
 
 Bacarıq matrisi bacarıqları admin panelindəki kataloqdan və ESCO (həmçinin O*NET) siyahısından seçir.
 
-Excel ilə yükləmə işləyən bölmələr: ezamiyyət, işçilər, ştat, struktur, davamiyyət, təqvim, şəxsi məlumat, əmək haqqı əlavələri, saat uçotu, növbə, aktivlər, məzuniyyət qrafiki, əməyin mühafizəsi, bacarıq matrisi, performans məqsədləri, təlim planı. Hamısında nümunə fayl var, işçi FİN ilə tapılır.
+Excel ilə yükləmə işləyən bölmələr: elanlar, ezamiyyət, işçilər, ştat, struktur, davamiyyət, təqvim, şəxsi məlumat, əmək haqqı əlavələri, saat uçotu, növbə, aktivlər, məzuniyyət qrafiki, əməyin mühafizəsi, bacarıq matrisi, performans məqsədləri, təlim planı. Hamısında nümunə fayl var, işçi FİN ilə tapılır.
 
 ## 2. Sizin qərarınız və ya məlumatınız lazımdır
 
@@ -57,9 +57,9 @@ Lokalda və API ilə yoxlanıb, canlıda mən yoxlamamışam:
 Mühüm olan, amma hələ edilməyənlər:
 
 1. **Pilot sınaq:** 1–2 real şirkət və bir neçə işçi ilə canlıda yoxlama; ən çox xətanı bu tapar.
-2. **Excel idxalı olmayan bölmələr:** elanlar və sorğular, sənəd reyestrində müddətlər. (Ezamiyyət artıq var: İnkişaf və kommunikasiya → Ezamiyyət → “Excel-dən yüklə”.)
+2. **Excel idxalı olmayan bölmələr:** sorğular (anketlər) və sənəd reyestrində müddətlər. (Ezamiyyət və elanlar üçün idxal var: İnkişaf və kommunikasiya → Ezamiyyət / Elanlar → “Excel-dən yüklə”.)
 3. **Əmrlərin kartda təsiri:** müqavilə uzatma (kartda “Müqavilə: tarixədək”), iş rejimi (kartda “İş rejimi”) artıq kartı dəyişir, geri qaytarmaq olur və müqavilə 30 gün ərzində bitəndə “Bu gün” panelində xəbərdarlıq çıxır. Əvəzetmə və intizam əmrləri müvəqqəti/tənbeh xarakterli olduğu üçün yalnız kartın tarixçəsinə yazılır (bilərəkdən).
-4. **Şəkil:** işçilər siyahısında və təşkilat sxemində göstərilmir (yük və məxfilik səbəbi ilə).
+4. **Şəkil:** işçilər siyahısında göstərilir (yalnız şəxsi məlumat icazəsi olanlara, sətir ekrana çıxanda yüklənir); təşkilat sxemində hələ göstərilmir (yük və məxfilik səbəbi ilə).
 5. **Avtomatik brauzer testləri:** `npm test` kod səviyyəsində testlərdir. Əsas ekranlar üçün brauzer smoke testi də var: `npm run e2e` (lokal serveri açın, `npm i --no-save playwright-core` quraşdırın; namizəd və işəgötürən hesabları ilə vakansiyalar, müsahibələr, təsdiqlər və vakansiya panelini yoxlayır). Hələ yalnız 6 yoxlamadır və avtomatik (CI) işə düşmür: tam ekran testləri hələ yoxdur.
 
 ## 6. Mən nəyi seçməyi tövsiyə edirəm

@@ -391,7 +391,7 @@ import { forecast, monthSeries, planFactAlerts, targetAlerts } from "@/lib/hr-tr
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS, RETENTION_CATEGORIES, cleanOhs, dueState, retentionEnd, retentionYears, textHash } from "@/lib/ohs";
 import { groupTotals, snapshotTotals, turnoverPercent, type MemberFigures } from "@/lib/company-group";
-import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips, parseAnnouncements, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validCard, validIban, type EmployeeProfile } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
@@ -11404,6 +11404,28 @@ async function route(request: Request) {
       }
     }
     return ok({ ok: true }, 201);
+  }
+  // Announcements from a spreadsheet: each line is a new announcement (an earlier one with the same title is skipped).
+  if (request.method === "POST" && path === "company/announcements/import") {
+    requirePermission("salaries", "Elanı yalnız kadr işçisi yaza bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseAnnouncements((Array.isArray(b.rows) ? b.rows : []).slice(0, 201).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda elan tapılmadı.");
+    const issues = [...parsed.issues];
+    const have = new Set((await db.prepare("SELECT title FROM announcements WHERE company_id=?").bind(id).all<{ title: string }>()).results.map((r) => r.title.toLocaleLowerCase("az")));
+    const author = await requesterName();
+    let created = 0;
+    for (const row of parsed.rows) {
+      if (have.has(row.title.toLocaleLowerCase("az"))) {
+        issues.push({ line: row.line, reason: `${row.title}: bu başlıqlı elan artıq var.` });
+        continue;
+      }
+      await db.prepare("INSERT INTO announcements(id,company_id,title,body,audience,pinned,expires,author,created,requires_ack,allow_comments) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, row.title, row.body, row.audience, row.pinned ? 1 : 0, row.expires, author, new Date().toISOString(), row.requiresAck ? 1 : 0, row.allowComments ? 1 : 0).run();
+      have.add(row.title.toLocaleLowerCase("az"));
+      created++;
+    }
+    await companyAudit(db, id, userId, "announcements-imported", "", `${created} elan Excel faylından yüklənib`);
+    return ok({ created, issues });
   }
   if (request.method === "POST" && path === "company/announcements/comment") {
     requirePermission("salaries", "Elana yalnız kadr işçisi cavab yaza bilər.");

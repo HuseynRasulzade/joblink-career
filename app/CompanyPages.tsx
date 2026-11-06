@@ -29,6 +29,7 @@ import {
 } from "@/lib/company";
 import { Field, Modal } from "./components";
 import { takeFocus, type FocusTarget } from "./focus";
+import { EmployeeAvatar } from "./EmployeePhoto";
 import { formatDate } from "@/lib/dates";
 import { VACANCY_REASONS } from "@/lib/recruitment";
 import type { WorkforceMetrics } from "@/lib/workforce";
@@ -2711,11 +2712,16 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
             {list.map((e) => (
               <tr key={e.id} className={e.id === focusId ? "row-focus" : undefined} ref={e.id === focusId ? (el) => el?.scrollIntoView({ block: "center" }) : undefined}>
                 <td>
-                  <strong>{e.name}</strong>
-                  <small className="skill-description">
-                    {e.email}
-                    {e.source === "hired" ? " · Joblink ilə işə qəbul" : ""}
-                  </small>
+                  <div className="emp-name-cell">
+                    {data.canPersonal && <EmployeeAvatar employeeId={e.id} name={e.name} />}
+                    <div>
+                      <strong>{e.name}</strong>
+                      <small className="skill-description">
+                        {e.email}
+                        {e.source === "hired" ? " · Joblink ilə işə qəbul" : ""}
+                      </small>
+                    </div>
+                  </div>
                 </td>
                 <td>{e.position || "—"}</td>
                 <td>

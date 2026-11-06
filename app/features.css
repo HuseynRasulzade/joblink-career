@@ -6312,3 +6312,6 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
   .ap3-tab { flex: 1 1 200px; }
   .ap3-detail { position: static; max-height: none; }
 }
+.emp-name-cell { display: flex; align-items: center; gap: 10px; }
+.emp-avatar { display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: #e7f0e9; color: #34765d; font-weight: 700; }
+.emp-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }

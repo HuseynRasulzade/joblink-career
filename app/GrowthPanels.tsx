@@ -774,10 +774,11 @@ export function Engage({ notify }: { notify: Notify }) {
   const [news, loadNews] = useLoad<{ departments: string[]; items: News[] }>("company/announcements", notify);
   const [surveys, loadSurveys] = useLoad<{ employees: number; surveys: SurveyResult[] }>("company/surveys", notify);
   const [edit, setEdit] = useState<Record<string, unknown> | null>(null);
+  const [newsImport, setNewsImport] = useState(false);
   const [survey, setSurvey] = useState<{ title: string; kind: string; anonymous: boolean; repeatMonths?: number; questions: { label: string; kind: string }[] } | null>(null);
   return (
     <div className="company-page">
-      <div className="section-heading"><h4>Elanlar</h4><button type="button" className="primary" onClick={() => setEdit({ title: "", body: "", audience: "", pinned: false, notify: true })}>+ Elan</button></div>
+      <div className="section-heading"><h4>Elanlar</h4><button type="button" className="secondary" onClick={() => setNewsImport(true)}>Excel-dən yüklə</button><button type="button" className="primary" onClick={() => setEdit({ title: "", body: "", audience: "", pinned: false, notify: true })}>+ Elan</button></div>
       {news?.items.map((n) => (
         <div key={n.id} className="bank-batch">
           <div className="bank-batch-head">
@@ -818,6 +819,7 @@ export function Engage({ notify }: { notify: Notify }) {
           {sv.responses > 0 && sv.responses < 5 && <small className="muted">Anonimliyi qorumaq üçün şərhlər və departament bölgüsü 5 cavabdan sonra göstərilir.</small>}
         </div>
       ))}
+      {newsImport && <SheetImport kind="announcements" notify={notify} onClose={() => setNewsImport(false)} onDone={loadNews} />}
       {edit && (
         <Modal title="Yeni elan" onClose={() => setEdit(null)}>
           <div className="offer-composer">

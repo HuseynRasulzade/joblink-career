@@ -496,3 +496,7 @@ Texniki: `ApprovalRules.approvers`, `mayDecide`, `requestAmount` (`lib/company.t
 ## 44. Təsdiqlər: üç pəncərəli görünüş və dəqiq keçid
 
 Səhifə üç pəncərədir: solda bölmələr (**Vakansiya təsdiqləri**, **Təklif, maaş, çıxarma, ştat**, **İcazələr və əvəzedici**, hər birində açıq sorğu və "sizin qərarınız" sayı), ortada seçilmiş bölmənin siyahısı (yığcam sətirlər, kiçik "Ətraflı ›" linki), sağda seçilmiş sorğunun təfərrüatı (vakansiyanın tam məzmunu və zəncir, yaxud sorğunun faktları, gedişatı) və qərar düymələri. Üçüncü bölmədə (qaydalar, adla təsdiq icazələri, əvəzedici) sağ pəncərə yoxdur. Təfərrüatdakı keçid düyməsi (işçinin kartı, namizəd və müraciət, vakansiya, ştat planı) hədəfi dəqiq göstərir: işçi kartı axtarışla süzülüb vurğulanır, müraciət siyahısı həmin vakansiya və namizədlə açılıb vurğulanır, vakansiya paneli açılır, ştat cədvəli həmin departamentlə süzülür (`app/focus.ts`, bir dəfəlik ötürmə). Server `company/requests/detail` cavabında hər keçidə `target` qaytarır. Yeni miqrasiya yoxdur.
+
+## 45. İşçi siyahısında şəkil, elanlar üçün Excel idxalı
+
+İşçilər siyahısında hər işçinin yanında kiçik dairəvi şəkil (yoxdursa adın baş hərfi) göstərilir: `EmployeeAvatar` (`app/EmployeePhoto.tsx`) şəkli sətir ekrana girəndə bir dəfə yükləyir və ziyarət boyu yadda saxlayır; yalnız şəxsi məlumat icazəsi olanlara görünür. Elanlar: `parseAnnouncements`, `POST company/announcements/import`, nümunə fayl (başlıq, mətn, auditoriya, bitmə tarixi, sancılmış, oxu təsdiqi, şərhlər); eyni başlıqlı elan keçilir, bildiriş getmir. Yeni miqrasiya yoxdur.

@@ -5,7 +5,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix" | "perfgoals" | "trainings" | "trips";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix" | "perfgoals" | "trainings" | "trips" | "announcements";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -384,6 +384,25 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       ["Orxan Əliyev", "", "", "İstanbul", "2026-12-15", "2026-12-18", "Tədarükçi ilə görüş", "", 400, "Bəli"],
     ],
     rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Yüklənən ezamiyyətlər “sorğu” kimi yazılır: ayrıca “Təsdiqlə” düyməsi ilə təsdiq edilir, sonra əmr hazırlanır. Üst-üstə düşən tarixlərdə eyni təyinatlı ezamiyyət artıq varsa sətir keçilir.", "Xarici norma AZN-ə çevriləndə “Gündəlik normalar və məzənnə”də yazdığınız Mərkəzi Bank məzənnəsi işlənir."],
+  },
+  announcements: {
+    title: "Elanlar",
+    file: "elanlar-numune.xlsx",
+    sheet: "Elanlar",
+    columns: [
+      { header: "Başlıq", required: true, format: "Mətn", description: "Elanın başlığı (ən azı 3 simvol)." },
+      { header: "Mətn", required: true, format: "Mətn", description: "Elanın mətni (3000 simvola qədər)." },
+      { header: "Auditoriya", required: false, format: "Mətn", description: "Departamentin adı; boşdursa bütün işçilərə." },
+      { header: "Bitmə tarixi", required: false, format: "GGGG-AA-GG", description: "Elan bu tarixdən sonra göstərilmir; boşdursa müddətsiz." },
+      { header: "Sancılmış", required: false, format: "Bəli / Xeyr", description: "Bəli olsa elan siyahının yuxarısında qalır." },
+      { header: "Oxu təsdiqi", required: false, format: "Bəli / Xeyr", description: "Bəli olsa işçi elanı oxuduğunu təsdiqləməlidir." },
+      { header: "Şərhlər", required: false, format: "Bəli / Xeyr", description: "Bəli olsa işçilər elana cavab yaza bilər." },
+    ],
+    examples: [
+      ["Bayram iş rejimi", "Novruz bayramı günlərində ofis bağlı olacaq.", "", "2027-03-25", "Bəli", "Xeyr", "Xeyr"],
+      ["Yeni təhlükəsizlik qaydaları", "Qaydalarla tanış olub oxu təsdiqini verin.", "Maliyyə", "", "Xeyr", "Bəli", "Bəli"],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Elanlar yeni elan kimi yazılır; eyni başlıqlı elan artıq varsa sətir keçilir. Yüklənəndə işçilərə bildiriş getmir (yalnız yeni elan formasında bildiriş seçimi var)."],
   },
   questions: {
     title: "Test sualları",

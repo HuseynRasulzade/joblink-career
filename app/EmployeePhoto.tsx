@@ -99,3 +99,33 @@ export default function EmployeePhoto({ employeeId, name, mine, notify }: { empl
     </div>
   );
 }
+
+// A small round picture for a list row. It is fetched only when the row scrolls into view and kept for the visit,
+// so a long list does not pull every picture at once.
+const avatarCache = new Map<string, string>();
+export function EmployeeAvatar({ employeeId, name, size = 34 }: { employeeId: string; name: string; size?: number }) {
+  const [image, setImage] = useState<string | null>(avatarCache.get(employeeId) ?? null);
+  const box = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (image !== null) return;
+    const node = box.current;
+    if (!node || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      observer.disconnect();
+      request<{ image: string }>(`company/employees/photo?id=${encodeURIComponent(employeeId)}`)
+        .then((r) => {
+          avatarCache.set(employeeId, r.image || "");
+          setImage(r.image || "");
+        })
+        .catch(() => setImage(""));
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [employeeId, image]);
+  return (
+    <span ref={box} className="emp-avatar" style={{ width: size, height: size, fontSize: size * 0.42 }} aria-hidden="true">
+      {image ? <img src={image} alt="" width={size} height={size} /> : (name.trim()[0] || "?").toLocaleUpperCase("az")}
+    </span>
+  );
+}

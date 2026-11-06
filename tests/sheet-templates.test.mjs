@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SHEET_TEMPLATES, templateSheets } from "../lib/sheet-templates.ts";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "../lib/staff-import.ts";
-import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips } from "../lib/sheet-imports.ts";
+import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips, parseAnnouncements } from "../lib/sheet-imports.ts";
 import { parseAssetRows } from "../lib/assets.ts";
 import { parseHoursRows, parseHoursTotals } from "../lib/hours.ts";
 import { createXlsxBook } from "../lib/xlsx.ts";
@@ -32,6 +32,7 @@ test("every sample file is read back by its own importer without a problem", () 
     perfgoals: parsePerfGoals,
     trainings: parseTrainings,
     trips: parseTrips,
+    announcements: parseAnnouncements,
   };
   for (const [kind, parse] of Object.entries(checks)) {
     const result = parse(asRows(kind));
@@ -257,4 +258,16 @@ test("trip rows: employee, destination and dates are required; the foreign flag 
   assert.deepEqual([r.rows[1].end, r.rows[1].daily, r.rows[1].abroad], ["2026-12-15", 400, true]);
   assert.equal(r.issues.length, 4);
   assert.deepEqual(r.issues.map((i) => i.line), [4, 5, 6, 7]);
+});
+
+test("announcement rows: title and text are required, flags and the expiry date are read", () => {
+  const r = parseAnnouncements([
+    ["Başlıq", "Mətn", "Auditoriya", "Bitmə tarixi", "Sancılmış", "Oxu təsdiqi", "Şərhlər"],
+    ["Bayram", "Ofis bağlıdır", "", "2027-03-25", "Bəli", "Xeyr", "Bəli"],
+    ["Qısa", "x", "", "", "", "", ""],
+    ["Tarix", "Mətn burada", "", "yox", "", "", ""],
+  ]);
+  assert.equal(r.rows.length, 1);
+  assert.deepEqual([r.rows[0].pinned, r.rows[0].requiresAck, r.rows[0].allowComments, r.rows[0].expires], [true, false, true, "2027-03-25"]);
+  assert.deepEqual(r.issues.map((i) => i.line), [3, 4]);
 });
