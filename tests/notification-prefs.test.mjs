@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AUTO_EMAIL_TYPES, categoryOfType, emailAllowedFor, sanitizeEmailOff } from "../lib/notification-prefs.ts";
+import { AUTO_EMAIL_TYPES, categoryOfType, emailAllowedFor, sanitizeEmailOff, workplaceMailMuted } from "../lib/notification-prefs.ts";
 
 test("types map to categories and unknown ones are 'other'", () => {
   assert.equal(categoryOfType("application-status"), "application");
@@ -34,4 +34,17 @@ test("employee-page notices are their own e-mail category", () => {
   assert.equal(categoryOfType("workplace"), "workplace");
   assert.equal(emailAllowedFor(sanitizeEmailOff(["workplace"]), "workplace"), false);
   assert.equal(emailAllowedFor(sanitizeEmailOff(["workplace"]), "offer"), true);
+});
+
+test("an employee who switched off the employee-page e-mail is muted; missing or broken settings are not", () => {
+  assert.equal(workplaceMailMuted(JSON.stringify(["workplace"])), true);
+  assert.equal(workplaceMailMuted(JSON.stringify(["offer", "workplace", "test"])), true);
+  assert.equal(workplaceMailMuted(JSON.stringify(["offer", "test"])), false);
+  assert.equal(workplaceMailMuted("[]"), false);
+  assert.equal(workplaceMailMuted(null), false);
+  assert.equal(workplaceMailMuted(undefined), false);
+  assert.equal(workplaceMailMuted(""), false);
+  assert.equal(workplaceMailMuted("not json"), false);
+  // unknown categories are ignored, so they cannot mute by accident
+  assert.equal(workplaceMailMuted(JSON.stringify(["bogus"])), false);
 });

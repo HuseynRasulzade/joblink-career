@@ -17,3 +17,12 @@ export const AUTO_EMAIL_TYPES = new Set(["application-status", "offer", "test", 
 export const sanitizeEmailOff = (value: unknown): string[] =>
   [...new Set((Array.isArray(value) ? value : []).map(String))].filter((id) => EMAIL_CATEGORIES.some((c) => c.id === id));
 export const emailAllowedFor = (off: string[], type: string) => !off.includes(categoryOfType(type));
+// True when the person switched off the e-mail of their own page (the stored settings may be missing or unreadable: then mail is sent).
+export const workplaceMailMuted = (stored: string | null | undefined): boolean => {
+  if (!stored) return false;
+  try {
+    return !emailAllowedFor(sanitizeEmailOff(JSON.parse(stored)), "workplace");
+  } catch {
+    return false;
+  }
+};

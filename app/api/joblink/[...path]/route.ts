@@ -70,7 +70,7 @@ import {
   cleanWhere,
   errorFingerprint,
 } from "@/lib/error-log";
-import { EMAIL_CATEGORIES, emailAllowedFor, sanitizeEmailOff } from "@/lib/notification-prefs";
+import { EMAIL_CATEGORIES, sanitizeEmailOff, workplaceMailMuted } from "@/lib/notification-prefs";
 import {
   alertIsEmpty,
   describeAlert,
@@ -2038,7 +2038,7 @@ async function route(request: Request) {
       if (send)
         for (const r of list.filter((x) => x.user_id)) {
           const prefs = await db.prepare("SELECT email_off FROM notification_prefs WHERE user_id=?").bind(r.user_id).first<{ email_off: string }>().catch(() => null);
-          try { if (prefs && !emailAllowedFor(sanitizeEmailOff(JSON.parse(prefs.email_off)), "workplace")) mutedUsers.add(r.user_id); } catch { /* unreadable settings: send */ }
+          if (workplaceMailMuted(prefs?.email_off)) mutedUsers.add(r.user_id);
         }
       for (let i = 0; i < list.length; i += 20)
         await Promise.allSettled(
