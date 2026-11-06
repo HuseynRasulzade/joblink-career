@@ -6275,3 +6275,40 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
 .approver-row input[type="checkbox"] { width: auto; margin: 0; }
 .approval-rules > label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .approval-rules > label > input[type="checkbox"] { width: auto; margin: 0; }
+
+/* Approvals in three panes: sections | list | details */
+.ap3 { display: grid; grid-template-columns: 250px minmax(300px, 1fr) minmax(340px, 1.1fr); gap: 16px; align-items: start; margin-top: 12px; }
+.ap3.wide { grid-template-columns: 250px minmax(0, 1fr); }
+.ap3-nav { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 12px; }
+.ap3-tab { text-align: left; background: #fff; border: 1px solid #e1e8e6; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; color: inherit; }
+.ap3-tab b { font-size: 14px; color: #1d3a2e; }
+.ap3-tab small { color: #6a7d73; font-size: 12px; }
+.ap3-tab.active { background: var(--teal); border-color: var(--teal); }
+.ap3-tab.active b, .ap3-tab.active small, .ap3-tab.active .ap3-counts { color: #fff; }
+.ap3-counts { font-size: 12px; color: var(--teal); font-weight: 600; }
+.ap3-counts em { font-style: normal; color: #b45309; }
+.ap3-tab.active .ap3-counts em { color: #ffe3b0; }
+.ap3-list { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ap3-requests { display: flex; flex-direction: column; gap: 8px; }
+.ap3-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 4px 10px; background: #fff; border: 1px solid #e1e8e6; border-radius: 12px; padding: 10px 12px; }
+.ap3-row:not(:has(> input[type="checkbox"])) { grid-template-columns: minmax(0, 1fr) auto auto; }
+.ap3-row.active { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(20, 123, 112, 0.15); }
+.ap3-row-main { display: flex; flex-direction: column; gap: 2px; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; min-width: 0; }
+.ap3-row-main b { font-size: 14px; color: #14281f; }
+.ap3-row-main span { font-size: 13px; color: #3b5246; overflow-wrap: anywhere; }
+.ap3-row-main small { font-size: 12px; color: #6a7d73; }
+.ap3-more { font-size: 12px; padding: 0; white-space: nowrap; }
+.ap3-respond { grid-column: 1 / -1; }
+.ap3-detail { position: sticky; top: 12px; max-height: calc(100vh - 40px); overflow-y: auto; min-width: 0; }
+.ap3-pane { background: #fff; border: 1px solid #e1e8e6; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.ap3-pane-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.ap3-pane-head h3 { margin: 0; font-size: 18px; color: #14281f; }
+.ap3-close { background: none; border: 0; color: #6a7d73; cursor: pointer; padding: 2px; }
+.ap3-empty { color: #6a7d73; font-size: 14px; background: #fff; border: 1px dashed #cfdcd5; border-radius: 12px; padding: 24px 16px; margin: 0; text-align: center; }
+.row-focus { outline: 2px solid var(--teal); outline-offset: -2px; background: #effaf6; }
+@media (max-width: 1100px) {
+  .ap3, .ap3.wide { grid-template-columns: minmax(0, 1fr); }
+  .ap3-nav { position: static; flex-direction: row; flex-wrap: wrap; }
+  .ap3-tab { flex: 1 1 200px; }
+  .ap3-detail { position: static; max-height: none; }
+}

@@ -18985,7 +18985,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     let payload: Record<string, unknown> = {};
     try { payload = JSON.parse(row.payload); } catch { /* shown without details */ }
     const facts: { label: string; value: string }[] = [];
-    const links: { label: string; page: string }[] = [];
+    const links: { label: string; page: string; target?: Record<string, unknown> }[] = [];
     const azn = (n: unknown) => `${Number(n).toLocaleString("az-AZ", { maximumFractionDigits: 2 })} AZN`;
     const employee = payload.employeeId
       ? await db.prepare("SELECT name,position,department,section,salary_cents,salary_type,start_date,status FROM company_employees WHERE id=? AND company_id=?").bind(String(payload.employeeId), id).first<{ name: string; position: string; department: string; section: string; salary_cents: number; salary_type: string; start_date: string; status: string }>()
@@ -18994,19 +18994,19 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       const oldPay = employee.salary_cents / 100;
       const next = Number(payload.salary);
       facts.push({ label: "İşçi", value: employee.name }, { label: "Vəzifə", value: `${employee.position || "—"}${employee.department ? ` · ${employee.department}` : ""}` }, { label: "İşə başlama", value: employee.start_date || "—" }, { label: "Hazırkı maaş", value: azn(oldPay) }, { label: "Təklif olunan maaş", value: azn(next) }, { label: "Dəyişiklik", value: `${next >= oldPay ? "+" : ""}${azn(next - oldPay)} (${oldPay > 0 ? `${Math.round(((next - oldPay) / oldPay) * 1000) / 10}%` : "yeni maaş"})` });
-      links.push({ label: "İşçinin kartı", page: "hr-employees" });
+      links.push({ label: "İşçinin kartı", page: "hr-employees", target: { kind: "employee", id: String(payload.employeeId), name: employee.name } });
     } else if (row.kind === "exit" && employee) {
       facts.push({ label: "İşçi", value: employee.name }, { label: "Vəzifə", value: `${employee.position || "—"}${employee.department ? ` · ${employee.department}` : ""}` }, { label: "İşə başlama", value: employee.start_date || "—" }, { label: "Xitam növü", value: exitTypeLabel(String(payload.exitType || "")) }, { label: "Son iş günü", value: String(payload.endDate || "—") }, { label: "Səbəb", value: String(payload.exitReason || "—") });
       if (payload.exitNote) facts.push({ label: "Qeyd", value: String(payload.exitNote) });
-      links.push({ label: "İşçinin kartı", page: "hr-employees" });
+      links.push({ label: "İşçinin kartı", page: "hr-employees", target: { kind: "employee", id: String(payload.employeeId), name: employee.name } });
     } else if (row.kind === "offer") {
       const data = (payload.data && typeof payload.data === "object" ? payload.data : {}) as Record<string, unknown>;
-      const app = await db.prepare("SELECT a.candidate_id,json_extract(j.data,'$.title') AS title,json_extract(j.data,'$.department') AS department FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND j.owner=?").bind(String(payload.applicationId || ""), id).first<{ candidate_id: string; title: string; department: string }>();
+      const app = await db.prepare("SELECT a.candidate_id,a.job_id,json_extract(j.data,'$.title') AS title,json_extract(j.data,'$.department') AS department FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND j.owner=?").bind(String(payload.applicationId || ""), id).first<{ candidate_id: string; job_id: string; title: string; department: string }>();
       const who = app ? (await db.prepare("SELECT name FROM accounts WHERE id=?").bind(app.candidate_id).first<{ name: string }>())?.name : "";
       facts.push({ label: "Namizəd", value: who || "—" }, { label: "Vakansiya", value: app?.title || "—" }, { label: "Vəzifə", value: String(data.position || "—") }, { label: "Maaş", value: `${azn(data.salary)} (${data.salaryPeriod === "gross" ? "gross" : "net"})` });
       if (data.startDate) facts.push({ label: "İşə başlama", value: String(data.startDate) });
       if (data.message) facts.push({ label: "Namizədə mesaj", value: String(data.message) });
-      links.push({ label: "Namizəd və müraciət", page: "hr-candidates" });
+      if (app) links.push({ label: "Namizəd və müraciət", page: "hr-candidates", target: { kind: "application", id: String(payload.applicationId), jobId: app.job_id, name: who || "" } });
     } else if (row.kind === "headcount") {
       if (payload.approvePlan) facts.push({ label: "Əməliyyat", value: "Ştat planının təsdiqi (təsdiqdən sonra plana dəyişiklik direktorun qərarı ilə olur)" });
       else if (Array.isArray(payload.units)) facts.push({ label: "Əməliyyat", value: `Excel idxalı: ${payload.units.length} ştat sətri plana yazılacaq` }, ...(payload.units as { department?: string; position?: string; planned?: number }[]).slice(0, 8).map((u) => ({ label: u.department || "—", value: `${u.position || "—"}: ${u.planned ?? "?"} ştat` })));
@@ -19017,7 +19017,10 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         if (u.salaryCents) facts.push({ label: "Maaş", value: azn(u.salaryCents / 100) });
         if (u.note) facts.push({ label: "Qeyd", value: u.note });
       } else facts.push({ label: "Departament", value: String(payload.department || "—") }, { label: "Yeni plan", value: payload.planned === null ? "plan silinir" : `${payload.planned} ştat` });
-      links.push({ label: "Ştat planı", page: "hr-workforce" });
+      {
+        const u = (payload.unit && typeof payload.unit === "object" ? payload.unit : {}) as { department?: string; position?: string };
+        links.push({ label: "Ştat planı", page: "hr-employees", target: { kind: "staff", department: String(payload.department || u.department || ""), position: u.position || "" } });
+      }
     }
     if (!facts.length) facts.push({ label: "Sorğu", value: row.subject });
     const rules = await approvalRules();

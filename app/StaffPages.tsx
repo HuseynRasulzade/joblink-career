@@ -2058,12 +2058,12 @@ function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?
   );
 }
 
-export function StaffTable({ notify, onEditEmployee }: { notify: Notify; onEditEmployee?: (id: string) => void }) {
+export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { notify: Notify; onEditEmployee?: (id: string) => void; initialQuery?: string }) {
   const [data, setData] = useState<StaffData | null>(null);
   const [editing, setEditing] = useState<EditingUnit | null>(null);
   const [importing, setImporting] = useState<SheetKind | null>(null);
   const [tab, setTab] = useState<"table" | "structure" | "positions" | "history">("table");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const { names, remember } = useOrgNames();
   const notifyRef = useRef(notify);
   useEffect(() => {

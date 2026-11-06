@@ -88,15 +88,21 @@ await session("employer", async ({ page, check, open }) => {
     return (await page.locator(".iv-grid table").count()) === 1;
   });
   await open("Təsdiqlər");
-  await check("approvals: help, filters, details panel", async () => {
-    if ((await page.locator(".approval-help").count()) !== 1 || (await page.locator(".approval-filter button").count()) !== 4) return false;
-    const more = page.getByRole("button", { name: "Ətraflı bax" });
-    if (!(await more.count())) return true;
-    await more.first().click();
+  await check("approvals: three panes (sections | list | details) and an exact link", async () => {
+    if ((await page.locator(".ap3-tab").count()) !== 3 || (await page.locator(".approval-help").count()) !== 1) return false;
+    await page.locator(".ap3-tab").nth(1).click();
+    await page.waitForTimeout(500);
+    if ((await page.locator(".approval-filter button").count()) !== 4) return false;
+    const rows = page.locator(".ap3-row-main");
+    if (!(await rows.count())) return true;
+    await rows.first().click();
     await page.waitForTimeout(600);
-    const opened = (await page.locator("dialog.side-drawer[open] .jd-facts").count()) === 1;
-    await page.keyboard.press("Escape");
-    return opened;
+    if ((await page.locator(".ap3-detail .jd-facts").count()) !== 1) return false;
+    const link = page.locator(".ap3-detail .approval-filter button").first();
+    if (!(await link.count())) return true;
+    await link.click();
+    await page.waitForTimeout(1200);
+    return (await page.locator(".row-focus").count()) >= 1 || (await page.locator(".staff-table, table").count()) > 0;
   });
   await open("Namizədlər");
   await check("candidates page opens", async () => (await page.getByText("Namizədlər", { exact: true }).count()) > 0);

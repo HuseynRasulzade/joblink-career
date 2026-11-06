@@ -31,6 +31,7 @@ import ConversationList, { type ConversationSummary } from "./ConversationList";
 import PipelineBoard from "./PipelineBoard";
 import { AssignTestModal } from "./AssessmentsPage";
 import JobDrawer from "./JobDrawer";
+import { takeFocus } from "./focus";
 import { InviteModal, ScheduleInterviewModal, type InvitePerson } from "./Interviews";
 import { BulkModal, SaveTalentModal } from "./BulkTalent";
 import { SavedSearches } from "./SavedSearches";
@@ -269,6 +270,28 @@ export default function HrPanel({
   }, [signedIn]);
   const ownJobs = demo ? sampleJobs : data.jobs;
   const selectedJob = ownJobs.find((j) => j.id === jobId) || ownJobs[0];
+  // A link from another screen (an approval) opens exactly one application or one vacancy here.
+  const [focusApp, setFocusApp] = useState("");
+  const [focusJob, setFocusJob] = useState("");
+  useEffect(() => {
+    const f = takeFocus("application", "job");
+    if (!f) return;
+    if (f.kind === "application") {
+      setJobId(f.jobId);
+      setTab("Müraciət edənlər");
+      setApplicantsView("list");
+      setQuery(f.name);
+      setFocusApp(f.id);
+    } else setFocusJob(f.id);
+  }, [page]);
+  useEffect(() => {
+    if (!focusJob) return;
+    const job = ownJobs.find((j) => j.id === focusJob);
+    if (job) {
+      setDetailJob(job);
+      setFocusJob("");
+    }
+  }, [focusJob, ownJobs]);
   const candidates = demo ? demoCandidates : data.candidates;
   const applications = demo
     ? [
@@ -1297,7 +1320,7 @@ export default function HrPanel({
                       .includes(query.toLocaleLowerCase("az")),
                 )
                 .map((a) => (
-                  <article className="candidate-card" key={a.id}>
+                  <article className={`candidate-card ${a.id === focusApp ? "row-focus" : ""}`} key={a.id} ref={a.id === focusApp ? (el) => el?.scrollIntoView({ block: "center" }) : undefined}>
                     <div className="avatar">{a.profile.name[0]}</div>
                     <div className="candidate-info">
                       <h3>{a.profile.name}</h3>

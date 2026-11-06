@@ -73,6 +73,7 @@ import { OrdersRegistry } from "./StaffPages";
 import { AttendancePage } from "./AttendancePage";
 import { JobAlerts } from "./JobAlerts";
 import JobsExplorer from "./JobsExplorer";
+import { setFocus, type FocusTarget } from "./focus";
 import { AdminAiUsage, AdminOps, AdminReviews } from "./CompanyReviews";
 import AdminCatalogCheck from "./AdminCatalogCheck";
 import AdminAiFeedback from "./AdminAiFeedback";
@@ -2757,7 +2758,10 @@ export default function Joblink() {
               </section>
               {page === "hr-approvals" && (
                 <ApprovalsPage
-                  go={go}
+                  go={(target, focus?: FocusTarget) => {
+                    setFocus(focus || null);
+                    go(target);
+                  }}
                   notify={notify}
                   onChange={() => {
                     void refreshCompany();

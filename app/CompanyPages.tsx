@@ -28,6 +28,7 @@ import {
   type JobApproval,
 } from "@/lib/company";
 import { Field, Modal } from "./components";
+import { takeFocus, type FocusTarget } from "./focus";
 import { formatDate } from "@/lib/dates";
 import { VACANCY_REASONS } from "@/lib/recruitment";
 import type { WorkforceMetrics } from "@/lib/workforce";
@@ -602,12 +603,16 @@ export function ApprovalsPage({
 }: {
   notify: Notify;
   onChange: () => void;
-  go?: (page: string) => void;
+  go?: (page: string, target?: FocusTarget) => void;
 }) {
   const [data, load] = useLoad<{ jobs: ApprovalJob[] }>(
     "company/approvals",
     notify,
   );
+  const [reqData, loadReq] = useLoad<{ requests: ApprovalRequest[] }>("company/requests", notify);
+  const [section, setSection] = useState<"jobs" | "requests" | "rules">("jobs");
+  const [selJob, setSelJob] = useState("");
+  const [selReq, setSelReq] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<string[]>([]);
   const [editing, setEditing] = useState<ApprovalJob | null>(null);
@@ -679,213 +684,147 @@ export function ApprovalsPage({
   }
   if (!data) return <p className="muted">Yüklənir…</p>;
   const decidable = data.jobs.filter((job) => job.canDecide);
-  return (
-    <div className="company-page">
-      <details className="panel approval-help" open={!data.jobs.length}>
-        <summary><b>Bu bölmə necə işləyir?</b></summary>
-        <p className="muted">
-          Pul, ştat və ya işçinin işini dəyişən qərarlar bir nəfərin qərarı ilə yox, təsdiq zənciri ilə keçir. Hər sorğu göndərən, təsdiq edən və nəticə ilə bağlı bildirişlə izlənir.
-        </p>
-        <table className="admin-table">
-          <thead><tr><th>Nə təsdiqə düşür</th><th>Kim təsdiqləyir</th><th>Təsdiqdən sonra</th></tr></thead>
-          <tbody>
-            <tr><td>Yeni vakansiya (rekruter və ya şöbə rəhbəri yaradanda)</td><td>Zəncirə görə: HR meneceri → direktor</td><td>Vakansiya yayımlanır</td></tr>
-            <tr><td>İş təklifi</td><td>Direktor (təklif həddindən yuxarı olanlar)</td><td>Təklif namizədə göndərilir</td></tr>
-            <tr><td>Maaş dəyişikliyi</td><td>Direktor (faiz həddindən yuxarı olanlar)</td><td>Maaş işçi kartında dəyişir</td></tr>
-            <tr><td>İşçinin işdən çıxarılması</td><td>Direktor</td><td>İşçi “işdən çıxıb” statusuna keçir, son iş günü yazılır</td></tr>
-            <tr><td>Ştat planı dəyişikliyi</td><td>Direktor</td><td>Ştat planı dəyişir</td></tr>
-          </tbody>
-        </table>
-        <ul className="muted">
-          <li>Sorğunu göndərən öz sorğusunu təsdiqləyə bilməz (hesab sahibi istisnadır).</li>
-          <li>“Məlumat istə” sorğunu göndərənə qaytarır: cavab yazılandan sonra yenidən təsdiqə düşür.</li>
-          <li>5 gündən çox gözləyən sorğu “gecikir” işarəsi alır və hesab sahibinə bildirilir.</li>
-          <li>Məzuniyyət və ya ezamiyyətdə olan təsdiqləyən aşağıdakı “Əvəzedici” bölməsində vəzifəsini komanda üzvünə müvəqqəti ötürür.</li>
-          <li>Qaydaları (hansı əməliyyat təsdiq tələb edir, həddlər, vakansiya zənciri) yalnız direktor və ya hesab sahibi dəyişir.</li>
-        </ul>
-      </details>
-      {decidable.length > 1 && (
-        <div className="form-actions">
-          <button
-            className="secondary"
-            onClick={() =>
-              setPicked(
-                picked.length === decidable.length
-                  ? []
-                  : decidable.map((job) => job.id),
-              )
-            }
-          >
-            {picked.length === decidable.length
-              ? "Seçimi təmizlə"
-              : `Hamısını seç (${decidable.length})`}
-          </button>
-          <button
-            className="primary"
-            disabled={!picked.length}
-            onClick={approvePicked}
-          >
-            Seçilənləri təsdiqlə ({picked.length})
+  const requests = reqData?.requests || [];
+  const reqOpen = requests.filter((r) => r.status === "pending" || r.status === "info").length;
+  const reqMine = requests.filter((r) => r.canDecide).length;
+  const jobsOpen = data.jobs.filter((j) => j.status === "pending_approval").length;
+  const job = data.jobs.find((j) => j.id === selJob) || null;
+  const sections = [
+    { id: "jobs" as const, label: "Vakansiya təsdiqləri", hint: "Yeni vakansiyalar: HR meneceri → direktor", open: jobsOpen, mine: decidable.length },
+    { id: "requests" as const, label: "Təklif, maaş, çıxarma, ştat", hint: "Direktor qərarı tələb edən sorğular", open: reqOpen, mine: reqMine },
+    { id: "rules" as const, label: "İcazələr və əvəzedici", hint: "Kim nəyi nə qədərə təsdiq edir", open: 0, mine: 0 },
+  ];
+  const jobPane = job && (
+    <div className="ap3-pane">
+      <div className="ap3-pane-head">
+        <h3>{job.title}</h3>
+        <button type="button" aria-label="Bağla" className="ap3-close" onClick={() => setSelJob("")}><XCircle size={18} /></button>
+      </div>
+      <p className="muted">{job.city} · göndərən: {job.approval?.requestedByName || "—"} · {when(job.approval?.requestedAt || job.created)}</p>
+      {job.reason && <p className="muted">Daxili səbəb: {job.reason}</p>}
+      <div className="jd-facts">
+        <div><span>Kateqoriya</span><b>{job.category || "—"}</b></div>
+        <div><span>İş rejimi</span><b>{job.mode || "—"}</b></div>
+        <div><span>Məşğulluq</span><b>{job.type || "—"}</b></div>
+        <div><span>Təcrübə</span><b>{job.minYears ?? 0}–{job.maxYears ?? 0} il</b></div>
+        <div><span>Maaş</span><b>{job.minSalary || job.maxSalary ? `${job.minSalary || 0}–${job.maxSalary || 0} AZN` : "göstərilməyib"}</b></div>
+        <div><span>Son tarix</span><b>{job.deadline ? day(job.deadline) : "—"}</b></div>
+      </div>
+      {!!job.skills?.length && <p><b>Bacarıqlar:</b> {job.skills.join(", ")}</p>}
+      {job.description && <p><b>Təsvir:</b><br />{job.description}</p>}
+      {job.requirements && <p><b>Tələblər:</b><br />{job.requirements}</p>}
+      {job.benefits && <p><b>Üstünlüklər:</b> {job.benefits}</p>}
+      <ol className="approval-steps">
+        {job.approval?.steps.map((step) => (
+          <li key={step.role} className={step.decision || "waiting"}>
+            {step.decision === "approved" ? <CheckCircle2 size={16} /> : step.decision === "rejected" ? <XCircle size={16} /> : <span className="dot" />}
+            <div>
+              <strong>{step.role === "hr" ? "HR meneceri" : "Direktor"}</strong>
+              <small>{step.decision ? `${step.byName} · ${when(step.at)}` : "Gözləyir"}</small>
+              {step.note && <small>“{step.note}”</small>}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {go && (
+        <div className="approval-filter">
+          <button type="button" className="secondary" onClick={() => go("hr-jobs", { kind: "job", id: job.id })}>Vakansiyaya keç ↗</button>
+        </div>
+      )}
+      {job.canResubmit && (
+        <div className="approval-actions">
+          <button className="primary" onClick={() => { setEditing(job); setEdit({ description: job.description || "", requirements: job.requirements || "", minSalary: job.minSalary || 0, maxSalary: job.maxSalary || 0 }); }}>
+            Düzəliş et və yenidən göndər
           </button>
         </div>
       )}
-      {data.jobs.map((job) => (
-        <article key={job.id} className="panel approval-card">
-          {job.canDecide && decidable.length > 1 && (
-            <label className="approval-pick">
-              <input
-                type="checkbox"
-                checked={picked.includes(job.id)}
-                onChange={(e) =>
-                  setPicked(
-                    e.target.checked
-                      ? [...picked, job.id]
-                      : picked.filter((x) => x !== job.id),
-                  )
-                }
-              />{" "}
-              Toplu təsdiq üçün seç
-            </label>
-          )}
-          <div className="section-heading">
-            <div>
-              <h3>{job.title}</h3>
-              <p>
-                {job.city} · göndərən: {job.approval?.requestedByName || "—"} ·{" "}
-                {when(job.approval?.requestedAt || job.created)}
-              </p>
-              {job.reason && (
-                <p className="muted">Daxili səbəb: {job.reason}</p>
-              )}
-              {job.status === "pending_approval" &&
-                (() => {
-                  const days = Math.floor(
-                    (Date.now() -
-                      Date.parse(job.approval?.requestedAt || job.created)) /
-                      86400000,
-                  );
-                  return days >= 2 ? (
-                    <p className="muted">⏱ {days} gündür gözləyir</p>
-                  ) : null;
-                })()}
-            </div>
-            <span
-              className={`admin-status ${job.status === "rejected" ? "archived" : "paused"}`}
-            >
-              {job.status === "rejected" ? "Rədd edildi" : "Təsdiq gözləyir"}
-            </span>
-          </div>
-          <details>
-            <summary>Vakansiyanın tam məzmunu</summary>
-            <p>
-              <b>Kateqoriya:</b> {job.category || "—"} · <b>İş rejimi:</b>{" "}
-              {job.mode || "—"} · <b>Məşğulluq:</b> {job.type || "—"}
-            </p>
-            <p>
-              <b>Təcrübə:</b> {job.minYears ?? 0}–{job.maxYears ?? 0} il ·{" "}
-              <b>Maaş:</b>{" "}
-              {job.minSalary || job.maxSalary
-                ? `${job.minSalary || 0}–${job.maxSalary || 0} AZN`
-                : "göstərilməyib"}
-              {job.deadline ? ` · son tarix ${day(job.deadline)}` : ""}
-            </p>
-            {!!job.skills?.length && (
-              <p>
-                <b>Bacarıqlar:</b> {job.skills.join(", ")}
-              </p>
-            )}
-            {job.description && (
-              <p>
-                <b>Təsvir:</b>
-                <br />
-                {job.description}
-              </p>
-            )}
-            {job.requirements && (
-              <p>
-                <b>Tələblər:</b>
-                <br />
-                {job.requirements}
-              </p>
-            )}
-            {job.benefits && (
-              <p>
-                <b>Üstünlüklər:</b> {job.benefits}
-              </p>
-            )}
-          </details>
-          <ol className="approval-steps">
-            {job.approval?.steps.map((step) => (
-              <li key={step.role} className={step.decision || "waiting"}>
-                {step.decision === "approved" ? (
-                  <CheckCircle2 size={16} />
-                ) : step.decision === "rejected" ? (
-                  <XCircle size={16} />
-                ) : (
-                  <span className="dot" />
-                )}
-                <div>
-                  <strong>
-                    {step.role === "hr" ? "HR meneceri" : "Direktor"}
-                  </strong>
-                  <small>
-                    {step.decision
-                      ? `${step.byName} · ${when(step.at)}`
-                      : "Gözləyir"}
-                  </small>
-                  {step.note && <small>“{step.note}”</small>}
-                </div>
-              </li>
-            ))}
-          </ol>
-          {job.canResubmit && (
-            <div className="approval-actions">
-              <button
-                className="primary"
-                onClick={() => {
-                  setEditing(job);
-                  setEdit({
-                    description: job.description || "",
-                    requirements: job.requirements || "",
-                    minSalary: job.minSalary || 0,
-                    maxSalary: job.maxSalary || 0,
-                  });
-                }}
-              >
-                Düzəliş et və yenidən göndər
-              </button>
-            </div>
-          )}
-          {job.canDecide && (
-            <div className="approval-actions">
-              <input
-                placeholder="Qeyd (rədd üçün məcburi)"
-                value={notes[job.id] || ""}
-                onChange={(e) =>
-                  setNotes({ ...notes, [job.id]: e.target.value })
-                }
-              />
-              <button
-                className="secondary"
-                onClick={() => decide(job, "reject")}
-              >
-                Rədd et
-              </button>
-              <button
-                className="primary"
-                onClick={() => decide(job, "approve")}
-              >
-                Təsdiqlə
-              </button>
-            </div>
-          )}
-        </article>
-      ))}
-      {!data.jobs.length && (
-        <p className="admin-empty">Təsdiq gözləyən vakansiya yoxdur.</p>
+      {job.canDecide && (
+        <div className="approval-actions">
+          <input placeholder="Qeyd (rədd üçün məcburi)" aria-label="Qeyd" value={notes[job.id] || ""} onChange={(e) => setNotes({ ...notes, [job.id]: e.target.value })} />
+          <button className="secondary" onClick={() => decide(job, "reject")}>Rədd et</button>
+          <button className="primary" onClick={() => decide(job, "approve")}>Təsdiqlə</button>
+        </div>
       )}
-      <RequestApprovals notify={notify} onChange={onChange} go={go} />
-      <DelegationPanel notify={notify} />
+    </div>
+  );
+  return (
+    <div className="company-page">
+      <details className="panel approval-help">
+        <summary><b>Bu bölmə necə işləyir?</b></summary>
+        <p className="muted">
+          Pul, ştat və ya işçinin işini dəyişən qərarlar bir nəfərin qərarı ilə yox, təsdiq zənciri ilə keçir. Solda bölməni seçirsiniz, ortada siyahıya baxırsınız, sağda sorğunun təfərrüatı və qərar düymələri açılır.
+        </p>
+        <ul className="muted">
+          <li>Vakansiya: rekruter/şöbə rəhbəri yaradanda HR meneceri, sonra direktor təsdiqləyir; sonra yayımlanır.</li>
+          <li>İş təklifi, maaş dəyişikliyi, işdən çıxarma və ştat planı: direktor (və ya adla seçilmiş şəxslər, limitlə) təsdiqləyir.</li>
+          <li>Sorğunu göndərən özünü təsdiqləyə bilməz. “Məlumat istə” sorğunu göndərənə qaytarır. 5 gündən çox gözləyən sorğu hesab sahibinə bildirilir.</li>
+          <li>Təfərrüatdakı keçid sizi təsdiq etdiyiniz işçiyə, müraciətə, vakansiyaya və ya ştat sətrinə dəqiq aparır.</li>
+        </ul>
+      </details>
+      <div className={`ap3 ${section === "rules" ? "wide" : ""}`}>
+        <nav className="ap3-nav" aria-label="Təsdiq bölmələri">
+          {sections.map((sec) => (
+            <button key={sec.id} type="button" className={`ap3-tab ${section === sec.id ? "active" : ""}`} aria-current={section === sec.id} onClick={() => setSection(sec.id)}>
+              <b>{sec.label}</b>
+              <small>{sec.hint}</small>
+              {sec.id !== "rules" && (
+                <span className="ap3-counts">
+                  {sec.open} açıq{sec.mine > 0 ? <em> · {sec.mine} sizin qərarınız</em> : null}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
+        <section className="ap3-list" aria-label={sections.find((x) => x.id === section)?.label}>
+          {section === "jobs" && (
+            <>
+              {decidable.length > 1 && (
+                <div className="form-actions">
+                  <button className="secondary" onClick={() => setPicked(picked.length === decidable.length ? [] : decidable.map((j) => j.id))}>
+                    {picked.length === decidable.length ? "Seçimi təmizlə" : `Hamısını seç (${decidable.length})`}
+                  </button>
+                  <button className="primary" disabled={!picked.length} onClick={approvePicked}>Seçilənləri təsdiqlə ({picked.length})</button>
+                </div>
+              )}
+              {data.jobs.map((j) => (
+                <article key={j.id} className={`ap3-row ${selJob === j.id ? "active" : ""}`}>
+                  {j.canDecide && decidable.length > 1 && (
+                    <input type="checkbox" aria-label="Toplu təsdiq üçün seç" checked={picked.includes(j.id)} onChange={(e) => setPicked(e.target.checked ? [...picked, j.id] : picked.filter((x) => x !== j.id))} />
+                  )}
+                  <button type="button" className="ap3-row-main" onClick={() => setSelJob(j.id)}>
+                    <b>{j.title}</b>
+                    <span>{j.city || "—"} · göndərən: {j.approval?.requestedByName || "—"}</span>
+                    <small>{when(j.approval?.requestedAt || j.created)}</small>
+                  </button>
+                  <span className={`admin-status ${j.status === "rejected" ? "archived" : "paused"}`}>{j.status === "rejected" ? "Rədd edildi" : "Təsdiq gözləyir"}</span>
+                  <button type="button" className="text-button ap3-more" onClick={() => setSelJob(j.id)}>Ətraflı ›</button>
+                </article>
+              ))}
+              {!data.jobs.length && <p className="admin-empty">Təsdiq gözləyən vakansiya yoxdur.</p>}
+            </>
+          )}
+          {section === "requests" && (
+            <RequestApprovals part="list" notify={notify} onChange={onChange} data={reqData} reload={loadReq} selectedId={selReq} onSelect={setSelReq} />
+          )}
+          {section === "rules" && (
+            <>
+              <RequestApprovals part="rules" notify={notify} onChange={onChange} data={reqData} reload={loadReq} selectedId="" onSelect={() => undefined} />
+              <DelegationPanel notify={notify} />
+            </>
+          )}
+        </section>
+        {section !== "rules" && (
+          <aside className="ap3-detail" aria-label="Təfərrüat">
+            {section === "jobs" ? (
+              jobPane || <p className="ap3-empty">Təfərrüatı görmək üçün siyahıdan vakansiyanı seçin.</p>
+            ) : selReq ? (
+              <RequestDetail key={selReq} inline id={selReq} notify={notify} onClose={() => setSelReq("")} onDecided={() => { loadReq(); onChange(); }} onLink={(l) => go?.(l.page, l.target)} />
+            ) : (
+              <p className="ap3-empty">Təfərrüatı görmək üçün siyahıdan sorğunu seçin.</p>
+            )}
+          </aside>
+        )}
+      </div>
       {editing && (
         <Modal
           title={`Yenidən göndər — ${editing.title}`}
@@ -972,7 +911,7 @@ type RequestDetailData = {
   requestedByName: string;
   created: string;
   facts: { label: string; value: string }[];
-  links: { label: string; page: string }[];
+  links: { label: string; page: string; target?: FocusTarget }[];
   amount: number | null;
   approvers: { name: string; limit: number; ok: boolean }[];
   timeline: { at: string; text: string }[];
@@ -986,7 +925,7 @@ const APPROVER_KINDS: { id: "offer" | "salary" | "exit" | "headcount"; label: st
 ];
 const limitText = (a: { name: string; limit: number }) => `${a.name} (${a.limit > 0 ? `${a.limit.toLocaleString("az-AZ")} AZN-dək` : "limitsiz"})`;
 // What the request is about, who may decide it, the history, and the decision itself.
-function RequestDetail({ id, onClose, onDecided, go, notify }: { id: string; onClose: () => void; onDecided: () => void; go?: (page: string) => void; notify: Notify }) {
+function RequestDetail({ id, onClose, onDecided, onLink, notify, inline = false }: { id: string; onClose: () => void; onDecided: () => void; onLink?: (link: { label: string; page: string; target?: FocusTarget }) => void; notify: Notify; inline?: boolean }) {
   const [data, setData] = useState<RequestDetailData | null>(null);
   const [note, setNote] = useState("");
   useEffect(() => {
@@ -1004,8 +943,9 @@ function RequestDetail({ id, onClose, onDecided, go, notify }: { id: string; onC
       notify((e as Error).message);
     }
   }
-  return (
-    <Modal title={data ? `${REQUEST_KIND[data.kind] || "Sorğu"}` : "Sorğu"} onClose={onClose} className="side-drawer">
+  const title = data ? `${REQUEST_KIND[data.kind] || "Sorğu"}` : "Sorğu";
+  const content = (
+    <>
       {!data ? (
         <p className="muted">Yüklənir…</p>
       ) : (
@@ -1026,9 +966,9 @@ function RequestDetail({ id, onClose, onDecided, go, notify }: { id: string; onC
             <h3>Gedişat</h3>
             <ul>{data.timeline.map((t, i) => <li key={i}>{when(t.at)} · {t.text}</li>)}</ul>
           </section>
-          {go && data.links.length > 0 && (
+          {onLink && data.links.length > 0 && (
             <div className="approval-filter">
-              {data.links.map((l) => <button key={l.label} type="button" className="secondary" onClick={() => { onClose(); go(l.page); }}>{l.label} ↗</button>)}
+              {data.links.map((l) => <button key={l.label} type="button" className="secondary" onClick={() => { if (!inline) onClose(); onLink(l); }}>{l.label} ↗</button>)}
             </div>
           )}
           {data.canDecide ? (
@@ -1043,6 +983,21 @@ function RequestDetail({ id, onClose, onDecided, go, notify }: { id: string; onC
           ) : null}
         </div>
       )}
+    </>
+  );
+  if (inline)
+    return (
+      <div className="ap3-pane">
+        <div className="ap3-pane-head">
+          <h3>{title}</h3>
+          <button type="button" aria-label="Bağla" className="ap3-close" onClick={onClose}><XCircle size={18} /></button>
+        </div>
+        {content}
+      </div>
+    );
+  return (
+    <Modal title={title} onClose={onClose} className="side-drawer">
+      {content}
     </Modal>
   );
 }
@@ -1079,22 +1034,25 @@ type ApprovalStats = {
 function RequestApprovals({
   notify,
   onChange,
-  go,
+  part,
+  data,
+  reload: load,
+  selectedId,
+  onSelect,
 }: {
   notify: Notify;
   onChange: () => void;
-  go?: (page: string) => void;
+  part: "list" | "rules";
+  data: { requests: ApprovalRequest[] } | null;
+  reload: () => void;
+  selectedId: string;
+  onSelect: (id: string) => void;
 }) {
-  const [data, load] = useLoad<{ requests: ApprovalRequest[] }>(
-    "company/requests",
-    notify,
-  );
   const [rules, loadRules] = useLoad<{
     rules: ApprovalRulesData;
     canEdit: boolean;
     people: { userId: string; name: string; role: string }[];
   }>("company/approval-rules", notify);
-  const [detailId, setDetailId] = useState("");
   const [stats, loadStats] = useLoad<ApprovalStats>(
     "company/approvals/stats",
     notify,
@@ -1181,14 +1139,10 @@ function RequestApprovals({
   const shown = (data?.requests || []).filter((item) =>
     show === "mine" ? item.canDecide : show === "open" ? item.status === "pending" || item.status === "info" : show === "closed" ? item.status === "approved" || item.status === "rejected" : true,
   );
-  return (
-    <section className="panel">
-      <h3>Təklif, maaş, işdən çıxarılma və ştat təsdiqləri</h3>
-      <div className="approval-filter" role="group" aria-label="Sorğuları süz">
-        {([["all", "Hamısı"], ["mine", `Mənim qərarımı gözləyən (${decidable.length})`], ["open", "Açıq"], ["closed", "Bağlanmış"]] as const).map(([key, label]) => (
-          <button key={key} type="button" className={show === key ? "primary" : "secondary"} aria-pressed={show === key} onClick={() => setShow(key)}>{label}</button>
-        ))}
-      </div>
+  if (part === "rules")
+    return (
+      <section className="panel">
+        <h3>Təsdiq qaydaları və icazələr</h3>
       {stats && (
         <p className="muted">
           Gözləyən: <b>{stats.pending}</b> · Məlumat gözləyən:{" "}
@@ -1352,6 +1306,15 @@ function RequestApprovals({
           )}
         </fieldset>
       )}
+      </section>
+    );
+  return (
+    <div className="ap3-requests">
+      <div className="approval-filter" role="group" aria-label="Sorğuları süz">
+        {([["all", "Hamısı"], ["mine", `Mənim qərarımı gözləyən (${decidable.length})`], ["open", "Açıq"], ["closed", "Bağlanmış"]] as const).map(([key, label]) => (
+          <button key={key} type="button" className={show === key ? "primary" : "secondary"} aria-pressed={show === key} onClick={() => setShow(key)}>{label}</button>
+        ))}
+      </div>
       {decidable.length > 1 && (
         <div className="form-actions">
           <button
@@ -1378,115 +1341,36 @@ function RequestApprovals({
         </div>
       )}
       {shown.map((item) => (
-        <article key={item.id} className="approval-card">
+        <article key={item.id} className={`ap3-row ${selectedId === item.id ? "active" : ""}`}>
           {item.canDecide && decidable.length > 1 && (
-            <label className="approval-pick">
-              <input
-                type="checkbox"
-                checked={picked.includes(item.id)}
-                onChange={(e) =>
-                  setPicked(
-                    e.target.checked
-                      ? [...picked, item.id]
-                      : picked.filter((x) => x !== item.id),
-                  )
-                }
-              />{" "}
-              Toplu təsdiq üçün seç
-            </label>
+            <input type="checkbox" aria-label="Toplu təsdiq üçün seç" checked={picked.includes(item.id)} onChange={(e) => setPicked(e.target.checked ? [...picked, item.id] : picked.filter((x) => x !== item.id))} />
           )}
-          <div className="section-heading">
-            <div>
-              <button type="button" className="job-card-title" onClick={() => setDetailId(item.id)} aria-label={`${REQUEST_KIND[item.kind] || item.kind}: təfərrüatlara bax`}>
-                <h4>{REQUEST_KIND[item.kind] || item.kind}</h4>
-              </button>
-              <p>{item.subject}</p>
-              {!!item.approvers?.length && (
-                <p className="muted">Təsdiq edə bilər: {item.approvers.map((a) => limitText(a)).join(", ")}</p>
-              )}
-              <p className="muted">
-                göndərən: {item.requested_by_name || "—"} · {when(item.created)}
-              </p>
-              {item.status !== "pending" && (
-                <p className="muted">
-                  {item.decided_by_name} · {when(item.decided)}
-                  {item.note ? ` — ${item.note}` : ""}
-                </p>
-              )}
-              {item.reply && (
-                <p className="muted">Göndərənin cavabı: {item.reply}</p>
-              )}
-              {item.status === "pending" &&
-                Date.now() - Date.parse(item.created) > 5 * 86_400_000 && (
-                  <p className="muted">
-                    ⏱ Gecikir
-                    {item.escalated_at ? " (hesab sahibinə bildirilib)" : ""}
-                  </p>
-                )}
-            </div>
-            <span
-              className={`admin-status ${item.status === "approved" ? "active" : item.status === "rejected" ? "archived" : "paused"}`}
-            >
-              {REQUEST_STATUS[item.status] || item.status}
-            </span>
-          </div>
-          <div className="form-actions">
-            <button type="button" className="secondary" onClick={() => setDetailId(item.id)}>Ətraflı bax</button>
-          </div>
-          {item.canDecide && (
-            <div className="form-actions">
-              <input
-                placeholder="Qeyd (rədd və sual üçün məcburi)"
-                aria-label="Qeyd"
-                value={notes[item.id] || ""}
-                onChange={(e) =>
-                  setNotes({ ...notes, [item.id]: e.target.value })
-                }
-              />
-              <button
-                className="secondary"
-                onClick={() => decide(item, "info")}
-              >
-                Məlumat istə
-              </button>
-              <button
-                className="secondary"
-                onClick={() => decide(item, "reject")}
-              >
-                Rədd et
-              </button>
-              <button
-                className="primary"
-                onClick={() => decide(item, "approve")}
-              >
-                Təsdiqlə
-              </button>
-            </div>
-          )}
+          <button type="button" className="ap3-row-main" onClick={() => onSelect(item.id)}>
+            <b>{REQUEST_KIND[item.kind] || item.kind}</b>
+            <span>{item.subject}</span>
+            <small>
+              göndərən: {item.requested_by_name || "—"} · {when(item.created)}
+              {item.status === "pending" && Date.now() - Date.parse(item.created) > 5 * 86_400_000 ? " · ⏱ gecikir" : ""}
+            </small>
+          </button>
+          <span className={`admin-status ${item.status === "approved" ? "active" : item.status === "rejected" ? "archived" : "paused"}`}>
+            {REQUEST_STATUS[item.status] || item.status}
+          </span>
+          <button type="button" className="text-button ap3-more" onClick={() => onSelect(item.id)}>Ətraflı ›</button>
           {item.canRespond && (
-            <div className="form-actions">
-              <input
-                placeholder="Cavabınız (kifayət qədər izahat yazın)"
-                aria-label="Cavab"
-                value={replies[item.id] || ""}
-                onChange={(e) =>
-                  setReplies({ ...replies, [item.id]: e.target.value })
-                }
-              />
-              <button className="primary" onClick={() => respond(item)}>
-                Cavab göndər
-              </button>
+            <div className="form-actions ap3-respond">
+              <input placeholder="Cavabınız (kifayət qədər izahat yazın)" aria-label="Cavab" value={replies[item.id] || ""} onChange={(e) => setReplies({ ...replies, [item.id]: e.target.value })} />
+              <button className="primary" onClick={() => respond(item)}>Cavab göndər</button>
             </div>
           )}
         </article>
       ))}
-      {detailId && <RequestDetail id={detailId} go={go} notify={notify} onClose={() => setDetailId("")} onDecided={() => { load(); loadStats(); onChange(); }} />}
       {data && !shown.length && (
         <p className="admin-empty">
           {show === "mine" ? "Sizin qərarınızı gözləyən sorğu yoxdur." : "Təsdiq gözləyən təklif və ya maaş dəyişikliyi yoxdur."}
         </p>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -2695,7 +2579,10 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const [importingProfiles, setImportingProfiles] = useState(false);
   const [bulkCodes, setBulkCodes] = useState(false);
   // The employee list and the staff table are two views of one page, shown one at a time.
-  const [view, setView] = useState<"people" | "staff">("people");
+  // A link from another screen (e.g. an approval) shows exactly one employee or one department of the staff table.
+  const [focus] = useState(() => takeFocus("employee", "staff"));
+  const [view, setView] = useState<"people" | "staff">(focus?.kind === "staff" ? "staff" : "people");
+  const focusId = focus?.kind === "employee" ? focus.id : "";
   // Extra sections of the employee card open in their own pop-up windows.
   const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | "link" | "hrdocs" | "salaryhist" | null>(null);
   const { names: orgNames, remember: rememberOrg } = useOrgNames();
@@ -2717,7 +2604,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
         .then((r) => setHistory(r.events))
         .catch(() => {});
   }, [editing?.id]);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(focus?.kind === "employee" ? focus.name : "");
   async function save() {
     try {
       const saved = await request<{
@@ -2822,7 +2709,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           </thead>
           <tbody>
             {list.map((e) => (
-              <tr key={e.id}>
+              <tr key={e.id} className={e.id === focusId ? "row-focus" : undefined} ref={e.id === focusId ? (el) => el?.scrollIntoView({ block: "center" }) : undefined}>
                 <td>
                   <strong>{e.name}</strong>
                   <small className="skill-description">
@@ -2947,6 +2834,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
       {data.canStaff && view === "staff" && (
         <StaffTable
           notify={notify}
+          initialQuery={focus?.kind === "staff" ? focus.department : ""}
           onEditEmployee={(employeeId) => {
             const person = data.employees.find((x) => x.id === employeeId);
             if (!person) return notify("İşçi tapılmadı.");
