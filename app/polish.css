@@ -122,3 +122,22 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 .vf-sort { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 13px; color: #667275; font-weight: 600; }
 .vf-sort select { height: 38px; padding: 0 30px 0 12px; font-weight: 600; color: var(--ink); }
 @media (max-width: 720px) { .vf-sort { margin-left: 0; width: 100%; } .vf-sort select { flex: 1; } }
+
+/* Vakansiya kartı: qiymət + əsas keçid yuxarıda, əməliyyatlar etiketli qruplarda */
+.job-card .job-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.job-card .job-footer > span { order: 1; flex: 1 1 auto; font-size: 17px; font-weight: 700; color: var(--ink); }
+.job-card .job-footer > .text-button { order: 2; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 13px; color: var(--teal); padding: 8px 12px; border-radius: 10px; background: #eef7f5; }
+.job-card .job-footer > .text-button:hover { background: #dff0ec; }
+.job-card .ja { order: 3; flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; padding-top: 12px; border-top: 1px dashed #e3ebea; }
+.job-card .ja::before { flex: 0 0 118px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8a9799; }
+.job-card .ja-main::before { content: "Əməliyyatlar"; }
+.job-card .ja-track::before { content: "Paylaşım"; }
+.job-card .ja-state::before { content: "Status"; }
+.job-card .ja button, .job-card .ja select { height: 34px; padding: 0 12px; font-size: 13px; font-weight: 600; border-radius: 9px; border: 1px solid #dbe5e3; background: #fff; color: #33484c; }
+.job-card .ja select { padding-right: 28px; }
+.job-card .ja button:hover:not(:disabled) { background: #f1f8f6; border-color: #9fcac2; color: var(--teal-strong); }
+.job-card .ja button.primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+.job-card .ja button.primary:hover:not(:disabled) { background: var(--teal-strong); color: #fff; }
+.job-card .ja-danger { color: #b3382c !important; }
+.job-card .ja-danger:hover:not(:disabled) { background: #fdf1ef !important; border-color: #efb8b1 !important; }
+@media (max-width: 720px) { .job-card .ja::before { flex-basis: 100%; } .job-card .job-footer > .text-button { order: 2; } }

@@ -743,7 +743,7 @@ export default function HrPanel({
                     {j.minSalary || j.maxSalary ? `${j.minSalary}–${j.maxSalary} AZN` : "Razılaşma yolu ilə"}
                   </span>
                   {!j.demo && (
-                    <div className="admin-actions">
+                    <div className="admin-actions ja ja-main">
                       <button
                         disabled={busy}
                         onClick={async () => {
@@ -810,7 +810,7 @@ export default function HrPanel({
                     </div>
                   )}
                   {!j.demo && jobStatus(j) === "published" && (
-                    <div className="admin-actions">
+                    <div className="admin-actions ja ja-track">
                       <select
                         aria-label="Paylaşım kanalı"
                         value={linkSource[j.id] || ""}
@@ -842,7 +842,7 @@ export default function HrPanel({
                     </div>
                   )}
                   {!j.demo && jobStatus(j) !== "archived" && (
-                    <div className="admin-actions">
+                    <div className="admin-actions ja ja-state">
                       {jobStatus(j) === "published" ? (
                         <button disabled={busy} onClick={() => changeJobStatus(j, "pause")}>
                           Dayandır
@@ -852,7 +852,7 @@ export default function HrPanel({
                           Yenidən aç
                         </button>
                       )}
-                      <button disabled={busy} onClick={() => setCloseJob(j)}>
+                      <button className="ja-danger" disabled={busy} onClick={() => setCloseJob(j)}>
                         Bağla
                       </button>
                     </div>
