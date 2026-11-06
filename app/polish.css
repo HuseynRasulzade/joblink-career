@@ -1,7 +1,6 @@
 /* Vahid vizual təbəqə: şrift, kölgə, hərəkət, fokus, forma elementləri.
    Ən sonda yüklənir; yalnız görünüşü yaxşılaşdırır, düzümü dəyişmir. */
 :root {
-  --font-ui: var(--font-inter), "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
   --shadow-1: 0 1px 2px rgba(23, 45, 49, 0.05), 0 1px 1px rgba(23, 45, 49, 0.03);
   --shadow-2: 0 4px 14px rgba(23, 45, 49, 0.07), 0 1px 3px rgba(23, 45, 49, 0.05);
   --shadow-3: 0 18px 44px rgba(23, 45, 49, 0.14), 0 4px 10px rgba(23, 45, 49, 0.06);
@@ -13,6 +12,7 @@ html {
   scroll-behavior: smooth;
 }
 body {
+  --font-ui: var(--font-inter), "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
   font-family: var(--font-ui);
   font-feature-settings: "cv11", "ss01", "tnum" 0;
   -webkit-font-smoothing: antialiased;
