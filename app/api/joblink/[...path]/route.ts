@@ -20519,7 +20519,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .bind(id)
       .all<{ user_id: string; role: string; name: string }>()
       .catch(() => ({ results: [] as { user_id: string; role: string; name: string }[] }));
-    const ROLE: Record<string, string> = { owner: "Direktor", manager: "Şöbə rəhbəri", recruiter: "Rekruter", auditor: "Auditor" };
+    const ROLE: Record<string, string> = { owner: "Hesab sahibi", director: "Direktor", hr: "HR meneceri", manager: "Şöbə rəhbəri", recruiter: "Rekruter", auditor: "Auditor" };
     return [{ userId: id, name: owner?.name || "Şirkət", role: "Hesab sahibi" }, ...members.results.map((m) => ({ userId: m.user_id, name: m.name || "Üzv", role: ROLE[m.role] || m.role }))];
   };
   // [{userId, role}] from the form, kept only if the person belongs to the company.

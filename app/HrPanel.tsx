@@ -273,6 +273,7 @@ export default function HrPanel({
   const selectedJob = ownJobs.find((j) => j.id === jobId) || ownJobs[0];
   // A link from another screen (an approval) opens exactly one application or one vacancy here.
   const [focusApp, setFocusApp] = useState("");
+  const [aiDown, setAiDown] = useState("");
   const [detailTalent, setDetailTalent] = useState<(typeof results)[number] | null>(null);
   const [detailApp, setDetailApp] = useState<Application | null>(null);
   const [focusJob, setFocusJob] = useState("");
@@ -413,8 +414,11 @@ export default function HrPanel({
       });
       if (data.source === "rules") notify("AI qiymətləndirmə administrator tərəfindən söndürülüb, qaydalarla hesablanmış bal göstərilir.");
       else if (!silent) notify("AI namizədləri qiymətləndirdi.");
+      setAiDown("");
     } catch (e) {
-      notify((e as Error).message);
+      // An automatic check that fails stays quiet (a note under the button); a click by the person gets the message.
+      if (silent) setAiDown((e as Error).message);
+      else notify((e as Error).message);
     } finally {
       setAiRanking(false);
     }
@@ -1079,6 +1083,7 @@ export default function HrPanel({
               <button className="secondary" disabled={aiRanking} onClick={() => rankWithAi()}>
                 <Sparkles size={15} /> {aiRanking ? "AI qiymətləndirir…" : "AI-ni yenilə"}
               </button>
+              {aiDown && <small className="muted">{aiDown}</small>}
               <small>
                 Namizədlər vakansiya açılanda AI tərəfindən avtomatik, anonim şəkildə (ad və əlaqə məlumatı olmadan) iş, bacarıq, sertifikat və səviyyəyə görə qiymətləndirilir. Profil dəyişməyibsə, nəticə təkrar hesablanmır. Yekun qərar sizindir.
               </small>
