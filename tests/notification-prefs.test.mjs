@@ -20,3 +20,11 @@ test("status, offer, test, billing, review and message notifications carry e-mai
   for (const type of ["application-status", "offer", "test", "billing", "review", "message"]) assert.equal(AUTO_EMAIL_TYPES.has(type), true);
   assert.equal(AUTO_EMAIL_TYPES.has("interview"), false);
 });
+
+test("approval requests are e-mailed and can be switched off as their own category", () => {
+  assert.equal(AUTO_EMAIL_TYPES.has("approval"), true);
+  assert.equal(categoryOfType("approval"), "approval");
+  assert.equal(categoryOfType("application"), "application");
+  assert.equal(emailAllowedFor(sanitizeEmailOff(["approval"]), "approval"), false);
+  assert.equal(emailAllowedFor(sanitizeEmailOff(["approval"]), "offer"), true);
+});

@@ -15392,6 +15392,7 @@ async function route(request: Request) {
           type: "application",
           title: `Yeni müraciət: ${owner.title}`,
           link: "hr-candidates",
+          email: true,
         });
     }
     return ok({ ok: true });
@@ -15679,6 +15680,7 @@ async function route(request: Request) {
       title,
       body,
       link: "hr-interviews",
+      email: true,
     });
     if (row.created_by && row.created_by !== row.company_id)
       await notify(db, {
@@ -15687,6 +15689,7 @@ async function route(request: Request) {
         title,
         body,
         link: "hr-interviews",
+        email: true,
       });
     await recordApplicationEvent(db, {
       applicationId: row.application_id,
@@ -20595,6 +20598,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           title: `Müsahibədə iştirakınız lazımdır: ${info.title}`,
           body: `${info.candidate || "Namizəd"} ilə ${info.round ? `${info.round}, ` : ""}${bakuLocal(info.scheduledAt)} (Bakı vaxtı), ${info.durationMin} dəq. ${info.kindText}. Rolunuz: ${p.role}. Müsahibələr bölməsində təsdiqləyin və ya imtina edin.`,
           link: "hr-interviews",
+          email: true,
         });
     }
     // The person who set it up needs no second question: their own answer is "accepted" at once.

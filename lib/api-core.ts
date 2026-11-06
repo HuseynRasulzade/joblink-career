@@ -50,7 +50,7 @@ export async function sendUserEmail(db: D1Database, userId: string, subject: str
 }
 export async function notify(
   db: D1Database,
-  input: { userId: string; type: string; title: string; body?: string; link?: string },
+  input: { userId: string; type: string; title: string; body?: string; link?: string; email?: boolean },
 ) {
   try {
     await db
@@ -61,7 +61,7 @@ export async function notify(
     // Notifications are best-effort.
   }
   // Status, offer, test, billing and review notifications also go out by e-mail.
-  if (AUTO_EMAIL_TYPES.has(input.type)) await sendUserEmail(db, input.userId, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`, input.type);
+  if (input.email || AUTO_EMAIL_TYPES.has(input.type)) await sendUserEmail(db, input.userId, input.title, `${input.body || input.title}\n\nJoblink-də baxın.`, input.type);
 }
 // Followers hear about new vacancies (in-app; e-mail when configured).
 export async function notifyFollowers(db: D1Database, companyId: string, j: Job) {
