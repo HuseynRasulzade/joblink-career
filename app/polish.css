@@ -171,3 +171,31 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 
 .next-step { margin-bottom: 18px; }
 .advice-grid { margin-top: 0; }
+
+/* Namizəd: Vakansiyalar axtarış zolağı (daxili sahələrdə ikiqat çərçivə olmasın) */
+.jx-field input, .jx-field select, .jx-field input:hover, .jx-field input:focus, .jx-field select:focus { border: 0 !important; box-shadow: none !important; background: transparent !important; border-radius: 0; outline: none; }
+.jx-search { transition: box-shadow .15s var(--ease), border-color .15s var(--ease); }
+.jx-search:focus-within { border-color: #1b9a8a; box-shadow: 0 0 0 4px rgba(27, 154, 138, 0.14), 0 6px 20px rgba(24, 56, 44, 0.05); }
+.jx-facts { grid-template-columns: 0.8fr 1fr 1fr 1.4fr; }
+.jx-facts b { white-space: nowrap; overflow-wrap: normal; }
+@media (max-width: 900px) { .jx-facts { grid-template-columns: repeat(2, 1fr); } .jx-facts b { white-space: normal; } }
+
+/* Namizəd: vakansiya kartları (Ümumi baxış və siyahılar) */
+.jobs .job-card { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 20px 22px; border-radius: 14px; border-color: #e3ebea; box-shadow: var(--shadow-1); transition: box-shadow .2s var(--ease), transform .2s var(--ease), border-color .2s var(--ease); }
+.jobs .job-card:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); border-color: #cfe0dc; }
+.jobs .job-card .job-top { align-items: flex-start; }
+.jobs .job-card .job-title { flex: 1; min-width: 0; }
+.jobs .job-card .job-title h3 { font-size: 17px; line-height: 1.3; }
+.jobs .job-card .job-title p { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 3px; font-size: 13px; color: var(--muted); }
+.jobs .job-card .bookmark { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: #7b898b; border: 1px solid #e3ebea; background: #fff; flex-shrink: 0; }
+.jobs .job-card .bookmark:hover { color: var(--teal); border-color: #9fcac2; background: #f1f8f6; }
+.jobs .job-card .bookmark.is-saved { color: var(--teal); background: #e6f4f1; border-color: #9fcac2; }
+.jobs .job-card .job-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; font-size: 13px; color: #53666a; }
+.jobs .job-card .job-meta > span { display: inline-flex; align-items: center; gap: 5px; }
+.jobs .job-card .skill-tags { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.jobs .job-card .skill-tags span { padding: 4px 10px; border-radius: 999px; background: #eef5f3; border: 0; color: #3d5a57; font-size: 12px; font-weight: 600; }
+.jobs .job-card .job-footer { margin-top: 2px; padding-top: 14px; border-top: 1px solid #edf2f1; }
+.jobs .job-card .job-footer strong { font-size: 16px; }
+.jobs .job-card .compare-check { order: 99; align-self: flex-end; margin: -6px 0 0; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #5d7073; background: #f4f8f7; transition: background-color .15s var(--ease), color .15s var(--ease); }
+.jobs .job-card .compare-check:hover { background: #e6f4f1; color: var(--teal-strong); }
+.jobs .job-card .match-score { border-radius: 999px; padding: 5px 12px; font-weight: 700; }
