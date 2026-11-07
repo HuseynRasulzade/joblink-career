@@ -11981,7 +11981,6 @@ async function route(request: Request) {
     if (!row) throw new HttpError(404, "Xərc tapılmadı.");
     if (!canMove(row.status as ExpenseStatus, to)) throw new HttpError(409, "Bu vəziyyətdən həmin vəziyyətə keçmək olmaz.");
     const now = new Date().toISOString();
-    const orderRow = async (): Promise<OrderRow> => (await db.prepare(`SELECT ${ORDER_COLUMNS} FROM hr_expenses WHERE id=? AND company_id=?`).bind(expenseId, id).first<OrderRow>()) as OrderRow;
     let event = "";
     if (to === "approved" && row.status === "planned") {
       if (!canAct("approve-director")) throw new HttpError(403, "Xərci yalnız direktor (təsdiq səlahiyyəti olan şəxs) təsdiqləyir.");
@@ -12025,9 +12024,10 @@ async function route(request: Request) {
     // Telling the outside program is best effort: a failure is logged and never undoes the change.
     if (event) {
       try {
-        await pushWebhook(db, id, event, await orderRow());
+        const changed = await db.prepare(`SELECT ${ORDER_COLUMNS} FROM hr_expenses WHERE id=? AND company_id=?`).bind(expenseId, id).first<OrderRow>();
+        if (changed) await pushWebhook(db, id, event, changed);
       } catch (error) {
-        await logIntegration(db, id, "out", "webhook", event, row.order_no, false, error instanceof Error ? error.message : "Göndərilmədi");
+        await logIntegration(db, id, "out", "webhook", event, row.order_no, false, error instanceof Error ? `${error.message} ${String(error.stack || "").slice(0, 160)}` : "Göndərilmədi");
       }
     }
     return ok({ ok: true });
