@@ -418,7 +418,7 @@ import { DEFAULT_CLOCK, bakuNow, earlyLeaveMinutes, hoursFromClock, lateMinutes,
 import { vacationDaysBetween } from "@/lib/hr-calc";
 import { BENEFIT_CAP_FACTOR, BENEFIT_MIN_INSURANCE_MONTHS, MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
 import { checkVacancyAgainstPlan } from "@/lib/vacancy-plan";
-import { categoryLabel as expenseCategoryLabel, integrationSetting, logIntegration, orderExpense, pushWebhook, recordPaid, setIntegrationSetting, ORDER_COLUMNS } from "@/lib/expense-ops";
+import { categoryLabel as expenseCategoryLabel, integrationSetting, logIntegration, orderExpense, pushWebhook, recordPaid, setIntegrationSetting, ORDER_COLUMNS as EXPENSE_ORDER_COLUMNS } from "@/lib/expense-ops";
 import { generateApiKey, hashApiKey, keyPrefix, safeWebhookUrl, type OrderRow } from "@/lib/integration";
 import { parsePlanFactSheets } from "@/lib/plan-fact-excel";
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_IDS, PAY_METHODS, budgetProblem, canMove, type ExpenseStatus } from "@/lib/hr-expenses";
@@ -12024,7 +12024,7 @@ async function route(request: Request) {
     // Telling the outside program is best effort: a failure is logged and never undoes the change.
     if (event) {
       try {
-        const changed = await db.prepare(`SELECT ${ORDER_COLUMNS} FROM hr_expenses WHERE id=? AND company_id=?`).bind(expenseId, id).first<OrderRow>();
+        const changed = await db.prepare(`SELECT ${EXPENSE_ORDER_COLUMNS} FROM hr_expenses WHERE id=? AND company_id=?`).bind(expenseId, id).first<OrderRow>();
         if (changed) await pushWebhook(db, id, event, changed);
       } catch (error) {
         await logIntegration(db, id, "out", "webhook", event, row.order_no, false, error instanceof Error ? `${error.message} ${String(error.stack || "").slice(0, 160)}` : "Göndərilmədi");
