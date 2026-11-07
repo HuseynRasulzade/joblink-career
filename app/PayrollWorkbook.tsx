@@ -134,6 +134,8 @@ export function WorkbookImport({ month, notify, onClose, onDone }: { month: stri
                 ...(signers.head ? [{ role: "head", title: "Şöbə rəhbəri", name: signers.head.name }] : []),
                 ...(signers.director ? [{ role: "director", title: "Direktor", name: signers.director.name }] : []),
               ];
+              // An order with nobody to sign it would count as signed at once: it is not created without a director.
+              if (!signers.director) { problems.push(`${change.name}: direktor tapılmadı, imza növbəsi qurula bilmir. Əmri “Əmrlər” bölməsində əl ilə hazırlayın.`); continue; }
               const today = new Date().toISOString().slice(0, 10);
               const input = {
                 kind: "salary",
