@@ -1,5 +1,6 @@
 "use client";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { EXPENSE_CATEGORIES } from "@/lib/hr-expenses";
 
 type Line = { month: string; department: string; category: string; kind: string; amount: number };
 type Fact = { month: string; department: string; amount: number; estimate: boolean };
@@ -8,8 +9,8 @@ type Data = { state?: { status: "draft" | "pending" | "approved" }; canApprove?:
 const MONTHS = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"];
 const CATEGORIES = [
   { id: "payroll", label: "Əmək haqqı", factNote: "Fakt: təsdiqlənmiş ayların hesablaması. Təsdiqlənməyən ay (bu aya qədər) indiki əmək haqqı fondu ilə təxmini göstərilir." },
-  { id: "hiring", label: "İşə qəbul", factNote: "Fakt: əl ilə yazılır (elan, agentlik, test, uyğunlaşma xərcləri). Platforma bu rəqəmi başqa yerdən bilmir." },
   { id: "training", label: "Təlim", factNote: "Fakt: «Təlimlər» bölməsindəki təlimlərin xərci, başlama ayı üzrə, iştirakçıların departamentlərinə bölünür. Başa çatmayan təlim təxmini sayılır." },
+  ...EXPENSE_CATEGORIES.map((c) => ({ id: c.id, label: c.label, factNote: `Fakt: «Xərclər» sekməsində yazılan və təsdiqlənən xərclər (${c.hint}). Ödənilməyən təsdiqlənmiş xərc təxmini sayılır.` })),
 ] as const;
 const AZN = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const COMPANY = "";
@@ -50,7 +51,6 @@ export default function BudgetPlan({ year, notify, editable = false, version = 0
   const key = (cat: string, kind: string, dept: string, month: string) => `${cat}|${kind}|${dept}|${month}`;
   const saved = new Map(data.budgets.map((l) => [key(l.category, l.kind, l.department, l.month), l.amount]));
   const hiringActual = new Map<string, number>();
-  for (const f of data.facts.hiring || []) hiringActual.set(key("hiring", "actual", f.department, f.month), f.amount);
   const stored = (cat: string, kind: string, dept: string, month: string) => (kind === "actual" ? hiringActual.get(key(cat, kind, dept, month)) : saved.get(key(cat, kind, dept, month)));
   const shown = (cat: string, kind: string, dept: string, month: string) => {
     const k = key(cat, kind, dept, month);
@@ -124,8 +124,8 @@ export default function BudgetPlan({ year, notify, editable = false, version = 0
 
   return (
     <div className="year-budget">
-      <h4>{year}-ci il büdcəsi: plan və fakt (əmək haqqı, işə qəbul, təlim)</h4>
-      <p className="muted">Hər növ üçün aylıq büdcəni departament üzrə yazın (departamentə bölmək istəmirsinizsə «Bölünməmiş» sətrinə). Aşağıdakı ümumi cədvəl hər üç növü birlikdə müqayisə edir; büdcəni aşan ay qırmızı göstərilir.</p>
+      <h4>{year}-ci il büdcəsi: plan və fakt (əmək haqqı, təlim və HR xərcləri)</h4>
+      <p className="muted">Hər növ üçün aylıq büdcəni departament üzrə yazın (departamentə bölmək istəmirsinizsə «Bölünməmiş» sətrinə). Aşağıdakı cədvəllər bütün növləri müqayisə edir; büdcəni aşan ay qırmızı göstərilir.</p>
 
       <div className="admin-actions" role="tablist" aria-label="Büdcə növü" style={{ justifyContent: "flex-start" }}>
         {CATEGORIES.map((c) => (
@@ -167,16 +167,7 @@ export default function BudgetPlan({ year, notify, editable = false, version = 0
                 <td><b>{AZN(months.reduce((t, m) => t + num(shown(category, "budget", d, m)), 0))}</b></td>
               </tr>
             ))}
-            {category === "hiring" && (
-              <tr>
-                <td>Faktiki xərc<br /><small className="muted">əl ilə, ümumi</small></td>
-                {months.map((m) => (
-                  <td key={m}><input inputMode="decimal" aria-label={`${m} işə qəbul xərci`} style={{ width: 84 }} disabled={status !== "draft" || !editable} value={shown("hiring", "actual", COMPANY, m)} onChange={(e) => setValues({ ...values, [key("hiring", "actual", COMPANY, m)]: e.target.value })} /></td>
-                ))}
-                <td><b>{AZN(months.reduce((t, m) => t + num(shown("hiring", "actual", COMPANY, m)), 0))}</b></td>
-              </tr>
-            )}
-            {category !== "hiring" && rows.filter((d) => months.some((m) => factDept(category, m, d) > 0)).map((d) => (
+            {rows.filter((d) => months.some((m) => factDept(category, m, d) > 0)).map((d) => (
               <tr key={`f-${d || "company"}`} className="muted">
                 <td>{label(d)}<br /><small className="muted">fakt</small></td>
                 {months.map((m) => {
@@ -191,27 +182,49 @@ export default function BudgetPlan({ year, notify, editable = false, version = 0
         </table>
       </div>
 
-      <h4 style={{ marginTop: 18 }}>Ümumi müqayisə: üç növ birlikdə</h4>
+      <h4 style={{ marginTop: 18 }}>Ümumi müqayisə: növlər üzrə</h4>
       <div className="admin-table-wrap" style={{ overflowX: "auto" }}>
         <table className="admin-table">
-          <thead><tr><th>Ay</th>{CATEGORIES.map((c) => <th key={c.id} colSpan={2}>{c.label} (büdcə / fakt)</th>)}<th>Cəmi büdcə</th><th>Cəmi fakt</th><th>Fərq</th><th>İcra</th></tr></thead>
+          <thead><tr><th>Növ</th><th>İllik büdcə</th><th>Bu günə büdcə</th><th>Bu günə fakt</th><th>Fərq</th><th>İcra</th></tr></thead>
+          <tbody>
+            {CATEGORIES.map((c) => {
+              const upTo = months.filter((m) => m <= data.nowMonth);
+              const yearB = months.reduce((t, m) => t + budgetOf(c.id, m), 0);
+              const ytdB = upTo.reduce((t, m) => t + budgetOf(c.id, m), 0);
+              const ytdF = upTo.reduce((t, m) => t + factOf(c.id, m).amount, 0);
+              return (
+                <tr key={c.id}>
+                  <td>{c.label}</td>
+                  <td>{yearB ? AZN(yearB) : "—"}</td>
+                  <td>{ytdB ? AZN(ytdB) : "—"}</td>
+                  <td>{ytdF ? AZN(ytdF) : "—"}</td>
+                  <td style={{ color: ytdB - ytdF < 0 ? "#b42318" : undefined }}>{ytdB || ytdF ? AZN(ytdB - ytdF) : "—"}</td>
+                  <td style={{ color: ytdB && ytdF > ytdB ? "#b42318" : undefined }}>{ytdB ? `${Math.round((ytdF / ytdB) * 100)}%` : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <h4 style={{ marginTop: 18 }}>Aylar üzrə: bütün növlərin cəmi</h4>
+      <div className="admin-table-wrap" style={{ overflowX: "auto" }}>
+        <table className="admin-table">
+          <thead><tr><th>Ay</th><th>Cəmi büdcə</th><th>Cəmi fakt</th><th>Fərq</th><th>İcra</th></tr></thead>
           <tbody>
             {months.map((m, i) => {
               const past = m <= data.nowMonth;
-              const totals = CATEGORIES.map((c) => ({ b: budgetOf(c.id, m), f: factOf(c.id, m) }));
-              const tb = totals.reduce((t, x) => t + x.b, 0);
-              const tf = totals.reduce((t, x) => t + x.f.amount, 0);
+              const tb = CATEGORIES.reduce((t, c) => t + budgetOf(c.id, m), 0);
+              const facts = CATEGORIES.map((c) => factOf(c.id, m));
+              const tf = facts.reduce((t, x) => t + x.amount, 0);
+              const est = facts.some((x) => x.estimate);
               const show = past && (tf > 0 || tb > 0);
-              const diff = tb - tf;
               return (
                 <tr key={m}>
                   <td>{MONTHS[i]}</td>
-                  {totals.map((x, k) => (
-                    <Fragment key={k}><td>{x.b ? AZN(x.b) : "—"}</td><td style={{ color: x.b && x.f.amount > x.b ? "#b42318" : undefined }}>{x.f.any ? <>{AZN(x.f.amount)}{x.f.estimate ? <small className="muted"> təx.</small> : null}</> : "—"}</td></Fragment>
-                  ))}
                   <td>{tb ? AZN(tb) : "—"}</td>
-                  <td>{tf ? AZN(tf) : "—"}</td>
-                  <td style={{ color: show && diff < 0 ? "#b42318" : undefined }}>{show && tb ? AZN(diff) : "—"}</td>
+                  <td>{tf ? <>{AZN(tf)}{est ? <small className="muted"> təx.</small> : null}</> : "—"}</td>
+                  <td style={{ color: show && tb - tf < 0 ? "#b42318" : undefined }}>{show && tb ? AZN(tb - tf) : "—"}</td>
                   <td style={{ color: show && tb && tf > tb ? "#b42318" : undefined }}>{show && tb ? `${Math.round((tf / tb) * 100)}%` : "—"}</td>
                 </tr>
               );

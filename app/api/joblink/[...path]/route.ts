@@ -417,6 +417,8 @@ import { beforeOf, hasEffect, planOrderEffect, type CardPatch, type CardSnapshot
 import { DEFAULT_CLOCK, bakuNow, earlyLeaveMinutes, hoursFromClock, lateMinutes, validTime as validClockTime, type ClockRules } from "@/lib/clock";
 import { vacationDaysBetween } from "@/lib/hr-calc";
 import { BENEFIT_CAP_FACTOR, BENEFIT_MIN_INSURANCE_MONTHS, MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
+import { checkVacancyAgainstPlan } from "@/lib/vacancy-plan";
+import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_IDS, PAY_METHODS, budgetProblem, canMove, type ExpenseStatus } from "@/lib/hr-expenses";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
@@ -688,15 +690,37 @@ async function staffPlaces(db: D1Database, companyId: string, department: string
   ]);
   return freeStaffPlaces(units.results, people.results, Number(open?.n) || 0, department);
 }
-// A vacancy for a department whose staff table has no free place waits for a confirmation.
-async function assertStaffPlace(db: D1Database, companyId: string, department: string | undefined, ignore: boolean) {
-  if (!department || ignore) return;
-  const places = await staffPlaces(db, companyId, department);
-  if (places && places.free <= 0)
-    throw new HttpError(
-      409,
-      `“${department}” üçün ştatda boş yer yoxdur (plan ${places.planned}, işləyir ${places.filled}, açıq vakansiya ${places.openVacancies}).`,
-    );
+// A vacancy may only open a place of the staff table: its department, position, a free place and a pay inside the row's band.
+// There is no way around it; an extra place is first approved as a change of the plan.
+async function assertVacancyPlan(db: D1Database, companyId: string, job: { id?: string; department?: string; section?: string; title?: string; minSalary?: number; maxSalary?: number; salaryKind?: string }) {
+  const [plan, openRows] = await Promise.all([
+    loadPlanData(db, companyId),
+    db
+      .prepare("SELECT id,data FROM jobs WHERE owner=? AND status IN ('published','pending_approval')")
+      .bind(companyId)
+      .all<{ id: string; data: string }>(),
+  ]);
+  const open = openRows.results
+    .filter((r) => r.id !== job.id)
+    .map((r) => {
+      try {
+        const d = JSON.parse(r.data) as { department?: string; section?: string; title?: string };
+        return { department: String(d.department || ""), section: String(d.section || ""), title: String(d.title || "") };
+      } catch {
+        return { department: "", section: "", title: "" };
+      }
+    });
+  const canon = (position: string) => bestCatalogMatch(position)?.title.label || position;
+  const toGross = (amount: number, kind: string) => (kind === "net" ? employeePay(amount, "net", "private", 0)?.gross || amount : amount);
+  const result = checkVacancyAgainstPlan(
+    plan.units.map((u) => ({ id: u.id, department: u.department, section: u.section, position: u.position, planned: u.planned, rate: u.rate, salaryMin: u.salaryMin, salaryMax: u.salaryMax })),
+    plan.people,
+    open,
+    { department: String(job.department || ""), section: String(job.section || ""), title: String(job.title || ""), minSalary: Number(job.minSalary) || 0, maxSalary: Number(job.maxSalary) || 0, salaryKind: String(job.salaryKind || "") },
+    canon,
+    toGross,
+  );
+  if (!result.ok) throw new HttpError(409, result.message);
 }
 function escoSkillDefinition(row: EscoSkillRow) {
   return {
@@ -11738,7 +11762,7 @@ async function route(request: Request) {
   };
   // The yearly budget of the company: pay, hiring and training, per month and per department, against the actual.
   // Pay and training facts come from the platform itself; the hiring cost is typed (nothing else knows it).
-  const BUDGET_CATEGORIES = ["payroll", "hiring", "training"];
+  const BUDGET_CATEGORIES = ["payroll", "training", ...EXPENSE_CATEGORY_IDS];
   // The plan of a year (headcount per month and the budget) is one thing with one status: draft → pending → approved.
   // While it waits for approval or is approved it cannot be changed; the director opens it again.
   const yearPlanState = async (year: string) => {
@@ -11808,7 +11832,7 @@ async function route(request: Request) {
     const nowMonth = new Date().toISOString().slice(0, 7);
     const lines = (await db.prepare("SELECT month,department,category,kind,amount FROM budget_lines WHERE company_id=? AND month LIKE ? ORDER BY month").bind(id, `${year}-%`).all<{ month: string; department: string; category: string; kind: string; amount: number }>().catch(() => ({ results: [] as { month: string; department: string; category: string; kind: string; amount: number }[] }))).results;
     type Fact = { month: string; department: string; amount: number; estimate: boolean };
-    const facts: Record<string, Fact[]> = { payroll: [], training: [], hiring: [] };
+    const facts: Record<string, Fact[]> = { payroll: [], training: [], ...Object.fromEntries(EXPENSE_CATEGORY_IDS.map((c) => [c, [] as Fact[]])) };
     const approvedMonths = new Set(report.monthly.map((m) => m.month));
     for (const m of report.monthly) facts.payroll.push({ month: m.month, department: m.department, amount: m.gross, estimate: false });
     // A month that is not approved yet (up to this month) is shown at today's pay fund, marked as an estimate.
@@ -11839,7 +11863,10 @@ async function route(request: Request) {
       }
     }
     facts.training = [...trainingSum.values()].map((f) => ({ ...f, amount: Math.round(f.amount * 100) / 100 }));
+    // Earlier hand-written hiring actuals still count; every other HR cost comes from the expense register (approved and paid).
     facts.hiring = lines.filter((l) => l.category === "hiring" && l.kind === "actual").map((l) => ({ month: l.month, department: l.department, amount: l.amount, estimate: false }));
+    const spent = (await db.prepare("SELECT category,department,expense_date,amount,status FROM hr_expenses WHERE company_id=? AND expense_date LIKE ? AND status IN ('approved','paid')").bind(id, `${year}-%`).all<{ category: string; department: string; expense_date: string; amount: number; status: string }>().catch(() => ({ results: [] as { category: string; department: string; expense_date: string; amount: number; status: string }[] }))).results;
+    for (const e of spent) (facts[e.category] ||= []).push({ month: e.expense_date.slice(0, 7), department: e.department, amount: e.amount, estimate: e.status !== "paid" });
     const names = new Set<string>(report.departments.map((d) => d.department));
     for (const l of lines) if (l.department) names.add(l.department);
     return ok({ state: await yearPlanState(year), canApprove: canAct("approve-director"), year, nowMonth, departments: [...names].sort((a, b) => a.localeCompare(b, "az")), budgets: lines.filter((l) => l.kind === "budget"), facts });
@@ -11870,6 +11897,115 @@ async function route(request: Request) {
     }
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
     await companyAudit(db, id, userId, "budget-plan", "", `${list.length} büdcə sətri yazıldı`);
+    return ok({ ok: true });
+  }
+  // ---- HR costs beyond pay and training: an expense is written, approved, paid; each kind has its budget line in the plan ----
+  const expenseRow = (r: { id: string; category: string; title: string; department: string; employee_id: string; amount: number; expense_date: string; payee: string; note: string; status: string; paid_on: string; pay_method: string; pay_from: string; pay_ref: string; approved_by: string; created_by: string }) => ({
+    id: r.id, category: r.category, title: r.title, department: r.department, employeeId: r.employee_id, amount: r.amount, date: r.expense_date, payee: r.payee, note: r.note,
+    status: r.status, paidOn: r.paid_on, method: r.pay_method, payFrom: r.pay_from, payRef: r.pay_ref, approvedBy: r.approved_by, createdBy: r.created_by,
+  });
+  const categoryLabel = (c: string) => EXPENSE_CATEGORIES.find((x) => x.id === c)?.label || c;
+  // What the year's budget of a kind holds: planned, approved and paid expenses (cancelled ones free the money).
+  const heldBudget = async (category: string, year: string, exceptId: string) => {
+    const [budget, held] = await Promise.all([
+      db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM budget_lines WHERE company_id=? AND month LIKE ? AND category=? AND kind='budget'").bind(id, `${year}-%`, category).first<{ s: number }>(),
+      db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM hr_expenses WHERE company_id=? AND expense_date LIKE ? AND category=? AND status<>'cancelled' AND id<>?").bind(id, `${year}-%`, category, exceptId).first<{ s: number }>(),
+    ]);
+    return { budget: Number(budget?.s) || 0, held: Number(held?.s) || 0 };
+  };
+  if (request.method === "GET" && path === "company/hr-expenses") {
+    requirePermission("salaries", "HR xərclərini yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    const y = str(requestUrl.searchParams.get("year"), 4);
+    const year = /^\d{4}$/.test(y) ? y : new Date().toISOString().slice(0, 4);
+    const rows = (await db.prepare("SELECT * FROM hr_expenses WHERE company_id=? AND expense_date LIKE ? ORDER BY expense_date DESC, created DESC LIMIT 1000").bind(id, `${year}-%`).all<Parameters<typeof expenseRow>[0]>().catch(() => ({ results: [] as Parameters<typeof expenseRow>[0][] }))).results;
+    const budgets = (await db.prepare("SELECT category,SUM(amount) AS s FROM budget_lines WHERE company_id=? AND month LIKE ? AND kind='budget' GROUP BY category").bind(id, `${year}-%`).all<{ category: string; s: number }>().catch(() => ({ results: [] as { category: string; s: number }[] }))).results;
+    const categories = EXPENSE_CATEGORIES.map((c) => {
+      const mine = rows.filter((r) => r.category === c.id);
+      const budget = Number(budgets.find((b) => b.category === c.id)?.s) || 0;
+      const held = mine.filter((r) => r.status !== "cancelled").reduce((t, r) => t + r.amount, 0);
+      return { id: c.id, label: c.label, hint: c.hint, budget, held: Math.round(held * 100) / 100, paid: Math.round(mine.filter((r) => r.status === "paid").reduce((t, r) => t + r.amount, 0) * 100) / 100, left: Math.round((budget - held) * 100) / 100 };
+    });
+    const people = (await db.prepare("SELECT id,name,department FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY name").bind(id).all<{ id: string; name: string; department: string }>()).results;
+    const departments = [...new Set([...people.map((p) => p.department).filter(Boolean), ...rows.map((r) => r.department).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "az"));
+    return ok({ year, expenses: rows.map(expenseRow), categories, employees: people, departments, canApprove: canAct("approve-director") });
+  }
+  if (request.method === "POST" && path === "company/hr-expenses/save") {
+    requirePermission("salaries", "HR xərcini yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
+    const b = await jsonBody(request);
+    const expenseId = str(b.id, 100);
+    const category = String(b.category ?? "");
+    if (!EXPENSE_CATEGORY_IDS.includes(category)) throw new HttpError(400, "Xərc növü tanınmadı.");
+    const title = str(b.title, 200).trim();
+    if (!title) throw new HttpError(400, "Xərcin adını yazın.");
+    const amount = Math.round((Number(b.amount) || 0) * 100) / 100;
+    if (!(amount > 0) || amount > 1e9) throw new HttpError(400, "Məbləğ müsbət rəqəm olmalıdır.");
+    const date = str(b.date, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, "Xərcin tarixini seçin.");
+    const existing = expenseId ? await db.prepare("SELECT status FROM hr_expenses WHERE id=? AND company_id=?").bind(expenseId, id).first<{ status: string }>() : null;
+    if (expenseId && !existing) throw new HttpError(404, "Xərc tapılmadı.");
+    if (existing && existing.status !== "planned") throw new HttpError(409, "Yalnız “planlaşdırılıb” vəziyyətindəki xərci dəyişmək olar.");
+    const year = date.slice(0, 4);
+    const fit = budgetProblem(categoryLabel(category), year, ...(await (async () => { const h = await heldBudget(category, year, expenseId); return [h.budget, h.held, amount] as const; })()));
+    if (fit) throw new HttpError(409, fit);
+    const employeeId = str(b.employeeId, 100);
+    if (employeeId && !(await db.prepare("SELECT 1 AS x FROM company_employees WHERE id=? AND company_id=?").bind(employeeId, id).first())) throw new HttpError(404, "İşçi tapılmadı.");
+    const now = new Date().toISOString();
+    const row = [category, title, str(b.department, 120).trim(), employeeId, amount, date, str(b.payee, 200).trim(), str(b.note, 500).trim()] as const;
+    if (existing) {
+      await db.prepare("UPDATE hr_expenses SET category=?,title=?,department=?,employee_id=?,amount=?,expense_date=?,payee=?,note=?,updated=? WHERE id=? AND company_id=?").bind(...row, now, expenseId, id).run();
+      await companyAudit(db, id, userId, "hr-expense", expenseId, `${title}: ${amount}`);
+      return ok({ ok: true, id: expenseId });
+    }
+    const created = crypto.randomUUID();
+    await db.prepare("INSERT INTO hr_expenses(id,company_id,category,title,department,employee_id,amount,expense_date,payee,note,status,created_by,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,'planned',?,?,?)").bind(created, id, ...row, userId, now, now).run();
+    await companyAudit(db, id, userId, "hr-expense", created, `${title}: ${amount}`);
+    return ok({ ok: true, id: created });
+  }
+  // Status changes: approve (director), pay (with the place and way of payment), cancel, take the payment back, reopen, delete.
+  if (request.method === "POST" && path === "company/hr-expenses/move") {
+    requirePermission("salaries", "HR xərcini yalnız əmək haqqı icazəsi olan şəxs idarə edə bilər.");
+    const b = await jsonBody(request);
+    const expenseId = str(b.id, 100);
+    const to = String(b.to ?? "") as ExpenseStatus;
+    const row = await db.prepare("SELECT * FROM hr_expenses WHERE id=? AND company_id=?").bind(expenseId, id).first<Parameters<typeof expenseRow>[0]>();
+    if (!row) throw new HttpError(404, "Xərc tapılmadı.");
+    if (!canMove(row.status as ExpenseStatus, to)) throw new HttpError(409, "Bu vəziyyətdən həmin vəziyyətə keçmək olmaz.");
+    const now = new Date().toISOString();
+    if (to === "approved" && row.status === "planned") {
+      if (!canAct("approve-director")) throw new HttpError(403, "Xərci yalnız direktor (təsdiq səlahiyyəti olan şəxs) təsdiqləyir.");
+      const h = await heldBudget(row.category, row.expense_date.slice(0, 4), expenseId);
+      const fit = budgetProblem(categoryLabel(row.category), row.expense_date.slice(0, 4), h.budget, h.held, row.amount);
+      if (fit) throw new HttpError(409, fit);
+      await db.prepare("UPDATE hr_expenses SET status='approved',approved_by=?,updated=? WHERE id=? AND company_id=?").bind(userId, now, expenseId, id).run();
+    } else if (to === "paid") {
+      const paidOn = str(b.paidOn, 10);
+      const method = String(b.method ?? "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(paidOn)) throw new HttpError(400, "Ödəniş tarixini seçin.");
+      if (!(PAY_METHODS as readonly string[]).includes(method)) throw new HttpError(400, "Ödəniş üsulunu seçin.");
+      await db.prepare("UPDATE hr_expenses SET status='paid',paid_on=?,pay_method=?,pay_from=?,pay_ref=?,updated=? WHERE id=? AND company_id=?").bind(paidOn, method, str(b.payFrom, 200).trim(), str(b.payRef, 200).trim(), now, expenseId, id).run();
+    } else if (to === "approved" && row.status === "paid") {
+      if (!canAct("approve-director")) throw new HttpError(403, "Ödənişi yalnız direktor geri qaytara bilər.");
+      await db.prepare("UPDATE hr_expenses SET status='approved',paid_on='',pay_method='',pay_from='',pay_ref='',updated=? WHERE id=? AND company_id=?").bind(now, expenseId, id).run();
+    } else if (to === "planned" && row.status === "cancelled") {
+      const h = await heldBudget(row.category, row.expense_date.slice(0, 4), expenseId);
+      const fit = budgetProblem(categoryLabel(row.category), row.expense_date.slice(0, 4), h.budget, h.held, row.amount);
+      if (fit) throw new HttpError(409, fit);
+      await db.prepare("UPDATE hr_expenses SET status='planned',updated=? WHERE id=? AND company_id=?").bind(now, expenseId, id).run();
+    } else {
+      await db.prepare("UPDATE hr_expenses SET status=?,approved_by=CASE WHEN ?='planned' THEN '' ELSE approved_by END,updated=? WHERE id=? AND company_id=?").bind(to, to, now, expenseId, id).run();
+    }
+    await companyAudit(db, id, userId, "hr-expense-status", expenseId, `${row.title}: ${row.status} → ${to}`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/hr-expenses/delete") {
+    requirePermission("salaries", "HR xərcini yalnız əmək haqqı icazəsi olan şəxs silə bilər.");
+    const b = await jsonBody(request);
+    const expenseId = str(b.id, 100);
+    const row = await db.prepare("SELECT title,status FROM hr_expenses WHERE id=? AND company_id=?").bind(expenseId, id).first<{ title: string; status: string }>();
+    if (!row) throw new HttpError(404, "Xərc tapılmadı.");
+    if (row.status !== "planned" && row.status !== "cancelled") throw new HttpError(409, "Yalnız planlaşdırılmış və ya ləğv edilmiş xərci silmək olar. Təsdiqlənmiş xərci əvvəl ləğv edin.");
+    await db.prepare("DELETE FROM hr_expenses WHERE id=? AND company_id=?").bind(expenseId, id).run();
+    await companyAudit(db, id, userId, "hr-expense-deleted", expenseId, row.title);
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "company/hr-report") {
@@ -13482,6 +13618,34 @@ async function route(request: Request) {
     salaryMaxCents: Math.max(0, Math.round((Number(b.salaryMax) || 0) * 100)),
     note: str(b.note, 300),
   });
+  // A vacancy needs a place the plan does not have: an extra place of the row (or a new row) goes to approval.
+  // The director's own request is approved on the spot; nobody else can add a place by themselves.
+  if (request.method === "POST" && path === "company/staff/request-place") {
+    if (accountRole !== "company") throw new HttpError(403, "Bu əməliyyat üçün rolunuzun icazəsi yoxdur.");
+    const b = await jsonBody(request);
+    const department = str(b.department, 120).trim();
+    const section = str(b.section, 120).trim();
+    const title = str(b.position, 120).trim();
+    if (!department || !title) throw new HttpError(400, "Departamenti və vəzifəni yazın.");
+    const plan = await loadPlanData(db, id);
+    const canon = (v: string) => (bestCatalogMatch(v)?.title.label || v).trim().toLocaleLowerCase("az");
+    const row = plan.units.find((u) => u.department.trim().toLocaleLowerCase("az") === department.toLocaleLowerCase("az") && canon(u.position) === canon(title) && (!section || !u.section || u.section.trim().toLocaleLowerCase("az") === section.toLocaleLowerCase("az")));
+    const minCents = Math.max(0, Math.round((Number(b.salaryMin) || 0) * 100));
+    const maxCents = Math.max(minCents, Math.round((Number(b.salaryMax) || 0) * 100));
+    const unit = row
+      ? { id: row.id, department: row.department, section: row.section, position: row.position, planned: row.planned + 1, rate: row.rate, salaryCents: Math.round(row.salaryMin * 100), salaryMaxCents: Math.round(row.salaryMax * 100), note: str((row as { note?: string }).note, 300) }
+      : { id: "", department, section, position: title, planned: 1, rate: 1, salaryCents: minCents, salaryMaxCents: maxCents, note: "Vakansiya üçün əlavə yer" };
+    const problem = await staffBandProblem(db, id, [unit]);
+    if (problem) throw new HttpError(409, problem);
+    const subject = `Plana əlavə yer: ${department} / ${title}: ${unit.planned} ştat (vakansiya üçün)`;
+    if (canAct("approve-director")) {
+      await saveStaffUnit(db, id, unit.id, unit);
+      await companyAudit(db, id, userId, "staff-unit", unit.id, subject);
+      return ok({ ok: true, applied: true });
+    }
+    await queueApproval("headcount", subject, { unit });
+    return ok({ ok: true, pending: true });
+  }
   if (request.method === "POST" && path === "company/staff/save") {
     requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi dəyişə bilər.");
     const b = await jsonBody(request);
@@ -18325,7 +18489,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       status: "published",
       createdBy: userId,
     };
-    await assertStaffPlace(db, id, j.department, b.ignoreStaff === true);
+    await assertVacancyPlan(db, id, j);
     if (j.deadline && j.deadline < new Date().toISOString().slice(0, 10))
       throw new HttpError(
         400,
@@ -22330,6 +22494,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       today,
       days: Number(b.days),
     });
+    // The new opening takes a place of the plan again; the ended one no longer holds it.
+    await assertVacancyPlan(db, id, { ...fresh, id: String(current.id || "") });
     const original = {
       ...current,
       status: "archived",

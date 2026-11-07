@@ -2,12 +2,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import HrTrends from "./HrTrends";
 import BudgetPlan from "./BudgetPlan";
+import HrExpenses from "./HrExpenses";
+import { EXPENSE_CATEGORIES } from "@/lib/hr-expenses";
 import { StaffTable } from "./StaffPages";
 import { takeFocus } from "./focus";
 
 type Notify = (message: string) => void;
 type PlanState = { year: string; status: "draft" | "pending" | "approved"; by: string; at: string; canApprove: boolean };
-type Tab = "summary" | "headcount" | "staff" | "budget";
+type Tab = "summary" | "headcount" | "staff" | "budget" | "expenses";
 type Line = { month: string; department: string; category: string; kind: string; amount: number };
 type Fact = { month: string; amount: number };
 type Budget = { nowMonth: string; budgets: Line[]; facts: Record<string, Fact[]> };
@@ -76,6 +78,7 @@ export default function HrPlanFact({ notify }: { notify: Notify }) {
     { id: "headcount", label: "İşçi sayı planı" },
     { id: "staff", label: "Ştat cədvəli" },
     { id: "budget", label: "Büdcə" },
+    { id: "expenses", label: "Xərclər" },
   ];
   const years = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1];
   return (
@@ -106,6 +109,7 @@ export default function HrPlanFact({ notify }: { notify: Notify }) {
       {tab === "headcount" && <HrTrends notify={notify} editable locked={locked} year={year} />}
       {tab === "staff" && <StaffTable notify={notify} initialQuery={focus?.department || ""} />}
       {tab === "budget" && <BudgetPlan year={year} notify={notify} editable version={version} />}
+      {tab === "expenses" && <HrExpenses year={year} notify={notify} version={version} onChanged={() => undefined} />}
     </div>
   );
 }
@@ -129,8 +133,8 @@ function Summary({ year, version, go, notify }: { year: string; version: number;
   const upTo = (m: string) => m <= lastMonth;
   const cats = [
     { id: "payroll", label: "Əmək haqqı" },
-    { id: "hiring", label: "İşə qəbul" },
     { id: "training", label: "Təlim" },
+    ...EXPENSE_CATEGORIES.map((c) => ({ id: c.id, label: c.label })),
   ].map((c) => {
     const yearBudget = budget.budgets.filter((l) => l.category === c.id).reduce((t, l) => t + l.amount, 0);
     const ytdBudget = budget.budgets.filter((l) => l.category === c.id && upTo(l.month)).reduce((t, l) => t + l.amount, 0);
@@ -168,7 +172,8 @@ function Summary({ year, version, go, notify }: { year: string; version: number;
         <ul style={{ paddingLeft: 18, margin: "6px 0 0" }}>
           <li><button type="button" className="text-button" onClick={() => go("headcount")}>İşçi sayı planı</button>: aylıq hədəf say, departament planı, qrafikdə plan xətti.</li>
           <li><button type="button" className="text-button" onClick={() => go("staff")}>Ştat cədvəli</button>: departament, vəzifə, say və maaş həddi (öz təsdiq qaydası ilə).</li>
-          <li><button type="button" className="text-button" onClick={() => go("budget")}>Büdcə</button>: əmək haqqı, işə qəbul və təlim, departament və ay üzrə.</li>
+          <li><button type="button" className="text-button" onClick={() => go("budget")}>Büdcə</button>: əmək haqqı, təlim və bütün HR xərc növləri, departament və ay üzrə.</li>
+          <li><button type="button" className="text-button" onClick={() => go("expenses")}>Xərclər</button>: sertifikat, tədbir, hədiyyə, tibbi, geyim, işə qəbul və digər xərclər; yaz, təsdiqlə, ödə.</li>
         </ul>
         <small className="muted">Hesabatlar, İşçilər və Təlimlər bölmələri bu rəqəmləri yalnız göstərir və bura yönləndirir.</small>
       </div>

@@ -527,13 +527,22 @@ export default function HrPanel({
       try {
         published = await api("publish", { draftId: draft.id, job: draft, confirmed: true });
       } catch (error) {
-        // The staff table has no free place: publish anyway only when the person says so.
-        if (!/ştatda boş yer yoxdur/.test((error as Error).message)) throw error;
-        if (!window.confirm(`${(error as Error).message}\n\nYenə də vakansiyanı yayımlamaq istəyirsiniz?`)) {
-          setConfirm(false);
-          return;
+        const message = (error as Error).message;
+        // Nothing beyond the plan can be opened. A missing place can be asked for: the plan change goes to approval.
+        if (!/^Ştat planında yer yoxdur/.test(message)) throw error;
+        setConfirm(false);
+        if (window.confirm(`${message}\n\nPlana əlavə yer üçün təsdiq sorğusu göndərilsin? Təsdiqdən sonra vakansiyanı yarada bilərsiniz.`)) {
+          const result = (await api("company/staff/request-place", {
+            department: draft.department || "",
+            section: draft.section || "",
+            position: draft.title || "",
+            salaryMin: draft.minSalary || 0,
+            salaryMax: draft.maxSalary || 0,
+          })) as { applied?: boolean; pending?: boolean };
+          notify(result.applied ? "Plana əlavə yer təsdiqləndi. İndi vakansiyanı yarada bilərsiniz." : "Sorğu təsdiqə göndərildi. Təsdiqdən sonra vakansiyanı yarada bilərsiniz.");
+          if (result.pending) go("hr-approvals");
         }
-        published = await api("publish", { draftId: draft.id, job: draft, confirmed: true, ignoreStaff: true });
+        return;
       }
       setConfirm(false);
       setDraft(null);
