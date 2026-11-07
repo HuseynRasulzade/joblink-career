@@ -321,3 +321,10 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
   .admin-actions { justify-content: flex-start; }
   .admin-actions button, .secondary, .primary, .ghost { min-height: 40px; }
 }
+
+/* Dar ekran: yan zolaq ikonlara çevrilir, mod seçici də iki ikon düyməsi olur (yazı gizlənir, title qalır) */
+@media (max-width: 900px) {
+  .hr-modes { grid-template-columns: 1fr; padding: 3px; margin: 0 0 12px; gap: 3px; }
+  .hr-modes button { height: 40px; padding: 0; }
+  .hr-modes button span { display: none; }
+}
