@@ -91,8 +91,14 @@ Mənbə: sizin yüklədiyiniz Nazirlər Kabinetinin 25.01.2008-ci il 14 nömrəl
 
 ## 9. Əmək haqqı hesablama iş kitabı (Excel)
 
-Əmək haqqı → **"Hesablama iş kitabı (Excel)"** düyməsi seçilmiş ay üçün formullu çoxvərəqli fayl yükləyir: İşçilər, Azad olmalar (məzuniyyət, xəstəlik, ezamiyyət və s. aralıqlar), Tabel (aralıqlardan avtomatik doldurulan davamiyyət cədvəli), Əlavə-Tutulma (mükafat, əlavə, tutulma, avans), Saatlar, Ezamiyyət (qanunun normaları + Mərkəzi Bankın məzənnəsi), Hesablama (gross, vergi və sığorta, xalis, tutulma həddi, ödəniləcək, işəgötürən xərci), Parametrlər, Normlar, Məzənnə, Kodlar.
+Əmək haqqı → **"Hesablama iş kitabı (Excel)"** düyməsi seçilmiş ay üçün formullu çoxvərəqli fayl yükləyir: İşçilər, Azad olmalar (məzuniyyət, xəstəlik, ezamiyyət və s. aralıqlar), Tabel (aralıqlardan avtomatik doldurulan davamiyyət cədvəli), Əlavə-Tutulma (mükafat, əlavə, tutulma, avans), Saatlar, Ezamiyyət (qanunun normaları + Mərkəzi Bankın məzənnəsi), Hesablama, Parametrlər, Normlar, Məzənnə, Güzəştlər, Kodlar, Köməkçi.
 
-- Formullar platformanın hesablama qaydalarını izləyir; testlər faylı LibreOffice ilə yenidən hesablayıb platformanın nəticəsi ilə müqayisə edir (`tests/payroll-workbook.test.mjs`).
-- **"Excel iş kitabından yüklə"**: Azad olmalar, Əlavə-Tutulma (mükafat, əlavə, tutulma), Saatlar və Ezamiyyət vərəqləri platformanın mövcud idxalları ilə yazılır; əvvəl önizləmə göstərilir, təsdiqlənmiş ay dəyişdirilmir.
-- Avans bu yolla yüklənmir (ödənişlər bölməsində qeyd olunur). Sığorta müavinəti, ay ərzində maaş dəyişikliyi və şəxsi vergi güzəştlərinin xüsusi halları Excel-də sadələşdirilib; dəqiq hesablama platformadadır.
+**Hesablama vərəqi** platformanın qaydalarını izləyir: gross, vergi və sığorta, xalis, tutulma həddi (20/50/70%), avans, ödəniləcək məbləğ, işəgötürən xərci, məzuniyyət haqqı (orta əmək haqqı), xitamda məzuniyyət kompensasiyası, boşdayanma, artıq iş və gecə əlavəsi, **sığorta müavinəti** (faiz, minimum pensiyanın 25 qatı ilə hədd, 6 aylıq staj şərti), **ay ərzində maaş dəyişikliyi** (günlərə görə çəkili orta), **vergi güzəşti** siyahıdan seçimi (+ 3-dən çox himayə), məzuniyyət və müavinət **təqvim günləri platformanın qaydası ilə** (hissəli məzuniyyət də dəqiqdir). Testlər faylı LibreOffice ilə yenidən hesablayıb platformanın nəticəsi ilə müqayisə edir (`tests/payroll-workbook.test.mjs`).
+
+**"Excel iş kitabından yüklə"** önizləmə göstərir, sonra platformanın öz qaydaları ilə yazır (təsdiqlənmiş ay dəyişdirilmir):
+- Azad olmalar → davamiyyət; mükafat, əlavə (adları ilə), tutulma; saatlar (ay yekunu); ezamiyyətlər (əl ilə yazılmış gündəlik saxlanır, boşdursa platforma qanunun normasından və başlama gününün məzənnəsindən hesablayır).
+- **Yeni avans:** "Avansın ödəniş tarixi" doldurulmuş sətir ödəniş kimi qeyd olunur (avans günü və limitlər platformada yoxlanır). Tarixsiz sətirlər artıq qeyd olunmuş avanslardır, yenidən yazılmır.
+- **Maaş dəyişikliyi:** İşçilər vərəqində "Yeni maaş" + "Dəyişmə tarixi" imzaya gedən əmr kimi yaradılır (direktor tapılmasa yaradılmır). Eyni əmr təkrar yaradılmır.
+- Təyinat qanunun cədvəlində olmayan ezamiyyət sətri yüklənmir və səbəbi göstərilir.
+
+Qalan məhdudiyyətlər: Microsoft Excel-də açılış mən tərəfindən sınanmayıb (fayl LibreOffice və openpyxl ilə yoxlanıb, formulların uzunluğu və dərinliyi Excel hədləri daxilindədir). Sığorta müavinətinin ödənilməsi sığortaçı tərəfindəndir və iş kitabında yalnız hesablanır.
