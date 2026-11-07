@@ -3,8 +3,8 @@
 // can be opened; an extra place first goes through the approval of a plan change.
 import { assignPeople, salaryBand, type PlanPerson, type PlanUnit } from "./staff-plan.ts";
 
-export type VacancyFacts = { department: string; section: string; title: string; minSalary: number; maxSalary: number; salaryKind: string };
-export type OpenVacancy = { department: string; section: string; title: string };
+export type VacancyFacts = { department: string; section: string; title: string; minSalary: number; maxSalary: number; salaryKind: string; reason?: string };
+export type OpenVacancy = { department: string; section: string; title: string; reason?: string };
 export type PlanCheck =
   | { ok: true; unit: PlanUnit | null; note: "" | "no-table" }
   | { ok: false; code: "no-department" | "no-position" | "no-place" | "salary"; message: string };
@@ -25,7 +25,8 @@ export function checkVacancyAgainstPlan(
   const cu = units.map((u) => ({ ...u, position: u.position ? canon(u.position) : "" }));
   const cp = people.map((p) => ({ ...p, position: p.position ? canon(p.position) : "" }));
   const pseudo = (id: string, v: OpenVacancy): PlanPerson => ({ id, department: v.department, section: v.section, position: v.title ? canon(v.title) : "", status: "active" });
-  const others = open.map((v, i) => pseudo(`open-${i}`, v));
+  // A temporary cover (leave and the like) fills no place of its own: the person away still holds theirs.
+  const others = open.filter((v) => v.reason !== "temporary").map((v, i) => pseudo(`open-${i}`, v));
   const mine = pseudo("__new__", job);
   const { byUnit, unplaced } = assignPeople(cu, [...cp, ...others, mine]);
   const where = `${job.department || "—"} / ${job.title || "—"}`;
@@ -38,7 +39,7 @@ export function checkVacancyAgainstPlan(
   const row = cu.find((u) => (byUnit.get(u.id) || []).some((p) => p.id === "__new__"));
   if (!row) return { ok: true, unit: null, note: "" };
   const taken = (byUnit.get(row.id) || []).length - 1;
-  if (taken >= row.planned) {
+  if (taken >= row.planned && job.reason !== "temporary") {
     return { ok: false, code: "no-place", message: `Ştat planında yer yoxdur: “${where}” üçün plan ${row.planned}, bu yer(lər) artıq dolub və ya vakansiya açılıb (${taken}). Əlavə yer üçün plana əlavə təsdiqlənməlidir.` };
   }
   const band = salaryBand(row);

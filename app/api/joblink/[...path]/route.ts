@@ -692,7 +692,7 @@ async function staffPlaces(db: D1Database, companyId: string, department: string
 }
 // A vacancy may only open a place of the staff table: its department, position, a free place and a pay inside the row's band.
 // There is no way around it; an extra place is first approved as a change of the plan.
-async function assertVacancyPlan(db: D1Database, companyId: string, job: { id?: string; department?: string; section?: string; title?: string; minSalary?: number; maxSalary?: number; salaryKind?: string }) {
+async function assertVacancyPlan(db: D1Database, companyId: string, job: { id?: string; reason?: string; department?: string; section?: string; title?: string; minSalary?: number; maxSalary?: number; salaryKind?: string }) {
   const [plan, openRows] = await Promise.all([
     loadPlanData(db, companyId),
     db
@@ -704,8 +704,8 @@ async function assertVacancyPlan(db: D1Database, companyId: string, job: { id?: 
     .filter((r) => r.id !== job.id)
     .map((r) => {
       try {
-        const d = JSON.parse(r.data) as { department?: string; section?: string; title?: string };
-        return { department: String(d.department || ""), section: String(d.section || ""), title: String(d.title || "") };
+        const d = JSON.parse(r.data) as { department?: string; section?: string; title?: string; reason?: string };
+        return { department: String(d.department || ""), section: String(d.section || ""), title: String(d.title || ""), reason: String(d.reason || "") };
       } catch {
         return { department: "", section: "", title: "" };
       }
@@ -716,7 +716,7 @@ async function assertVacancyPlan(db: D1Database, companyId: string, job: { id?: 
     plan.units.map((u) => ({ id: u.id, department: u.department, section: u.section, position: u.position, planned: u.planned, rate: u.rate, salaryMin: u.salaryMin, salaryMax: u.salaryMax })),
     plan.people,
     open,
-    { department: String(job.department || ""), section: String(job.section || ""), title: String(job.title || ""), minSalary: Number(job.minSalary) || 0, maxSalary: Number(job.maxSalary) || 0, salaryKind: String(job.salaryKind || "") },
+    { department: String(job.department || ""), section: String(job.section || ""), title: String(job.title || ""), reason: String(job.reason || ""), minSalary: Number(job.minSalary) || 0, maxSalary: Number(job.maxSalary) || 0, salaryKind: String(job.salaryKind || "") },
     canon,
     toGross,
   );
@@ -22598,6 +22598,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     const merged = { ...current, ...pickEditable(next) } as Job;
     const fields = changedFields(current, merged);
     if (!fields.length) return ok({ ok: true, changed: [] });
+    // A change of the place, the position or the pay must still fit the staff plan.
+    if (fields.some((f) => ["department", "section", "title", "minSalary", "maxSalary", "salaryKind", "reason"].includes(String(f)))) await assertVacancyPlan(db, id, { ...merged, id: String(row.id) });
     await db
       .prepare("UPDATE jobs SET data=? WHERE id=?")
       .bind(JSON.stringify(merged), row.id)

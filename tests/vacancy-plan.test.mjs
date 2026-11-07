@@ -44,3 +44,9 @@ test("the position is compared through the catalog name", () => {
   const canon = (p) => (p.toLocaleLowerCase("az") === "baş mühasib" ? "Mühasib" : p);
   assert.equal(checkVacancyAgainstPlan([unit()], [], [], job({ title: "Baş mühasib" }), canon).ok, true);
 });
+test("a temporary cover takes no place of its own", () => {
+  const full = [person(1), person(2), person(3)];
+  assert.equal(checkVacancyAgainstPlan([unit()], full, [], job({ reason: "temporary" })).ok, true);
+  const open = [{ department: "Maliyyə", section: "", title: "Mühasib", reason: "temporary" }];
+  assert.equal(checkVacancyAgainstPlan([unit()], [person(1), person(2)], open, job()).ok, true);
+});
