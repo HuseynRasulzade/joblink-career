@@ -1,4 +1,4 @@
-# JobLink HR: nə hazırdır, nə qalıb (sadə izah)
+# JobMatch HR: nə hazırdır, nə qalıb (sadə izah)
 
 Son yenilənmə: 2026-11-07.
 

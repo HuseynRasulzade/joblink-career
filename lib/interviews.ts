@@ -88,7 +88,7 @@ export function icsFor(input: { id: string; scheduledAt: string; durationMin: nu
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Joblink//Interview//AZ",
+    "PRODID:-//JobMatch//Interview//AZ",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",

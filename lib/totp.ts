@@ -58,5 +58,5 @@ export async function verifyTotp(secret: string, code: string, atMs = Date.now()
   return ok;
 }
 
-export const otpauthUri = (label: string, secret: string, issuer = "Joblink") =>
+export const otpauthUri = (label: string, secret: string, issuer = "JobMatch") =>
   `otpauth://totp/${encodeURIComponent(`${issuer}:${label}`)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;

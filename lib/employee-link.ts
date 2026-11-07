@@ -36,7 +36,7 @@ export function linkCodeSheets(items: LinkCodeItem[], company: string): XlsxShee
       headers: ["Addım", "İzah"],
       rows: [
         ["1", `Hər işçiyə yalnız öz kodunu verin (${company}). Kod şəxsi giriş açarıdır: faylı başqalarına göndərməyin, işlər bitəndən sonra silin.`],
-        ["2", "İşçi Joblink-də öz hesabına daxil olur (hesabı yoxdursa şəxsi hesab olaraq qeydiyyatdan keçir)."],
+        ["2", "İşçi JobMatch-də öz hesabına daxil olur (hesabı yoxdursa şəxsi hesab olaraq qeydiyyatdan keçir)."],
         ["3", "Menyuda “İş yerim (işçi profili)” bölməsini açır və “İş yerini qoş” xanasına kodu yazır."],
         ["4", `Kod bir dəfə işləyir və ${LINK_CODE_DAYS} gün qüvvədədir. Vaxtı bitərsə işçi kartında “İşçi profili” düyməsi ilə və ya yenidən toplu yaradaraq yeni kod verin.`],
         ["5", "Qoşulandan sonra işçi “Müəssisə ilə yazışmalar” bölməsindən ərizə yazır; ərizələr sizdə Əmrlər reyestri → İşçi ərizələri siyahısına düşür."],

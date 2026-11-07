@@ -167,10 +167,10 @@ ${list.map((_, i) => `  <Relationship Id="rId${i + 1}" Type="http://schemas.open
 </styleSheet>`),
     "docProps/core.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:title>Joblink</dc:title><dc:creator>Joblink</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
+  <dc:title>JobMatch</dc:title><dc:creator>JobMatch</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
 </cp:coreProperties>`),
     "docProps/app.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Joblink</Application></Properties>`),
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>JobMatch</Application></Properties>`),
   };
   list.forEach((sheet, i) => {
     files[`xl/worksheets/sheet${i + 1}.xml`] = strToU8(sheetXml(sheet));

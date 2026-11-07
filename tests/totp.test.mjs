@@ -31,5 +31,5 @@ test("verifyTotp accepts the current and neighbouring step only", async () => {
 
 test("otpauth uri carries the secret and issuer", () => {
   const uri = otpauthUri("a@b.az", "ABC234");
-  assert.match(uri, /^otpauth:\/\/totp\/Joblink%3Aa%40b\.az\?secret=ABC234&issuer=Joblink/);
+  assert.match(uri, /^otpauth:\/\/totp\/JobMatch%3Aa%40b\.az\?secret=ABC234&issuer=JobMatch/);
 });

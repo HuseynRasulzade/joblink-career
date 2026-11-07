@@ -23,7 +23,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Joblink — Karyeranızın növbəti addımı",
+  title: "JobMatch — Karyeranızın növbəti addımı",
   description:
     "CV-nizi təkmilləşdirin, təcrübənizə uyğun vakansiyaları kəşf edin və işə qəbul prosesini idarə edin.",
   manifest: "/manifest.webmanifest",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     shortcut: "/joblink.svg",
     apple: "/icon-192.png",
   },
-  appleWebApp: { capable: true, title: "Joblink", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "JobMatch", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = { themeColor: "#0f766e" };
@@ -50,9 +50,9 @@ export default function RootLayout({
         {children}
         <noscript>
           <main style={{ maxWidth: 640, margin: "48px auto", padding: "0 16px" }}>
-            <h1>Joblink</h1>
+            <h1>JobMatch</h1>
             <p>
-              Joblink iş axtaranları və işəgötürənləri bir yerə gətirir: CV analizi,
+              JobMatch iş axtaranları və işəgötürənləri bir yerə gətirir: CV analizi,
               uyğun vakansiyalar və işə qəbul prosesinin idarəsi. Saytı işlətmək üçün
               brauzerdə JavaScript aktiv olmalıdır.
             </p>

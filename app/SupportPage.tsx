@@ -220,7 +220,7 @@ export default function SupportPage({
             <div className="chat-messages">
               {messages.map((m) => (
                 <div key={m.id} className={`chat-message ${(admin ? m.author_role === "admin" : m.author_role !== "admin") ? "user" : "assistant"}`}>
-                  {m.author_role === "admin" && !admin && <b className="support-author">{t("Joblink dəstək")}</b>}
+                  {m.author_role === "admin" && !admin && <b className="support-author">{t("JobMatch dəstək")}</b>}
                   {m.body && <p>{m.body}</p>}
                   {m.attachment_name && <p><a href={`/api/joblink/support/attachment?id=${encodeURIComponent(m.id)}`} target="_blank" rel="noopener noreferrer">📎 {m.attachment_name}</a></p>}
                   <small className="message-time">{when(m.created)}</small>

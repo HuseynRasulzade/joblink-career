@@ -355,8 +355,8 @@ export const EN_EXTRA: Record<string, string> = {
   "Hər namizədə testin cari nüsxəsi göndərilir. Bağlanmış müraciətlər və testi artıq almış namizədlər atlanır.":
     "The current copy of the test is sent to each candidate. Closed applications and candidates who already received the test are skipped.",
   "Hərəkət tarixçəsi": "Action history",
-  "Joblink — Karyeranızın növbəti addımı":
-    "Joblink — the next step in your career",
+  "JobMatch — Karyeranızın növbəti addımı":
+    "JobMatch — the next step in your career",
   "Kamera bağlandı": "Camera turned off",
   "Kamera və mikrofon test boyu açıq olmalıdır.":
     "The camera and microphone must stay on during the test.",
@@ -1049,7 +1049,7 @@ export const EN_EXTRA: Record<string, string> = {
   "yoxlama sənədini yüklədi": "uploaded a verification document",
   yoxlanılır: "being checked",
   yoxlanır: "being checked",
-  "· Joblink ilə işə qəbul": "· Hiring with Joblink",
+  "· JobMatch ilə işə qəbul": "· Hiring with JobMatch",
   "· avtomatik, hər vakansiya üçün bir dəfə": "· automatic, once per vacancy",
   "· ilk 30 vakansiya": "· first 30 vacancies",
   "Çap et": "Print",
@@ -1148,8 +1148,8 @@ export const EN_EXTRA: Record<string, string> = {
     "Employee documents, payroll and HR operations.",
   "İşçi və işəgötürən təklifləri, AI qərarı və admin bildirişinin vəziyyəti":
     "Employee and employer offers, AI decision and admin notice status",
-  "İşçi yoxdur. Joblink ilə işə qəbul etdiyiniz namizədlər bura avtomatik əlavə olunur.":
-    "No employees. Candidates you hire with Joblink are added here automatically.",
+  "İşçi yoxdur. JobMatch ilə işə qəbul etdiyiniz namizədlər bura avtomatik əlavə olunur.":
+    "No employees. Candidates you hire with JobMatch are added here automatically.",
   "İşçi əlavə et": "Add employee",
   İşçilər: "Employees",
   "İşçini düzəlt": "Edit employee",
@@ -1643,8 +1643,8 @@ export const RU_EXTRA: Record<string, string> = {
   "Hər namizədə testin cari nüsxəsi göndərilir. Bağlanmış müraciətlər və testi artıq almış namizədlər atlanır.":
     "Каждому кандидату отправляется текущая копия теста. Закрытые отклики и кандидаты, уже получившие тест, пропускаются.",
   "Hərəkət tarixçəsi": "История действий",
-  "Joblink — Karyeranızın növbəti addımı":
-    "Joblink — следующий шаг вашей карьеры",
+  "JobMatch — Karyeranızın növbəti addımı":
+    "JobMatch — следующий шаг вашей карьеры",
   "Kamera bağlandı": "Камера отключена",
   "Kamera və mikrofon test boyu açıq olmalıdır.":
     "Камера и микрофон должны быть включены на протяжении всего теста.",
@@ -2339,7 +2339,7 @@ export const RU_EXTRA: Record<string, string> = {
   "yoxlama sənədini yüklədi": "загрузил(а) документ для проверки",
   yoxlanılır: "проверяется",
   yoxlanır: "проверяется",
-  "· Joblink ilə işə qəbul": "· Найм с Joblink",
+  "· JobMatch ilə işə qəbul": "· Найм с JobMatch",
   "· avtomatik, hər vakansiya üçün bir dəfə":
     "· автоматически, один раз на вакансию",
   "· ilk 30 vakansiya": "· первые 30 вакансий",
@@ -2442,8 +2442,8 @@ export const RU_EXTRA: Record<string, string> = {
     "Документы сотрудников, зарплата и HR-операции.",
   "İşçi və işəgötürən təklifləri, AI qərarı və admin bildirişinin vəziyyəti":
     "Предложения работников и работодателей, решение ИИ и статус уведомления администратора",
-  "İşçi yoxdur. Joblink ilə işə qəbul etdiyiniz namizədlər bura avtomatik əlavə olunur.":
-    "Сотрудников нет. Кандидаты, которых вы наняли через Joblink, добавляются сюда автоматически.",
+  "İşçi yoxdur. JobMatch ilə işə qəbul etdiyiniz namizədlər bura avtomatik əlavə olunur.":
+    "Сотрудников нет. Кандидаты, которых вы наняли через JobMatch, добавляются сюда автоматически.",
   "İşçi əlavə et": "Добавить сотрудника",
   İşçilər: "Сотрудники",
   "İşçini düzəlt": "Редактировать сотрудника",

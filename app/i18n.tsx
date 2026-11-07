@@ -132,7 +132,7 @@ il və daha az tələb edən|years or less required
 Uyğun vakansiyanı seçin, profilinizi yoxlayın və müraciətinizi göndərin.|Choose a matching job, review your profile and apply.
 İnsan və imkan arasında doğru bağlantı.|Connecting people with opportunities.
 Bildirişi bağla|Dismiss notification
-Joblink hesabınıza daxil olun|Sign in to Joblink
+JobMatch hesabınıza daxil olun|Sign in to JobMatch
 Hesabınıza daxil oldunuz.|You signed in.
 Profilinizi saxlamaq, müraciət göndərmək və vakansiya yayımlamaq üçün daxil olun.|Sign in to save your profile, apply for jobs and publish vacancies.
 ChatGPT ilə daxil ol|Sign in with ChatGPT
@@ -479,7 +479,7 @@ Başlıq|Subject
 Sorğu admin panelinə və admin e-poçtuna göndərilir. Cavab və status dəyişikliyi burada görünəcək.|The request goes to the admin panel and admin e-mail. Replies and status changes appear here.
 Göndər|Send
 Sorğunuz göndərildi. Statusunu bu bölmədə izləyə bilərsiniz.|Your request was sent. Track its status in this section.
-Joblink dəstək|Joblink support
+JobMatch dəstək|JobMatch support
 Cavab|Reply
 Cavabınızı yazın…|Type your reply…
 Əlavə məlumat yazın…|Add more information…
@@ -556,7 +556,7 @@ PDF kimi yüklə|Download as PDF
 Peşəkar xülasə|Professional summary
 İş təcrübəsi|Work experience
 Kurslar və təlimlər|Courses and training
-Bu CV Joblink platformasında hazırlanıb|This CV was created on Joblink
+Bu CV JobMatch platformasında hazırlanıb|This CV was created on JobMatch
 AI ilə sırala|Rank with AI
 AI qiymətləndirir…|AI is evaluating…
 Müsahibəyə dəvət et|Invite to interview
@@ -698,7 +698,7 @@ Hesab yarat|Create account
 Daxil ol|Sign in
 Gözləyin…|Please wait…
 Sessiya bu cihazda 7 gün qorunur. Şifrəniz açıq mətn kimi saxlanmır.|Your session remains active on this device for 7 days. Your password is not stored as plain text.
-Joblink hesabınızı yaradın|Create your Joblink account
+JobMatch hesabınızı yaradın|Create your JobMatch account
 Passkey ilə daxil ol|Sign in with passkey
 Passkey yarat və qeydiyyatdan keç|Create account with passkey
 Hesabım var — daxil ol|Already have an account? Sign in
@@ -902,14 +902,14 @@ Ortaq bacarıqlar kataloqu|Shared skills catalog
 CV profili və vakansiyalar eyni nəzarətli siyahıdan istifadə edir|CV profiles and vacancies use the same controlled list
 Hər bölməni açın, daxilindəki bacarıqlara baxın və Excel formatında endirin|Open any section, review its skills and download them in Excel format
 Hamısını XLSX|Download all as XLSX
-Joblink kateqoriyaları|Joblink categories
+JobMatch kateqoriyaları|JobMatch categories
 CV və vakansiyalarda istifadə olunan əsas kateqoriyalar|Core categories used in CVs and vacancies
 ESCO bacarıq növləri|ESCO skill types
 Peşəkar bacarıqları bilik sahələrindən ayırır|Separates professional skills from knowledge areas
 ESCO istifadə səviyyələri|ESCO reuse levels
 Bacarığın müxtəlif peşə və sektorlar üzrə tətbiq sahəsi|How broadly a skill applies across occupations and sectors
 ESCO BÖLMƏSİ|ESCO SECTION
-JOBLINK BÖLMƏSİ|JOBLINK SECTION
+JOBMATCH BÖLMƏSİ|JOBMATCH SECTION
 Bu bölməni XLSX|Download this section as XLSX
 Bu bölmədə bacarıq axtar…|Search skills in this section…
 Yüklənir…|Loading…

@@ -25,7 +25,7 @@ export async function GET() {
       return [];
     }
   });
-  return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<jobs source="Joblink" generated="${new Date().toISOString()}">${items.join("")}</jobs>`, {
+  return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<jobs source="JobMatch" generated="${new Date().toISOString()}">${items.join("")}</jobs>`, {
     headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "public, max-age=900" },
   });
 }

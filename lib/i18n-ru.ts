@@ -176,7 +176,7 @@ export const RU_UI: Record<string, string> = {
   "İnsan və imkan arasında doğru bağlantı.":
     "Правильная связь между людьми и возможностями.",
   "Bildirişi bağla": "Закрыть уведомление",
-  "Joblink hesabınıza daxil olun": "Войдите в аккаунт Joblink",
+  "JobMatch hesabınıza daxil olun": "Войдите в аккаунт JobMatch",
   "Hesabınıza daxil oldunuz.": "Вы вошли в аккаунт.",
   "Profilinizi saxlamaq, müraciət göndərmək və vakansiya yayımlamaq üçün daxil olun.":
     "Войдите, чтобы сохранить профиль, отправить отклик и опубликовать вакансию.",
@@ -585,7 +585,7 @@ export const RU_UI: Record<string, string> = {
   Göndər: "Отправить",
   "Sorğunuz göndərildi. Statusunu bu bölmədə izləyə bilərsiniz.":
     "Ваше обращение отправлено. Следить за статусом можно в этом разделе.",
-  "Joblink dəstək": "Поддержка Joblink",
+  "JobMatch dəstək": "Поддержка JobMatch",
   Cavab: "Ответ",
   "Cavabınızı yazın…": "Напишите ответ…",
   "Əlavə məlumat yazın…": "Добавьте дополнительную информацию…",
@@ -674,8 +674,8 @@ export const RU_UI: Record<string, string> = {
   "Peşəkar xülasə": "Профессиональное резюме",
   "İş təcrübəsi": "Опыт работы",
   "Kurslar və təlimlər": "Курсы и тренинги",
-  "Bu CV Joblink platformasında hazırlanıb":
-    "Это резюме подготовлено на платформе Joblink",
+  "Bu CV JobMatch platformasında hazırlanıb":
+    "Это резюме подготовлено на платформе JobMatch",
   "AI ilə sırala": "Отсортировать с помощью ИИ",
   "AI qiymətləndirir…": "ИИ оценивает…",
   "Müsahibəyə dəvət et": "Пригласить на собеседование",
@@ -836,7 +836,7 @@ export const RU_UI: Record<string, string> = {
   "Gözləyin…": "Подождите…",
   "Sessiya bu cihazda 7 gün qorunur. Şifrəniz açıq mətn kimi saxlanmır.":
     "Сессия сохраняется на этом устройстве 7 дней. Пароль не хранится в открытом виде.",
-  "Joblink hesabınızı yaradın": "Создайте аккаунт Joblink",
+  "JobMatch hesabınızı yaradın": "Создайте аккаунт JobMatch",
   "Passkey ilə daxil ol": "Войти с помощью passkey",
   "Passkey yarat və qeydiyyatdan keç": "Создать passkey и зарегистрироваться",
   "Hesabım var — daxil ol": "У меня есть аккаунт — войти",
@@ -1039,7 +1039,7 @@ export const RU_UI: Record<string, string> = {
   "Hər bölməni açın, daxilindəki bacarıqlara baxın və Excel formatında endirin":
     "Откройте каждый раздел, просмотрите навыки внутри и скачайте в формате Excel",
   "Hamısını XLSX": "Всё в XLSX",
-  "Joblink kateqoriyaları": "Категории Joblink",
+  "JobMatch kateqoriyaları": "Категории JobMatch",
   "CV və vakansiyalarda istifadə olunan əsas kateqoriyalar":
     "Основные категории, используемые в резюме и вакансиях",
   "ESCO bacarıq növləri": "Типы навыков ESCO",
@@ -1049,7 +1049,7 @@ export const RU_UI: Record<string, string> = {
   "Bacarığın müxtəlif peşə və sektorlar üzrə tətbiq sahəsi":
     "Область применения навыка в разных профессиях и отраслях",
   "ESCO BÖLMƏSİ": "РАЗДЕЛ ESCO",
-  "JOBLINK BÖLMƏSİ": "РАЗДЕЛ JOBLINK",
+  "JOBMATCH BÖLMƏSİ": "РАЗДЕЛ JOBMATCH",
   "Bu bölməni XLSX": "Этот раздел в XLSX",
   "Bu bölmədə bacarıq axtar…": "Поиск навыка в этом разделе…",
   "Yüklənir…": "Загружается…",

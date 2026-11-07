@@ -37,15 +37,15 @@ type Params = {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await Promise.resolve(params);
   const job = await load(id);
-  if (!job) return { title: "Vakansiya tapılmadı | Joblink", robots: { index: false } };
+  if (!job) return { title: "Vakansiya tapılmadı | JobMatch", robots: { index: false } };
   const origin = siteUrl(runtime().SITE_URL);
-  const title = `${job.title} · ${job.company} | Joblink`;
+  const title = `${job.title} · ${job.company} | JobMatch`;
   const description = plainText(job.description, 160);
   return {
     title,
     description,
     alternates: { canonical: `${origin}/jobs/${job.id}` },
-    openGraph: { title, description, url: `${origin}/jobs/${job.id}`, type: "website", siteName: "Joblink" },
+    openGraph: { title, description, url: `${origin}/jobs/${job.id}`, type: "website", siteName: "JobMatch" },
   };
 }
 

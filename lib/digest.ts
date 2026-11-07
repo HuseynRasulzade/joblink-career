@@ -25,7 +25,7 @@ export type DigestData = {
 };
 
 export function digestSubject(data: DigestData) {
-  return `Joblink ${data.frequency === "monthly" ? "aylıq" : "həftəlik"} hesabat: ${data.companyName}`;
+  return `JobMatch ${data.frequency === "monthly" ? "aylıq" : "həftəlik"} hesabat: ${data.companyName}`;
 }
 
 export function digestText(data: DigestData) {
@@ -40,6 +40,6 @@ export function digestText(data: DigestData) {
     lines.push("", "Diqqət tələb edənlər:");
     for (const item of data.attention) lines.push(`- ${item.count} ${item.label}`);
   } else lines.push("", "Diqqət tələb edən iş yoxdur.");
-  lines.push("", "Joblink-də ətraflı hesabatlara baxın. Bu e-poçtu “Hesabatlar” bölməsindən söndürə bilərsiniz.");
+  lines.push("", "JobMatch-də ətraflı hesabatlara baxın. Bu e-poçtu “Hesabatlar” bölməsindən söndürə bilərsiniz.");
   return lines.join("\n");
 }

@@ -487,7 +487,7 @@ export default function AdminPanel({
     <div className="admin-panel">
       <section className="admin-hero">
         <div>
-          <span className="admin-kicker"><ShieldCheck size={15} /> JOBLINK CONTROL CENTER</span>
+          <span className="admin-kicker"><ShieldCheck size={15} /> JOBMATCH CONTROL CENTER</span>
           <h1>
             {page === "admin-users" ? "İstifadəçilər" :
               page === "admin-jobs" ? "Vakansiya moderasiyası" :
@@ -685,7 +685,7 @@ export default function AdminPanel({
 
             <div className="skill-section-browser">
               {([
-                ["Joblink kateqoriyaları", "CV və vakansiyalarda istifadə olunan əsas kateqoriyalar", skillSectionGroups.curated],
+                ["JobMatch kateqoriyaları", "CV və vakansiyalarda istifadə olunan əsas kateqoriyalar", skillSectionGroups.curated],
                 ["ESCO bacarıq növləri", "Peşəkar bacarıqları bilik sahələrindən ayırır", skillSectionGroups.skillType],
                 ["ESCO istifadə səviyyələri", "Bacarığın müxtəlif peşə və sektorlar üzrə tətbiq sahəsi", skillSectionGroups.reuseLevel],
               ] as const).map(([title, note, sections]) => (
@@ -698,7 +698,7 @@ export default function AdminPanel({
                       key={section.key}
                       onClick={() => { setSelectedSkillSection(section.key); setSkillCatalogPage(1); setQuery(""); }}
                     >
-                      <span><strong>{language === "en" ? section.labelEn : section.label}</strong><small>{section.source === "esco" ? "ESCO" : "Joblink"}</small></span>
+                      <span><strong>{language === "en" ? section.labelEn : section.label}</strong><small>{section.source === "esco" ? "ESCO" : "JobMatch"}</small></span>
                       <b>{section.count.toLocaleString(language === "en" ? "en-GB" : "az-AZ")}</b>
                     </button>)}
                   </div>
@@ -708,7 +708,7 @@ export default function AdminPanel({
 
             <div className="skill-catalog-heading">
               <div>
-                <span>{activeSkillSection?.source === "esco" ? "ESCO BÖLMƏSİ" : "JOBLINK BÖLMƏSİ"}</span>
+                <span>{activeSkillSection?.source === "esco" ? "ESCO BÖLMƏSİ" : "JOBMATCH BÖLMƏSİ"}</span>
                 <h3>{activeSkillSection ? (language === "en" ? activeSkillSection.labelEn : activeSkillSection.label) : "Bacarıqlar"}</h3>
                 <p>{skillCatalog.total.toLocaleString(language === "en" ? "en-GB" : "az-AZ")} bacarıq</p>
               </div>

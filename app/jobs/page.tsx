@@ -5,8 +5,8 @@ import { OPEN_VACANCIES_SQL, plainText, publicVacancy, siteUrl } from "@/lib/seo
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Açıq vakansiyalar | Joblink",
-  description: "Azərbaycanda açıq iş elanları: vəzifə, şirkət, şəhər və maaş. Müraciət üçün Joblink-ə keçin.",
+  title: "Açıq vakansiyalar | JobMatch",
+  description: "Azərbaycanda açıq iş elanları: vəzifə, şirkət, şəhər və maaş. Müraciət üçün JobMatch-ə keçin.",
 };
 
 export default async function JobsIndex() {
@@ -20,7 +20,7 @@ export default async function JobsIndex() {
     <main className="seo-page">
       <h1>Açıq vakansiyalar</h1>
       <p>
-        <a href="/">Joblink-ə keç</a> · {jobs.length} açıq vakansiya
+        <a href="/">JobMatch-ə keç</a> · {jobs.length} açıq vakansiya
       </p>
       <ul className="seo-list">
         {jobs.map((job) => (

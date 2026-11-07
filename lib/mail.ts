@@ -35,7 +35,7 @@ export async function sendMail(
         Authorization: `Bearer ${settings.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: `Joblink <${settings.EMAIL_FROM}>`,
+        from: `JobMatch <${settings.EMAIL_FROM}>`,
         to: [message.to],
         subject: message.subject,
         text: rendered.text,
@@ -49,7 +49,7 @@ export async function sendMail(
   if (!settings.EMAIL) throw new Error("E-poçt göndərmə qurulmayıb.");
   await settings.EMAIL.send({
     to: [message.to],
-    from: { email: settings.EMAIL_FROM, name: "Joblink" },
+    from: { email: settings.EMAIL_FROM, name: "JobMatch" },
     subject: message.subject,
     text: rendered.text,
     html: rendered.html,

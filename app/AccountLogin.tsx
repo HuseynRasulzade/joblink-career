@@ -158,7 +158,7 @@ export default function AccountLogin({
         <LockKeyhole size={28} />
       </div>
       <h3>
-        {register ? "Joblink hesabınızı yaradın" : "Hesabınıza daxil olun"}
+        {register ? "JobMatch hesabınızı yaradın" : "Hesabınıza daxil olun"}
       </h3>
       <p>
         E-poçt və şifrənizlə istənilən müasir brauzerdən daxil ola bilərsiniz.

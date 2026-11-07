@@ -30,7 +30,7 @@ const BY_TYPE: Record<string, Plan> = {
 };
 // Candidate-side pages share one key ("applications"): the type tells what the notice is about.
 export function mailPlan(type: string, link: string, siteUrl: string): { eyebrow: string; label: string; url: string } {
-  const plan = BY_TYPE[type] || BY_LINK[link] || { eyebrow: "Bildiriş", label: "Joblink-də aç" };
+  const plan = BY_TYPE[type] || BY_LINK[link] || { eyebrow: "Bildiriş", label: "JobMatch-də aç" };
   const page = /^[a-z0-9-]{1,40}$/.test(link) ? link : "";
   return { ...plan, url: `${siteUrl}${page ? `/#${page}` : ""}` };
 }

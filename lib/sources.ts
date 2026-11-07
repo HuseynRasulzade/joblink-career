@@ -12,7 +12,7 @@ export const EXTERNAL_SOURCES = [
 ] as const;
 
 export const SOURCE_LABELS: Record<string, string> = {
-  platform: "Joblink saytı",
+  platform: "JobMatch saytı",
   auto: "AI avtomatik müraciət",
   invite: "Şirkətin dəvəti",
   ...Object.fromEntries(EXTERNAL_SOURCES.map((s) => [s.id, s.label])),

@@ -15,7 +15,7 @@ test("each notification opens its own page with a fitting button", () => {
 });
 
 test("an unknown notice or a strange link falls back to the home page and a general button", () => {
-  assert.deepEqual(mailPlan("whatever", "", site), { eyebrow: "Bildiriş", label: "Joblink-də aç", url: site });
+  assert.deepEqual(mailPlan("whatever", "", site), { eyebrow: "Bildiriş", label: "JobMatch-də aç", url: site });
   assert.equal(mailPlan("whatever", "x/../evil?y=1", site).url, site);
 });
 

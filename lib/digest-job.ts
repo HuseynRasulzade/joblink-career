@@ -60,7 +60,7 @@ async function sendTo(
   await mail
     .send({
       to: [account.email],
-      from: { email: fromEmail, name: "Joblink" },
+      from: { email: fromEmail, name: "JobMatch" },
       subject,
       text,
     })
@@ -245,7 +245,7 @@ export async function runDigests(
           await mail
             .send({
               to: [account.email],
-              from: { email: fromEmail, name: "Joblink" },
+              from: { email: fromEmail, name: "JobMatch" },
               subject,
               text,
             })
@@ -601,7 +601,7 @@ export async function runJobAlerts(
           (p) =>
             `${p.job.title} — ${p.job.company}${p.job.city ? ` (${p.job.city})` : ""}`,
         );
-      const text = `“${alert.name}” xəbərdarlığınıza uyğun ${fresh.length} yeni vakansiya var:\n${titles.join("\n")}${fresh.length > 5 ? `\n… və daha ${fresh.length - 5} vakansiya` : ""}\n\nJoblink-də baxın.`;
+      const text = `“${alert.name}” xəbərdarlığınıza uyğun ${fresh.length} yeni vakansiya var:\n${titles.join("\n")}${fresh.length > 5 ? `\n… və daha ${fresh.length - 5} vakansiya` : ""}\n\nJobMatch-də baxın.`;
       await db
         .prepare(
           "INSERT INTO notifications(id,user_id,type,title,body,link,read,created) VALUES(?,?,?,?,?,?,0,?)",
@@ -696,7 +696,7 @@ export async function runPlanReminders(
           mail,
           fromEmail,
           row.account_id,
-          "Joblink: paketin müddəti bitir",
+          "JobMatch: paketin müddəti bitir",
           text,
           "plan",
         );
@@ -780,7 +780,7 @@ export async function runInvoiceReminders(
         mail,
         fromEmail,
         row.account_id,
-        "Joblink: ödəniş gecikir",
+        "JobMatch: ödəniş gecikir",
         text,
         "billing",
       );
@@ -874,8 +874,8 @@ export async function runApprovalReminders(
         mail,
         fromEmail,
         userId,
-        `Joblink: ${title}`,
-        `${body}\n\nJoblink-də "Təsdiqlər" bölməsinə baxın.`,
+        `JobMatch: ${title}`,
+        `${body}\n\nJobMatch-də "Təsdiqlər" bölməsinə baxın.`,
         "approval",
       );
     }
@@ -993,8 +993,8 @@ export async function runApprovalReminders(
       mail,
       fromEmail,
       companyId,
-      `Joblink: ${title}`,
-      `${body}\n\nJoblink-də "Təsdiqlər" bölməsinə baxın.`,
+      `JobMatch: ${title}`,
+      `${body}\n\nJobMatch-də "Təsdiqlər" bölməsinə baxın.`,
       "approval",
     );
   };

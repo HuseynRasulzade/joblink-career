@@ -62,7 +62,7 @@ export function jobPostingJsonLd(job: PublicVacancy, origin: string) {
     "@type": "JobPosting",
     title: job.title,
     description: description.replace(/\n/g, "<br>"),
-    identifier: { "@type": "PropertyValue", name: "Joblink", value: job.id },
+    identifier: { "@type": "PropertyValue", name: "JobMatch", value: job.id },
     datePosted: job.created.slice(0, 10),
     ...(job.deadline ? { validThrough: job.deadline } : {}),
     employmentType: employmentTypeFor(job.type),

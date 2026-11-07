@@ -1,4 +1,4 @@
-// The HTML of every e-mail Joblink sends: one branded layout (table-based, inline styles, so it reads the same in
+// The HTML of every e-mail JobMatch sends: one branded layout (table-based, inline styles, so it reads the same in
 // Gmail, Outlook and phones). The plain-text part is always sent too. All text is escaped; web addresses become links.
 export type MailAction = { label: string; url: string };
 export type MailContent = { subject: string; text: string; action?: MailAction; siteUrl?: string; greeting?: string; eyebrow?: string };
@@ -40,7 +40,7 @@ ${eyebrow ? `<div style="margin:0 0 8px;font-size:12px;font-weight:700;letter-sp
 ${greeting ? `<p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#27393d;">${escapeHtml(greeting)},</p>` : ""}${paragraphs(text)}
 ${button}
 </td></tr>
-<tr><td style="padding:0 32px 28px;"><div style="border-top:1px solid #e3ebea;padding-top:18px;font-size:13px;line-height:1.6;color:#6b7a7d;">Bu e-poçt Joblink platformasından avtomatik göndərilib.${home ? ` <a href="${home}" style="color:${BRAND};">${escapeHtml(home.replace(/^https?:\/\//, ""))}</a>` : ""}<br>Hansı bildirişləri e-poçtla almaq istədiyinizi Hesab ayarlarında dəyişə bilərsiniz.</div></td></tr>
+<tr><td style="padding:0 32px 28px;"><div style="border-top:1px solid #e3ebea;padding-top:18px;font-size:13px;line-height:1.6;color:#6b7a7d;">Bu e-poçt JobMatch platformasından avtomatik göndərilib.${home ? ` <a href="${home}" style="color:${BRAND};">${escapeHtml(home.replace(/^https?:\/\//, ""))}</a>` : ""}<br>Hansı bildirişləri e-poçtla almaq istədiyinizi Hesab ayarlarında dəyişə bilərsiniz.</div></td></tr>
 </table></td></tr></table></body></html>`;
   const body = greeting ? `${greeting},\n\n${text.trim()}` : text.trim();
   return { html, text: action && safeUrl(action.url) ? `${body}\n\n${action.label}: ${action.url}` : body };

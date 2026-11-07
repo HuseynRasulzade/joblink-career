@@ -34,7 +34,7 @@ export async function syncSubscription(db: D1Database, accountId: string, provid
     const method = sub.methodId
       ? await db.prepare("SELECT brand,last4,token,provider FROM payment_methods WHERE id=? AND account_id=?").bind(sub.methodId, accountId).first<{ brand: string; last4: string; token: string; provider: string }>()
       : null;
-    const charge = plan && method && provider ? provider.charge({ token: method.token, amountCents: plan.priceAzn * 100, currency: "AZN", description: `Joblink ${plan.name}` }) : null;
+    const charge = plan && method && provider ? provider.charge({ token: method.token, amountCents: plan.priceAzn * 100, currency: "AZN", description: `JobMatch ${plan.name}` }) : null;
     const periodStart = sub.periodEnd;
     const periodEnd = addPeriod(periodStart);
     await db.prepare("INSERT INTO plan_payments(id,account_id,subscription_id,plan_id,amount_cents,currency,status,method_label,provider,provider_ref,period_start,period_end,error,created) VALUES(?,?,?,?,?,'AZN',?,?,?,?,?,?,?,?)")

@@ -81,7 +81,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
         <h3>İş yerim</h3>
         {!place ? (
           <p className="muted">
-            Hələ heç bir iş yeri profilinizə qoşulmayıb. Joblink vasitəsilə işə qəbul olunmusunuzsa, iş yeri avtomatik qoşulur. Başqa halda şirkətin HR-ı sizə qoşulma kodu verir — onu aşağıda daxil edin.
+            Hələ heç bir iş yeri profilinizə qoşulmayıb. JobMatch vasitəsilə işə qəbul olunmusunuzsa, iş yeri avtomatik qoşulur. Başqa halda şirkətin HR-ı sizə qoşulma kodu verir — onu aşağıda daxil edin.
           </p>
         ) : (
           <>

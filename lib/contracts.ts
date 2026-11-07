@@ -48,7 +48,7 @@ export function buildServiceContract(input: ContractInput): Contract {
     {
       heading: "1. Müqavilənin predmeti",
       paragraphs: [
-        `1.1. Operator İstifadəçiyə Joblink onlayn platformasında “${plan.name}” paketi üzrə xidmətlərin göstərilməsini, İstifadəçi isə həmin xidmətlərə görə haqqı ödəməyi öhdəsinə götürür.`,
+        `1.1. Operator İstifadəçiyə JobMatch onlayn platformasında “${plan.name}” paketi üzrə xidmətlərin göstərilməsini, İstifadəçi isə həmin xidmətlərə görə haqqı ödəməyi öhdəsinə götürür.`,
         "1.2. Platforma iş axtaranlarla işəgötürənləri bir araya gətirən vasitəçi xidmətdir. Operator işə qəbul, müsahibə, əmək müqaviləsi və ya işə düzəlmə nəticəsinə zəmanət vermir.",
       ],
     },
@@ -136,7 +136,7 @@ export function buildServiceContract(input: ContractInput): Contract {
       ],
     },
   ];
-  const title = `Joblink platformasında “${plan.name}” paketi üzrə xidmət müqaviləsi`;
+  const title = `JobMatch platformasında “${plan.name}” paketi üzrə xidmət müqaviləsi`;
   const head = [
     title,
     `№ ${number}`,

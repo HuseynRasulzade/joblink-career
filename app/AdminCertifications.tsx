@@ -109,12 +109,12 @@ export default function AdminCertifications({
             <div><h3>Bölmələr</h3><p>Sertifikatlar peşə sahələri üzrə qruplaşdırılıb</p></div>
             <div className="skill-section-grid">
               <button type="button" className={!category ? "active" : ""} onClick={() => { setCategory(""); setLimit(50); }}>
-                <span><strong>Bütün bölmələr</strong><small>Joblink</small></span>
+                <span><strong>Bütün bölmələr</strong><small>JobMatch</small></span>
                 <b>{number(all.length)}</b>
               </button>
               {Object.keys(CERTIFICATION_CATEGORIES).map((name) => (
                 <button type="button" key={name} className={category === name ? "active" : ""} onClick={() => { setCategory(name); setLimit(50); }}>
-                  <span><strong>{language === "en" ? CERTIFICATION_CATEGORIES[name] : name}</strong><small>Joblink</small></span>
+                  <span><strong>{language === "en" ? CERTIFICATION_CATEGORIES[name] : name}</strong><small>JobMatch</small></span>
                   <b>{number(counts.get(name) || 0)}</b>
                 </button>
               ))}

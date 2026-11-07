@@ -54,7 +54,7 @@ function printReceipt(payment: Payment, planName: string) {
 <style>body{font-family:Arial,sans-serif;max-width:560px;margin:40px auto;color:#17332b}h1{font-size:22px;margin:0 0 4px}
 table{width:100%;border-collapse:collapse;margin-top:24px}td{padding:10px 0;border-bottom:1px solid #dfe8e3}td:first-child{color:#5b6b63;width:40%}
 p{color:#5b6b63;font-size:12px;margin-top:28px}</style></head><body>
-<h1>Joblink · Ödəniş qəbzi</h1><div>Paket haqqının ödənildiyini təsdiqləyir.</div>
+<h1>JobMatch · Ödəniş qəbzi</h1><div>Paket haqqının ödənildiyini təsdiqləyir.</div>
 <table>${rows.map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`).join("")}</table>
 <p>Bu sənəd ödənişin təsdiqidir və rəsmi vergi fakturası deyil. Müqavilə və şərtlər “Paketlər” bölməsindədir.</p>
 <script>window.onload=function(){window.print()}</script></body></html>`);

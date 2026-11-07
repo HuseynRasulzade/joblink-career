@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { buildServiceContract, contractNumber } from "../lib/contracts.ts";
 import { planById } from "../lib/plans.ts";
 
-const operator = { name: "Joblink MMC", voen: "1234567891", address: "Bakı, Nizami küç. 1", email: "info@joblink.az" };
+const operator = { name: "JobMatch MMC", voen: "1234567891", address: "Bakı, Nizami küç. 1", email: "info@joblink.az" };
 const base = {
   id: "6f1d2c3b-aaaa-bbbb-cccc-111122223333",
   date: "2026-11-10",
@@ -62,7 +62,7 @@ test("a person's agreement refers to consumer protection, not employer duties", 
 test("missing operator details are marked, not invented", () => {
   const text = buildServiceContract({ ...base, party: person, operator: { name: "", voen: "", address: "", email: "" } }).text;
   assert.match(text, /\[daxil edilməlidir\]/);
-  assert.doesNotMatch(text, /Joblink MMC/);
+  assert.doesNotMatch(text, /JobMatch MMC/);
 });
 
 test("sections are numbered one to ten and no clause is left empty", () => {

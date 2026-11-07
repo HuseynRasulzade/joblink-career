@@ -78,7 +78,7 @@ export function WorkbookImport({ month, notify, onClose, onDone }: { month: stri
       if (imported.salaryChanges.length) steps.push({ key: "salary", title: "Maaş dəyişikliyi (imzaya gedən əmr)", endpoint: "company/orders/save", rows: null, ready: imported.salaryChanges.length, issues: [] });
       return { steps, issues: imported.issues, imported };
     } catch {
-      return { steps: [] as Step[], issues: ["Fayl oxunmadı. Joblink hesablama iş kitabını (.xlsx) seçin."], imported: null };
+      return { steps: [] as Step[], issues: ["Fayl oxunmadı. JobMatch hesablama iş kitabını (.xlsx) seçin."], imported: null };
     }
   }, [bytes, month]);
   async function pick(file: File | undefined) {

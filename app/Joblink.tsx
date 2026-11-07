@@ -459,7 +459,7 @@ export default function Joblink() {
         : profile.name || "İstifadəçi"
     : sample
       ? "Nümunə hesab"
-      : profile.name || "Joblink";
+      : profile.name || "JobMatch";
   // Company sections follow the team member's role.
   const hrNeeds: Record<string, string> = {
     "hr-billing": "billing",
@@ -966,10 +966,10 @@ export default function Joblink() {
     document.documentElement.lang = language;
     document.title =
       language === "en"
-        ? "Joblink — Your career workspace"
+        ? "JobMatch — Your career workspace"
         : language === "ru"
-          ? "Joblink — Ваш карьерный помощник"
-          : "Joblink — Karyeranızın növbəti addımı";
+          ? "JobMatch — Ваш карьерный помощник"
+          : "JobMatch — Karyeranızın növbəti addımı";
   }, [language]);
   const filtered = ranked
     .filter(
@@ -1696,7 +1696,7 @@ export default function Joblink() {
     return (
       <div className="auth-gate auth-gate-loading" role="status">
         <div className="auth-gate-brand">
-          joblink<span>✳</span>
+          jobmatch<span>✳</span>
         </div>
         <p>Hesabınız yoxlanılır…</p>
       </div>
@@ -1708,7 +1708,7 @@ export default function Joblink() {
       <main className="auth-gate">
         <section className="auth-gate-intro">
           <div className="auth-gate-brand">
-            joblink<span>✳</span>
+            jobmatch<span>✳</span>
           </div>
           <p className="eyebrow">KARYERA VƏ İŞƏ QƏBUL PLATFORMASI</p>
           <h1>Doğru insanı doğru imkanla birləşdiririk.</h1>
@@ -1789,7 +1789,7 @@ export default function Joblink() {
             go(admin ? "admin-overview" : hr ? "hr-overview" : "overview")
           }
         >
-          joblink<span>✳</span>
+          jobmatch<span>✳</span>
         </a>
         <div className="workspace">
           <span>
@@ -4115,7 +4115,7 @@ export default function Joblink() {
             </>
           )}
           <footer>
-            © 2026 Joblink <span>İnsan və imkan arasında doğru bağlantı.</span>
+            © 2026 JobMatch <span>İnsan və imkan arasında doğru bağlantı.</span>
           </footer>
         </main>
       </div>
@@ -4130,7 +4130,7 @@ export default function Joblink() {
       )}
       {login && (
         <Modal
-          title="Joblink hesabınıza daxil olun"
+          title="JobMatch hesabınıza daxil olun"
           onClose={() => setLogin(false)}
         >
           {authMode === "password" ? (

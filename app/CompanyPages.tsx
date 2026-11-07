@@ -2718,7 +2718,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                       <strong>{e.name}</strong>
                       <small className="skill-description">
                         {e.email}
-                        {e.source === "hired" ? " · Joblink ilə işə qəbul" : ""}
+                        {e.source === "hired" ? " · JobMatch ilə işə qəbul" : ""}
                       </small>
                     </div>
                   </div>
@@ -2826,7 +2826,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
               <tr>
                 <td colSpan={10}>
                   <p className="admin-empty">
-                    İşçi yoxdur. Joblink ilə işə qəbul etdiyiniz namizədlər bura
+                    İşçi yoxdur. JobMatch ilə işə qəbul etdiyiniz namizədlər bura
                     avtomatik əlavə olunur.
                   </p>
                 </td>

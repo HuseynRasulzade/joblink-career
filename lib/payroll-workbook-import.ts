@@ -50,7 +50,7 @@ export function workbookImportRows(sheets: WorkbookSheet[], month: string): Work
   const by = (name: string) => sheets.find((s) => fold(s.name) === fold(name));
   const out: WorkbookImport = { attendance: null, payroll: null, items: [], hours: null, trips: null, advances: [], salaryChanges: [], counts: { attendance: 0, payroll: 0, hours: 0, trips: 0, advances: 0, salaryChanges: 0 }, found: [], issues: [] };
   if (!by(WB.leaves) && !by(WB.adds) && !by(WB.hours) && !by(WB.trips)) {
-    out.issues.push("Bu fayl Joblink hesablama iş kitabı deyil: “Azad olmalar”, “Əlavə-Tutulma”, “Saatlar” və ya “Ezamiyyət” vərəqi tapılmadı.");
+    out.issues.push("Bu fayl JobMatch hesablama iş kitabı deyil: “Azad olmalar”, “Əlavə-Tutulma”, “Saatlar” və ya “Ezamiyyət” vərəqi tapılmadı.");
     return out;
   }
 

@@ -1755,7 +1755,7 @@ export function EmployeeLinkPanel({ employeeId, name, linked, pending, notify, o
   return (
     <div className="offer-composer">
       <p className="muted">
-        İşçi öz Joblink profilindən “İş yerim” bölməsinə girib şirkətə ərizə yaza bilər: ərizə sizdə “Əmrlər reyestri → İşçi ərizələri” siyahısına düşür, cavabınız isə işçinin yazışmalar reyestrində görünür. Bunun üçün işçinin hesabı bu işçi kartına bir dəfəlik kodla qoşulur (Joblink vasitəsilə işə qəbul olunanlar avtomatik qoşulur).
+        İşçi öz JobMatch profilindən “İş yerim” bölməsinə girib şirkətə ərizə yaza bilər: ərizə sizdə “Əmrlər reyestri → İşçi ərizələri” siyahısına düşür, cavabınız isə işçinin yazışmalar reyestrində görünür. Bunun üçün işçinin hesabı bu işçi kartına bir dəfəlik kodla qoşulur (JobMatch vasitəsilə işə qəbul olunanlar avtomatik qoşulur).
       </p>
       {linked ? (
         <>
@@ -1781,7 +1781,7 @@ export function EmployeeLinkPanel({ employeeId, name, linked, pending, notify, o
               <small className="muted">Bu kodu işçiyə verin (yalnız indi göstərilir):</small>
               <strong className="link-code">{code.code}</strong>
               <small className="muted">
-                İşçi Joblink-də hesabına daxil olub “İş yerim” bölməsində kodu yazır. Kod bir dəfə işləyir və {code.expires.slice(0, 10)} tarixinədək qüvvədədir.
+                İşçi JobMatch-də hesabına daxil olub “İş yerim” bölməsində kodu yazır. Kod bir dəfə işləyir və {code.expires.slice(0, 10)} tarixinədək qüvvədədir.
               </small>
               <button type="button" className="secondary" onClick={() => void navigator.clipboard?.writeText(code.code).then(() => notify("Kod kopyalandı."))}>
                 Kodu kopyala

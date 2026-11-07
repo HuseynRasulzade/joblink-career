@@ -81,7 +81,7 @@ export async function notifyFollowers(db: D1Database, companyId: string, j: Job)
     await notify(db, { userId: follower.actor_id, type: "followed-job", title: `${j.company}: yeni vakansiya — ${j.title}`, link: "jobs" });
     // With packages, e-mails about followed companies are part of the paid packages.
     if (enforced && !(await planOf(db, follower.actor_id, providerFor(runtime().PAYMENT_PROVIDER))).limits.digestEmail) continue;
-    await sendUserEmail(db, follower.actor_id, `${j.company}: yeni vakansiya — ${j.title}`, `İzlədiyiniz ${j.company} şirkəti yeni vakansiya paylaşdı: ${j.title} (${j.city}). Joblink-də baxın.`, "followed-job");
+    await sendUserEmail(db, follower.actor_id, `${j.company}: yeni vakansiya — ${j.title}`, `İzlədiyiniz ${j.company} şirkəti yeni vakansiya paylaşdı: ${j.title} (${j.city}). JobMatch-də baxın.`, "followed-job");
   }
 }
 // Universities and programmes the administrator added from candidates' requests.
@@ -209,7 +209,7 @@ export async function hasUnreadFrom(db: D1Database, threadId: string, senderId: 
 }
 export async function senderLabel(db: D1Database, accountRole: string, accountId: string, userId: string) {
   const row = await db.prepare("SELECT name FROM accounts WHERE id=?").bind(accountRole === "company" ? accountId : userId).first<{ name: string }>();
-  return row?.name || "Joblink";
+  return row?.name || "JobMatch";
 }
 // At most 20 messages per five minutes for each real sender, so one account
 // cannot flood a conversation.

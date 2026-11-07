@@ -4,7 +4,7 @@ import { certificationById, detectCertifications } from "@/lib/certification-cat
 
 const STATUS: Record<string, string> = { in_progress: "davam edir", expired: "müddəti bitib" };
 
-// A4 CV layout with Joblink branding, used for the preview and PDF export
+// A4 CV layout with JobMatch branding, used for the preview and PDF export
 // (the browser's "Save as PDF"). Only facts from the profile are shown.
 export default function BrandedCv({ profile: p }: { profile: Profile }) {
   const certifications = candidateCertifications(p);
@@ -29,7 +29,7 @@ export default function BrandedCv({ profile: p }: { profile: Profile }) {
           {p.links && <p className="branded-cv-contact">{p.links}</p>}
         </div>
         <span className="branded-cv-logo">
-          joblink<span>✳</span>
+          jobmatch<span>✳</span>
         </span>
       </header>
       <div className="branded-cv-body">
@@ -114,9 +114,9 @@ export default function BrandedCv({ profile: p }: { profile: Profile }) {
       </div>
       <footer className="branded-cv-foot">
         <span>
-          joblink<span>✳</span>
+          jobmatch<span>✳</span>
         </span>
-        <span>Bu CV Joblink platformasında hazırlanıb</span>
+        <span>Bu CV JobMatch platformasında hazırlanıb</span>
       </footer>
     </article>
   );

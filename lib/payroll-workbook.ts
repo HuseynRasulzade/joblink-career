@@ -756,7 +756,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   // ---- Təlimat ----
   const guideRows: XlsxCell[][] = [
     [{ v: `Əmək haqqı hesablama iş kitabı: ${input.month}`, s: "title" }],
-    [{ v: "Bu fayl Joblink platformasından yüklənib. Excel-də formullarla hesablama aparır və doldurduğunuz məlumatı platformaya geri yükləməyə imkan verir.", s: "note" }],
+    [{ v: "Bu fayl JobMatch platformasından yüklənib. Excel-də formullarla hesablama aparır və doldurduğunuz məlumatı platformaya geri yükləməyə imkan verir.", s: "note" }],
     [],
     [{ v: "Vərəqlər", s: "label" }],
     ["İşçilər", "İşçi siyahısı, maaş, sektor, vergi güzəşti, müavinət hüququ. Platformadan doldurulub; Excel-də hesablama üçün dəyişə bilərsiniz. Yalnız “Yeni maaş” + “Dəyişmə tarixi” platformaya əmr kimi yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),

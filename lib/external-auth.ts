@@ -169,7 +169,7 @@ async function takeToken(token: string, kind: "reset" | "verify") {
 }
 async function sendVerification(request: Request, userId: string, email: string) {
   const token = await issueToken(userId, "verify", 3 * 86400);
-  await sendAuthMail(email, "Joblink: e-poçtunuzu təsdiqləyin", `E-poçt ünvanınızı təsdiqləmək üçün linkə keçin (3 gün qüvvədədir):\n${new URL(request.url).origin}/#verify=${token}\n\nBu sorğunu siz etməmisinizsə, məktuba məhəl qoymayın.`);
+  await sendAuthMail(email, "JobMatch: e-poçtunuzu təsdiqləyin", `E-poçt ünvanınızı təsdiqləmək üçün linkə keçin (3 gün qüvvədədir):\n${new URL(request.url).origin}/#verify=${token}\n\nBu sorğunu siz etməmisinizsə, məktuba məhəl qoymayın.`);
 }
 
 // A current authenticator code, or one unused backup code (spent when used).
@@ -270,7 +270,7 @@ export async function authRoute(request: Request, path: string) {
       const account = await db.prepare("SELECT user_id FROM password_accounts WHERE email=?").bind(email).first<{ user_id: string }>();
       if (account) {
         const token = await issueToken(account.user_id, "reset", 3600);
-        await sendAuthMail(email, "Joblink: şifrənin sıfırlanması", `Şifrəni yeniləmək üçün linkə keçin (1 saat qüvvədədir):\n${new URL(request.url).origin}/#reset=${token}\n\nBu sorğunu siz etməmisinizsə, məktuba məhəl qoymayın; şifrəniz dəyişməyib.`);
+        await sendAuthMail(email, "JobMatch: şifrənin sıfırlanması", `Şifrəni yeniləmək üçün linkə keçin (1 saat qüvvədədir):\n${new URL(request.url).origin}/#reset=${token}\n\nBu sorğunu siz etməmisinizsə, məktuba məhəl qoymayın; şifrəniz dəyişməyib.`);
       }
     }
     return response({ ok: true });

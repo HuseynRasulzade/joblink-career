@@ -24,7 +24,7 @@ test("Resend gets the message over HTTP and a refusal is an error", async () => 
     assert.equal(calls[0].url, "https://api.resend.com/emails");
     const body = JSON.parse(calls[0].init.body);
     assert.deepEqual(body.to, ["a@b.az"]);
-    assert.equal(body.from, "Joblink <no-reply@x.az>");
+    assert.equal(body.from, "JobMatch <no-reply@x.az>");
     assert.equal(calls[0].init.headers.Authorization, "Bearer key");
     await assert.rejects(sendMail(settings, { to: "a@b.az", subject: "s", text: "t" }), /403/);
   } finally {

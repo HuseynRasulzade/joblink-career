@@ -36,7 +36,7 @@ export async function fetchCbarRates(isoDay: string, fetcher: typeof fetch = fet
     const cached = cache.get(day);
     if (cached) return cached;
     try {
-      const response = await fetcher(cbarUrl(day), { headers: { "User-Agent": "Mozilla/5.0 (compatible; Joblink)" }, signal: AbortSignal.timeout(8000) });
+      const response = await fetcher(cbarUrl(day), { headers: { "User-Agent": "Mozilla/5.0 (compatible; JobMatch)" }, signal: AbortSignal.timeout(8000) });
       if (!response.ok) continue;
       const parsed = parseCbarXml(await response.text());
       if (!parsed) continue;

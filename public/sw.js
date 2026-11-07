@@ -1,4 +1,4 @@
-// Joblink service worker: keeps the app shell openable offline. Account data (/api/) is never cached.
+// JobMatch service worker: keeps the app shell openable offline. Account data (/api/) is never cached.
 const CACHE = "joblink-shell-v1";
 const SHELL = ["/offline.html", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/joblink.svg"];
 
