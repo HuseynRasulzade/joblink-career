@@ -1,6 +1,6 @@
 # JobLink HR: nə hazırdır, nə qalıb (sadə izah)
 
-Son yenilənmə: 2026-11-05 (axşam). Ətraflı tarixçə `HR_ROADMAP.md`-dədir; bu sənəd yalnız **indiki vəziyyəti** göstərir.
+Son yenilənmə: 2026-11-07.
 
 ## 1. Nə hazırdır (qısa)
 
@@ -104,3 +104,19 @@ Mənbə: sizin yüklədiyiniz Nazirlər Kabinetinin 25.01.2008-ci il 14 nömrəl
 Qalan məhdudiyyətlər: Microsoft Excel-də açılış mən tərəfindən sınanmayıb (fayl LibreOffice və openpyxl ilə yoxlanıb, formulların uzunluğu və dərinliyi Excel hədləri daxilindədir). Sığorta müavinətinin ödənilməsi sığortaçı tərəfindəndir və iş kitabında yalnız hesablanır.
 
 **FİN:** iş kitabının işçi siyahısı göstərən bütün vərəqlərində (Tabel, Azad olmalar, Əlavə-Tutulma, Saatlar, Ezamiyyət, Hesablama) ad yanında FİN göstərilir (İşçilər vərəqindən avtomatik gəlir) və platformaya yükləmədə işçi FİN ilə tapılır. Platformanın qaydası: FİN yazılıbsa, işçi yalnız həmin FİN ilə tapılır; kartda olmayan və ya səhv FİN olan sətir yüklənmir.
+
+## 10. Qalanlar və səbəbləri (2026-11-07 yekunu)
+
+Mənim tərəfimdən bağlana bilənlərin hamısı bağlanıb. Aşağıdakılar qalır; hər birinin səbəbi və sizdən nə lazım olduğu yazılıb.
+
+| Qalan | Səbəb | Sizdən nə lazımdır |
+|---|---|---|
+| AI funksiyaları canlıda 502 verir | AI provayderi açarı/balansı (OPENAI_API_KEY) canlıda işləmir; kod tərəfi hazırdır | Cloudflare secret-i yoxlayın / balansı artırın |
+| E-poçt göndərilmə | `EMAIL_FROM` və `RESEND_API_KEY` secret-lərinin qoyulduğunu mən görə bilmirəm | Secret-ləri qoyun, sonra test bildirişi göndərin |
+| `DATA_KEY` | Qoyulmasa şəxsi məlumatlar şifrələnmir | Cloudflare secret kimi əlavə edin |
+| Microsoft Excel-də hesablama iş kitabı | Yalnız LibreOffice və openpyxl ilə yoxlanıb; real Excel mənim mühitimdə yoxdur | Faylı Excel-də açıb bir ayı müqayisə edin |
+| Böyük şirkət (min-minlərlə işçi) üçün təşkilat sxemi | Sxem bütün işçiləri bir dəfəyə yükləyir, 10 000 işçidə yavaş olar | "Edək" deyin: şöbə sayları + 20-20 açılma + axtarış |
+| Telefon görünüşü | Əsas səhifələr və yan menyu yoxlanıb və düzəldilib; hər bölmənin cədvəlləri telefonda tək-tək yoxlanmayıb | Pilot zamanı problemli ekranları göndərin |
+| Hüquqi yoxlama | Şablon mətnlər, saxlama illəri, ezamiyyət normaları hüquqşünas baxışı tələb edir | Hüquqşünasa göstərin |
+| ZZ-TEST məlumatları | Canlıda yoxlama üçün yaradılıb (hesablar, avans, məzuniyyət, maaş əmri) | İctimai açılışdan əvvəl silinməlidir (silməyə icazəniz var, deyin silim) |
+| Xarici müqavilə tələb edənlər | Bank API, qanuni e-imza, turniket, push bildiriş, kart ödənişi | Bölmə 3-də |
