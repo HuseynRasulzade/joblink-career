@@ -14,7 +14,8 @@ import { parseHoursTotals } from "../lib/hours.ts";
 
 const month = "2026-11";
 const days = monthDays(2026, 11).map((d) => ({ date: d.date, off: d.off }));
-const emp = (name, extra = {}) => ({ name, fin: "", position: "", department: "", salary: 1500, sector: "private", taxReduction: 0, weekHours: 40, averageMonthly: 0, nightPercent: 0, leaveCompDays: 0, benefitEligible: true, newSalary: 0, salaryChangeFrom: "", taxBenefit: "", dependents3: false, start: "", end: "", ...extra });
+let finCounter = 0;
+const emp = (name, extra = {}) => ({ name, fin: `FN${String(++finCounter).padStart(5, "0")}`, position: "", department: "", salary: 1500, sector: "private", taxReduction: 0, weekHours: 40, averageMonthly: 0, nightPercent: 0, leaveCompDays: 0, benefitEligible: true, newSalary: 0, salaryChangeFrom: "", taxBenefit: "", dependents3: false, start: "", end: "", ...extra });
 const input = {
   month, days,
   employees: [
@@ -62,6 +63,7 @@ const input = {
   rates: { USD: 1.7, EUR: 1.9037, GBP: 2.2834, JPY: 0.010768 }, ratesDate: "2026-11-06",
   benefit: { sickPercent: 80, maternityPercent: 100, minPension: 10 },
 };
+const finOf = (name) => input.employees.find((e) => e.name === name).fin;
 const sheets = buildPayrollWorkbook(input);
 const bytes = createXlsxBook(sheets);
 const read = readWorkbookSheets(bytes);
@@ -187,7 +189,7 @@ test("an unknown kind in the additions sheet is reported, not silently dropped",
   const changed = structuredClone(read);
   const adds = changed.find((s) => s.name === WB.adds);
   const first = adds.rows.findIndex((r) => r[0] === "Aysel Tam");
-  adds.rows[first][1] = "Premiya";
+  adds.rows[first][2] = "Premiya";
   const imported = workbookImportRows(changed, month);
   assert.match(imported.issues.join(" "), /Premiya/);
 });
@@ -222,7 +224,7 @@ test("LibreOffice recalculates every formula to the value the platform gives", {
 });
 
 const clone = () => structuredClone(read);
-const rowOf = (sheets, sheet, name, kind) => sheets.find((x) => x.name === sheet).rows.find((r) => r[0] === name && (!kind || r[1] === kind));
+const rowOf = (sheets, sheet, name, kind, kindAt = 2) => sheets.find((x) => x.name === sheet).rows.find((r) => r[0] === name && (!kind || r[kindAt] === kind));
 
 test("the named bonus and allowance lines are kept for the platform, next to the totals", () => {
   const imported = workbookImportRows(read, month);
@@ -236,16 +238,16 @@ test("an advance is sent only when it has a payment date; the ones the workbook 
   assert.deepEqual(workbookImportRows(read, month).advances, []);
   const changed = clone();
   const row = rowOf(changed, WB.adds, "Nigar Dövlət", "Avans");
-  row[6] = String(Math.round(Date.parse("2026-11-10T00:00:00Z") / 86400000) + 25569);
+  row[7] = String(Math.round(Date.parse("2026-11-10T00:00:00Z") / 86400000) + 25569);
   const imported = workbookImportRows(changed, month);
-  assert.deepEqual(imported.advances, [{ name: "Nigar Dövlət", amount: 200, date: "2026-11-10", note: "" }]);
-  row[6] = "sabah";
+  assert.deepEqual(imported.advances, [{ name: "Nigar Dövlət", fin: finOf("Nigar Dövlət"), amount: 200, date: "2026-11-10", note: "" }]);
+  row[7] = "sabah";
   assert.match(workbookImportRows(changed, month).issues.join(" "), /avansın tarixi oxunmadı/);
 });
 
 test("a pay change typed in the staff sheet becomes an order to send; a missing day is reported", () => {
   const imported = workbookImportRows(read, month);
-  assert.deepEqual(imported.salaryChanges, [{ name: "Leyla Dəyişən", salary: 1500, from: "2026-11-16" }]);
+  assert.deepEqual(imported.salaryChanges, [{ name: "Leyla Dəyişən", fin: finOf("Leyla Dəyişən"), salary: 1500, from: "2026-11-16" }]);
   const changed = clone();
   const row = rowOf(changed, WB.staff, "Leyla Dəyişən");
   row[14] = "";
@@ -257,13 +259,13 @@ test("a pay change typed in the staff sheet becomes an order to send; a missing 
 test("a destination that is not one of the law's places is refused, not taken for a place inside the country", () => {
   const changed = clone();
   const trip = rowOf(changed, WB.trips, "Aysel Tam");
-  trip[1] = "Atlantida";
+  trip[2] = "Atlantida";
   let imported = workbookImportRows(changed, month);
   assert.match(imported.issues.join(" "), /Atlantida.*qanunun gündəlik cədvəlində yoxdur/);
   assert.equal(parseTrips(imported.trips).rows.some((t) => t.name === "Aysel Tam"), false);
   // "other place" without its name
   const other = rowOf(changed, WB.trips, "Nigar Dövlət");
-  other[2] = "";
+  other[3] = "";
   imported = workbookImportRows(changed, month);
   assert.match(imported.issues.join(" "), /yerin adı yazılmayıb/);
 });
@@ -299,11 +301,41 @@ test("the helper sheet counts the calendar days of a stretch the way the platfor
   const { vacationCalendarDays } = await import("../lib/payroll-calc.ts");
   const tabel = sheetOf(WB.sheet);
   const head = tabel.rows[2];
-  const dates = head.slice(1, 1 + days.length).map((v) => Number(v));
-  const type = tabel.rows[3].slice(1, 1 + days.length);
+  const dates = head.slice(2, 2 + days.length).map((v) => Number(v));
+  const type = tabel.rows[3].slice(2, 2 + days.length);
   const row = tabel.rows.find((r) => r[0] === "Günel Xəstə");
-  const marked = (j) => type[j] === "iş" && ["XS", "İQ", "AN", "UQ", "AT"].includes(row[1 + j]);
+  const marked = (j) => type[j] === "iş" && ["XS", "İQ", "AN", "UQ", "AT"].includes(row[2 + j]);
   const expected = vacationCalendarDays(days, (d) => marked(days.findIndex((x) => x.date === d)), true).calendarDays;
   assert.equal(Number(row[head.indexOf("Müavinət (təqvim günü)")]), expected);
   assert.ok(dates.length === days.length);
+});
+
+test("every sheet that lists people shows their FİN beside the name", () => {
+  const check = (sheetName, headerRow, finColumn = 1) => {
+    const rows = sheetOf(sheetName).rows;
+    assert.equal(rows[headerRow][finColumn], "FİN", `${sheetName}: no FİN column`);
+    let seen = 0;
+    for (const row of rows.slice(headerRow + 1)) {
+      const person = input.employees.find((e) => e.name === row[0]);
+      if (!person) continue;
+      seen++;
+      assert.equal(row[finColumn], person.fin, `${sheetName}: ${row[0]}`);
+    }
+    assert.ok(seen > 0, `${sheetName}: no named rows`);
+  };
+  check(WB.staff, 2);
+  check(WB.leaves, 2);
+  check(WB.sheet, 2);
+  check(WB.adds, 2);
+  check(WB.hours, 2);
+  check(WB.trips, 2);
+  check(WB.calc, 3);
+});
+
+test("the FİN of every line goes along to the platform's imports, so the person is found by it", () => {
+  const imported = workbookImportRows(read, month);
+  assert.equal(parseAttendanceRows(imported.attendance).rows.find((r) => r.name === "Günel Xəstə").fin, finOf("Günel Xəstə").toUpperCase());
+  assert.equal(parsePayrollRows(imported.payroll).rows.find((r) => r.name === "Aysel Tam").fin, finOf("Aysel Tam").toUpperCase());
+  assert.equal(parseHoursTotals(imported.hours, month).rows[0].fin, finOf("Orxan Məzuniyyət").toUpperCase());
+  assert.equal(parseTrips(imported.trips).rows.find((t) => t.name === "Aysel Tam").fin, finOf("Aysel Tam").toUpperCase());
 });

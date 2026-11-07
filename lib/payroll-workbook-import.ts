@@ -10,8 +10,8 @@ import { parseDateCell } from "./staff-import.ts";
 import type { WorkbookSheet } from "./workbook-read.ts";
 
 export type PayItemLine = { name: string; kind: "bonus" | "allowance"; label: string; amount: number };
-export type AdvanceLine = { name: string; amount: number; date: string; note: string };
-export type SalaryChange = { name: string; salary: number; from: string };
+export type AdvanceLine = { name: string; fin: string; amount: number; date: string; note: string };
+export type SalaryChange = { name: string; fin: string; salary: number; from: string };
 
 export type WorkbookImport = {
   attendance: string[][] | null;
@@ -57,40 +57,40 @@ export function workbookImportRows(sheets: WorkbookSheet[], month: string): Work
   const leaves = dataRows(by(WB.leaves));
   if (leaves) {
     out.found.push(WB.leaves);
-    // Ad Soyad | Növ | Qısa kod | Başlama | Bitmə | İş günü | Təqvim günü | Qeyd
-    const rows = leaves.filter((r) => String(r[0] || "").trim() && (String(r[1] || "").trim() || String(r[2] || "").trim()));
+    // Ad Soyad | FİN | Növ | Qısa kod | Başlama | Bitmə | İş günü | Təqvim günü | Qeyd
+    const rows = leaves.filter((r) => String(r[0] || "").trim() && (String(r[2] || "").trim() || String(r[3] || "").trim()));
     out.counts.attendance = rows.length;
-    out.attendance = [["Ad Soyad", "Başlama tarixi", "Bitmə tarixi", "Səbəb", "Qeyd"], ...rows.map((r) => [r[0], r[3] || "", r[4] || "", r[1] || r[2] || "", r[7] || ""])];
+    out.attendance = [["Ad Soyad", "FİN", "Başlama tarixi", "Bitmə tarixi", "Səbəb", "Qeyd"], ...rows.map((r) => [r[0], r[1] || "", r[4] || "", r[5] || "", r[2] || r[3] || "", r[8] || ""])];
   }
 
   const adds = dataRows(by(WB.adds));
   if (adds) {
     out.found.push(WB.adds);
-    // Ad Soyad | Növ | Ad / səbəb | Məbləğ | Tutulma növü | Qeyd | Ödəniş tarixi (avans)
-    type Per = { bonus: number; allowance: number; deductions: { label: string; amount: number; kind: string }[] };
+    // Ad Soyad | FİN | Növ | Ad / səbəb | Məbləğ | Tutulma növü | Qeyd | Ödəniş tarixi (avans)
+    type Per = { fin: string; bonus: number; allowance: number; deductions: { label: string; amount: number; kind: string }[] };
     const per = new Map<string, Per>();
     for (const r of adds) {
       const name = String(r[0] || "").trim();
-      const kind = fold(r[1] || "");
+      const kind = fold(r[2] || "");
       if (!name || !kind) continue;
-      const amount = num(r[3]);
+      const amount = num(r[4]);
       if (kind === "avans") {
         // Only an advance with a payment date is new; the lines the workbook came with (no date) are payments already recorded.
-        const date = parseDateCell(r[6] || "");
-        if (date && amount > 0) out.advances.push({ name, amount, date, note: String(r[5] || "").trim() });
-        else if (r[6] && !date) out.issues.push(`${WB.adds}: ${name} üçün avansın tarixi oxunmadı: “${r[6]}”.`);
+        const date = parseDateCell(r[7] || "");
+        if (date && amount > 0) out.advances.push({ name, fin: String(r[1] || "").trim(), amount, date, note: String(r[6] || "").trim() });
+        else if (r[7] && !date) out.issues.push(`${WB.adds}: ${name} üçün avansın tarixi oxunmadı: “${r[7]}”.`);
         continue;
       }
-      const entry = per.get(name) || { bonus: 0, allowance: 0, deductions: [] };
+      const entry = per.get(name) || { fin: String(r[1] || "").trim(), bonus: 0, allowance: 0, deductions: [] };
       if (kind === "mukafat") {
         entry.bonus += amount;
-        if (amount > 0) out.items.push({ name, kind: "bonus", label: String(r[2] || "").trim() || "Mükafat", amount });
+        if (amount > 0) out.items.push({ name, kind: "bonus", label: String(r[3] || "").trim() || "Mükafat", amount });
       } else if (kind === "elave") {
         entry.allowance += amount;
-        if (amount > 0) out.items.push({ name, kind: "allowance", label: String(r[2] || "").trim() || "Əlavə", amount });
-      } else if (kind === "tutulma") entry.deductions.push({ label: String(r[2] || "").trim() || "Tutulma", amount, kind: String(r[4] || "Ümumi") });
+        if (amount > 0) out.items.push({ name, kind: "allowance", label: String(r[3] || "").trim() || "Əlavə", amount });
+      } else if (kind === "tutulma") entry.deductions.push({ label: String(r[3] || "").trim() || "Tutulma", amount, kind: String(r[5] || "Ümumi") });
       else {
-        out.issues.push(`${WB.adds}: “${r[1]}” növü tanınmadı (Mükafat, Əlavə, Tutulma və ya Avans).`);
+        out.issues.push(`${WB.adds}: “${r[2]}” növü tanınmadı (Mükafat, Əlavə, Tutulma və ya Avans).`);
         continue;
       }
       per.set(name, entry);
@@ -98,30 +98,30 @@ export function workbookImportRows(sheets: WorkbookSheet[], month: string): Work
     const rows: string[][] = [];
     for (const [name, e] of per) {
       const deds = e.deductions.length ? e.deductions : [{ label: "", amount: 0, kind: "" }];
-      deds.forEach((d, i) => rows.push([name, i === 0 ? String(e.bonus) : "", i === 0 ? String(e.allowance) : "", d.label, d.amount ? String(d.amount) : "", d.kind, ""]));
+      deds.forEach((d, i) => rows.push([name, e.fin, i === 0 ? String(e.bonus) : "", i === 0 ? String(e.allowance) : "", d.label, d.amount ? String(d.amount) : "", d.kind, ""]));
     }
     out.counts.payroll = per.size;
     out.counts.advances = out.advances.length;
-    out.payroll = per.size ? [["Ad Soyad", "Mükafat", "Əlavə", "Tutulma adı", "Tutulma məbləği", "Tutulma növü", "Qeyd"], ...rows] : null;
+    out.payroll = per.size ? [["Ad Soyad", "FİN", "Mükafat", "Əlavə", "Tutulma adı", "Tutulma məbləği", "Tutulma növü", "Qeyd"], ...rows] : null;
   }
 
   const hours = dataRows(by(WB.hours));
   if (hours) {
     out.found.push(WB.hours);
-    // Ad Soyad | Artıq iş saatı | İstirahət / bayram günü saatı | Gecə saatı
-    const rows = hours.filter((r) => String(r[0] || "").trim() && (num(r[1]) > 0 || num(r[2]) > 0 || num(r[3]) > 0));
+    // Ad Soyad | FİN | Artıq iş saatı | İstirahət / bayram günü saatı | Gecə saatı
+    const rows = hours.filter((r) => String(r[0] || "").trim() && (num(r[2]) > 0 || num(r[3]) > 0 || num(r[4]) > 0));
     out.counts.hours = rows.length;
-    out.hours = [["Ad Soyad", "Ay", "Artıq iş saatı", "İstirahət günü saatı", "Gecə saatı"], ...rows.map((r) => [r[0], month, String(num(r[1])), String(num(r[2])), String(num(r[3]))])];
+    out.hours = [["Ad Soyad", "FİN", "Ay", "Artıq iş saatı", "İstirahət günü saatı", "Gecə saatı"], ...rows.map((r) => [r[0], r[1] || "", month, String(num(r[2])), String(num(r[3])), String(num(r[4]))])];
   }
 
   const trips = dataRows(by(WB.trips));
   if (trips) {
     out.found.push(WB.trips);
-    // Ad Soyad | Təyinat | Yerin adı | Başlama | Bitmə | Məqsəd | Gün | Norma | Valyuta | Məzənnə | Gündəlik | Cəmi | Avans | Digər | Qalıq | Gündəlik (əl ilə)
+    // Ad Soyad | FİN | Təyinat | Yerin adı | Başlama | Bitmə | Məqsəd | Gün | Norma | Valyuta | Məzənnə | Gündəlik | Cəmi | Avans | Digər | Qalıq | Gündəlik (əl ilə)
     const rows: string[][] = [];
-    for (const r of trips.filter((x) => String(x[0] || "").trim() && String(x[1] || "").trim())) {
-      const place = String(r[1]).trim();
-      const named = String(r[2] || "").trim();
+    for (const r of trips.filter((x) => String(x[0] || "").trim() && String(x[2] || "").trim())) {
+      const place = String(r[2]).trim();
+      const named = String(r[3] || "").trim();
       // The place is one of the law's places; anything else is refused instead of being taken for a place inside the country.
       if (!FOREIGN.has(place) && !DOMESTIC.has(place)) {
         out.issues.push(`${WB.trips}: ${r[0]}: “${place}” qanunun gündəlik cədvəlində yoxdur. Təyinatı siyahıdan seçin (ölkə daxilində başqa yer üçün “${OTHER_DOMESTIC}” seçib yerin adını yazın).`);
@@ -132,11 +132,11 @@ export function workbookImportRows(sheets: WorkbookSheet[], month: string): Work
         continue;
       }
       // The per-diem typed beside the trip is kept; left empty, the platform works it out from the law's norm and the bank's rate of the first day.
-      const manual = num(r[15]);
-      rows.push([r[0], place === OTHER_DOMESTIC ? named : place, r[3] || "", r[4] || "", r[5] || "", manual > 0 ? String(manual) : "", num(r[12]) ? String(num(r[12])) : "", FOREIGN.has(place) ? "Bəli" : "Xeyr"]);
+      const manual = num(r[16]);
+      rows.push([r[0], r[1] || "", place === OTHER_DOMESTIC ? named : place, r[4] || "", r[5] || "", r[6] || "", manual > 0 ? String(manual) : "", num(r[13]) ? String(num(r[13])) : "", FOREIGN.has(place) ? "Bəli" : "Xeyr"]);
     }
     out.counts.trips = rows.length;
-    out.trips = rows.length ? [["İşçi", "Təyinat", "Başlama", "Bitmə", "Məqsəd", "Gündəlik", "Avans", "Xarici"], ...rows] : null;
+    out.trips = rows.length ? [["İşçi", "FİN", "Təyinat", "Başlama", "Bitmə", "Məqsəd", "Gündəlik", "Avans", "Xarici"], ...rows] : null;
   }
 
   // A pay change inside the month (İşçilər: new pay and the day it starts) becomes an order of the platform's usual kind.
@@ -152,7 +152,7 @@ export function workbookImportRows(sheets: WorkbookSheet[], month: string): Work
         out.issues.push(`${WB.staff}: ${name}: yeni maaş yazılıb, amma dəyişmə tarixi yoxdur.`);
         continue;
       }
-      out.salaryChanges.push({ name, salary, from });
+      out.salaryChanges.push({ name, fin: String(r[1] || "").trim(), salary, from });
     }
     out.counts.salaryChanges = out.salaryChanges.length;
     if (out.salaryChanges.length) out.found.push(WB.staff);

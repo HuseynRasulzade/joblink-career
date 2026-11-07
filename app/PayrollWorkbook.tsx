@@ -46,9 +46,11 @@ export async function downloadPayrollWorkbook(month: string, notify: Notify) {
 }
 
 type Step = { key: "attendance" | "payroll" | "hours" | "trips" | "advances" | "salary"; title: string; endpoint: string; rows: string[][] | null; ready: number; issues: string[] };
-type PayrollRow = { employeeId: string; name: string; position: string; department: string; section: string; startDate: string; monthlySalary: number; salaryType: string; payments?: { kind: string; amount: number; paidOn: string; reversed?: boolean }[] };
+type PayrollRow = { employeeId: string; name: string; fin?: string; position: string; department: string; section: string; startDate: string; monthlySalary: number; salaryType: string; payments?: { kind: string; amount: number; paidOn: string; reversed?: boolean }[] };
 type SignerInfo = { head: { name: string; position: string } | null; director: { name: string; position: string; source: string } | null };
 const same = (a: string, b: string) => a.trim().toLocaleLowerCase("az") === b.trim().toLocaleLowerCase("az");
+// The person of a line: by FİN when the line has one that the platform knows, otherwise by name.
+const findPerson = (rows: PayrollRow[], line: { name: string; fin?: string }) => (line.fin ? rows.find((r) => r.fin && same(r.fin, line.fin as string)) : undefined) || rows.find((r) => same(r.name, line.name));
 type StepResult = { applied?: number; created?: number; days?: number; issues?: { line: number; reason: string }[] };
 
 // The filled workbook goes back into the platform: each input sheet is read, shown before anything is written, then sent to the
@@ -105,7 +107,7 @@ export function WorkbookImport({ month, notify, onClose, onDone }: { month: stri
           let done = 0;
           const problems: string[] = [];
           for (const a of plan.imported?.advances || []) {
-            const row = rows.find((r) => same(r.name, a.name));
+            const row = findPerson(rows, a);
             if (!row) { problems.push(`${a.name}: işçi platformada tapılmadı.`); continue; }
             if ((row.payments || []).some((p) => p.kind === "advance" && !p.reversed && Math.abs(p.amount - a.amount) < 0.005 && p.paidOn === a.date)) { problems.push(`${a.name}: ${a.amount} AZN avans (${a.date}) artıq qeyd olunub.`); continue; }
             try {
@@ -124,7 +126,7 @@ export function WorkbookImport({ month, notify, onClose, onDone }: { month: stri
           let done = 0;
           const problems: string[] = [];
           for (const change of plan.imported?.salaryChanges || []) {
-            const row = rows.find((r) => same(r.name, change.name));
+            const row = findPerson(rows, change);
             if (!row) { problems.push(`${change.name}: işçi platformada tapılmadı.`); continue; }
             try {
               const saved = await call<{ orders: { kind: string; input?: { from?: string; salary?: number } }[] }>(`company/orders?employeeId=${row.employeeId}`);

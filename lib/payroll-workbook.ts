@@ -164,8 +164,9 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   const workingDays = days.filter((d) => !d.off).length;
   const P = (key: keyof typeof PR) => `${q(WB.params)}$B$${PR[key]}`;
   const dayType = (d: WorkbookInput["days"][number]) => (d.off === "" ? "iş" : d.off === "weekend" ? "istirahət" : d.off === "company" ? "qeyri-iş" : "bayram");
-  const firstDay = L(2);
-  const lastDay = L(N + 1);
+  const DC = 3; // first day column of the timesheet: A = name, B = FİN, then the days
+  const firstDay = L(DC);
+  const lastDay = L(N + DC - 1);
   const range = (row: number) => `$${firstDay}${row}:$${lastDay}${row}`;
   const rowCells = (row: number) => `${firstDay}${row}:${lastDay}${row}`;
   const typeRow = `$${firstDay}$4:$${lastDay}$4`;
@@ -284,6 +285,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   const tripTotal = (t: { destination: string; start: string; end: string; daily?: number }) => r2(tripDays(t) * tripDaily(t));
 
   const calcs: Calc[] = input.employees.map(computeEmployee);
+  const finOfName = new Map(input.employees.map((e) => [e.name, e.fin || ""]));
 
   // ---- Parametrlər ----
   const holidayDates = days.filter((d) => d.off && d.off !== "weekend").map((d) => serial(d.date));
@@ -361,6 +363,10 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   ];
   const benefitsSheet: XlsxSheet = { name: WB.benefits, headers: [], rows: benefitRows, free: true, widths: [40, 20, 12, 110], freeze: { rows: 3, cols: 0 } };
 
+  const staffFins = `${q(WB.staff)}$B$${S0}:$B$${S0 + staffRows - 1}`;
+  // The FİN of the person named in column A, looked up in "İşçilər" (so it follows a name picked from the list).
+  const finByName = (r: number, cached: string): XlsxCell => ({ f: `IF(A${r}="","",IFERROR(INDEX(${staffFins},MATCH(A${r},${staffNames},0)),""))`, v: cached, s: "cell" });
+
   // ---- Kodlar ----
   const codeRows: XlsxCell[][] = [[{ v: "Davamiyyət kodları", s: "title" }], [{ v: "Azad olmalar vərəqində “Növ” bu siyahıdan seçilir, tabeldə qısa kod görünür.", s: "note" }], ["Ad", "Qısa kod", "Hesablamada", "Qrup"].map((v) => ({ v, s: "head" as const }))];
   for (const c of ATTENDANCE_CODES) codeRows.push([{ v: labelOf(c.id), s: "cell" }, { v: c.short, s: "cell" }, { v: GROUP_NAME[groupOf(c.id)], s: "cell" }, { v: c.group, s: "cell" }]);
@@ -374,7 +380,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   const leaveRows: XlsxCell[][] = [
     [{ v: "Azad olmalar, məzuniyyət və qeyri-iş günləri (aralıq üzrə)", s: "title" }],
     [{ v: "Hər sətir bir aralıqdır: işçi, növ, başlama və bitmə tarixi. Tabel bu cədvəldən avtomatik doldurulur. Eyni gün iki aralıqda olarsa, aşağıdakı sətir üstünlük təşkil edir. Platformaya yükləmədə yalnız bu vərəq (aralıqlar) oxunur.", s: "note" }],
-    ["Ad Soyad", "Növ", "Qısa kod", "Başlama", "Bitmə", "İş günü", "Təqvim günü", "Qeyd"].map((v) => ({ v, s: "head" as const })),
+    ["Ad Soyad", "FİN", "Növ", "Qısa kod", "Başlama", "Bitmə", "İş günü", "Təqvim günü", "Qeyd"].map((v) => ({ v, s: "head" as const })),
   ];
   const leaveFirst = 4;
   const leaveLast = leaveFirst + LEAVE_ROWS - 1;
@@ -385,12 +391,13 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     const work_ = l ? days.filter((d) => !d.off && d.date >= l.from && d.date <= l.to).length : null;
     leaveRows.push([
       { v: l?.name ?? "", s: "input" },
+      finByName(r, l ? finOfName.get(l.name) || "" : ""),
       { v: l ? labelOf(l.code) : "", s: "input" },
-      { f: `IF(B${r}="","",IFERROR(INDEX(${codeShorts},MATCH(B${r},${codeLabels},0)),""))`, v: l ? shortOf(l.code) : "", s: "cell" },
+      { f: `IF(C${r}="","",IFERROR(INDEX(${codeShorts},MATCH(C${r},${codeLabels},0)),""))`, v: l ? shortOf(l.code) : "", s: "cell" },
       { v: l ? serial(l.from) : null, s: "inputDate" },
       { v: l ? serial(l.to) : null, s: "inputDate" },
-      { f: `IF(OR(D${r}="",E${r}=""),"",NETWORKDAYS(D${r},E${r},${q(WB.params)}$D$4:$D$60))`, v: work_ ?? "", s: "int" },
-      { f: `IF(OR(D${r}="",E${r}=""),"",E${r}-D${r}+1)`, v: days_ ?? "", s: "int" },
+      { f: `IF(OR(E${r}="",F${r}=""),"",NETWORKDAYS(E${r},F${r},${q(WB.params)}$D$4:$D$60))`, v: work_ ?? "", s: "int" },
+      { f: `IF(OR(E${r}="",F${r}=""),"",F${r}-E${r}+1)`, v: days_ ?? "", s: "int" },
       { v: l?.note ?? "", s: "input" },
     ]);
   }
@@ -399,28 +406,30 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     headers: [],
     rows: leaveRows,
     free: true,
-    widths: [30, 44, 10, 14, 14, 10, 12, 30],
+    widths: [30, 12, 44, 10, 14, 14, 10, 12, 30],
     freeze: { rows: 3, cols: 0 },
     lists: [
       { ref: `A${leaveFirst}:A${leaveLast}`, source: staffNames },
-      { ref: `B${leaveFirst}:B${leaveLast}`, source: codeLabels },
+      { ref: `C${leaveFirst}:C${leaveLast}`, source: codeLabels },
     ],
   };
   const LA = (col: string) => `${q(WB.leaves)}$${col}$${leaveFirst}:$${col}$${leaveLast}`;
 
   // ---- Tabel ----
-  const sumStart = N + 2; // first summary column (1-based)
+  const sumStart = N + DC; // first summary column (1-based)
   const SUM = { norm: sumStart, worked: sumStart + 1, paid: sumStart + 2, vac: sumStart + 3, down: sumStart + 4, benefit: sumStart + 5, unpaid: sumStart + 6, vacCal: sumStart + 7, benCal: sumStart + 8, mat: sumStart + 9 };
   const tabelRows: XlsxCell[][] = [
     [{ v: `Davamiyyət cədvəli (tabel): ${input.month}`, s: "title" }],
     [{ v: "Tabel “Azad olmalar” vərəqindən avtomatik doldurulur: boş xana işdə deyil, işlənib deməkdir; qısa kod həmin günün azad olma növüdür; X işçinin işə qəbuldan əvvəl və ya çıxışdan sonra günüdür.", s: "note" }],
     [
       { v: "Ad Soyad", s: "head" },
+      { v: "FİN", s: "head" },
       ...days.map((d) => ({ v: serial(d.date), s: "dayhead" as const })),
       ...["Norma günü", "İşləyib", "Digər ödənişli", "Məzuniyyət (iş günü)", "Boşdayanma", "Müavinətlə (SS)", "Ödənişsiz", "Məzuniyyət (təqvim günü)", "Müavinət (təqvim günü)", "Analıq günü"].map((v) => ({ v, s: "head" as const })),
     ],
     [
       { v: "gün növü", s: "label" },
+      { v: "", s: "label" },
       ...days.map((d) => ({ v: dayType(d), s: d.off === "" ? ("cell" as const) : d.off === "weekend" || d.off === "company" ? ("weekend" as const) : ("holiday" as const) })),
     ],
   ];
@@ -452,10 +461,10 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     const ir = S0 + i;
     const c = calcs[i];
     const dayCells: XlsxCell[] = days.map((_, j) => {
-      const col = L(2 + j);
+      const col = L(DC + j);
       const staff = q(WB.staff);
-      const match = `SUMPRODUCT(MAX((${LA("A")}=$A${r})*(${LA("D")}<=${col}$3)*(${LA("E")}>=${col}$3)*(${LA("C")}<>"")*(ROW(${LA("A")})-${leaveFirst - 1})))`;
-      const f = `IF($A${r}="","",IF(OR(AND(${staff}$K${ir}<>"",${col}$3<${staff}$K${ir}),AND(${staff}$L${ir}<>"",${col}$3>${staff}$L${ir})),"X",IF(${col}$4<>"iş","",IF(${match}=0,"",INDEX(${LA("C")},${match})))))`;
+      const match = `SUMPRODUCT(MAX((${LA("A")}=$A${r})*(${LA("E")}<=${col}$3)*(${LA("F")}>=${col}$3)*(${LA("D")}<>"")*(ROW(${LA("A")})-${leaveFirst - 1})))`;
+      const f = `IF($A${r}="","",IF(OR(AND(${staff}$K${ir}<>"",${col}$3<${staff}$K${ir}),AND(${staff}$L${ir}<>"",${col}$3>${staff}$L${ir})),"X",IF(${col}$4<>"iş","",IF(${match}=0,"",INDEX(${LA("D")},${match})))))`;
       return { f, v: c ? c.marks[j] : "", s: days[j].off === "" ? ("cell" as const) : days[j].off === "weekend" || days[j].off === "company" ? ("weekend" as const) : ("holiday" as const) };
     });
     const cells = rowCells(r);
@@ -473,7 +482,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
       { f: `IF($A${r}="","",SUM(${q(WB.helper)}${firstDay}${hrow(1, 3, i)}:${lastDay}${hrow(1, 3, i)}))`, v: c ? c.benCal : "", s: "int" },
       { f: `IF($A${r}="","",COUNTIF(${cells},"AN"))`, v: c ? (c.maternity ? 1 : 0) * c.marks.filter((m) => m === "AN").length : "", s: "int" },
     ];
-    tabelRows.push([{ f: `IF(${q(WB.staff)}A${ir}="","",${q(WB.staff)}A${ir})`, v: input.employees[i]?.name ?? "", s: "cell" }, ...dayCells, ...sumCells]);
+    tabelRows.push([{ f: `IF(${q(WB.staff)}A${ir}="","",${q(WB.staff)}A${ir})`, v: input.employees[i]?.name ?? "", s: "cell" }, { f: `IF(${q(WB.staff)}A${ir}="","",${q(WB.staff)}B${ir})`, v: input.employees[i]?.fin ?? "", s: "cell" }, ...dayCells, ...sumCells]);
     for (let set = 0; set < 2; set++) {
       const codes = arrayOf(shortsOf(set === 0 ? "vacation" : "benefit"));
       const values = c ? chainOf(set === 0 ? c.vacFlags : c.benFlags, c.types, set === 1) : null;
@@ -481,7 +490,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
         const hr = hrow(set, block, i);
         const nameCell: XlsxCell = { f: `IF(${q(WB.sheet)}$A${r}="","",${q(WB.sheet)}$A${r})`, v: input.employees[i]?.name ?? "", s: "cell" };
         const cells: XlsxCell[] = days.map((_, j) => {
-          const col = L(2 + j);
+          const col = L(DC + j);
           const type = `${q(WB.sheet)}${col}$4`;
           const own = `${q(WB.sheet)}${col}${r}`;
           const markRef = (c2: string) => `${c2}${hrow(set, 0, i)}`;
@@ -491,10 +500,10 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
             f = `IF($A${hr}="",0,IF(AND(${type}="iş",${own}<>"X",ISNUMBER(MATCH(${own},${codes},0))),1,0))`;
             v = values ? values.mark[j] : 0;
           } else if (block === 1) {
-            f = j === 0 ? "0" : `IF(${q(WB.sheet)}${L(1 + j)}$4="iş",${markRef(L(1 + j))},${L(1 + j)}${hr})`;
+            f = j === 0 ? "0" : `IF(${q(WB.sheet)}${L(DC - 1 + j)}$4="iş",${markRef(L(1 + j))},${L(DC - 1 + j)}${hr})`;
             v = values ? values.prev[j] : 0;
           } else if (block === 2) {
-            f = j === N - 1 ? "0" : `IF(${q(WB.sheet)}${L(3 + j)}$4="iş",${markRef(L(3 + j))},${L(3 + j)}${hr})`;
+            f = j === N - 1 ? "0" : `IF(${q(WB.sheet)}${L(DC + 1 + j)}$4="iş",${markRef(L(3 + j))},${L(DC + 1 + j)}${hr})`;
             v = values ? values.next[j] : 0;
           } else {
             const both = `${col}${hrow(set, 1, i)}*${col}${hrow(set, 2, i)}`;
@@ -503,11 +512,11 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
           }
           return { f, v, s: "int" as const };
         });
-        putHelper(hr, [nameCell, ...cells]);
+        putHelper(hr, [nameCell, { v: "", s: "cell" }, ...cells]);
       }
     }
   }
-  const tabelSheet: XlsxSheet = { name: WB.sheet, headers: [], rows: tabelRows, free: true, widths: [30, ...days.map(() => 4.2), 11, 10, 13, 15, 12, 14, 11, 16, 16, 11], freeze: { rows: 4, cols: 1 } };
+  const tabelSheet: XlsxSheet = { name: WB.sheet, headers: [], rows: tabelRows, free: true, widths: [30, 12, ...days.map(() => 4.2), 11, 10, 13, 15, 12, 14, 11, 16, 16, 11], freeze: { rows: 4, cols: 2 } };
   const TB = (key: keyof typeof SUM, r: number) => `${q(WB.sheet)}${L(SUM[key])}${r}`;
   for (let set = 0; set < 2; set++)
     for (let block = 0; block < 4; block++) {
@@ -516,13 +525,13 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   helperRows[0] = [{ v: "Köməkçi hesablamalar (təqvim günləri)", s: "title" }];
   helperRows[1] = [{ v: "Bu vərəq Tabeldəki məzuniyyət və müavinət günlərinin təqvim sayını platformanın qaydası ilə çıxarır. Burada heç nə əl ilə yazılmır.", s: "note" }];
   for (let k = 0; k < helperRows.length; k++) helperRows[k] ||= [];
-  const helperSheet: XlsxSheet = { name: WB.helper, headers: [], rows: helperRows, free: true, widths: [30, ...days.map(() => 4.2)], freeze: { rows: 2, cols: 1 } };
+  const helperSheet: XlsxSheet = { name: WB.helper, headers: [], rows: helperRows, free: true, widths: [30, 12, ...days.map(() => 4.2)], freeze: { rows: 2, cols: 1 } };
 
   // ---- Əlavə-Tutulma ----
   const addRows: XlsxCell[][] = [
     [{ v: "Mükafat, əlavə, tutulma və avans", s: "title" }],
     [{ v: "Hər sətir bir maddədir. Növ: Mükafat, Əlavə, Tutulma (tutulma növü: Ümumi / İcra sənədi / Aliment) və ya Avans. Tutulmalar qanuni həddə (20 / 50 / 70%) endirilir. Platformada artıq qeyd olunmuş avanslar tarixsiz görünür. Platformaya yeni avans yazmaq üçün “Avansın ödəniş tarixi”ni doldurun (avans günü və limitlər platformada yoxlanır).", s: "note" }],
-    ["Ad Soyad", "Növ", "Ad / səbəb", "Məbləğ (AZN)", "Tutulma növü", "Qeyd", "Avansın ödəniş tarixi"].map((v) => ({ v, s: "head" as const })),
+    ["Ad Soyad", "FİN", "Növ", "Ad / səbəb", "Məbləğ (AZN)", "Tutulma növü", "Qeyd", "Avansın ödəniş tarixi"].map((v) => ({ v, s: "head" as const })),
   ];
   const addFirst = 4;
   const addLast = addFirst + ADD_ROWS - 1;
@@ -530,6 +539,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     const a = input.adds[i];
     addRows.push([
       { v: a?.name ?? "", s: "input" },
+      finByName(addFirst + i, a ? finOfName.get(a.name) || "" : ""),
       { v: a?.kind ?? "", s: "input" },
       { v: a?.label ?? "", s: "input" },
       { v: a ? a.amount : null, s: "inputMoney" },
@@ -543,12 +553,12 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     headers: [],
     rows: addRows,
     free: true,
-    widths: [30, 14, 34, 16, 16, 30, 20],
+    widths: [30, 12, 14, 34, 16, 16, 30, 20],
     freeze: { rows: 3, cols: 0 },
     lists: [
       { ref: `A${addFirst}:A${addLast}`, source: staffNames },
-      { ref: `B${addFirst}:B${addLast}`, items: ["Mükafat", "Əlavə", "Tutulma", "Avans"] },
-      { ref: `E${addFirst}:E${addLast}`, items: ["Ümumi", "İcra sənədi", "Aliment"] },
+      { ref: `C${addFirst}:C${addLast}`, items: ["Mükafat", "Əlavə", "Tutulma", "Avans"] },
+      { ref: `F${addFirst}:F${addLast}`, items: ["Ümumi", "İcra sənədi", "Aliment"] },
     ],
   };
   const AD = (col: string) => `${q(WB.adds)}$${col}$${addFirst}:$${col}$${addLast}`;
@@ -557,19 +567,20 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   const hourRows: XlsxCell[][] = [
     [{ v: "Əlavə saatlar (ay yekunu)", s: "title" }],
     [{ v: "İş vaxtından artıq iş 2 qat (md. 165), istirahət və bayram günü işi 1 qat (md. 164, norma daxilində), gecə işi gecə əlavəsi faizi ilə (md. 166) ödənilir. Saatlar platformaya ay yekunu kimi yazılır.", s: "note" }],
-    ["Ad Soyad", "Artıq iş saatı", "İstirahət / bayram günü saatı", "Gecə saatı"].map((v) => ({ v, s: "head" as const })),
+    ["Ad Soyad", "FİN", "Artıq iş saatı", "İstirahət / bayram günü saatı", "Gecə saatı"].map((v) => ({ v, s: "head" as const })),
   ];
   for (let i = 0; i < staffRows; i++) {
     const ir = S0 + i;
     const h = input.hours.find((x) => x.name === input.employees[i]?.name);
     hourRows.push([
       { f: `IF(${q(WB.staff)}A${ir}="","",${q(WB.staff)}A${ir})`, v: input.employees[i]?.name ?? "", s: "cell" },
+      { f: `IF(${q(WB.staff)}A${ir}="","",${q(WB.staff)}B${ir})`, v: input.employees[i]?.fin ?? "", s: "cell" },
       { v: h?.overtime || null, s: "inputMoney" },
       { v: h?.restDay || null, s: "inputMoney" },
       { v: h?.night || null, s: "inputMoney" },
     ]);
   }
-  const hoursSheet: XlsxSheet = { name: WB.hours, headers: [], rows: hourRows, free: true, widths: [30, 18, 28, 14], freeze: { rows: 3, cols: 1 } };
+  const hoursSheet: XlsxSheet = { name: WB.hours, headers: [], rows: hourRows, free: true, widths: [30, 12, 18, 28, 14], freeze: { rows: 3, cols: 1 } };
 
   // ---- Normlar, Məzənnə ----
   const normRows: XlsxCell[][] = [
@@ -601,7 +612,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   const tripRows: XlsxCell[][] = [
     [{ v: "Ezamiyyətlər və gündəlik hesabı", s: "title" }],
     [{ v: "Təyinat qanunun cədvəlindən seçilir. Daxili “digər” yer üçün yerin adını ayrıca sütunda yazın. Gündəlik = norma × məzənnə × gün. Ezamiyyət ödənişi əmək haqqına daxil deyil, ayrıca ödənilir.", s: "note" }],
-    ["Ad Soyad", "Təyinat (qanunun cədvəlindən)", "Yerin adı (yalnız “digər” üçün)", "Başlama", "Bitmə", "Məqsəd", "Gün", "Norma", "Valyuta", "Məzənnə", "Gündəlik (AZN)", "Gündəlik cəmi (AZN)", "Avans (AZN)", "Digər xərclər (AZN)", "Ödəniləcək qalıq (AZN)", "Gündəlik (əl ilə, AZN)"].map((v) => ({ v, s: "head" as const })),
+    ["Ad Soyad", "FİN", "Təyinat (qanunun cədvəlindən)", "Yerin adı (yalnız “digər” üçün)", "Başlama", "Bitmə", "Məqsəd", "Gün", "Norma", "Valyuta", "Məzənnə", "Gündəlik (AZN)", "Gündəlik cəmi (AZN)", "Avans (AZN)", "Digər xərclər (AZN)", "Ödəniləcək qalıq (AZN)", "Gündəlik (əl ilə, AZN)"].map((v) => ({ v, s: "head" as const })),
   ];
   const tripFirst = 4;
   const tripLast = tripFirst + TRIP_ROWS - 1;
@@ -615,20 +626,21 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     const daily = t && (norm || t.daily) ? tripDaily(t) : "";
     tripRows.push([
       { v: t?.name ?? "", s: "input" },
+      finByName(r, t ? finOfName.get(t.name) || "" : ""),
       { v: t?.destination ?? "", s: "input" },
       { v: t?.place ?? "", s: "input" },
       { v: t?.start ? serial(t.start) : null, s: "inputDate" },
       { v: t?.end ? serial(t.end) : null, s: "inputDate" },
       { v: t?.purpose ?? "", s: "input" },
-      { f: `IF(OR(D${r}="",E${r}=""),"",E${r}-D${r}+1)`, v: d, s: "int" },
-      { f: `IF(B${r}="","",IFERROR(VLOOKUP(B${r},${NR},2,FALSE),""))`, v: norm ? norm.norm : "", s: "money" },
-      { f: `IF(B${r}="","",IFERROR(VLOOKUP(B${r},${NR},3,FALSE),""))`, v: norm ? norm.currency : "", s: "cell" },
-      { f: `IF(I${r}="","",IF(I${r}="AZN",1,IFERROR(VLOOKUP(I${r},${q(WB.fx)}$A$4:$B$12,2,FALSE),"")))`, v: rate, s: "money" },
-      { f: `IF(P${r}<>"",P${r},IF(OR(H${r}="",J${r}=""),"",ROUND(H${r}*J${r},2)))`, v: daily, s: "money" },
-      { f: `IF(OR(G${r}="",K${r}=""),"",ROUND(G${r}*K${r},2))`, v: t && norm ? tripTotal(t) : "", s: "money" },
+      { f: `IF(OR(E${r}="",F${r}=""),"",F${r}-E${r}+1)`, v: d, s: "int" },
+      { f: `IF(C${r}="","",IFERROR(VLOOKUP(C${r},${NR},2,FALSE),""))`, v: norm ? norm.norm : "", s: "money" },
+      { f: `IF(C${r}="","",IFERROR(VLOOKUP(C${r},${NR},3,FALSE),""))`, v: norm ? norm.currency : "", s: "cell" },
+      { f: `IF(J${r}="","",IF(J${r}="AZN",1,IFERROR(VLOOKUP(J${r},${q(WB.fx)}$A$4:$B$12,2,FALSE),"")))`, v: rate, s: "money" },
+      { f: `IF(Q${r}<>"",Q${r},IF(OR(I${r}="",K${r}=""),"",ROUND(I${r}*K${r},2)))`, v: daily, s: "money" },
+      { f: `IF(OR(H${r}="",L${r}=""),"",ROUND(H${r}*L${r},2))`, v: t && (norm || t.daily) ? tripTotal(t) : "", s: "money" },
       { v: t ? t.advance : null, s: "inputMoney" },
       { v: t ? t.other : null, s: "inputMoney" },
-      { f: `IF(L${r}="","",ROUND(L${r}+N${r}-M${r},2))`, v: t && (norm || t.daily) ? r2(tripTotal(t) + t.other - t.advance) : "", s: "total" },
+      { f: `IF(M${r}="","",ROUND(M${r}+O${r}-N${r},2))`, v: t && (norm || t.daily) ? r2(tripTotal(t) + t.other - t.advance) : "", s: "total" },
       { v: t && t.daily ? t.daily : null, s: "inputMoney" },
     ]);
   }
@@ -637,19 +649,19 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     headers: [],
     rows: tripRows,
     free: true,
-    widths: [30, 48, 26, 13, 13, 26, 7, 10, 9, 10, 14, 16, 13, 16, 18, 18],
+    widths: [30, 12, 48, 26, 13, 13, 26, 7, 10, 9, 10, 14, 16, 13, 16, 18, 18],
     freeze: { rows: 3, cols: 1 },
     lists: [
       { ref: `A${tripFirst}:A${tripLast}`, source: staffNames },
-      { ref: `B${tripFirst}:B${tripLast}`, source: `${q(WB.norms)}$A$${normFirst}:$A$${normLast}` },
+      { ref: `C${tripFirst}:C${tripLast}`, source: `${q(WB.norms)}$A$${normFirst}:$A$${normLast}` },
     ],
   };
   const TR = (col: string) => `${q(WB.trips)}$${col}$${tripFirst}:$${col}$${tripLast}`;
 
   // ---- Hesablama ----
-  const order = ["name", "salary", "reduction", "week", "norm", "worked", "paid", "vacWork", "vacCal", "down", "benefit", "unpaid", "benCal", "day", "hour", "payWorked", "payPaid", "payVac", "comp", "payDown", "over", "rest", "night", "allow", "bonus", "gross", "base", "tax", "soc", "unemp", "med", "net", "dedAsk", "share", "dedApplied", "advance", "toPay", "excess", "erSoc", "erUnemp", "erMed", "cost", "benefitAmt", "trips"] as const;
+  const order = ["name", "fin", "salary", "reduction", "week", "norm", "worked", "paid", "vacWork", "vacCal", "down", "benefit", "unpaid", "benCal", "day", "hour", "payWorked", "payPaid", "payVac", "comp", "payDown", "over", "rest", "night", "allow", "bonus", "gross", "base", "tax", "soc", "unemp", "med", "net", "dedAsk", "share", "dedApplied", "advance", "toPay", "excess", "erSoc", "erUnemp", "erMed", "cost", "benefitAmt", "trips"] as const;
   const H = Object.fromEntries(order.map((k, i) => [k, i + 1])) as Record<(typeof order)[number], number>;
-  const HEAD = ["Ad Soyad", "Aylıq maaş (hesablama üçün)", "Vergi azaldılması", "Həftəlik saat", "Norma günü", "İşləyib", "Digər ödənişli", "Məzuniyyət (iş günü)", "Məzuniyyət (təqvim)", "Boşdayanma", "Müavinətlə (SS)", "Ödənişsiz", "Müavinət (təqvim)", "Gün haqqı", "Saat haqqı", "İşlənmiş günlər", "Digər ödənişli günlər", "Məzuniyyət haqqı", "Məzuniyyət kompensasiyası", "Boşdayanma (2/3)", "Artıq iş (×2)", "İstirahət günü işi", "Gecə əlavəsi", "Əlavə", "Mükafat", "Hesablanmış (gross)", "Vergi bazası", "Gəlir vergisi", "DSMF (işçi)", "İşsizlik (işçi)", "İTS (işçi)", "Xalis (net)", "Tutulma (istənilən)", "Tutulma həddi", "Tutulma (tətbiq)", "Avans", "Ödəniləcək", "Avans artığı", "DSMF (işəgötürən)", "İşsizlik (işəgötürən)", "İTS (işəgötürən)", "İşəgötürən xərci", "Sığorta müavinəti (SS ödəyir)", "Ezamiyyət (ayrıca)"];
+  const HEAD = ["Ad Soyad", "FİN", "Aylıq maaş (hesablama üçün)", "Vergi azaldılması", "Həftəlik saat", "Norma günü", "İşləyib", "Digər ödənişli", "Məzuniyyət (iş günü)", "Məzuniyyət (təqvim)", "Boşdayanma", "Müavinətlə (SS)", "Ödənişsiz", "Müavinət (təqvim)", "Gün haqqı", "Saat haqqı", "İşlənmiş günlər", "Digər ödənişli günlər", "Məzuniyyət haqqı", "Məzuniyyət kompensasiyası", "Boşdayanma (2/3)", "Artıq iş (×2)", "İstirahət günü işi", "Gecə əlavəsi", "Əlavə", "Mükafat", "Hesablanmış (gross)", "Vergi bazası", "Gəlir vergisi", "DSMF (işçi)", "İşsizlik (işçi)", "İTS (işçi)", "Xalis (net)", "Tutulma (istənilən)", "Tutulma həddi", "Tutulma (tətbiq)", "Avans", "Ödəniləcək", "Avans artığı", "DSMF (işəgötürən)", "İşsizlik (işəgötürən)", "İTS (işəgötürən)", "İşəgötürən xərci", "Sığorta müavinəti (SS ödəyir)", "Ezamiyyət (ayrıca)"];
   const groups: [number, number, string][] = [[H.norm, H.benCal, "Tabeldən (gün)"], [H.day, H.hour, "Tarif"], [H.payWorked, H.gross, "Hesablanır"], [H.base, H.net, "Vergi və sığorta (işçi)"], [H.dedAsk, H.excess, "Tutulma, avans, ödəniş"], [H.erSoc, H.benefitAmt, "İşəgötürən və müavinət"]];
   const calcRows: XlsxCell[][] = [
     [{ v: `Əmək haqqı hesablaması: ${input.month}`, s: "title" }],
@@ -673,13 +685,14 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     const pay = c?.pay;
     const line = (id: string) => c?.line(id) ?? 0;
     const f = (formula: string, v: number | string, s: "int" | "money" | "total" | "cell" | "pct"): XlsxCell => ({ f: `IF(${empty},"",${formula})`, v: c ? v : "", s });
-    const advanceF = `SUMIFS(${AD("D")},${AD("A")},$A${r},${AD("B")},"Avans")`;
+    const advanceF = `SUMIFS(${AD("E")},${AD("A")},$A${r},${AD("C")},"Avans")`;
     const taxBase = `MAX(0,${a("gross")}-${a("reduction")})`;
-    const dedCount = (kind: string) => `COUNTIFS(${AD("A")},$A${r},${AD("B")},"Tutulma",${AD("E")},"${kind}")`;
+    const dedCount = (kind: string) => `COUNTIFS(${AD("A")},$A${r},${AD("C")},"Tutulma",${AD("F")},"${kind}")`;
     const dedRows = pay?.otherDeductions || [];
     const applied = dedRows.reduce((t, d) => t + d.applied, 0);
     calcRows.push([
       { f: `IF(${st}A${ir}="","",${st}A${ir})`, v: e?.name ?? "", s: "cell" },
+      f(`${st}B${ir}`, e?.fin ?? "", "cell"),
       f(`IF(AND(${st}N${ir}<>"",${st}O${ir}<>""),(${st}E${ir}*SUMPRODUCT((${q(WB.sheet)}${typeRow}="iş")*(${q(WB.sheet)}${dateRow}<${st}O${ir}))+${st}N${ir}*(${P("workingDays")}-SUMPRODUCT((${q(WB.sheet)}${typeRow}="iş")*(${q(WB.sheet)}${dateRow}<${st}O${ir}))))/${P("workingDays")},${st}E${ir})`, c?.salary ?? 0, "money"),
       f(`IF(${st}P${ir}="",${st}G${ir},IFERROR(VLOOKUP(${st}P${ir},${q(WB.benefits)}$A$4:$B$${3 + TAX_BENEFITS.length},2,FALSE),0)+IF(${st}Q${ir}="Bəli",${P("dependents")},0))`, c?.reduction ?? 0, "money"),
       f(`${st}H${ir}`, e?.weekHours ?? 40, "int"),
@@ -699,11 +712,11 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
       f(`ROUND(IF(${st}I${ir}="",${a("salary")},${st}I${ir})/${P("meanMonth")}*${a("vacCal")},2)`, line("vacation"), "money"),
       f(`ROUND(IF(${st}I${ir}="",${a("salary")},${st}I${ir})/${P("meanMonth")}*N(${st}M${ir}),2)`, line("leave-compensation"), "money"),
       f(`ROUND(${a("day")}*${a("down")}*2/3,2)`, line("downtime"), "money"),
-      f(`ROUND(${a("hour")}*2*${q(WB.hours)}B${ir},2)`, line("overtime"), "money"),
-      f(`ROUND(${a("hour")}*${q(WB.hours)}C${ir},2)`, line("rest-day"), "money"),
-      f(`ROUND(${a("hour")}*${st}J${ir}*${q(WB.hours)}D${ir}/100,2)`, line("night"), "money"),
-      f(`ROUND(SUMIFS(${AD("D")},${AD("A")},$A${r},${AD("B")},"Əlavə"),2)`, c?.allowance ?? 0, "money"),
-      f(`ROUND(SUMIFS(${AD("D")},${AD("A")},$A${r},${AD("B")},"Mükafat"),2)`, c?.bonus ?? 0, "money"),
+      f(`ROUND(${a("hour")}*2*${q(WB.hours)}C${ir},2)`, line("overtime"), "money"),
+      f(`ROUND(${a("hour")}*${q(WB.hours)}D${ir},2)`, line("rest-day"), "money"),
+      f(`ROUND(${a("hour")}*${st}J${ir}*${q(WB.hours)}E${ir}/100,2)`, line("night"), "money"),
+      f(`ROUND(SUMIFS(${AD("E")},${AD("A")},$A${r},${AD("C")},"Əlavə"),2)`, c?.allowance ?? 0, "money"),
+      f(`ROUND(SUMIFS(${AD("E")},${AD("A")},$A${r},${AD("C")},"Mükafat"),2)`, c?.bonus ?? 0, "money"),
       f(`ROUND(SUM(${L(H.payWorked)}${r}:${L(H.bonus)}${r}),2)`, pay?.gross ?? 0, "total"),
       f(taxBase, Math.max(0, (pay?.gross ?? 0) - (c?.reduction ?? 0)), "money"),
       f(`IF(${st}F${ir}="Dövlət",IF(${a("base")}<=${P("tier1")},${a("base")}*${P("pubRate1")},${P("pubBase")}+(${a("base")}-${P("tier1")})*${P("pubRate2")}),IF(${a("base")}<=${P("tier1")},MAX(0,${a("base")}-${P("taxFree")})*${P("rate1")},IF(${a("base")}<=${P("tier2")},${P("base2")}+(${a("base")}-${P("tier1")})*${P("rate2")},${P("base3")}+(${a("base")}-${P("tier2")})*${P("rate3")})))`, pay?.incomeTax ?? 0, "money"),
@@ -711,7 +724,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
       f(`${a("gross")}*${P("unemp")}`, pay?.employeeUnemployment ?? 0, "money"),
       f(`IF(${a("gross")}<=${P("medLimit")},${a("gross")}*${P("medLow")},${P("medBase")}+(${a("gross")}-${P("medLimit")})*${P("medHigh")})`, pay?.employeeMedical ?? 0, "money"),
       f(`ROUND(${a("gross")}-SUM(${L(H.tax)}${r}:${L(H.med)}${r}),2)`, pay?.net ?? 0, "total"),
-      f(`ROUND(SUMIFS(${AD("D")},${AD("A")},$A${r},${AD("B")},"Tutulma"),2)`, c?.deducted ?? 0, "money"),
+      f(`ROUND(SUMIFS(${AD("E")},${AD("A")},$A${r},${AD("C")},"Tutulma"),2)`, c?.deducted ?? 0, "money"),
       f(`IF(${a("dedAsk")}=0,0,IF(${dedCount("Aliment")}>0,${P("capAlimony")},IF(${dedCount("İcra sənədi")}>0,${P("capWrit")},${P("capGeneral")})))`, pay?.deductionCapShare ?? 0, "pct"),
       f(`ROUND(MIN(${a("dedAsk")},${a("net")}*${a("share")}),2)`, applied, "money"),
       f(`ROUND(${advanceF},2)`, c?.advance ?? 0, "money"),
@@ -722,7 +735,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
       f(`IF(${a("gross")}<=${P("medLimit")},${a("gross")}*${P("medLow")},${P("medBase")}+(${a("gross")}-${P("medLimit")})*${P("medHigh")})`, pay?.employerMedical ?? 0, "money"),
       f(`ROUND(${a("gross")}+SUM(${L(H.erSoc)}${r}:${L(H.erMed)}${r}),2)`, pay?.employerCost ?? 0, "total"),
       f(`IF(${a("benCal")}=0,0,IF(${st}R${ir}="Xeyr",0,ROUND(MIN(IF(${P("minPension")}>0,${P("minPension")}*${P("capFactor")},1E+99),IF(${st}I${ir}="",${a("salary")},${st}I${ir})/${P("meanMonth")}*IF(${TB("mat", tr)}>0,${P("maternityPct")},${P("sickPct")})/100*${a("benCal")}),2)))`, pay?.benefitAmount ?? 0, "money"),
-      f(`ROUND(SUMIFS(${TR("O")},${TR("A")},$A${r}),2)`, c?.trips ?? 0, "money"),
+      f(`ROUND(SUMIFS(${TR("P")},${TR("A")},$A${r}),2)`, c?.trips ?? 0, "money"),
     ]);
   }
   const totalRow = C0 + staffRows;
