@@ -6,6 +6,7 @@ import PayrollBank from "./PayrollBank";
 import PayrollReport from "./PayrollReport";
 import { payslipHtml } from "@/lib/payslip-html";
 import { SheetImport } from "./StaffPages";
+import { WorkbookButtons, WorkbookImport } from "./PayrollWorkbook";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -63,6 +64,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const [settings, setSettings] = useState(false);
   const [bank, setBank] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [workbookImport, setWorkbookImport] = useState(false);
   const [accounts, setAccounts] = useState(false);
   const [benefits, setBenefits] = useState(false);
   const [view, setView] = useState<"sheet" | "report">("sheet");
@@ -137,6 +139,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <a className="secondary report-button" href={`/api/joblink/company/payroll/export?month=${month}&kind=bank`} download>
             <Download size={14} /> Bank reyestri (XLSX)
           </a>
+          <WorkbookButtons month={month} notify={notify} locked={sheet?.status === "approved"} onOpenImport={() => setWorkbookImport(true)} />
           {sheet?.status !== "approved" && (
             <button type="button" className="secondary" onClick={() => setImporting(true)}>
               Excel-dən əlavə və tutulma
@@ -302,6 +305,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       {paying && <PayModal month={month} row={paying} approved={approved} notify={notify} onClose={() => setPaying(null)} onSaved={load} />}
       {benefits && <BenefitsModal month={month} notify={notify} onClose={() => setBenefits(false)} />}
       {accounts && <AccountingModal month={month} notify={notify} onClose={() => setAccounts(false)} />}
+      {workbookImport && <WorkbookImport month={month} notify={notify} onClose={() => setWorkbookImport(false)} onDone={load} />}
       {importing && <SheetImport kind="payroll" extra={{ month }} notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {bank && <PayrollBank month={month} notify={notify} onClose={() => setBank(false)} onChanged={load} />}
       {settings && <SettingsModal settings={sheet.settings} notify={notify} onClose={() => setSettings(false)} onSaved={load} />}

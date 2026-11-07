@@ -12210,6 +12210,68 @@ async function route(request: Request) {
     const sheet = await payrollRows(payrollMonth().raw);
     return ok(auditorOnly ? { ...sheet, rows: sheet.rows.map((r) => ({ ...r, iban: r.iban ? "••••" : "", fin: "", cardNumber: "" })) } : sheet);
   }
+  // The data of the calculation workbook (Excel): the month's employees, leave and absence ranges, bonuses, additions,
+  // deductions, hours, trips and the official exchange rates. The browser builds the .xlsx from it.
+  if (request.method === "GET" && path === "company/payroll/workbook") {
+    requirePermission("salaries", "Hesablama iş kitabını yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
+    const { raw: monthRaw, year, month } = payrollMonth();
+    await applyDueOrderEffects();
+    await auditView("view-payroll-workbook", monthRaw);
+    const sheet = await payrollRows(monthRaw);
+    const first = `${monthRaw}-01`;
+    const last = `${monthRaw}-31`;
+    const ends = new Map((await db.prepare("SELECT id,end_date FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; end_date: string }>()).results.map((r) => [r.id, r.end_date || ""]));
+    const nameOf = new Map(sheet.rows.map((r) => [r.employeeId, r.name]));
+    const days = monthDays(year, month, (await db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, first, last).all<CalendarOverride>()).results).map((d) => ({ date: d.date, off: d.off }));
+    // Marks of the month become ranges: the same employee and code on following days is one line.
+    const marks = (await db.prepare("SELECT employee_id,day,code FROM attendance_marks WHERE company_id=? AND day BETWEEN ? AND ? ORDER BY employee_id,day").bind(id, first, last).all<{ employee_id: string; day: string; code: string }>()).results;
+    const leaves: { name: string; code: string; from: string; to: string; note: string }[] = [];
+    for (const m of marks) {
+      const name = nameOf.get(m.employee_id);
+      if (!name || !m.code || m.code === "work") continue;
+      const previous = leaves[leaves.length - 1];
+      const nextDay = previous ? new Date(Date.parse(`${previous.to}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10) : "";
+      if (previous && previous.name === name && previous.code === m.code && nextDay === m.day) previous.to = m.day;
+      else leaves.push({ name, code: m.code, from: m.day, to: m.day, note: "" });
+    }
+    const KIND_TEXT = { general: "Ümumi", writ: "İcra sənədi", alimony: "Aliment" } as const;
+    const adds: { name: string; kind: "Mükafat" | "Əlavə" | "Tutulma" | "Avans"; label: string; amount: number; deductionKind: "Ümumi" | "İcra sənədi" | "Aliment" }[] = [];
+    for (const r of sheet.rows) {
+      if (r.inputs.bonus > 0) adds.push({ name: r.name, kind: "Mükafat", label: "Mükafat", amount: r.inputs.bonus, deductionKind: "Ümumi" });
+      if (r.inputs.allowance > 0) adds.push({ name: r.name, kind: "Əlavə", label: "Əlavə", amount: r.inputs.allowance, deductionKind: "Ümumi" });
+      for (const d of r.inputs.deductions) adds.push({ name: r.name, kind: "Tutulma", label: d.label || "Tutulma", amount: d.amount, deductionKind: KIND_TEXT[d.kind] || "Ümumi" });
+      if (r.result.advances > 0) adds.push({ name: r.name, kind: "Avans", label: "Avans", amount: r.result.advances, deductionKind: "Ümumi" });
+    }
+    const trips = (await db.prepare("SELECT t.employee_id,t.destination,t.purpose,t.start_date,t.end_date,t.advance_cents FROM trips t WHERE t.company_id=? AND t.start_date<=? AND t.end_date>=? AND t.status NOT IN ('rejected','cancelled') ORDER BY t.start_date").bind(id, last, first).all<{ employee_id: string; destination: string; purpose: string; start_date: string; end_date: string; advance_cents: number }>()).results
+      .filter((t) => nameOf.has(t.employee_id))
+      .map((t) => ({ name: nameOf.get(t.employee_id) as string, destination: t.destination, place: "", start: t.start_date, end: t.end_date, purpose: t.purpose, advance: t.advance_cents / 100, other: 0 }));
+    const rateDay = `${monthRaw}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
+    const rates = await tripRates(rateDay);
+    return ok({
+      month: monthRaw,
+      days,
+      employees: sheet.rows.map((r) => ({
+        name: r.name,
+        fin: r.fin || "",
+        position: r.position,
+        department: r.department,
+        salary: r.monthlySalary,
+        sector: r.sector,
+        taxReduction: r.taxReduction,
+        weekHours: r.weekHours,
+        averageMonthly: r.annual?.averageMonthly || 0,
+        nightPercent: r.nightPercent || 0,
+        start: r.startDate || "",
+        end: ends.get(r.employeeId) || "",
+      })),
+      leaves,
+      adds,
+      hours: sheet.rows.filter((r) => r.hours.overtime || r.hours.restDay || r.hours.night).map((r) => ({ name: r.name, overtime: r.hours.overtime, restDay: r.hours.restDay, night: r.hours.night })),
+      trips,
+      rates: { USD: rates.USD || 0, EUR: rates.EUR || 0, GBP: rates.GBP || 0, JPY: rates.JPY || 0 },
+      ratesDate: rateDay,
+    });
+  }
   // The sheet and the bank register as Excel files; a pay slip as data for printing.
   if (request.method === "GET" && path === "company/payroll/export") {
     requirePermission("salaries", "Cədvəli yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
