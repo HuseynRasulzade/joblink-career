@@ -35,6 +35,7 @@ import JobDrawer from "./JobDrawer";
 import { takeFocus } from "./focus";
 import OverviewDashboard from "./OverviewDashboard";
 import OverviewAttention from "./OverviewAttention";
+import HrOpsOverview from "./HrOpsOverview";
 import { InviteModal, ScheduleInterviewModal, type InvitePerson } from "./Interviews";
 import { BulkModal, SaveTalentModal } from "./BulkTalent";
 import { SavedSearches } from "./SavedSearches";
@@ -130,6 +131,7 @@ export default function HrPanel({
   onPublished,
   onMessage,
   canPublish = true,
+  mode = "recruit",
 }: {
   page: string;
   go: (s: string) => void;
@@ -142,6 +144,7 @@ export default function HrPanel({
   onPublished: () => void;
   onMessage: (target: { candidateId: string; jobId?: string; name: string; jobTitle?: string }) => void;
   canPublish?: boolean;
+  mode?: "recruit" | "ops";
 }) {
   const [linkSource, setLinkSource] = useState<Record<string, string>>({});
   const [attention, setAttention] = useState<{ key: string; count: number; label: string; link: string }[]>([]);
@@ -568,10 +571,12 @@ export default function HrPanel({
         : jobSort === "deadline" ? (a.deadline || "9999").localeCompare(b.deadline || "9999")
           : (b.created || "").localeCompare(a.created || ""),
     );
+  // The overview of the HR operations program is its own page: the staff, today's work, deadlines, the pay month.
+  const opsHome = page === "hr-overview" && mode === "ops" && !demo;
   return localizeTree(
     <>
       <div className="page-heading">
-        <div className="eyebrow">İŞƏ QƏBUL MƏKANI</div>
+        <div className="eyebrow">{opsHome ? "KADR ƏMƏLİYYATLARI" : "İŞƏ QƏBUL MƏKANI"}</div>
         <div className="heading-row">
           <div>
             <h1>
@@ -579,22 +584,31 @@ export default function HrPanel({
                 ? "HR köməkçiniz"
                 : page === "hr-jobs"
                   ? "Vakansiyalarım"
-                  : "Doğru insan, doğru komanda."}
+                  : opsHome
+                    ? "Kollektivinizi idarə edin."
+                    : "Doğru insan, doğru komanda."}
             </h1>
             <p>
               {page === "hr-ai"
                 ? "Vəzifəni təsvir edin, elanı birlikdə hazırlayaq."
-                : "Peşə bacarıqlarına əsaslanan, aydın işə qəbul prosesi."}
+                : opsHome
+                  ? "İşçilər, əmrlər, əmək haqqı və davamiyyət bir yerdə."
+                  : "Peşə bacarıqlarına əsaslanan, aydın işə qəbul prosesi."}
             </p>
           </div>
-          {page !== "hr-ai" && (
+          {page !== "hr-ai" && (opsHome ? (
+            <button className="primary" onClick={() => go("hr-orders")}>
+              <FileText size={17} /> Yeni əmr
+            </button>
+          ) : (
             <button className="primary" onClick={() => go("hr-ai")}>
               <Sparkles size={17} /> Vakansiya yarat
             </button>
-          )}
+          ))}
         </div>
       </div>
-      {page !== "hr-ai" && (
+      {opsHome && <HrOpsOverview go={go} />}
+      {page !== "hr-ai" && !opsHome && (
         <>
           <div className="info-bar">
             <span>

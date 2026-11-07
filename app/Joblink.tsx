@@ -2965,6 +2965,7 @@ export default function Joblink() {
               canPublish={
                 !companyMe || companyMe.permissions.includes("publish")
               }
+              mode={hrMode}
               onMessage={(target) => {
                 setMessageTarget(target);
                 go("hr-messages");

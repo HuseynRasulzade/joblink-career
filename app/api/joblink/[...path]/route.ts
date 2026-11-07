@@ -13739,6 +13739,40 @@ async function route(request: Request) {
     return ok({ events: rows.results });
   }
   // Headcount over the last year, a plain forecast, and the staff table against the people really working.
+  // The HR operations overview: the staff in numbers, who is away today, the next leaves, the orders and the pay month.
+  if (request.method === "GET" && path === "company/ops-overview") {
+    requirePermission("salaries", "Kadr ümumi baxışını yalnız kadr işçisi görə bilər.");
+    const today = new Date().toISOString().slice(0, 10);
+    const in14 = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+    const ago30 = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const people = (await db.prepare("SELECT id,name,department,status,start_date,end_date FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; name: string; department: string; status: string; start_date: string; end_date: string }>()).results;
+    const working = people.filter((p) => p.status === "active" || p.status === "leave");
+    const nameOf = new Map(people.map((p) => [p.id, p.name]));
+    const awayMarks = (await db.prepare(`SELECT employee_id,code FROM attendance_marks WHERE company_id=? AND day=? AND code IN (${AWAY_CODES.map(() => "?").join(",")})`).bind(id, today, ...AWAY_CODES).all<{ employee_id: string; code: string }>()).results;
+    const away = awayMarks.filter((m) => nameOf.has(m.employee_id)).map((m) => ({ name: nameOf.get(m.employee_id) as string, reason: (attendanceCode(m.code)?.label || m.code).replace(/\s*\(.*\)\s*/, "") }));
+    const byDepartment = new Map<string, number>();
+    for (const p of working) byDepartment.set(p.department || "Şöbəsiz", (byDepartment.get(p.department || "Şöbəsiz") || 0) + 1);
+    const series = monthSeries(people.map((r) => ({ startDate: r.start_date || "", endDate: r.end_date || "", status: r.status })), today.slice(0, 7), 12);
+    const leaves = (await db.prepare("SELECT employee_id,start_date,end_date,days,status FROM leave_schedule WHERE company_id=? AND status IN ('approved','proposed') AND start_date BETWEEN ? AND ? ORDER BY start_date LIMIT 10").bind(id, today, in14).all<{ employee_id: string; start_date: string; end_date: string; days: number; status: string }>().catch(() => ({ results: [] as { employee_id: string; start_date: string; end_date: string; days: number; status: string }[] }))).results;
+    const count = async (query: string, ...binds: unknown[]) => Number((await db.prepare(query).bind(...binds).first<{ n: number }>().catch(() => null))?.n || 0);
+    const [ordersWaiting, requestsNew, run, settings] = await Promise.all([
+      count("SELECT COUNT(*) AS n FROM employee_orders WHERE company_id=? AND status IN ('pending','returned')", id),
+      count("SELECT COUNT(*) AS n FROM employee_requests WHERE company_id=? AND status='new' AND manager_status IN ('','approved')", id),
+      db.prepare("SELECT status,approved_at FROM payroll_runs WHERE company_id=? AND month=?").bind(id, today.slice(0, 7)).first<{ status: string; approved_at: string }>(),
+      db.prepare("SELECT pay_day FROM payroll_settings WHERE company_id=?").bind(id).first<{ pay_day: number }>(),
+    ]);
+    return ok({
+      today,
+      headcount: { active: working.length, onLeave: away.length, joined30: working.filter((p) => p.start_date && p.start_date >= ago30 && p.start_date <= today).length, left30: people.filter((p) => p.status === "left" && p.end_date && p.end_date >= ago30 && p.end_date <= today).length },
+      away: away.slice(0, 12),
+      departments: [...byDepartment].map(([name, n]) => ({ name, count: n })).sort((a, b) => b.count - a.count).slice(0, 8),
+      series: series.map((x) => ({ month: x.month, headcount: x.headcount, joined: x.joined, left: x.left })),
+      leaves: leaves.filter((l) => nameOf.has(l.employee_id)).map((l) => ({ name: nameOf.get(l.employee_id) as string, from: l.start_date, to: l.end_date, days: l.days, approved: l.status === "approved" })),
+      ordersWaiting,
+      requestsNew,
+      payroll: { month: today.slice(0, 7), approved: run?.status === "approved", payDate: paymentDate(Number(today.slice(0, 4)), Number(today.slice(5, 7)), settings?.pay_day || 28) },
+    });
+  }
   if (request.method === "GET" && path === "company/hr-trends") {
     requirePermission("reports");
     const today = new Date().toISOString().slice(0, 10);

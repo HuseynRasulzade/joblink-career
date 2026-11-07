@@ -222,3 +222,11 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 .hr-modes button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 8px; border-radius: 9px; font-size: 13px; font-weight: 700; color: #4b6064; white-space: nowrap; }
 .hr-modes button:hover:not(.on) { background: #e3ecea; }
 .hr-modes button.on { background: #fff; color: var(--teal-strong); box-shadow: var(--shadow-1); }
+
+/* Kadr ümumi baxışı */
+.ov-subhead { margin: 14px 0 6px; font-size: 13px; letter-spacing: .02em; color: var(--ov-ink2, #5b6f65); }
+.ov-big small { font-size: 14px; font-weight: 600; opacity: .8; }
+.ov-table { margin-top: 8px; font-size: 12px; }
+.ov-table summary { cursor: pointer; color: #9bd5cb; }
+.ops-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.ops-quick button { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; font-size: 13px; font-weight: 600; }
