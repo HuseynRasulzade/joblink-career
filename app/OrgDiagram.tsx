@@ -48,7 +48,7 @@ export default function OrgDiagram({ people, company }: { people: OrgPerson[]; c
                 const x1 = pad + a.x + a.w / 2;
                 const y1 = pad + a.y + a.h;
                 const x2 = pad + b.x + b.w / 2;
-                const y2 = pad + b.y;
+                const y2 = pad + b.y - 15; // ends above the title chip that sits on the card's top edge
                 const d = Math.max(18, (y2 - y1) / 2);
                 return <path key={`${e.from}>${e.to}`} d={`M${x1} ${y1} C${x1} ${y1 + d} ${x2} ${y2 - d} ${x2} ${y2}`} fill="none" stroke="#5d6b6f" strokeWidth="2" strokeLinecap="round" markerEnd={e.arrow ? "url(#od-arrow)" : undefined} />;
               })}
