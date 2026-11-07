@@ -400,7 +400,7 @@ import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validCard, validIban, type EmployeeProfile } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
 import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
-import { EMPTY_INPUTS, MINIMUM_WAGE, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, payWarnings, isVacationCode, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
+import { EMPTY_INPUTS, MINIMUM_WAGE, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, payWarnings, isVacationCode, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs, type PayItem } from "@/lib/payroll-calc";
 import { explainChange, type SlipFigures } from "@/lib/payroll-explain";
 import { RATING_TEXT, bandOf, cleanScore, cycleScore } from "@/lib/performance";
 import { shiftHours, validTime } from "@/lib/shifts";
@@ -12237,16 +12237,27 @@ async function route(request: Request) {
     const KIND_TEXT = { general: "Ümumi", writ: "İcra sənədi", alimony: "Aliment" } as const;
     const adds: { name: string; kind: "Mükafat" | "Əlavə" | "Tutulma" | "Avans"; label: string; amount: number; deductionKind: "Ümumi" | "İcra sənədi" | "Aliment" }[] = [];
     for (const r of sheet.rows) {
-      if (r.inputs.bonus > 0) adds.push({ name: r.name, kind: "Mükafat", label: "Mükafat", amount: r.inputs.bonus, deductionKind: "Ümumi" });
-      if (r.inputs.allowance > 0) adds.push({ name: r.name, kind: "Əlavə", label: "Əlavə", amount: r.inputs.allowance, deductionKind: "Ümumi" });
+      // The named lines when the month has them (and they add up to the totals); otherwise one line per total.
+      const lines = (kind: "bonus" | "allowance", total: number) => {
+        const named = (r.inputs.items || []).filter((x: PayItem) => x.kind === kind);
+        const sum = Math.round(named.reduce((t: number, x: PayItem) => t + x.amount, 0) * 100) / 100;
+        return named.length && Math.abs(sum - total) < 0.005 ? named.map((x: PayItem) => ({ label: x.label || (kind === "bonus" ? "Mükafat" : "Əlavə"), amount: x.amount })) : total > 0 ? [{ label: kind === "bonus" ? "Mükafat" : "Əlavə", amount: total }] : [];
+      };
+      for (const l of lines("bonus", r.inputs.bonus)) adds.push({ name: r.name, kind: "Mükafat", label: l.label, amount: l.amount, deductionKind: "Ümumi" });
+      for (const l of lines("allowance", r.inputs.allowance)) adds.push({ name: r.name, kind: "Əlavə", label: l.label, amount: l.amount, deductionKind: "Ümumi" });
       for (const d of r.inputs.deductions) adds.push({ name: r.name, kind: "Tutulma", label: d.label || "Tutulma", amount: d.amount, deductionKind: KIND_TEXT[d.kind] || "Ümumi" });
       if (r.result.advances > 0) adds.push({ name: r.name, kind: "Avans", label: "Avans", amount: r.result.advances, deductionKind: "Ümumi" });
     }
-    const trips = (await db.prepare("SELECT t.employee_id,t.destination,t.purpose,t.start_date,t.end_date,t.advance_cents FROM trips t WHERE t.company_id=? AND t.start_date<=? AND t.end_date>=? AND t.status NOT IN ('rejected','cancelled') ORDER BY t.start_date").bind(id, last, first).all<{ employee_id: string; destination: string; purpose: string; start_date: string; end_date: string; advance_cents: number }>()).results
+    const trips = (await db.prepare("SELECT t.employee_id,t.destination,t.purpose,t.start_date,t.end_date,t.advance_cents,t.daily_cents FROM trips t WHERE t.company_id=? AND t.start_date<=? AND t.end_date>=? AND t.status NOT IN ('rejected','cancelled') ORDER BY t.start_date").bind(id, last, first).all<{ employee_id: string; destination: string; purpose: string; start_date: string; end_date: string; advance_cents: number; daily_cents: number }>()).results
       .filter((t) => nameOf.has(t.employee_id))
-      .map((t) => ({ name: nameOf.get(t.employee_id) as string, destination: t.destination, place: "", start: t.start_date, end: t.end_date, purpose: t.purpose, advance: t.advance_cents / 100, other: 0 }));
+      .map((t) => ({ name: nameOf.get(t.employee_id) as string, destination: t.destination, place: "", start: t.start_date, end: t.end_date, purpose: t.purpose, advance: t.advance_cents / 100, other: 0, daily: t.daily_cents / 100 }));
     const rateDay = `${monthRaw}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
     const rates = await tripRates(rateDay);
+    const benefitRows = (await db.prepare("SELECT key,value FROM hr_settings WHERE company_id=? AND key IN ('benefit_sick_percent','benefit_maternity_percent','benefit_min_pension')").bind(id).all<{ key: string; value: string }>()).results;
+    const benefitRate = (key: string, fallback: number) => {
+      const n = Number(benefitRows.find((x) => x.key === key)?.value);
+      return Number.isFinite(n) && n >= 0 && n <= 100 && benefitRows.some((x) => x.key === key) ? n : fallback;
+    };
     return ok({
       month: monthRaw,
       days,
@@ -12261,6 +12272,7 @@ async function route(request: Request) {
         weekHours: r.weekHours,
         averageMonthly: r.annual?.averageMonthly || (r.result.leaveCompensationDays > 0 ? Math.round(((r.result.lines.find((l: { id: string }) => l.id === "leave-compensation")?.amount || 0) * 30.4 / r.result.leaveCompensationDays) * 100) / 100 : 0),
         leaveCompDays: r.result.leaveCompensationDays || 0,
+        benefitEligible: r.result.benefitEligible !== false,
         nightPercent: r.nightPercent || 0,
         start: r.startDate || "",
         end: ends.get(r.employeeId) || "",
@@ -12271,6 +12283,7 @@ async function route(request: Request) {
       trips,
       rates: { USD: rates.USD || 0, EUR: rates.EUR || 0, GBP: rates.GBP || 0, JPY: rates.JPY || 0 },
       ratesDate: rateDay,
+      benefit: { sickPercent: benefitRate("benefit_sick_percent", SICK_BENEFIT_PERCENT), maternityPercent: benefitRate("benefit_maternity_percent", MATERNITY_BENEFIT_PERCENT), minPension: Math.max(0, Number(benefitRows.find((x) => x.key === "benefit_min_pension")?.value) || 0) },
     });
   }
   // The sheet and the bank register as Excel files; a pay slip as data for printing.
@@ -12446,6 +12459,14 @@ async function route(request: Request) {
     if (await payrollLocked(monthRaw)) throw new HttpError(409, "Bu ay təsdiqlənib: dəyişmək üçün əvvəlcə təsdiqi geri çəkin (direktor).");
     const parsed = parsePayrollRows((Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
     if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda sətir tapılmadı.");
+    // Named bonus / allowance lines (calculation workbook), grouped by the employee's name.
+    const itemsBy = new Map<string, PayItem[]>();
+    for (const raw of (Array.isArray(b.items) ? b.items : []).slice(0, 2000)) {
+      const it = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+      const key = str(it.name, 120);
+      if (!key) continue;
+      itemsBy.set(key, [...(itemsBy.get(key) || []), { kind: it.kind === "allowance" ? "allowance" : "bonus", label: str(it.label, 80), amount: Number(it.amount) || 0 }]);
+    }
     const people = await employeeRefs();
     const existing = new Map((await db.prepare("SELECT employee_id,data FROM payroll_inputs WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ employee_id: string; data: string }>()).results.map((r) => [r.employee_id, r.data]));
     const issues = [...parsed.issues];
@@ -12465,8 +12486,11 @@ async function route(request: Request) {
         // Unreadable earlier data is replaced.
       }
       const has = (f: string) => row.present.includes(f);
+      // The named lines of the calculation workbook; the totals above stay the numbers the pay is calculated from.
+      const named = itemsBy.get(row.name) || [];
       const next: PayInputs = {
         ...current,
+        ...(named.length && has("bonus") ? { items: named } : {}),
         bonus: has("bonus") ? row.bonus : current.bonus,
         allowance: has("allowance") ? row.allowance : current.allowance,
         note: has("note") && row.note ? row.note : current.note,

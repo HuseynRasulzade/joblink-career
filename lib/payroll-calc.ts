@@ -71,7 +71,9 @@ export type PayInputs = {
   deductions: OtherDeduction[];
   note: string;
   benefitDoc: string; // number of the e-sickness certificate (e-bülleten) the benefit rests on
+  items?: PayItem[]; // the named lines behind the bonus and allowance totals (kept when they come from the calculation workbook)
 };
+export type PayItem = { kind: "bonus" | "allowance"; label: string; amount: number };
 export const EMPTY_INPUTS: PayInputs = { bonus: 0, allowance: 0, overtimeHours: 0, restDayHours: 0, restDayWithinNorm: true, nightHours: 0, nightPercent: 0, deductions: [], note: "", benefitDoc: "" };
 export function cleanInputs(raw: unknown): PayInputs {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -94,6 +96,17 @@ export function cleanInputs(raw: unknown): PayInputs {
       .filter((d) => d.amount > 0),
     note: String(o.note ?? "").trim().slice(0, 300),
     benefitDoc: String(o.benefitDoc ?? "").trim().slice(0, 40),
+    ...(Array.isArray(o.items) && o.items.length
+      ? {
+          items: o.items
+            .slice(0, 40)
+            .map((raw): PayItem => {
+              const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+              return { kind: item.kind === "allowance" ? "allowance" : "bonus", label: String(item.label ?? "").trim().slice(0, 80), amount: r2(Math.min(pos(item.amount), 1_000_000)) };
+            })
+            .filter((item) => item.amount > 0),
+        }
+      : {}),
   };
 }
 

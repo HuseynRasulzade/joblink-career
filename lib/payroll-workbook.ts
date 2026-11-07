@@ -4,9 +4,11 @@
 // The "Hesablama" sheet follows the platform's own rules (lib/payroll-calc.ts); the tests recalculate the file with
 // LibreOffice and compare it with the platform, so the formulas cannot drift from the rules.
 import { ATTENDANCE_CODES } from "./calendar-az.ts";
-import { computePay, dayStatus, isVacationCode, type DayStatus } from "./payroll-calc.ts";
+import { computePay, dayStatus, isInsuredCode, isVacationCode, vacationCalendarDays, type DayStatus } from "./payroll-calc.ts";
+import { BENEFIT_CAP_FACTOR, BENEFIT_MIN_INSURANCE_MONTHS, MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT } from "./hr-calc.ts";
+import { DEPENDENTS_REDUCTION, TAX_BENEFITS } from "./employee-rights.ts";
 import { FOREIGN_NORMS } from "./trip-norms-data.ts";
-import { DOMESTIC_NORMS, DOMESTIC_OTHER } from "./trip-norms.ts";
+import { DOMESTIC_NORMS, DOMESTIC_OTHER, lookupNorm } from "./trip-norms.ts";
 import { OTHER_DOMESTIC } from "./trip-places.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { excelDateSerial } from "./xlsx.ts";
@@ -24,6 +26,8 @@ export const WB = {
   norms: "Normlar",
   fx: "Məzənnə",
   codes: "Kodlar",
+  benefits: "Güzəştlər",
+  helper: "Köməkçi",
 } as const;
 
 export type WorkbookEmployee = {
@@ -38,6 +42,11 @@ export type WorkbookEmployee = {
   averageMonthly: number; // the 12-month average for leave pay; 0 = the current salary
   nightPercent: number;
   leaveCompDays: number; // unused leave paid when the contract ends (Labor Code 143), in days
+  benefitEligible: boolean; // 6 months of insurance record (Law on Social Insurance, art. 6)
+  newSalary: number; // a pay change inside the month: the new gross pay …
+  salaryChangeFrom: string; // … and the day it starts
+  taxBenefit: string; // a tax benefit chosen in the workbook (short name); empty = the reduction typed above
+  dependents3: boolean;
   start: string;
   end: string;
 };
@@ -48,9 +57,10 @@ export type WorkbookInput = {
   leaves: { name: string; code: string; from: string; to: string; note: string }[];
   adds: { name: string; kind: "Mükafat" | "Əlavə" | "Tutulma" | "Avans"; label: string; amount: number; deductionKind: "Ümumi" | "İcra sənədi" | "Aliment" }[];
   hours: { name: string; overtime: number; restDay: number; night: number }[];
-  trips: { name: string; destination: string; place: string; start: string; end: string; purpose: string; advance: number; other: number }[];
+  trips: { name: string; destination: string; place: string; start: string; end: string; purpose: string; advance: number; other: number; daily?: number }[];
   rates: { USD: number; EUR: number; GBP: number; JPY: number };
   ratesDate: string;
+  benefit: { sickPercent: number; maternityPercent: number; minPension: number };
 };
 
 const q = (sheet: string) => `'${sheet}'!`;
@@ -86,8 +96,8 @@ const SECTOR_LABEL = { private: "Özəl", public: "Dövlət" } as const;
 const KIND_LABEL = { "Ümumi": "general", "İcra sənədi": "writ", "Aliment": "alimony" } as const;
 
 // Parameter rows of the "Parametrlər" sheet (column B), used by every formula.
-const PR = { month: 3, calendarDays: 4, workingDays: 5, dayHours: 6, meanMonth: 7, taxFree: 8, tier1: 9, tier2: 10, rate1: 11, rate2: 12, rate3: 13, base2: 14, base3: 15, pubRate1: 16, pubRate2: 17, pubBase: 18, socLow: 19, socHigh: 20, socLimit: 21, unemp: 22, medLow: 23, medHigh: 24, medLimit: 25, medBase: 26, erLow: 27, erMid: 28, erHigh: 29, erLimit: 30, capGeneral: 31, capWrit: 32, capAlimony: 33, minWage: 34 } as const;
-const PV: Record<keyof typeof PR, number | string> = { month: "", calendarDays: 0, workingDays: 0, dayHours: 8, meanMonth: 30.4, taxFree: 200, tier1: 2500, tier2: 8000, rate1: 0.03, rate2: 0.1, rate3: 0.14, base2: 75, base3: 625, pubRate1: 0.14, pubRate2: 0.25, pubBase: 350, socLow: 0.03, socHigh: 0.1, socLimit: 200, unemp: 0.005, medLow: 0.02, medHigh: 0.005, medLimit: 2500, medBase: 50, erLow: 0.22, erMid: 0.15, erHigh: 0.11, erLimit: 8000, capGeneral: 0.2, capWrit: 0.5, capAlimony: 0.7, minWage: 400 };
+const PR = { month: 3, calendarDays: 4, workingDays: 5, dayHours: 6, meanMonth: 7, taxFree: 8, tier1: 9, tier2: 10, rate1: 11, rate2: 12, rate3: 13, base2: 14, base3: 15, pubRate1: 16, pubRate2: 17, pubBase: 18, socLow: 19, socHigh: 20, socLimit: 21, unemp: 22, medLow: 23, medHigh: 24, medLimit: 25, medBase: 26, erLow: 27, erMid: 28, erHigh: 29, erLimit: 30, capGeneral: 31, capWrit: 32, capAlimony: 33, minWage: 34, sickPct: 35, maternityPct: 36, minPension: 37, capFactor: 38, minInsurance: 39, dependents: 40 } as const;
+const PV: Record<keyof typeof PR, number | string> = { month: "", calendarDays: 0, workingDays: 0, dayHours: 8, meanMonth: 30.4, taxFree: 200, tier1: 2500, tier2: 8000, rate1: 0.03, rate2: 0.1, rate3: 0.14, base2: 75, base3: 625, pubRate1: 0.14, pubRate2: 0.25, pubBase: 350, socLow: 0.03, socHigh: 0.1, socLimit: 200, unemp: 0.005, medLow: 0.02, medHigh: 0.005, medLimit: 2500, medBase: 50, erLow: 0.22, erMid: 0.15, erHigh: 0.11, erLimit: 8000, capGeneral: 0.2, capWrit: 0.5, capAlimony: 0.7, minWage: 400, sickPct: SICK_BENEFIT_PERCENT, maternityPct: MATERNITY_BENEFIT_PERCENT, minPension: 0, capFactor: BENEFIT_CAP_FACTOR, minInsurance: BENEFIT_MIN_INSURANCE_MONTHS, dependents: DEPENDENTS_REDUCTION };
 const PLABEL: Record<keyof typeof PR, string> = {
   month: "Hesablama ayı",
   calendarDays: "Ayın təqvim günü sayı",
@@ -121,9 +131,26 @@ const PLABEL: Record<keyof typeof PR, string> = {
   capWrit: "Tutulma həddi: icra sənədi",
   capAlimony: "Tutulma həddi: aliment",
   minWage: "Minimum aylıq əmək haqqı (AZN)",
+  sickPct: "Xəstəlik müavinəti: orta əmək haqqının faizi (%)",
+  maternityPct: "Analıq müavinəti: orta əmək haqqının faizi (%)",
+  minPension: "Minimum əmək pensiyası (AZN; müavinət həddi üçün, 0 = hədd yoxdur)",
+  capFactor: "Aylıq müavinət həddi: minimum pensiyanın neçə qatı",
+  minInsurance: "Müavinət üçün minimum sığorta stajı (ay)",
+  dependents: "3-dən çox himayədə olan: vergi azaldılması (AZN/ay)",
 };
 
-export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
+export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
+  // A trip's place is one of the law's places; any other place inside the country is "other" with its name beside it.
+  const input: WorkbookInput = {
+    ...raw,
+    benefit: raw.benefit || { sickPercent: SICK_BENEFIT_PERCENT, maternityPercent: MATERNITY_BENEFIT_PERCENT, minPension: 0 },
+    employees: raw.employees.map((e) => ({ ...e, leaveCompDays: e.leaveCompDays ?? 0, benefitEligible: e.benefitEligible ?? true, newSalary: e.newSalary ?? 0, salaryChangeFrom: e.salaryChangeFrom ?? "", taxBenefit: e.taxBenefit ?? "", dependents3: e.dependents3 ?? false })),
+    trips: raw.trips.map((t) => {
+      const found = lookupNorm(t.destination, false);
+      if (found && (found.kind === "foreign" || DOMESTIC_NORMS.some((d) => d.label === found.label))) return { ...t, destination: found.label };
+      return { ...t, destination: OTHER_DOMESTIC, place: t.place || t.destination };
+    }),
+  };
   const days = input.days;
   const N = days.length;
   const staffCount = input.employees.length;
@@ -165,26 +192,35 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
       statuses.push(m === "X" ? "outside" : dayStatus(idOf(m)));
       vacMask.push(m !== "X" && isVacationCode(idOf(m)));
     });
-    const vacWork = vacMask.filter(Boolean).length;
-    // Calendar days of the vacation between its first and last marked day (weekends and company days off inside count, holidays do not).
-    let vacCal = vacWork;
-    if (vacWork) {
-      const idx = days.map((_, i) => i).filter((i) => types[i] === "iş" && marks[i] !== "X" && isVacationCode(idOf(marks[i])));
-      const a = idx[0];
-      const b = idx[idx.length - 1];
-      vacCal += days.filter((_, i) => i > a && i < b && (types[i] === "istirahət" || types[i] === "qeyri-iş")).length;
-    }
+    // Marked working days by group, and the calendar days of each stretch: the platform's own rule (lib/payroll-calc.ts).
+    const flagsOf = (pred: (id: string) => boolean) => days.map((_, i) => types[i] === "iş" && marks[i] !== "X" && marks[i] !== "" && pred(idOf(marks[i])));
+    const vacFlags = flagsOf(isVacationCode);
+    const benFlags = flagsOf(isInsuredCode);
+    const flagOf = (flags: boolean[]) => (date: string) => flags[days.findIndex((d) => d.date === date)] === true;
+    const dayList = days.map((d) => ({ date: d.date, off: d.off }));
+    const vacWork = vacFlags.filter(Boolean).length;
+    const vacCal = vacationCalendarDays(dayList, flagOf(vacFlags)).calendarDays;
+    const benWork = benFlags.filter(Boolean).length;
+    const benCal = vacationCalendarDays(dayList, flagOf(benFlags), true).calendarDays;
+    const maternity = marks.includes("AN");
     const total = statuses.length;
     const count = (kinds: DayStatus[]) => statuses.filter((s) => kinds.includes(s)).length;
+    // A pay change inside the month: each working day is paid at the pay in force that day, so the month's pay is the day-weighted mean.
+    const changed = e.newSalary > 0 && !!e.salaryChangeFrom && total > 0;
+    const before = changed ? days.filter((d, i) => types[i] === "iş" && d.date < e.salaryChangeFrom).length : 0;
+    const salary = changed ? (e.salary * before + e.newSalary * (total - before)) / total : e.salary;
+    const benefitDef = TAX_BENEFITS.find((b) => b.short === e.taxBenefit);
+    const reduction = e.taxBenefit ? (benefitDef?.amount || 0) + (e.dependents3 ? DEPENDENTS_REDUCTION : 0) : e.taxReduction;
     const mine = input.adds.filter((a) => a.name === e.name);
     const sum = (kind: string) => r2(mine.filter((a) => a.kind === kind).reduce((t, a) => t + a.amount, 0));
     const hours = input.hours.find((h) => h.name === e.name);
+    const cap = input.benefit.minPension > 0 ? input.benefit.minPension * BENEFIT_CAP_FACTOR : null;
     const pay = computePay({
-      monthlySalary: e.salary,
+      monthlySalary: salary,
       statuses,
       weekHours: e.weekHours,
       sector: e.sector,
-      taxReduction: e.taxReduction,
+      taxReduction: reduction,
       inputs: {
         bonus: sum("Mükafat"),
         allowance: sum("Əlavə"),
@@ -194,19 +230,27 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
         nightPercent: e.nightPercent,
         deductions: mine.filter((a) => a.kind === "Tutulma" && a.amount > 0).map((a) => ({ label: a.label, amount: a.amount, kind: KIND_LABEL[a.deductionKind] || "general" })),
       },
-      annual: vacWork ? { mask: vacMask, calendarDays: vacCal, averageMonthly: e.averageMonthly || e.salary } : undefined,
-      leaveCompensation: e.leaveCompDays > 0 ? { days: e.leaveCompDays, averageMonthly: e.averageMonthly || e.salary } : undefined,
+      annual: vacWork ? { mask: vacMask, calendarDays: vacCal, averageMonthly: e.averageMonthly || salary } : undefined,
+      leaveCompensation: e.leaveCompDays > 0 ? { days: e.leaveCompDays, averageMonthly: e.averageMonthly || salary } : undefined,
+      insured: benWork ? { averageMonthly: e.averageMonthly || salary, calendarDays: benCal, percent: maternity ? input.benefit.maternityPercent : input.benefit.sickPercent, eligible: e.benefitEligible, cap } : undefined,
       advances: sum("Avans"),
     });
     const line = (id: string) => pay.lines.find((l) => l.id === id)?.amount || 0;
     return {
       marks,
+      types,
+      vacFlags,
+      benFlags,
       norm: statuses.filter((s) => s !== "outside").length,
       total,
+      salary,
+      reduction,
       worked: count(["work"]),
       paidOther: count(["paid"]) - vacWork,
       vacWork,
       vacCal,
+      benCal,
+      maternity,
       downtime: count(["twothirds"]),
       benefit: count(["benefit"]),
       unpaid: count(["unpaid"]),
@@ -216,7 +260,7 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
       bonus: sum("Mükafat"),
       deducted: r2(mine.filter((a) => a.kind === "Tutulma").reduce((t, a) => t + a.amount, 0)),
       advance: sum("Avans"),
-      trips: r2(input.trips.filter((t) => t.name === e.name && tripNorm(t.destination)).reduce((s, t) => s + tripTotal(t) + t.other - t.advance, 0)),
+      trips: r2(input.trips.filter((t) => t.name === e.name && (tripNorm(t.destination) || t.daily)).reduce((s, t) => s + tripTotal(t) + t.other - t.advance, 0)),
     };
   }
   const tripNorm = (place: string) => {
@@ -230,13 +274,14 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
     return null;
   };
   const tripDays = (t: { start: string; end: string }) => (t.start && t.end ? Math.round((Date.parse(`${t.end}T00:00:00Z`) - Date.parse(`${t.start}T00:00:00Z`)) / 86_400_000) + 1 : 0);
-  const tripDaily = (t: { destination: string }) => {
+  const tripDaily = (t: { destination: string; daily?: number }) => {
+    if (t.daily && t.daily > 0) return t.daily;
     const n = tripNorm(t.destination);
     if (!n) return 0;
     const rate = n.currency === "AZN" ? 1 : input.rates[n.currency as keyof WorkbookInput["rates"]] || 0;
     return r2(n.norm * rate);
   };
-  const tripTotal = (t: { destination: string; start: string; end: string }) => r2(tripDays(t) * tripDaily(t));
+  const tripTotal = (t: { destination: string; start: string; end: string; daily?: number }) => r2(tripDays(t) * tripDaily(t));
 
   const calcs: Calc[] = input.employees.map(computeEmployee);
 
@@ -265,7 +310,7 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
   const paramsSheet: XlsxSheet = { name: WB.params, headers: [], rows: params, free: true, widths: [52, 14, 4, 26], freeze: { rows: 0, cols: 0 } };
 
   // ---- İşçilər ----
-  const staffHeader = ["Ad Soyad", "FİN", "Vəzifə", "Şöbə", "Aylıq maaş (gross, AZN)", "Sektor", "Vergi azaldılması (AZN/ay)", "Həftəlik saat", "12 aylıq orta əmək haqqı (məzuniyyət üçün)", "Gecə əlavəsi (%)", "İşə başlama", "İşdən çıxma", "Xitamda məzuniyyət kompensasiyası (gün)"];
+  const staffHeader = ["Ad Soyad", "FİN", "Vəzifə", "Şöbə", "Aylıq maaş (gross, AZN)", "Sektor", "Vergi azaldılması (AZN/ay)", "Həftəlik saat", "12 aylıq orta əmək haqqı (məzuniyyət üçün)", "Gecə əlavəsi (%)", "İşə başlama", "İşdən çıxma", "Xitamda məzuniyyət kompensasiyası (gün)", "Yeni maaş (ay ərzində dəyişmə)", "Dəyişmə tarixi", "Vergi güzəşti (növ)", "3-dən çox himayə", "Müavinət hüququ (6 ay sığorta stajı)"];
   const staffRowsOut: XlsxCell[][] = [
     [{ v: `Əmək haqqı hesablama iş kitabı: ${input.month}`, s: "title" }],
     [{ v: "İşçilər. Sarı xanalar doldurulur. Maaş gross (vergidən əvvəl) yazılır. 12 aylıq orta əmək haqqı boş qalsa məzuniyyət haqqı cari maaşdan hesablanır.", s: "note" }],
@@ -287,6 +332,11 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
       { v: e?.start ? serial(e.start) : null, s: "inputDate" },
       { v: e?.end ? serial(e.end) : null, s: "inputDate" },
       { v: e && e.leaveCompDays ? e.leaveCompDays : null, s: "inputMoney" },
+      { v: e && e.newSalary ? e.newSalary : null, s: "inputMoney" },
+      { v: e?.salaryChangeFrom ? serial(e.salaryChangeFrom) : null, s: "inputDate" },
+      { v: e?.taxBenefit ?? "", s: "input" },
+      { v: e ? (e.dependents3 ? "Bəli" : "Xeyr") : "Xeyr", s: "input" },
+      { v: e ? (e.benefitEligible ? "Bəli" : "Xeyr") : "Bəli", s: "input" },
     ]);
   }
   const staffNames = `${q(WB.staff)}$A$${S0}:$A$${S0 + staffRows - 1}`;
@@ -295,10 +345,21 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
     headers: [],
     rows: staffRowsOut,
     free: true,
-    widths: [30, 12, 26, 22, 18, 10, 18, 12, 22, 14, 14, 14, 24],
+    widths: [30, 12, 26, 22, 18, 10, 18, 12, 22, 14, 14, 14, 24, 18, 14, 34, 14, 22],
     freeze: { rows: 3, cols: 1 },
-    lists: [{ ref: `F${S0}:F${S0 + staffRows - 1}`, items: ["Özəl", "Dövlət"] }],
+    lists: [
+      { ref: `F${S0}:F${S0 + staffRows - 1}`, items: ["Özəl", "Dövlət"] },
+      { ref: `P${S0}:P${S0 + staffRows - 1}`, source: `${q(WB.benefits)}$A$4:$A$${3 + TAX_BENEFITS.length}` },
+      { ref: `Q${S0}:R${S0 + staffRows - 1}`, items: ["Bəli", "Xeyr"] },
+    ],
   };
+  const benefitRows: XlsxCell[][] = [
+    [{ v: "Vergi güzəştləri (Vergi Məcəlləsi, md. 102)", s: "title" }],
+    [{ v: "İşçilər vərəqində “Vergi güzəşti (növ)” seçilərsə, aylıq vergi azaldılması buradakı məbləğdən (və 3-dən çox himayə varsa əlavə məbləğdən) götürülür; boş qalarsa “Vergi azaldılması” xanasındakı rəqəm işlənir. Güzəştdən yalnız əsas iş yerində istifadə olunur.", s: "note" }],
+    ["Güzəşt", "Aylıq azaldılma (AZN)", "Maddə", "Tam ad"].map((v) => ({ v, s: "head" as const })),
+    ...TAX_BENEFITS.map((b): XlsxCell[] => [{ v: b.short, s: "cell" }, { v: b.amount, s: "money" }, { v: b.article, s: "cell" }, { v: b.label, s: "cell" }]),
+  ];
+  const benefitsSheet: XlsxSheet = { name: WB.benefits, headers: [], rows: benefitRows, free: true, widths: [40, 20, 12, 110], freeze: { rows: 3, cols: 0 } };
 
   // ---- Kodlar ----
   const codeRows: XlsxCell[][] = [[{ v: "Davamiyyət kodları", s: "title" }], [{ v: "Azad olmalar vərəqində “Növ” bu siyahıdan seçilir, tabeldə qısa kod görünür.", s: "note" }], ["Ad", "Qısa kod", "Hesablamada", "Qrup"].map((v) => ({ v, s: "head" as const }))];
@@ -349,20 +410,43 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
 
   // ---- Tabel ----
   const sumStart = N + 2; // first summary column (1-based)
-  const SUM = { norm: sumStart, worked: sumStart + 1, paid: sumStart + 2, vac: sumStart + 3, down: sumStart + 4, benefit: sumStart + 5, unpaid: sumStart + 6, vacCal: sumStart + 7 };
+  const SUM = { norm: sumStart, worked: sumStart + 1, paid: sumStart + 2, vac: sumStart + 3, down: sumStart + 4, benefit: sumStart + 5, unpaid: sumStart + 6, vacCal: sumStart + 7, benCal: sumStart + 8, mat: sumStart + 9 };
   const tabelRows: XlsxCell[][] = [
     [{ v: `Davamiyyət cədvəli (tabel): ${input.month}`, s: "title" }],
     [{ v: "Tabel “Azad olmalar” vərəqindən avtomatik doldurulur: boş xana işdə deyil, işlənib deməkdir; qısa kod həmin günün azad olma növüdür; X işçinin işə qəbuldan əvvəl və ya çıxışdan sonra günüdür.", s: "note" }],
     [
       { v: "Ad Soyad", s: "head" },
       ...days.map((d) => ({ v: serial(d.date), s: "dayhead" as const })),
-      ...["Norma günü", "İşləyib", "Digər ödənişli", "Məzuniyyət (iş günü)", "Boşdayanma", "Müavinətlə (SS)", "Ödənişsiz", "Məzuniyyət (təqvim günü)"].map((v) => ({ v, s: "head" as const })),
+      ...["Norma günü", "İşləyib", "Digər ödənişli", "Məzuniyyət (iş günü)", "Boşdayanma", "Müavinətlə (SS)", "Ödənişsiz", "Məzuniyyət (təqvim günü)", "Müavinət (təqvim günü)", "Analıq günü"].map((v) => ({ v, s: "head" as const })),
     ],
     [
       { v: "gün növü", s: "label" },
       ...days.map((d) => ({ v: dayType(d), s: d.off === "" ? ("cell" as const) : d.off === "weekend" || d.off === "company" ? ("weekend" as const) : ("holiday" as const) })),
     ],
   ];
+  // The calendar days of a leave or sickness stretch follow the platform's rule: a weekend or company day off counts when the
+  // nearest working day before and after it is marked too (holidays count as well for sickness). The "Köməkçi" sheet does it
+  // in four steps per employee: the marked working days, the state of the nearest marked day before, the one after, the count.
+  const HB = staffRows + 2;
+  const hrow = (set: number, block: number, i: number) => 5 + (set * 4 + block) * HB + i;
+  const chainOf = (flags: boolean[], types: string[], includeHolidays: boolean) => {
+    const mark = flags.map((f) => (f ? 1 : 0));
+    const prev: number[] = [];
+    const next: number[] = [];
+    flags.forEach((_, j) => {
+      prev[j] = j === 0 ? 0 : types[j - 1] === "iş" ? mark[j - 1] : prev[j - 1];
+    });
+    for (let j = flags.length - 1; j >= 0; j--) next[j] = j === flags.length - 1 ? 0 : types[j + 1] === "iş" ? mark[j + 1] : next[j + 1];
+    const count = flags.map((_, j) => (types[j] === "iş" ? mark[j] : includeHolidays || types[j] === "istirahət" || types[j] === "qeyri-iş" ? prev[j] * next[j] : 0));
+    return { mark, prev, next, count };
+  };
+  const helperRows: XlsxCell[][] = [];
+  const putHelper = (row: number, cells: XlsxCell[]) => {
+    while (helperRows.length < row) helperRows.push([]);
+    helperRows[row - 1] = cells;
+  };
+  const SET_TITLE = ["Məzuniyyət", "Sığorta müavinəti (xəstəlik, analıq)"];
+  const BLOCK_TITLE = ["işarələnmiş iş günü", "əvvəlki işarəli iş günü", "sonrakı işarəli iş günü", "təqvim günü sayı"];
   for (let i = 0; i < staffRows; i++) {
     const r = T0 + i;
     const ir = S0 + i;
@@ -377,10 +461,6 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
     const cells = rowCells(r);
     const inWork = `(${typeRow}="iş")*(${cells}<>"X")`;
     const cnt = (shorts: string[]) => `SUMPRODUCT(${inWork}*ISNUMBER(MATCH(${cells},${arrayOf(shorts)},0)))`;
-    const vacShorts = arrayOf(shortsOf("vacation"));
-    const isVac = `(${typeRow}="iş")*ISNUMBER(MATCH(${cells},${vacShorts},0))`;
-    const first = `(1000000-SUMPRODUCT(MAX(${isVac}*(1000000-${dateRow}))))`;
-    const last = `SUMPRODUCT(MAX(${isVac}*${dateRow}))`;
     const sumCells: XlsxCell[] = [
       { f: `IF($A${r}="","",SUMPRODUCT(${inWork}))`, v: c ? c.norm : "", s: "int" },
       { f: `IF($A${r}="","",SUMPRODUCT(${inWork}*((${cells}="")+ISNUMBER(MATCH(${cells},${arrayOf(shortsOf("work"))},0)))))`, v: c ? c.worked : "", s: "int" },
@@ -389,18 +469,60 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
       { f: `IF($A${r}="","",${cnt(shortsOf("downtime"))})`, v: c ? c.downtime : "", s: "int" },
       { f: `IF($A${r}="","",${cnt(shortsOf("benefit"))})`, v: c ? c.benefit : "", s: "int" },
       { f: `IF($A${r}="","",${cnt(shortsOf("unpaid"))})`, v: c ? c.unpaid : "", s: "int" },
-      { f: `IF($A${r}="","",IF(${L(SUM.vac)}${r}=0,0,${L(SUM.vac)}${r}+SUMPRODUCT(((${typeRow}="istirahət")+(${typeRow}="qeyri-iş"))*(${dateRow}>${first})*(${dateRow}<${last}))))`, v: c ? c.vacCal : "", s: "int" },
+      { f: `IF($A${r}="","",SUM(${q(WB.helper)}${firstDay}${hrow(0, 3, i)}:${lastDay}${hrow(0, 3, i)}))`, v: c ? c.vacCal : "", s: "int" },
+      { f: `IF($A${r}="","",SUM(${q(WB.helper)}${firstDay}${hrow(1, 3, i)}:${lastDay}${hrow(1, 3, i)}))`, v: c ? c.benCal : "", s: "int" },
+      { f: `IF($A${r}="","",COUNTIF(${cells},"AN"))`, v: c ? (c.maternity ? 1 : 0) * c.marks.filter((m) => m === "AN").length : "", s: "int" },
     ];
     tabelRows.push([{ f: `IF(${q(WB.staff)}A${ir}="","",${q(WB.staff)}A${ir})`, v: input.employees[i]?.name ?? "", s: "cell" }, ...dayCells, ...sumCells]);
+    for (let set = 0; set < 2; set++) {
+      const codes = arrayOf(shortsOf(set === 0 ? "vacation" : "benefit"));
+      const values = c ? chainOf(set === 0 ? c.vacFlags : c.benFlags, c.types, set === 1) : null;
+      for (let block = 0; block < 4; block++) {
+        const hr = hrow(set, block, i);
+        const nameCell: XlsxCell = { f: `IF(${q(WB.sheet)}$A${r}="","",${q(WB.sheet)}$A${r})`, v: input.employees[i]?.name ?? "", s: "cell" };
+        const cells: XlsxCell[] = days.map((_, j) => {
+          const col = L(2 + j);
+          const type = `${q(WB.sheet)}${col}$4`;
+          const own = `${q(WB.sheet)}${col}${r}`;
+          const markRef = (c2: string) => `${c2}${hrow(set, 0, i)}`;
+          let f = "";
+          let v = 0;
+          if (block === 0) {
+            f = `IF($A${hr}="",0,IF(AND(${type}="iş",${own}<>"X",ISNUMBER(MATCH(${own},${codes},0))),1,0))`;
+            v = values ? values.mark[j] : 0;
+          } else if (block === 1) {
+            f = j === 0 ? "0" : `IF(${q(WB.sheet)}${L(1 + j)}$4="iş",${markRef(L(1 + j))},${L(1 + j)}${hr})`;
+            v = values ? values.prev[j] : 0;
+          } else if (block === 2) {
+            f = j === N - 1 ? "0" : `IF(${q(WB.sheet)}${L(3 + j)}$4="iş",${markRef(L(3 + j))},${L(3 + j)}${hr})`;
+            v = values ? values.next[j] : 0;
+          } else {
+            const both = `${col}${hrow(set, 1, i)}*${col}${hrow(set, 2, i)}`;
+            f = set === 0 ? `IF(${type}="iş",${markRef(col)},IF(OR(${type}="istirahət",${type}="qeyri-iş"),${both},0))` : `IF(${type}="iş",${markRef(col)},${both})`;
+            v = values ? values.count[j] : 0;
+          }
+          return { f, v, s: "int" as const };
+        });
+        putHelper(hr, [nameCell, ...cells]);
+      }
+    }
   }
-  const tabelSheet: XlsxSheet = { name: WB.sheet, headers: [], rows: tabelRows, free: true, widths: [30, ...days.map(() => 4.2), 11, 10, 13, 15, 12, 14, 11, 16], freeze: { rows: 4, cols: 1 } };
+  const tabelSheet: XlsxSheet = { name: WB.sheet, headers: [], rows: tabelRows, free: true, widths: [30, ...days.map(() => 4.2), 11, 10, 13, 15, 12, 14, 11, 16, 16, 11], freeze: { rows: 4, cols: 1 } };
   const TB = (key: keyof typeof SUM, r: number) => `${q(WB.sheet)}${L(SUM[key])}${r}`;
+  for (let set = 0; set < 2; set++)
+    for (let block = 0; block < 4; block++) {
+      putHelper(hrow(set, block, 0) - 1, [{ v: `${SET_TITLE[set]}: ${BLOCK_TITLE[block]}`, s: "label" }]);
+    }
+  helperRows[0] = [{ v: "Köməkçi hesablamalar (təqvim günləri)", s: "title" }];
+  helperRows[1] = [{ v: "Bu vərəq Tabeldəki məzuniyyət və müavinət günlərinin təqvim sayını platformanın qaydası ilə çıxarır. Burada heç nə əl ilə yazılmır.", s: "note" }];
+  for (let k = 0; k < helperRows.length; k++) helperRows[k] ||= [];
+  const helperSheet: XlsxSheet = { name: WB.helper, headers: [], rows: helperRows, free: true, widths: [30, ...days.map(() => 4.2)], freeze: { rows: 2, cols: 1 } };
 
   // ---- Əlavə-Tutulma ----
   const addRows: XlsxCell[][] = [
     [{ v: "Mükafat, əlavə, tutulma və avans", s: "title" }],
-    [{ v: "Hər sətir bir maddədir. Növ: Mükafat, Əlavə, Tutulma (tutulma növü: Ümumi / İcra sənədi / Aliment) və ya Avans. Tutulmalar qanuni həddə (20 / 50 / 70%) endirilir. Avans yalnız bu Excel hesablaması üçündür; platformada avans Əmək haqqı → ödənişlər bölməsində qeyd olunur.", s: "note" }],
-    ["Ad Soyad", "Növ", "Ad / səbəb", "Məbləğ (AZN)", "Tutulma növü", "Qeyd"].map((v) => ({ v, s: "head" as const })),
+    [{ v: "Hər sətir bir maddədir. Növ: Mükafat, Əlavə, Tutulma (tutulma növü: Ümumi / İcra sənədi / Aliment) və ya Avans. Tutulmalar qanuni həddə (20 / 50 / 70%) endirilir. Platformada artıq qeyd olunmuş avanslar tarixsiz görünür. Platformaya yeni avans yazmaq üçün “Avansın ödəniş tarixi”ni doldurun (avans günü və limitlər platformada yoxlanır).", s: "note" }],
+    ["Ad Soyad", "Növ", "Ad / səbəb", "Məbləğ (AZN)", "Tutulma növü", "Qeyd", "Avansın ödəniş tarixi"].map((v) => ({ v, s: "head" as const })),
   ];
   const addFirst = 4;
   const addLast = addFirst + ADD_ROWS - 1;
@@ -413,6 +535,7 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
       { v: a ? a.amount : null, s: "inputMoney" },
       { v: a?.kind === "Tutulma" ? a.deductionKind : "", s: "input" },
       { v: "", s: "input" },
+      { v: null, s: "inputDate" },
     ]);
   }
   const addsSheet: XlsxSheet = {
@@ -420,7 +543,7 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
     headers: [],
     rows: addRows,
     free: true,
-    widths: [30, 14, 34, 16, 16, 30],
+    widths: [30, 14, 34, 16, 16, 30, 20],
     freeze: { rows: 3, cols: 0 },
     lists: [
       { ref: `A${addFirst}:A${addLast}`, source: staffNames },
@@ -478,7 +601,7 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
   const tripRows: XlsxCell[][] = [
     [{ v: "Ezamiyyətlər və gündəlik hesabı", s: "title" }],
     [{ v: "Təyinat qanunun cədvəlindən seçilir. Daxili “digər” yer üçün yerin adını ayrıca sütunda yazın. Gündəlik = norma × məzənnə × gün. Ezamiyyət ödənişi əmək haqqına daxil deyil, ayrıca ödənilir.", s: "note" }],
-    ["Ad Soyad", "Təyinat (qanunun cədvəlindən)", "Yerin adı (yalnız “digər” üçün)", "Başlama", "Bitmə", "Məqsəd", "Gün", "Norma", "Valyuta", "Məzənnə", "Gündəlik (AZN)", "Gündəlik cəmi (AZN)", "Avans (AZN)", "Digər xərclər (AZN)", "Ödəniləcək qalıq (AZN)"].map((v) => ({ v, s: "head" as const })),
+    ["Ad Soyad", "Təyinat (qanunun cədvəlindən)", "Yerin adı (yalnız “digər” üçün)", "Başlama", "Bitmə", "Məqsəd", "Gün", "Norma", "Valyuta", "Məzənnə", "Gündəlik (AZN)", "Gündəlik cəmi (AZN)", "Avans (AZN)", "Digər xərclər (AZN)", "Ödəniləcək qalıq (AZN)", "Gündəlik (əl ilə, AZN)"].map((v) => ({ v, s: "head" as const })),
   ];
   const tripFirst = 4;
   const tripLast = tripFirst + TRIP_ROWS - 1;
@@ -489,7 +612,7 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
     const norm = t ? tripNorm(t.destination) : null;
     const rate = norm ? (norm.currency === "AZN" ? 1 : input.rates[norm.currency as keyof WorkbookInput["rates"]]) : "";
     const d = t ? tripDays(t) : "";
-    const daily = t && norm ? tripDaily(t) : "";
+    const daily = t && (norm || t.daily) ? tripDaily(t) : "";
     tripRows.push([
       { v: t?.name ?? "", s: "input" },
       { v: t?.destination ?? "", s: "input" },
@@ -501,11 +624,12 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
       { f: `IF(B${r}="","",IFERROR(VLOOKUP(B${r},${NR},2,FALSE),""))`, v: norm ? norm.norm : "", s: "money" },
       { f: `IF(B${r}="","",IFERROR(VLOOKUP(B${r},${NR},3,FALSE),""))`, v: norm ? norm.currency : "", s: "cell" },
       { f: `IF(I${r}="","",IF(I${r}="AZN",1,IFERROR(VLOOKUP(I${r},${q(WB.fx)}$A$4:$B$12,2,FALSE),"")))`, v: rate, s: "money" },
-      { f: `IF(OR(H${r}="",J${r}=""),"",ROUND(H${r}*J${r},2))`, v: daily, s: "money" },
+      { f: `IF(P${r}<>"",P${r},IF(OR(H${r}="",J${r}=""),"",ROUND(H${r}*J${r},2)))`, v: daily, s: "money" },
       { f: `IF(OR(G${r}="",K${r}=""),"",ROUND(G${r}*K${r},2))`, v: t && norm ? tripTotal(t) : "", s: "money" },
       { v: t ? t.advance : null, s: "inputMoney" },
       { v: t ? t.other : null, s: "inputMoney" },
-      { f: `IF(L${r}="","",ROUND(L${r}+N${r}-M${r},2))`, v: t && norm ? r2(tripTotal(t) + t.other - t.advance) : "", s: "total" },
+      { f: `IF(L${r}="","",ROUND(L${r}+N${r}-M${r},2))`, v: t && (norm || t.daily) ? r2(tripTotal(t) + t.other - t.advance) : "", s: "total" },
+      { v: t && t.daily ? t.daily : null, s: "inputMoney" },
     ]);
   }
   const tripsSheet: XlsxSheet = {
@@ -513,7 +637,7 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
     headers: [],
     rows: tripRows,
     free: true,
-    widths: [30, 48, 26, 13, 13, 26, 7, 10, 9, 10, 14, 16, 13, 16, 18],
+    widths: [30, 48, 26, 13, 13, 26, 7, 10, 9, 10, 14, 16, 13, 16, 18, 18],
     freeze: { rows: 3, cols: 1 },
     lists: [
       { ref: `A${tripFirst}:A${tripLast}`, source: staffNames },
@@ -523,10 +647,10 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
   const TR = (col: string) => `${q(WB.trips)}$${col}$${tripFirst}:$${col}$${tripLast}`;
 
   // ---- Hesablama ----
-  const order = ["name", "salary", "week", "norm", "worked", "paid", "vacWork", "vacCal", "down", "benefit", "unpaid", "day", "hour", "payWorked", "payPaid", "payVac", "comp", "payDown", "over", "rest", "night", "allow", "bonus", "gross", "base", "tax", "soc", "unemp", "med", "net", "dedAsk", "share", "dedApplied", "advance", "toPay", "excess", "erSoc", "erUnemp", "erMed", "cost", "trips"] as const;
+  const order = ["name", "salary", "reduction", "week", "norm", "worked", "paid", "vacWork", "vacCal", "down", "benefit", "unpaid", "benCal", "day", "hour", "payWorked", "payPaid", "payVac", "comp", "payDown", "over", "rest", "night", "allow", "bonus", "gross", "base", "tax", "soc", "unemp", "med", "net", "dedAsk", "share", "dedApplied", "advance", "toPay", "excess", "erSoc", "erUnemp", "erMed", "cost", "benefitAmt", "trips"] as const;
   const H = Object.fromEntries(order.map((k, i) => [k, i + 1])) as Record<(typeof order)[number], number>;
-  const HEAD = ["Ad Soyad", "Aylıq maaş", "Həftəlik saat", "Norma günü", "İşləyib", "Digər ödənişli", "Məzuniyyət (iş günü)", "Məzuniyyət (təqvim)", "Boşdayanma", "Müavinətlə (SS)", "Ödənişsiz", "Gün haqqı", "Saat haqqı", "İşlənmiş günlər", "Digər ödənişli günlər", "Məzuniyyət haqqı", "Məzuniyyət kompensasiyası", "Boşdayanma (2/3)", "Artıq iş (×2)", "İstirahət günü işi", "Gecə əlavəsi", "Əlavə", "Mükafat", "Hesablanmış (gross)", "Vergi bazası", "Gəlir vergisi", "DSMF (işçi)", "İşsizlik (işçi)", "İTS (işçi)", "Xalis (net)", "Tutulma (istənilən)", "Tutulma həddi", "Tutulma (tətbiq)", "Avans", "Ödəniləcək", "Avans artığı", "DSMF (işəgötürən)", "İşsizlik (işəgötürən)", "İTS (işəgötürən)", "İşəgötürən xərci", "Ezamiyyət (ayrıca)"];
-  const groups: [number, number, string][] = [[H.norm, H.unpaid, "Tabeldən (gün)"], [H.day, H.hour, "Tarif"], [H.payWorked, H.gross, "Hesablanır"], [H.base, H.net, "Vergi və sığorta (işçi)"], [H.dedAsk, H.excess, "Tutulma, avans, ödəniş"], [H.erSoc, H.cost, "İşəgötürən"]];
+  const HEAD = ["Ad Soyad", "Aylıq maaş (hesablama üçün)", "Vergi azaldılması", "Həftəlik saat", "Norma günü", "İşləyib", "Digər ödənişli", "Məzuniyyət (iş günü)", "Məzuniyyət (təqvim)", "Boşdayanma", "Müavinətlə (SS)", "Ödənişsiz", "Müavinət (təqvim)", "Gün haqqı", "Saat haqqı", "İşlənmiş günlər", "Digər ödənişli günlər", "Məzuniyyət haqqı", "Məzuniyyət kompensasiyası", "Boşdayanma (2/3)", "Artıq iş (×2)", "İstirahət günü işi", "Gecə əlavəsi", "Əlavə", "Mükafat", "Hesablanmış (gross)", "Vergi bazası", "Gəlir vergisi", "DSMF (işçi)", "İşsizlik (işçi)", "İTS (işçi)", "Xalis (net)", "Tutulma (istənilən)", "Tutulma həddi", "Tutulma (tətbiq)", "Avans", "Ödəniləcək", "Avans artığı", "DSMF (işəgötürən)", "İşsizlik (işəgötürən)", "İTS (işəgötürən)", "İşəgötürən xərci", "Sığorta müavinəti (SS ödəyir)", "Ezamiyyət (ayrıca)"];
+  const groups: [number, number, string][] = [[H.norm, H.benCal, "Tabeldən (gün)"], [H.day, H.hour, "Tarif"], [H.payWorked, H.gross, "Hesablanır"], [H.base, H.net, "Vergi və sığorta (işçi)"], [H.dedAsk, H.excess, "Tutulma, avans, ödəniş"], [H.erSoc, H.benefitAmt, "İşəgötürən və müavinət"]];
   const calcRows: XlsxCell[][] = [
     [{ v: `Əmək haqqı hesablaması: ${input.month}`, s: "title" }],
     [{ v: "Hər sətir bir işçidir. Rəqəmlər İşçilər, Tabel, Əlavə-Tutulma, Saatlar və Ezamiyyət vərəqlərindən formullarla hesablanır; burada heç nə əl ilə yazılmır. Rəsmi hesablama və təsdiq platformadadır: bu iş kitabı eyni qaydaları Excel-də görməyə imkan verir.", s: "note" }],
@@ -550,13 +674,14 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
     const line = (id: string) => c?.line(id) ?? 0;
     const f = (formula: string, v: number | string, s: "int" | "money" | "total" | "cell" | "pct"): XlsxCell => ({ f: `IF(${empty},"",${formula})`, v: c ? v : "", s });
     const advanceF = `SUMIFS(${AD("D")},${AD("A")},$A${r},${AD("B")},"Avans")`;
-    const taxBase = `MAX(0,${a("gross")}-${st}$G${ir})`;
+    const taxBase = `MAX(0,${a("gross")}-${a("reduction")})`;
     const dedCount = (kind: string) => `COUNTIFS(${AD("A")},$A${r},${AD("B")},"Tutulma",${AD("E")},"${kind}")`;
     const dedRows = pay?.otherDeductions || [];
     const applied = dedRows.reduce((t, d) => t + d.applied, 0);
     calcRows.push([
       { f: `IF(${st}A${ir}="","",${st}A${ir})`, v: e?.name ?? "", s: "cell" },
-      f(`${st}E${ir}`, e?.salary ?? 0, "money"),
+      f(`IF(AND(${st}N${ir}<>"",${st}O${ir}<>""),(${st}E${ir}*SUMPRODUCT((${q(WB.sheet)}${typeRow}="iş")*(${q(WB.sheet)}${dateRow}<${st}O${ir}))+${st}N${ir}*(${P("workingDays")}-SUMPRODUCT((${q(WB.sheet)}${typeRow}="iş")*(${q(WB.sheet)}${dateRow}<${st}O${ir}))))/${P("workingDays")},${st}E${ir})`, c?.salary ?? 0, "money"),
+      f(`IF(${st}P${ir}="",${st}G${ir},IFERROR(VLOOKUP(${st}P${ir},${q(WB.benefits)}$A$4:$B$${3 + TAX_BENEFITS.length},2,FALSE),0)+IF(${st}Q${ir}="Bəli",${P("dependents")},0))`, c?.reduction ?? 0, "money"),
       f(`${st}H${ir}`, e?.weekHours ?? 40, "int"),
       f(TB("norm", tr), c?.norm ?? 0, "int"),
       f(TB("worked", tr), c?.worked ?? 0, "int"),
@@ -566,6 +691,7 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
       f(TB("down", tr), c?.downtime ?? 0, "int"),
       f(TB("benefit", tr), c?.benefit ?? 0, "int"),
       f(TB("unpaid", tr), c?.unpaid ?? 0, "int"),
+      f(TB("benCal", tr), c?.benCal ?? 0, "int"),
       f(`${a("salary")}/${P("workingDays")}`, e ? e.salary / (c?.total || 1) : 0, "money"),
       f(`${a("salary")}/(${P("workingDays")}*IF(${a("week")}<40,${a("week")}/5,${P("dayHours")}))`, pay?.hourly ?? 0, "money"),
       f(`ROUND(${a("day")}*${a("worked")},2)`, line("worked"), "money"),
@@ -579,7 +705,7 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
       f(`ROUND(SUMIFS(${AD("D")},${AD("A")},$A${r},${AD("B")},"Əlavə"),2)`, c?.allowance ?? 0, "money"),
       f(`ROUND(SUMIFS(${AD("D")},${AD("A")},$A${r},${AD("B")},"Mükafat"),2)`, c?.bonus ?? 0, "money"),
       f(`ROUND(SUM(${L(H.payWorked)}${r}:${L(H.bonus)}${r}),2)`, pay?.gross ?? 0, "total"),
-      f(taxBase, Math.max(0, (pay?.gross ?? 0) - (e?.taxReduction ?? 0)), "money"),
+      f(taxBase, Math.max(0, (pay?.gross ?? 0) - (c?.reduction ?? 0)), "money"),
       f(`IF(${st}F${ir}="Dövlət",IF(${a("base")}<=${P("tier1")},${a("base")}*${P("pubRate1")},${P("pubBase")}+(${a("base")}-${P("tier1")})*${P("pubRate2")}),IF(${a("base")}<=${P("tier1")},MAX(0,${a("base")}-${P("taxFree")})*${P("rate1")},IF(${a("base")}<=${P("tier2")},${P("base2")}+(${a("base")}-${P("tier1")})*${P("rate2")},${P("base3")}+(${a("base")}-${P("tier2")})*${P("rate3")})))`, pay?.incomeTax ?? 0, "money"),
       f(`IF(${st}F${ir}="Dövlət",${a("gross")}*${P("socLow")},IF(${a("gross")}<=${P("socLimit")},${a("gross")}*${P("socLow")},${P("socLimit")}*${P("socLow")}+(${a("gross")}-${P("socLimit")})*${P("socHigh")}))`, pay?.employeeSocial ?? 0, "money"),
       f(`${a("gross")}*${P("unemp")}`, pay?.employeeUnemployment ?? 0, "money"),
@@ -595,6 +721,7 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
       f(`${a("gross")}*${P("unemp")}`, pay?.employerUnemployment ?? 0, "money"),
       f(`IF(${a("gross")}<=${P("medLimit")},${a("gross")}*${P("medLow")},${P("medBase")}+(${a("gross")}-${P("medLimit")})*${P("medHigh")})`, pay?.employerMedical ?? 0, "money"),
       f(`ROUND(${a("gross")}+SUM(${L(H.erSoc)}${r}:${L(H.erMed)}${r}),2)`, pay?.employerCost ?? 0, "total"),
+      f(`IF(${a("benCal")}=0,0,IF(${st}R${ir}="Xeyr",0,ROUND(MIN(IF(${P("minPension")}>0,${P("minPension")}*${P("capFactor")},1E+99),IF(${st}I${ir}="",${a("salary")},${st}I${ir})/${P("meanMonth")}*IF(${TB("mat", tr)}>0,${P("maternityPct")},${P("sickPct")})/100*${a("benCal")}),2)))`, pay?.benefitAmount ?? 0, "money"),
       f(`ROUND(SUMIFS(${TR("O")},${TR("A")},$A${r}),2)`, c?.trips ?? 0, "money"),
     ]);
   }
@@ -619,14 +746,14 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
     [{ v: "Bu fayl Joblink platformasından yüklənib. Excel-də formullarla hesablama aparır və doldurduğunuz məlumatı platformaya geri yükləməyə imkan verir.", s: "note" }],
     [],
     [{ v: "Vərəqlər", s: "label" }],
-    ["İşçilər", "İşçi siyahısı, maaş, sektor, vergi azaldılması. Platformadan doldurulub; Excel-də hesablama üçün dəyişə bilərsiniz (platformaya yüklənmir)."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
+    ["İşçilər", "İşçi siyahısı, maaş, sektor, vergi güzəşti, müavinət hüququ. Platformadan doldurulub; Excel-də hesablama üçün dəyişə bilərsiniz. Yalnız “Yeni maaş” + “Dəyişmə tarixi” platformaya əmr kimi yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Azad olmalar", "Məzuniyyət, xəstəlik, ezamiyyət, icazə və s. aralıqlar. Platformaya yüklənir (davamiyyət)."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Tabel", "Davamiyyət cədvəli: “Azad olmalar” vərəqindən avtomatik doldurulur, gün sayları çıxarılır. Burada əl ilə yazılmır."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
-    ["Əlavə-Tutulma", "Mükafat, əlavə, tutulma, avans. Mükafat, əlavə və tutulma platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
+    ["Əlavə-Tutulma", "Mükafat, əlavə, tutulma, avans. Hamısı platformaya yüklənir (avans yalnız ödəniş tarixi yazılıbsa)."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Saatlar", "Artıq iş, istirahət günü və gecə saatları (ay yekunu). Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Ezamiyyət", "Ezamiyyətlər, qanunun gündəlik normaları və Mərkəzi Bankın məzənnəsi ilə gündəlik hesabı. Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Hesablama", "Hər işçi üçün gross, vergi və sığorta, xalis, tutulma, ödəniləcək məbləğ və işəgötürən xərci. Formullarla hesablanır."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
-    ["Parametrlər, Normlar, Məzənnə, Kodlar", "Vergi dərəcələri, ezamiyyət normaları, məzənnə və davamiyyət kodları. Dəyişiklik lazım olsa, sarı xanaları düzəldin."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
+    ["Parametrlər, Normlar, Məzənnə, Güzəştlər, Kodlar, Köməkçi", "Vergi dərəcələri və müavinət faizləri, ezamiyyət normaları, məzənnə, vergi güzəştləri, davamiyyət kodları və köməkçi hesablamalar. Dəyişiklik lazım olsa, sarı xanaları düzəldin."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     [],
     [{ v: "İş qaydası", s: "label" }],
     [{ v: "1. “Azad olmalar”da məzuniyyət və yoxluqları aralıq kimi yazın; “Əlavə-Tutulma” və “Saatlar”ı, ezamiyyətləri doldurun.", s: "text" }],
@@ -635,15 +762,18 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
     [{ v: "4. Yüklənən məlumat platformanın öz qaydalarına görə yoxlanır (qanuni hədlər, ezamiyyət normaları, təsdiqlənmiş ay). Rəsmi hesablama və təsdiq platformada aparılır.", s: "text" }],
     [],
     [{ v: "Nəzərə alın", s: "label" }],
-    [{ v: "• Məzuniyyət haqqı 12 aylıq orta əmək haqqından (÷ 30,4) hesablanır; İşçilər vərəqində həmin orta xanası boşdursa cari maaş götürülür. Bir neçə hissəli məzuniyyətdə təqvim gününü platforma dəqiq hesablayır.", s: "text" }],
-    [{ v: "• Sığorta müavinəti (xəstəlik, analıq) sığortaçı tərəfindən ödənilir və əmək haqqına daxil deyil; Excel yalnız günləri göstərir.", s: "text" }],
-    [{ v: "• Xitamda istifadə olunmamış məzuniyyət kompensasiyası İşçilər vərəqindəki gün sayı ilə hesablanır (platforma həmin günü özü tapır). Maaşın ay ərzində dəyişməsi, sığorta müavinəti və şəxsi vergi güzəştlərinin xüsusi halları yalnız platformada dəqiq hesablanır.", s: "text" }],
+    [{ v: "• Məzuniyyət haqqı 12 aylıq orta əmək haqqından (÷ 30,4) hesablanır; İşçilər vərəqində həmin orta xanası boşdursa cari maaş götürülür. Məzuniyyət və müavinət günlərinin təqvim sayı platformanın qaydası ilə çıxarılır (Köməkçi vərəqi).", s: "text" }],
+    [{ v: "• Sığorta müavinəti (xəstəlik, analıq) sığortaçı tərəfindən ödənilir və əmək haqqına daxil deyil; Hesablama vərəqində ayrıca göstərilir (orta əmək haqqı × faiz ÷ 30,4 × təqvim günü, minimum pensiyanın 25 qatı ilə məhdud, 6 aylıq sığorta stajı olmayana verilmir).", s: "text" }],
+    [{ v: "• Ay ərzində maaş dəyişikliyi: İşçilər vərəqində “Yeni maaş” və “Dəyişmə tarixi” yazın; ay iş günlərinə görə çəkili orta ilə hesablanır. Platformaya yüklənəndə bu, imzaya gedən əmr olaraq yaradılır.", s: "text" }],
+    [{ v: "• Vergi güzəşti: “Vergi güzəşti (növ)” siyahıdan seçilir (Güzəştlər vərəqi), 3-dən çox himayə varsa 50 AZN əlavə olunur; seçilməzsə “Vergi azaldılması” xanasındakı rəqəm işlənir.", s: "text" }],
+    [{ v: "• Xitamda istifadə olunmamış məzuniyyət kompensasiyası İşçilər vərəqindəki gün sayı ilə hesablanır (platforma həmin günü özü tapır).", s: "text" }],
+    [{ v: "• Platformaya yüklənənlər: azad olmalar, mükafat/əlavə (adları ilə)/tutulma, saatlar, ezamiyyətlər (əl ilə yazılmış gündəliklə), tarixi doldurulmuş yeni avanslar və maaş dəyişikliyi əmrləri. Təyinat qanunun cədvəlində olmayan sətir yüklənmir.", s: "text" }],
     [{ v: "• İşçi adları iş kitabında və platformada eyni olmalıdır; eyni adlı iki işçi varsa platformada FİN ilə tapılır.", s: "text" }],
   ];
   const guideSheet: XlsxSheet = { name: WB.guide, headers: [], rows: guideRows, free: true, widths: [34, 130], freeze: { rows: 0, cols: 0 } };
 
   // The note under each title runs across the sheet instead of wrapping inside the first column.
-  const list = [guideSheet, staffSheet, leaveSheet, tabelSheet, addsSheet, hoursSheet, tripsSheet, calcSheet, paramsSheet, normsSheet, fxSheet, codesSheet];
+  const list = [guideSheet, staffSheet, leaveSheet, tabelSheet, addsSheet, hoursSheet, tripsSheet, calcSheet, paramsSheet, normsSheet, fxSheet, benefitsSheet, codesSheet, helperSheet];
   for (const sheet of list) {
     const width = Math.max(...sheet.rows.map((r) => r.length), 1);
     const span = sheet === guideSheet ? 2 : sheet === tabelSheet ? Math.min(width, 18) : Math.min(width, sheet === paramsSheet ? 2 : 9);

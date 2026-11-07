@@ -9,6 +9,7 @@ import { createXlsxBook } from "@/lib/xlsx";
 import { parseAttendanceRows, parseTrips } from "@/lib/sheet-imports";
 import { parseHoursTotals } from "@/lib/hours";
 import { parsePayrollRows } from "@/lib/sheet-imports";
+import { orderNumber } from "@/lib/orders";
 
 type Notify = (message: string) => void;
 
@@ -44,7 +45,10 @@ export async function downloadPayrollWorkbook(month: string, notify: Notify) {
   }
 }
 
-type Step = { key: "attendance" | "payroll" | "hours" | "trips"; title: string; endpoint: string; rows: string[][] | null; ready: number; issues: string[] };
+type Step = { key: "attendance" | "payroll" | "hours" | "trips" | "advances" | "salary"; title: string; endpoint: string; rows: string[][] | null; ready: number; issues: string[] };
+type PayrollRow = { employeeId: string; name: string; position: string; department: string; section: string; startDate: string; monthlySalary: number; salaryType: string; payments?: { kind: string; amount: number; paidOn: string; reversed?: boolean }[] };
+type SignerInfo = { head: { name: string; position: string } | null; director: { name: string; position: string; source: string } | null };
+const same = (a: string, b: string) => a.trim().toLocaleLowerCase("az") === b.trim().toLocaleLowerCase("az");
 type StepResult = { applied?: number; created?: number; days?: number; issues?: { line: number; reason: string }[] };
 
 // The filled workbook goes back into the platform: each input sheet is read, shown before anything is written, then sent to the
@@ -68,9 +72,11 @@ export function WorkbookImport({ month, notify, onClose, onDone }: { month: stri
       add("payroll", "Mükafat, əlavə və tutulmalar", "company/payroll/inputs-import", imported.payroll, (r) => parsePayrollRows(r));
       add("hours", "Əlavə saatlar", "company/hours/totals-import", imported.hours, (r) => parseHoursTotals(r, month));
       add("trips", "Ezamiyyətlər", "company/trips/import", imported.trips, parseTrips);
-      return { steps, issues: imported.issues };
+      if (imported.advances.length) steps.push({ key: "advances", title: "Yeni avanslar (ödəniş qeydi)", endpoint: "company/payroll/pay", rows: null, ready: imported.advances.length, issues: [] });
+      if (imported.salaryChanges.length) steps.push({ key: "salary", title: "Maaş dəyişikliyi (imzaya gedən əmr)", endpoint: "company/orders/save", rows: null, ready: imported.salaryChanges.length, issues: [] });
+      return { steps, issues: imported.issues, imported };
     } catch {
-      return { steps: [] as Step[], issues: ["Fayl oxunmadı. Joblink hesablama iş kitabını (.xlsx) seçin."] };
+      return { steps: [] as Step[], issues: ["Fayl oxunmadı. Joblink hesablama iş kitabını (.xlsx) seçin."], imported: null };
     }
   }, [bytes, month]);
   async function pick(file: File | undefined) {
@@ -86,13 +92,72 @@ export function WorkbookImport({ month, notify, onClose, onDone }: { month: stri
     if (!plan) return;
     setBusy(true);
     const out: { title: string; text: string; issues: string[] }[] = [];
+    let rowsCache: PayrollRow[] | null = null;
+    const payrollRows = async () => (rowsCache ||= (await call<{ rows: PayrollRow[] }>(`company/payroll?month=${month}`)).rows);
     for (const step of plan.steps) {
-      if (!step.ready || !step.rows) {
+      if (!step.ready) {
         out.push({ title: step.title, text: "Yüklənəcək sətir yoxdur.", issues: [] });
         continue;
       }
       try {
-        const body = step.key === "payroll" || step.key === "hours" ? { rows: step.rows, month } : { rows: step.rows };
+        if (step.key === "advances") {
+          const rows = await payrollRows();
+          let done = 0;
+          const problems: string[] = [];
+          for (const a of plan.imported?.advances || []) {
+            const row = rows.find((r) => same(r.name, a.name));
+            if (!row) { problems.push(`${a.name}: işçi platformada tapılmadı.`); continue; }
+            if ((row.payments || []).some((p) => p.kind === "advance" && !p.reversed && Math.abs(p.amount - a.amount) < 0.005 && p.paidOn === a.date)) { problems.push(`${a.name}: ${a.amount} AZN avans (${a.date}) artıq qeyd olunub.`); continue; }
+            try {
+              await call("company/payroll/pay", { employeeId: row.employeeId, month, kind: "advance", amount: a.amount, paidOn: a.date, method: "Bank hesabına", note: a.note || "Excel iş kitabından" });
+              done++;
+            } catch (error) {
+              problems.push(`${a.name}: ${(error as Error).message}`);
+            }
+          }
+          out.push({ title: step.title, text: `${done} avans qeyd olundu.`, issues: problems.slice(0, 8) });
+          continue;
+        }
+        if (step.key === "salary") {
+          const rows = await payrollRows();
+          const [me, profile] = await Promise.all([call<{ company: { name: string } | null }>("company/me"), call<{ details: { legalName: string; voen: string; director: string } }>("company/profile")]);
+          let done = 0;
+          const problems: string[] = [];
+          for (const change of plan.imported?.salaryChanges || []) {
+            const row = rows.find((r) => same(r.name, change.name));
+            if (!row) { problems.push(`${change.name}: işçi platformada tapılmadı.`); continue; }
+            try {
+              const saved = await call<{ orders: { kind: string; input?: { from?: string; salary?: number } }[] }>(`company/orders?employeeId=${row.employeeId}`);
+              if (saved.orders.some((o) => o.kind === "salary" && o.input?.from === change.from && Number(o.input?.salary) === change.salary)) { problems.push(`${change.name}: ${change.from} tarixli ${change.salary} AZN maaş əmri artıq var.`); continue; }
+              const signers = await call<SignerInfo>(`company/order-signers?employeeId=${row.employeeId}`);
+              const list = [
+                ...(signers.head ? [{ role: "head", title: "Şöbə rəhbəri", name: signers.head.name }] : []),
+                ...(signers.director ? [{ role: "director", title: "Direktor", name: signers.director.name }] : []),
+              ];
+              const today = new Date().toISOString().slice(0, 10);
+              const input = {
+                kind: "salary",
+                number: orderNumber("salary", today, row.employeeId),
+                date: today,
+                city: "Bakı",
+                company: { name: profile.details.legalName || me.company?.name || "", voen: profile.details.voen, director: signers.director?.name || profile.details.director, directorTitle: "Direktor" },
+                employee: { name: row.name, position: row.position, department: row.department, section: row.section, startDate: row.startDate },
+                from: change.from,
+                salary: change.salary,
+                salaryBefore: row.monthlySalary || undefined,
+                salaryType: "gross",
+                basis: "Əmək haqqı hesablama iş kitabı",
+              };
+              await call("company/orders/save", { employeeId: row.employeeId, kind: "salary", number: input.number, date: today, input, signers: list });
+              done++;
+            } catch (error) {
+              problems.push(`${change.name}: ${(error as Error).message}`);
+            }
+          }
+          out.push({ title: step.title, text: `${done} əmr yaradıldı və imzaya göndərildi (imzalanandan sonra kartda və maaşda qüvvəyə minir).`, issues: problems.slice(0, 8) });
+          continue;
+        }
+        const body = step.key === "payroll" ? { rows: step.rows, month, items: plan.imported?.items || [] } : step.key === "hours" ? { rows: step.rows, month } : { rows: step.rows };
         const r = await call<StepResult>(step.endpoint, body);
         const count = r.applied ?? r.created ?? 0;
         out.push({ title: step.title, text: `${count} yazıldı${r.days ? `, ${r.days} gün` : ""}.`, issues: (r.issues || []).slice(0, 6).map((i) => `${i.line}-ci sətir: ${i.reason}`) });
@@ -117,7 +182,12 @@ export function WorkbookImport({ month, notify, onClose, onDone }: { month: stri
         </label>
         {plan && (
           <>
-            {plan.issues.map((i) => <p key={i} className="admin-error">{i}</p>)}
+            {plan.issues.length > 0 && (
+              <details open>
+                <summary className="admin-error">{plan.issues.length} xəbərdarlıq (bu sətirlər yüklənməyəcək)</summary>
+                <ul className="muted">{plan.issues.slice(0, 12).map((i) => <li key={i}>{i}</li>)}</ul>
+              </details>
+            )}
             {plan.steps.length > 0 && (
               <table className="admin-table wb-steps">
                 <thead><tr><th>Vərəq</th><th>Hazır sətir</th><th>Oxunmayan</th></tr></thead>
@@ -149,7 +219,7 @@ export function WorkbookImport({ month, notify, onClose, onDone }: { month: stri
             ))}
           </ul>
         )}
-        <p className="muted fine-print"><FileSpreadsheet size={13} /> İşçi adları iş kitabında və platformada eyni olmalıdır. Avans bu yolla yüklənmir: o, Əmək haqqı → Bank və ödəniş sənədləri bölməsində qeyd olunur.</p>
+        <p className="muted fine-print"><FileSpreadsheet size={13} /> İşçi adları iş kitabında və platformada eyni olmalıdır. Yeni avans üçün “Avansın ödəniş tarixi” doldurulmalıdır; maaş dəyişikliyi imzaya gedən əmr kimi yaradılır.</p>
       </div>
     </Modal>
   );
