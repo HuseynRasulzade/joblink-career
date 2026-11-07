@@ -256,3 +256,17 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 .od-fold:hover { background: #eef5f3; color: var(--teal-strong); }
 .od-text { margin-top: 8px; }
 .od-text summary { cursor: pointer; font-weight: 600; color: var(--teal); }
+
+/* Yan menyu: açıq olan bölmə aydın seçilir (rəngli çərçivə, qalın sol zolaq, tünd mətn) */
+.nav-item { border: 1.5px solid transparent; position: relative; }
+.nav-item.active {
+  background: #e3f4ef;
+  border-color: #1b9a8a;
+  color: #0e564d;
+  font-weight: 700;
+  box-shadow: 0 0 0 3px rgba(27, 154, 138, 0.14);
+}
+.nav-item.active::before { content: ""; position: absolute; left: -1.5px; top: 8px; bottom: 8px; width: 4px; border-radius: 0 4px 4px 0; background: #147b70; }
+.nav-item.active > span { color: #147b70; }
+.nav-item.active:hover { background: #d9f0ea; }
+.nav-item.active b { background: #147b70; color: #fff; }
