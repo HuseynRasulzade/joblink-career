@@ -14,7 +14,7 @@ import { parseHoursTotals } from "../lib/hours.ts";
 
 const month = "2026-11";
 const days = monthDays(2026, 11).map((d) => ({ date: d.date, off: d.off }));
-const emp = (name, extra = {}) => ({ name, fin: "", position: "", department: "", salary: 1500, sector: "private", taxReduction: 0, weekHours: 40, averageMonthly: 0, nightPercent: 0, start: "", end: "", ...extra });
+const emp = (name, extra = {}) => ({ name, fin: "", position: "", department: "", salary: 1500, sector: "private", taxReduction: 0, weekHours: 40, averageMonthly: 0, nightPercent: 0, leaveCompDays: 0, start: "", end: "", ...extra });
 const input = {
   month, days,
   employees: [
@@ -23,6 +23,7 @@ const input = {
     emp("Nigar Dövlət", { salary: 800, sector: "public" }),
     emp("Elnur Yeni", { salary: 1000, weekHours: 36, start: "2026-11-12" }),
     emp("Rəşad Yüksək", { salary: 9000 }),
+    emp("Samir Çıxan", { salary: 1200, end: "2026-11-05", leaveCompDays: 6, averageMonthly: 1150 }),
   ],
   leaves: [
     { name: "Orxan Məzuniyyət", code: "annual", from: "2026-11-09", to: "2026-11-17", note: "Əmr № 5" },
@@ -77,6 +78,9 @@ test("the shown values are the platform's own: gross, tax, net and the amount to
   // a leaver-free mid-month hire is paid for the days after the hire date only
   assert.ok(n("Elnur Yeni", "Hesablanmış (gross)") < 1000);
   assert.ok(n("Rəşad Yüksək", "Gəlir vergisi") > 600);
+  // a leaver is paid the days up to the end date and the unused leave: 1150 ÷ 30.4 × 6
+  assert.equal(n("Samir Çıxan", "Məzuniyyət kompensasiyası"), 226.97);
+  assert.ok(n("Samir Çıxan", "Hesablanmış (gross)") > 226.97);
   // trips are shown beside the pay, not inside it
   assert.ok(n("Aysel Tam", "Ezamiyyət (ayrıca)") > 0);
 });
