@@ -11687,6 +11687,7 @@ async function route(request: Request) {
     }
     // What was really paid in the approved months of the year, by the employee's department.
     const months: { month: string; gross: number; net: number; employerCost: number }[] = [];
+    const monthly = new Map<string, number>();
     for (const run of runs.results.sort((a, b) => a.month.localeCompare(b.month))) {
       let gross = 0;
       let net = 0;
@@ -11695,6 +11696,7 @@ async function route(request: Request) {
         for (const r of (JSON.parse(run.snapshot) as { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] }).rows || []) {
           const d = dep(deptOf.get(r.employeeId) || "");
           d.actualGross += r.result.gross;
+          monthly.set(`${run.month}|${d.department}`, (monthly.get(`${run.month}|${d.department}`) || 0) + r.result.gross);
           d.actualNet += r.result.net;
           d.actualTax += r.result.incomeTax;
           d.actualInsurance += r.result.employeeSocial + r.result.employeeUnemployment + r.result.employeeMedical;
@@ -11724,11 +11726,8 @@ async function route(request: Request) {
       })
       .sort((a, b) => b.monthlyFund - a.monthlyFund);
     const sum = (pick: (d: (typeof list)[number]) => number) => money(list.reduce((t, d) => t + pick(d), 0));
-    // The yearly pay budget the company wrote (gross, per month), shown against what the approved months really cost.
-    const budgets: Record<string, number> = {};
-    for (const b of (await db.prepare("SELECT month,amount FROM payroll_budgets WHERE company_id=? AND month LIKE ? ORDER BY month").bind(id, `${year}-%`).all<{ month: string; amount: number }>().catch(() => ({ results: [] as { month: string; amount: number }[] }))).results) budgets[b.month] = b.amount;
     return {
-      year, approvedMonths: monthCount, months, budgets, departments: list,
+      year, approvedMonths: monthCount, months, monthly: [...monthly].map(([k, v]) => ({ month: k.split("|")[0], department: k.slice(k.indexOf("|") + 1), gross: money(v) })), departments: list,
       totals: {
         headcount: sum((d) => d.headcount), planned: sum((d) => d.planned), free: sum((d) => d.free), monthlyBudget: sum((d) => d.monthlyBudget), monthlyFund: sum((d) => d.monthlyFund), monthlyVariance: sum((d) => d.monthlyVariance),
         vacationDays: sum((d) => d.vacationDays), vacationLiability: sum((d) => d.vacationLiability), hires: sum((d) => d.hires), exits: sum((d) => d.exits),
@@ -11737,27 +11736,77 @@ async function route(request: Request) {
       },
     };
   };
-  // The monthly pay budget (gross AZN) of a year: written here, compared in the fund report with the approved months.
-  if (request.method === "POST" && path === "company/hr-report/budget") {
-    requirePermission("salaries", "Əmək haqqı büdcəsini yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
+  // The yearly budget of the company: pay, hiring and training, per month and per department, against the actual.
+  // Pay and training facts come from the platform itself; the hiring cost is typed (nothing else knows it).
+  const BUDGET_CATEGORIES = ["payroll", "hiring", "training"];
+  if (request.method === "GET" && path === "company/budget-plan") {
+    requirePermission("salaries", "Büdcə planını yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    const report = (await hrFundReport()) as { year: string; monthly: { month: string; department: string; gross: number }[]; departments: { department: string; monthlyFund: number }[] };
+    const year = report.year;
+    const nowMonth = new Date().toISOString().slice(0, 7);
+    const lines = (await db.prepare("SELECT month,department,category,kind,amount FROM budget_lines WHERE company_id=? AND month LIKE ? ORDER BY month").bind(id, `${year}-%`).all<{ month: string; department: string; category: string; kind: string; amount: number }>().catch(() => ({ results: [] as { month: string; department: string; category: string; kind: string; amount: number }[] }))).results;
+    type Fact = { month: string; department: string; amount: number; estimate: boolean };
+    const facts: Record<string, Fact[]> = { payroll: [], training: [], hiring: [] };
+    const approvedMonths = new Set(report.monthly.map((m) => m.month));
+    for (const m of report.monthly) facts.payroll.push({ month: m.month, department: m.department, amount: m.gross, estimate: false });
+    // A month that is not approved yet (up to this month) is shown at today's pay fund, marked as an estimate.
+    for (let i = 1; i <= 12; i++) {
+      const month = `${year}-${String(i).padStart(2, "0")}`;
+      if (month > nowMonth || approvedMonths.has(month)) continue;
+      for (const d of report.departments) if (d.monthlyFund > 0) facts.payroll.push({ month, department: d.department, amount: Math.round(d.monthlyFund * 100) / 100, estimate: true });
+    }
+    const [tr, parts, emps] = await Promise.all([
+      db.prepare("SELECT id,start_date,cost_cents,status FROM trainings WHERE company_id=? AND start_date LIKE ? AND status<>'cancelled'").bind(id, `${year}-%`).all<{ id: string; start_date: string; cost_cents: number; status: string }>(),
+      db.prepare("SELECT training_id,employee_id FROM training_participants WHERE company_id=?").bind(id).all<{ training_id: string; employee_id: string }>(),
+      db.prepare("SELECT id,department FROM company_employees WHERE company_id=?").bind(id).all<{ id: string; department: string }>(),
+    ]);
+    const deptOfEmp = new Map(emps.results.map((e) => [e.id, e.department || "Departamentsiz"]));
+    const byTraining = new Map<string, string[]>();
+    for (const p of parts.results) byTraining.set(p.training_id, [...(byTraining.get(p.training_id) || []), deptOfEmp.get(p.employee_id) || "Departamentsiz"]);
+    const trainingSum = new Map<string, Fact>();
+    for (const t of tr.results) {
+      const month = t.start_date.slice(0, 7);
+      const people = byTraining.get(t.id) || [];
+      const shares = people.length ? people : [""];
+      for (const dept of shares) {
+        const k = `${month}|${dept}`;
+        const cur = trainingSum.get(k) || { month, department: dept, amount: 0, estimate: false };
+        cur.amount += t.cost_cents / 100 / shares.length;
+        if (t.status !== "done") cur.estimate = true;
+        trainingSum.set(k, cur);
+      }
+    }
+    facts.training = [...trainingSum.values()].map((f) => ({ ...f, amount: Math.round(f.amount * 100) / 100 }));
+    facts.hiring = lines.filter((l) => l.category === "hiring" && l.kind === "actual").map((l) => ({ month: l.month, department: l.department, amount: l.amount, estimate: false }));
+    const names = new Set<string>(report.departments.map((d) => d.department));
+    for (const l of lines) if (l.department) names.add(l.department);
+    return ok({ year, nowMonth, departments: [...names].sort((a, b) => a.localeCompare(b, "az")), budgets: lines.filter((l) => l.kind === "budget"), facts });
+  }
+  if (request.method === "POST" && path === "company/budget-plan/save") {
+    requirePermission("salaries", "Büdcəni yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
     const b = await jsonBody(request);
-    const list = (Array.isArray(b.budgets) ? b.budgets : []).slice(0, 36) as { month?: unknown; amount?: unknown }[];
+    const list = (Array.isArray(b.lines) ? b.lines : []).slice(0, 600) as { month?: unknown; department?: unknown; category?: unknown; kind?: unknown; amount?: unknown }[];
     if (!list.length) throw new HttpError(400, "Büdcə yazılmayıb.");
     const now = new Date().toISOString();
     const statements: D1PreparedStatement[] = [];
     for (const t of list) {
       const month = String(t.month ?? "");
+      const category = String(t.category ?? "");
+      const kind = t.kind === "actual" ? "actual" : "budget";
+      const department = str(t.department, 120).trim();
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpError(400, `Ay düzgün deyil: “${month}”.`);
+      if (!BUDGET_CATEGORIES.includes(category)) throw new HttpError(400, "Büdcə növü tanınmadı.");
+      if (kind === "actual" && category !== "hiring") throw new HttpError(400, "Faktı yalnız işə qəbul xərcləri üçün əl ilə yazmaq olar; qalanı platformadan gəlir.");
       if (t.amount === null || t.amount === "") {
-        statements.push(db.prepare("DELETE FROM payroll_budgets WHERE company_id=? AND month=?").bind(id, month));
+        statements.push(db.prepare("DELETE FROM budget_lines WHERE company_id=? AND month=? AND department=? AND category=? AND kind=?").bind(id, month, department, category, kind));
         continue;
       }
       const amount = Math.round(Number(t.amount) * 100) / 100;
-      if (!Number.isFinite(amount) || amount < 0 || amount > 1e10) throw new HttpError(400, `${month}: büdcə düzgün deyil.`);
-      statements.push(db.prepare("INSERT INTO payroll_budgets(company_id,month,amount,updated,updated_by) VALUES(?,?,?,?,?) ON CONFLICT(company_id,month) DO UPDATE SET amount=excluded.amount,updated=excluded.updated,updated_by=excluded.updated_by").bind(id, month, amount, now, userId));
+      if (!Number.isFinite(amount) || amount < 0 || amount > 1e10) throw new HttpError(400, `${month}: məbləğ düzgün deyil.`);
+      statements.push(db.prepare("INSERT INTO budget_lines(company_id,month,department,category,kind,amount,updated,updated_by) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(company_id,month,department,category,kind) DO UPDATE SET amount=excluded.amount,updated=excluded.updated,updated_by=excluded.updated_by").bind(id, month, department, category, kind, amount, now, userId));
     }
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
-    await companyAudit(db, id, userId, "payroll-budget", "", `${list.length} ay üçün əmək haqqı büdcəsi yazıldı`);
+    await companyAudit(db, id, userId, "budget-plan", "", `${list.length} büdcə sətri yazıldı`);
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "company/hr-report") {

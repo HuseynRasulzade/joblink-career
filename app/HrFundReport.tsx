@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Download, Printer } from "lucide-react";
+import BudgetPlan from "./BudgetPlan";
 
 type Dep = {
   department: string; headcount: number; planned: number; free: number; over: number; fte: number; monthlyBudget: number; monthlyFund: number; monthlyVariance: number; avgSalary: number;
@@ -8,7 +9,7 @@ type Dep = {
   actualGross: number; actualNet: number; actualEmployerCost: number; budgetForPeriod: number; periodVariance: number;
 };
 type Report = {
-  year: string; approvedMonths: number; budgets?: Record<string, number>; months: { month: string; gross: number; net: number; employerCost: number }[]; departments: Dep[];
+  year: string; approvedMonths: number; months: { month: string; gross: number; net: number; employerCost: number }[]; departments: Dep[];
   totals: { headcount: number; planned: number; free: number; monthlyBudget: number; monthlyFund: number; monthlyVariance: number; vacationDays: number; vacationLiability: number; hires: number; exits: number; turnover: number; actualGross: number; actualNet: number; actualEmployerCost: number; budgetForPeriod: number; periodVariance: number };
 };
 const azn = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AZN`;
@@ -19,7 +20,6 @@ export default function HrFundReport({ notify }: { notify: (message: string) => 
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(String(thisYear));
   const [loaded, setLoaded] = useState<{ year: string; data: Report } | null>(null);
-  const [reloads, setReloads] = useState(0);
   const report = loaded?.year === year ? loaded.data : null;
   const notifyRef = useRef(notify);
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function HrFundReport({ notify }: { notify: (message: string) => 
         setLoaded({ year, data });
       })
       .catch((error) => notifyRef.current((error as Error).message));
-  }, [year, reloads]);
+  }, [year]);
   function print() {
     if (!report) return;
     const win = window.open("", "_blank");
@@ -98,90 +98,9 @@ export default function HrFundReport({ notify }: { notify: (message: string) => 
           </tbody>
         </table>
       </div>
-      <YearBudget year={year} report={report} notify={notify} onSaved={() => setReloads((n) => n + 1)} />
+      <BudgetPlan year={year} notify={notify} />
       <small className="skill-picker-help">Büdcə ştat cədvəlindəki yerlərin yuxarı maaş həddi ilə hesablanır. Fond işçilərin hazırkı gross maaşlarının cəmidir. Məzuniyyət borcu istifadə olunmamış günlərin maaşın gün payı (÷ 30,4) ilə dəyəridir. Dövriyyə = il ərzindəki çıxışlar / orta işçi sayı.</small>
     </section>
   );
 }
 
-const MONTH_NAMES = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun", "İyul", "Avqust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
-
-// The pay budget of the year, one figure per month (gross), against the approved months of the payroll.
-function YearBudget({ year, report, notify, onSaved }: { year: string; report: Report; notify: (message: string) => void; onSaved: () => void }) {
-  const months = MONTH_NAMES.map((_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
-  const saved = report.budgets || {};
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [yearTotal, setYearTotal] = useState("");
-  const [busy, setBusy] = useState(false);
-  const shown = (m: string) => (values[m] !== undefined ? values[m] : saved[m] !== undefined ? String(saved[m]) : "");
-  const actual = new Map(report.months.map((m) => [m.month, m]));
-  const budgetOf = (m: string) => (shown(m) === "" ? null : Number(shown(m).replace(",", ".")));
-  const totalBudget = months.reduce((t, m) => t + (budgetOf(m) || 0), 0);
-  const approvedBudget = months.reduce((t, m) => t + (actual.has(m) ? budgetOf(m) || 0 : 0), 0);
-  const totalActual = report.months.reduce((t, m) => t + m.gross, 0);
-  function spread() {
-    const total = Number(yearTotal.replace(",", "."));
-    if (!Number.isFinite(total) || total <= 0) return notify("İllik büdcəni müsbət rəqəmlə yazın.");
-    const each = Math.round((total / 12) * 100) / 100;
-    setValues(Object.fromEntries(months.map((m, i) => [m, String(i === 11 ? Math.round((total - each * 11) * 100) / 100 : each)])));
-  }
-  async function save() {
-    const list = months.filter((m) => values[m] !== undefined).map((m) => ({ month: m, amount: values[m] === "" ? null : Number(values[m].replace(",", ".")) }));
-    if (!list.length) return notify("Dəyişiklik yoxdur.");
-    if (list.some((x) => x.amount !== null && !Number.isFinite(x.amount))) return notify("Büdcə rəqəm olmalıdır.");
-    setBusy(true);
-    try {
-      const response = await fetch("/api/joblink/company/hr-report/budget", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ budgets: list }) });
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(data.error || "Büdcə saxlanmadı.");
-      setValues({});
-      notify(`${year} büdcəsi saxlanıldı.`);
-      onSaved();
-    } catch (error) {
-      notify((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div className="year-budget">
-      <h4>{year}-ci il üçün əmək haqqı büdcəsi: plan və fakt</h4>
-      <p className="muted">Hər ay üçün əmək haqqı fondunun (gross) planını yazın. Fakt, təsdiqlənmiş aylıq əmək haqqı hesablamasından götürülür; təsdiqlənməyən ayın faktı yoxdur. Büdcənin 100%-dən çox xərc qırmızı göstərilir.</p>
-      <div className="admin-actions" style={{ justifyContent: "flex-start", alignItems: "center", gap: 8 }}>
-        <label>İllik cəmi (AZN) <input inputMode="decimal" value={yearTotal} onChange={(e) => setYearTotal(e.target.value)} placeholder="məs. 240000" style={{ width: 120 }} /></label>
-        <button type="button" className="secondary" onClick={spread}>12 aya bərabər böl</button>
-        <button type="button" className="primary" disabled={busy} onClick={() => void save()}>Büdcəni saxla</button>
-      </div>
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead><tr><th>Ay</th><th>Büdcə (gross)</th><th>Fakt (təsdiqlənmiş)</th><th>Fərq</th><th>İcra</th></tr></thead>
-          <tbody>
-            {months.map((m, i) => {
-              const a = actual.get(m);
-              const b = budgetOf(m);
-              const diff = a && b !== null ? b - a.gross : null;
-              const pct = a && b ? Math.round((a.gross / b) * 100) : null;
-              return (
-                <tr key={m}>
-                  <td>{MONTH_NAMES[i]}</td>
-                  <td><input inputMode="decimal" aria-label={`${MONTH_NAMES[i]} büdcəsi`} style={{ width: 120 }} value={shown(m)} onChange={(e) => setValues({ ...values, [m]: e.target.value })} /></td>
-                  <td>{a ? azn(a.gross) : <small className="muted">təsdiqlənməyib</small>}</td>
-                  <td style={{ color: diff !== null && diff < 0 ? "#b42318" : undefined }}>{diff === null ? "—" : azn(diff)}</td>
-                  <td style={{ color: pct !== null && pct > 100 ? "#b42318" : undefined }}>{pct === null ? "—" : `${pct}%`}</td>
-                </tr>
-              );
-            })}
-            <tr>
-              <td><b>Cəmi</b></td>
-              <td><b>{azn(totalBudget)}</b></td>
-              <td><b>{azn(totalActual)}</b></td>
-              <td style={{ color: approvedBudget - totalActual < 0 ? "#b42318" : undefined }}><b>{report.months.length ? azn(approvedBudget - totalActual) : "—"}</b></td>
-              <td><b>{approvedBudget ? `${Math.round((totalActual / approvedBudget) * 100)}%` : "—"}</b></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <small className="skill-picker-help">Cəmi sətrindəki fərq yalnız təsdiqlənmiş ayların büdcəsi ilə faktı arasındadır.</small>
-    </div>
-  );
-}
