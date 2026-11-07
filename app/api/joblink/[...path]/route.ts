@@ -12022,7 +12022,14 @@ async function route(request: Request) {
       event = to === "cancelled" && row.order_no ? "order.cancelled" : "";
     }
     await companyAudit(db, id, userId, "hr-expense-status", expenseId, `${row.title}: ${row.status} → ${to}`);
-    if (event) await pushWebhook(db, id, event, await orderRow());
+    // Telling the outside program is best effort: a failure is logged and never undoes the change.
+    if (event) {
+      try {
+        await pushWebhook(db, id, event, await orderRow());
+      } catch (error) {
+        await logIntegration(db, id, "out", "webhook", event, row.order_no, false, error instanceof Error ? error.message : "Göndərilmədi");
+      }
+    }
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/hr-expenses/delete") {
