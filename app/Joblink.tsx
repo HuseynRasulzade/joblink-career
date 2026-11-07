@@ -1875,22 +1875,22 @@ export default function Joblink() {
               {admin
                 ? "Təhlükəsiz idarəetmə"
                 : hr
-                  ? "Növbəti komanda üzvünüz"
+                  ? hrMode === "ops" ? "Kadr hadisəsi" : "Növbəti komanda üzvünüz"
                   : "Potensialınızı kəşf edin"}
             </h3>
             <p>
               {admin
                 ? "Dəyişikliklər audit jurnalında qeydə alınır."
                 : hr
-                  ? "Tələblərinizi yazın, uyğun namizədləri kəşf edin."
+                  ? hrMode === "ops" ? "Qəbul, köçürmə, məzuniyyət və xitam əmrini bir yerdən hazırlayın." : "Tələblərinizi yazın, uyğun namizədləri kəşf edin."
                   : "Profilinizi tamamlayın, doğru fürsətlər sizi tapsın."}
             </p>
             <button
               onClick={() =>
-                go(admin ? "admin-system" : hr ? "hr-ai" : "profile")
+                go(admin ? "admin-system" : hr ? (hrMode === "ops" ? "hr-orders" : "hr-ai") : "profile")
               }
             >
-              {admin ? "Sistemə bax" : hr ? "Vakansiya yarat" : "Profilə keç"}
+              {admin ? "Sistemə bax" : hr ? (hrMode === "ops" ? "Yeni əmr" : "Vakansiya yarat") : "Profilə keç"}
               <ArrowUpRight size={14} />
             </button>
           </div>
