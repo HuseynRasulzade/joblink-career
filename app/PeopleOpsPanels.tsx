@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { Field, Modal } from "./components";
+import OrgDiagram from "./OrgDiagram";
 import { SheetImport } from "./StaffPages";
 
 type Notify = (message: string) => void;
@@ -371,27 +372,38 @@ export function LeaveExport({ year }: { year: number }) {
 type ChartPerson = { id: string; name: string; position: string; department: string; section: string; status: string };
 export function OrgChart({ notify }: { notify: Notify }) {
   const [data] = useLoad<{ employees: ChartPerson[] }>("company/employees", notify);
+  const [company, setCompany] = useState("");
+  useEffect(() => {
+    fetch("/api/joblink/company/me", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ company: { name: string } | null }>) : null))
+      .then((d) => setCompany(d?.company?.name || ""))
+      .catch(() => undefined);
+  }, []);
   if (!data) return <p className="muted">Yüklənir…</p>;
   const people = data.employees.filter((p) => p.status !== "left");
   const departments = [...new Set(people.map((p) => p.department || "Departamentsiz"))].sort((a, b) => a.localeCompare(b, "az"));
   return (
     <div className="company-page org-chart">
-      <p className="muted">Departament → şöbə → işçi. {people.length} işçi, {departments.length} departament.</p>
-      {departments.map((d) => {
-        const inDept = people.filter((p) => (p.department || "Departamentsiz") === d);
-        const sections = [...new Set(inDept.map((p) => p.section || ""))].sort((a, b) => a.localeCompare(b, "az"));
-        return (
-          <details key={d} open className="bank-batch">
-            <summary><b>{d}</b> <small className="skill-description">{inDept.length} nəfər</small></summary>
-            {sections.map((sec) => (
-              <div key={sec} className="org-section">
-                {sec && <b>{sec}</b>}
-                <ul>{inDept.filter((p) => (p.section || "") === sec).map((p) => <li key={p.id}>{p.name} <small className="skill-description">{p.position}</small></li>)}</ul>
-              </div>
-            ))}
-          </details>
-        );
-      })}
+      <p className="muted">Şirkət → departament → şöbə → işçi. {people.length} işçi, {departments.length} departament. Departamentin düyməsi ilə qolu yığıb aça bilərsiniz.</p>
+      {people.length ? <OrgDiagram people={people} company={company} /> : <p className="admin-empty">Hələ işçi yoxdur: sxem işçi əlavə olunanda çəkilir.</p>}
+      <details className="od-text">
+        <summary>Mətn variantı (siyahı)</summary>
+        {departments.map((d) => {
+          const inDept = people.filter((p) => (p.department || "Departamentsiz") === d);
+          const sections = [...new Set(inDept.map((p) => p.section || ""))].sort((a, b) => a.localeCompare(b, "az"));
+          return (
+            <div key={d} className="org-section">
+              <b>{d}</b> <small className="skill-description">{inDept.length} nəfər</small>
+              {sections.map((sec) => (
+                <div key={sec} className="org-section">
+                  {sec && <b>{sec}</b>}
+                  <ul>{inDept.filter((p) => (p.section || "") === sec).map((p) => <li key={p.id}>{p.name} <small className="skill-description">{p.position}</small></li>)}</ul>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </details>
     </div>
   );
 }

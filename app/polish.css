@@ -230,3 +230,29 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 .ov-table summary { cursor: pointer; color: #9bd5cb; }
 .ops-quick { display: flex; flex-wrap: wrap; gap: 8px; }
 .ops-quick button { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; font-size: 13px; font-weight: 600; }
+
+/* Təşkilat sxemi: kartlar və oxlarla axın diaqramı */
+.od { display: grid; gap: 10px; }
+.od-tools { display: inline-flex; align-items: center; gap: 4px; width: fit-content; padding: 4px; background: #fff; border: 1px solid #e3ebea; border-radius: 12px; box-shadow: var(--shadow-1); }
+.od-tools button { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; color: #4b6064; }
+.od-tools button:hover { background: #eef5f3; color: var(--teal-strong); }
+.od-tools span { min-width: 44px; text-align: center; font-size: 12px; font-weight: 700; color: #53666a; }
+.od-frame { overflow: auto; max-height: 72vh; border: 1px solid #e3ebea; border-radius: 16px; background-color: #f7faf9; background-image: radial-gradient(#d3dcda 1px, transparent 1px); background-size: 18px 18px; }
+.od-canvas { position: relative; margin: 0 auto; }
+.od-scale { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.od-edges { position: absolute; left: 0; top: 0; pointer-events: none; }
+.od-node { position: absolute; display: flex; align-items: center; justify-content: center; padding: 18px 12px 10px; background: #fff; border: 1px solid #dfe8e6; border-radius: 16px; box-shadow: 0 2px 6px rgba(23, 45, 49, 0.07), 0 8px 20px rgba(23, 45, 49, 0.05); text-align: center; transition: box-shadow .15s var(--ease), transform .15s var(--ease); }
+.od-node:hover { box-shadow: 0 4px 10px rgba(23, 45, 49, 0.1), 0 14px 28px rgba(23, 45, 49, 0.08); transform: translateY(-1px); }
+.od-pill { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 5px; max-width: calc(100% - 20px); padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.od-body { display: grid; gap: 2px; min-width: 0; }
+.od-body b { font-size: 14px; line-height: 1.25; color: #172d31; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.od-body small { font-size: 12px; color: #6b7a7d; }
+.od-root .od-pill { background: #d9f6c8; color: #2f6a1f; }
+.od-dept .od-pill { background: #dbe9fd; color: #1f4f9c; }
+.od-section .od-pill { background: #fcefb4; color: #7a5a06; }
+.od-person .od-pill { background: #e8defb; color: #5a3aa3; }
+.od-root { border-color: #cfe9bd; }
+.od-fold { position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #fff; border: 1px solid #cfdad8; color: #4b6064; box-shadow: var(--shadow-1); }
+.od-fold:hover { background: #eef5f3; color: var(--teal-strong); }
+.od-text { margin-top: 8px; }
+.od-text summary { cursor: pointer; font-weight: 600; color: var(--teal); }
