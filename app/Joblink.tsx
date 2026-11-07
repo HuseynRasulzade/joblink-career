@@ -11,6 +11,7 @@ import {
   BriefcaseBusiness,
   FileText,
   Sparkles,
+  Search,
   UserRound,
   ArrowUpRight,
   ChevronDown,
@@ -122,6 +123,7 @@ import {
 import { HrCalculators } from "./HrCalculators";
 import WorkplacePage from "./WorkplacePage";
 import PayrollPage from "./PayrollPage";
+import { HR_MODULES, inModule, moduleOf, type HrModule } from "@/lib/hr-modules";
 import PeopleOps from "./PeopleOps";
 import GrowthHub from "./GrowthHub";
 import EncryptionPanel from "./EncryptionPanel";
@@ -340,6 +342,8 @@ const sharedVacancy = () => typeof window !== "undefined" && !!new URLSearchPara
 
 export default function Joblink() {
   const [page, setPage] = useState("overview");
+  // The employer panel shows one of its two programs at a time: recruitment or HR operations.
+  const [hrMode, setHrMode] = useState<HrModule>("recruit");
   const [profile, setProfile] = useState<Profile>(sampleProfile);
   const [sample, setSample] = useState(true);
   const [jobs, setJobs] = useState<Job[]>(sampleJobs);
@@ -465,14 +469,34 @@ export default function Joblink() {
     "hr-people-ops": "employees",
     "hr-growth": "employees",
   };
+  useEffect(() => {
+    const m = moduleOf(page);
+    if (hr && m !== "both") setHrMode(m);
+  }, [page, hr]);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("joblink.hrMode");
+      // A page opened by a link decides the program; otherwise the last one used comes back.
+      if ((saved === "recruit" || saved === "ops") && moduleOf(window.location.hash.slice(1)) === "both") setHrMode(saved);
+    } catch {
+      // no storage: the default stays
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("joblink.hrMode", hrMode);
+    } catch {
+      // no storage
+    }
+  }, [hrMode]);
   const hrVisible = hrNav.filter(
     (item) =>
       !hrNeeds[item.id] ||
       !companyMe ||
       companyMe.permissions.includes(hrNeeds[item.id] as never),
   );
-  const navigation = admin ? adminNav : hr ? hrVisible : candidateNav;
-  const label = navigation.find((n) => n.id === page)?.label || "Ümumi baxış";
+  const navigation = admin ? adminNav : hr ? hrVisible.filter((item) => inModule(item.id, hrMode)) : candidateNav;
+  const label = (admin ? adminNav : hr ? hrVisible : candidateNav).find((n) => n.id === page)?.label || "Ümumi baxış";
   const fingerprint = JSON.stringify(profile);
   const rankingKey = JSON.stringify([profile, jobs.map((j) => j.id)]);
   const report = cvReport?.fingerprint === fingerprint ? cvReport : null;
@@ -1788,8 +1812,28 @@ export default function Joblink() {
             </small>
           </div>
         </div>
+        {hr ? (
+          <div className="hr-modes" role="group" aria-label="Proqram bölməsi">
+            {(Object.keys(HR_MODULES) as HrModule[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={hrMode === mode ? "on" : ""}
+                aria-pressed={hrMode === mode}
+                title={HR_MODULES[mode].hint}
+                onClick={() => {
+                  setHrMode(mode);
+                  if (!inModule(page, mode)) go(HR_MODULES[mode].home);
+                }}
+              >
+                {mode === "recruit" ? <Search size={15} /> : <Users size={15} />}
+                <span>{HR_MODULES[mode].label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         <p className="nav-label">
-          {admin ? "İDARƏETMƏ" : hr ? "İŞƏ QƏBUL" : "İŞ MƏKANIM"}
+          {admin ? "İDARƏETMƏ" : hr ? HR_MODULES[hrMode].hint.toLocaleUpperCase("az") : "İŞ MƏKANIM"}
         </p>
         <nav aria-label="Əsas naviqasiya">
           {navigation.map(({ id, label, icon: Icon }) => (
