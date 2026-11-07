@@ -11724,8 +11724,11 @@ async function route(request: Request) {
       })
       .sort((a, b) => b.monthlyFund - a.monthlyFund);
     const sum = (pick: (d: (typeof list)[number]) => number) => money(list.reduce((t, d) => t + pick(d), 0));
+    // The yearly pay budget the company wrote (gross, per month), shown against what the approved months really cost.
+    const budgets: Record<string, number> = {};
+    for (const b of (await db.prepare("SELECT month,amount FROM payroll_budgets WHERE company_id=? AND month LIKE ? ORDER BY month").bind(id, `${year}-%`).all<{ month: string; amount: number }>().catch(() => ({ results: [] as { month: string; amount: number }[] }))).results) budgets[b.month] = b.amount;
     return {
-      year, approvedMonths: monthCount, months, departments: list,
+      year, approvedMonths: monthCount, months, budgets, departments: list,
       totals: {
         headcount: sum((d) => d.headcount), planned: sum((d) => d.planned), free: sum((d) => d.free), monthlyBudget: sum((d) => d.monthlyBudget), monthlyFund: sum((d) => d.monthlyFund), monthlyVariance: sum((d) => d.monthlyVariance),
         vacationDays: sum((d) => d.vacationDays), vacationLiability: sum((d) => d.vacationLiability), hires: sum((d) => d.hires), exits: sum((d) => d.exits),
@@ -11734,6 +11737,29 @@ async function route(request: Request) {
       },
     };
   };
+  // The monthly pay budget (gross AZN) of a year: written here, compared in the fund report with the approved months.
+  if (request.method === "POST" && path === "company/hr-report/budget") {
+    requirePermission("salaries", "Əmək haqqı büdcəsini yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
+    const b = await jsonBody(request);
+    const list = (Array.isArray(b.budgets) ? b.budgets : []).slice(0, 36) as { month?: unknown; amount?: unknown }[];
+    if (!list.length) throw new HttpError(400, "Büdcə yazılmayıb.");
+    const now = new Date().toISOString();
+    const statements: D1PreparedStatement[] = [];
+    for (const t of list) {
+      const month = String(t.month ?? "");
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpError(400, `Ay düzgün deyil: “${month}”.`);
+      if (t.amount === null || t.amount === "") {
+        statements.push(db.prepare("DELETE FROM payroll_budgets WHERE company_id=? AND month=?").bind(id, month));
+        continue;
+      }
+      const amount = Math.round(Number(t.amount) * 100) / 100;
+      if (!Number.isFinite(amount) || amount < 0 || amount > 1e10) throw new HttpError(400, `${month}: büdcə düzgün deyil.`);
+      statements.push(db.prepare("INSERT INTO payroll_budgets(company_id,month,amount,updated,updated_by) VALUES(?,?,?,?,?) ON CONFLICT(company_id,month) DO UPDATE SET amount=excluded.amount,updated=excluded.updated,updated_by=excluded.updated_by").bind(id, month, amount, now, userId));
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "payroll-budget", "", `${list.length} ay üçün əmək haqqı büdcəsi yazıldı`);
+    return ok({ ok: true });
+  }
   if (request.method === "GET" && path === "company/hr-report") {
     requirePermission("salaries", "Kadr və əmək haqqı fondu hesabatını yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
     await auditView("view-fund-report");
