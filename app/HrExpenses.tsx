@@ -3,13 +3,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { EXPENSE_CATEGORIES } from "@/lib/hr-expenses";
 
 type Notify = (message: string) => void;
-type Expense = { id: string; category: string; title: string; department: string; employeeId: string; amount: number; date: string; payee: string; note: string; status: "planned" | "approved" | "paid" | "cancelled"; paidOn: string; method: string; payFrom: string; payRef: string; approvedBy: string };
-type CategoryRow = { id: string; label: string; hint: string; budget: number; held: number; paid: number; left: number };
-type Data = { year: string; expenses: Expense[]; categories: CategoryRow[]; employees: { id: string; name: string; department: string }[]; departments: string[]; canApprove: boolean };
+type Expense = { id: string; category: string; title: string; department: string; employeeId: string; amount: number; date: string; payee: string; note: string; status: "planned" | "approved" | "ordered" | "paid" | "cancelled"; orderNo: string; source: string; externalId: string; paidOn: string; method: string; payFrom: string; payRef: string; approvedBy: string };
+type CategoryRow = { id: string; label: string; hint: string; budget: number; held: number; paid: number; ordered: number; left: number };
+type Data = { year: string; expenses: Expense[]; categories: CategoryRow[]; employees: { id: string; name: string; department: string }[]; departments: string[]; canApprove: boolean; ordersEnabled: boolean };
 
 const STATUS: Record<Expense["status"], { label: string; color: string }> = {
   planned: { label: "Planlaşdırılıb", color: "#8a6100" },
   approved: { label: "Təsdiqlənib", color: "#1f4f9c" },
+  ordered: { label: "Sifarişdə", color: "#6d3fb2" },
   paid: { label: "Ödənilib", color: "#147b70" },
   cancelled: { label: "Ləğv edilib", color: "#6b7a7d" },
 };
@@ -76,10 +77,10 @@ export default function HrExpenses({ year, notify, version, onChanged }: { year:
     <div style={{ display: "grid", gap: 12 }}>
       <div className="panel">
         <b>HR xərcləri ({year})</b>
-        <p className="muted" style={{ margin: "4px 0 8px" }}>Əmək haqqı və təlimdən başqa kadr xərcləri burada yazılır: planlaşdırılır, direktor təsdiqləyir, sonra ödəniş (tarix, üsul, hesab/kassa, sənəd nömrəsi) qeyd olunur. Hər növün büdcəsi «Büdcə» sekməsində yazılır; büdcəsiz və ya büdcədən artıq xərc yazılmır. Təlim xərci «İnkişaf və kommunikasiya → Təlimlər»də, əmək haqqı «Əmək haqqı»nda aparılır.</p>
+        <p className="muted" style={{ margin: "4px 0 8px" }}>Əmək haqqı və təlimdən başqa kadr xərcləri burada yazılır: planlaşdırılır, direktor təsdiqləyir, təsdiqlənən xərc sifariş kimi xarici proqrama (1C, SAP, ERP) düşür, orada ödənəndən sonra «ödənildi» qeyd olunur və yalnız onda real xərc sayılır. Xarici proqram qoşulmayıbsa, ödəniş əl ilə qeyd olunur (tarix, üsul, hesab/kassa, sənəd nömrəsi). Hər növün büdcəsi «Büdcə» sekməsində yazılır; büdcəsiz və ya büdcədən artıq xərc yazılmır. Təlim xərci «İnkişaf və kommunikasiya → Təlimlər»də, əmək haqqı «Əmək haqqı»nda aparılır.</p>
         <div className="admin-table-wrap" style={{ overflowX: "auto" }}>
           <table className="admin-table">
-            <thead><tr><th>Növ</th><th>Büdcə</th><th>Ayrılıb</th><th>Ödənilib</th><th>Qalıq</th><th /></tr></thead>
+            <thead><tr><th>Növ</th><th>Büdcə</th><th>Ayrılıb</th><th>Real (ödənilib)</th><th>Sifarişdə</th><th>Qalıq</th><th /></tr></thead>
             <tbody>
               {data.categories.map((c) => (
                 <tr key={c.id}>
@@ -87,6 +88,7 @@ export default function HrExpenses({ year, notify, version, onChanged }: { year:
                   <td>{c.budget ? AZN(c.budget) : <small className="muted">büdcə yoxdur</small>}</td>
                   <td>{AZN(c.held)}</td>
                   <td>{AZN(c.paid)}</td>
+                  <td style={{ color: "#6d3fb2" }}>{c.ordered ? AZN(c.ordered) : "—"}</td>
                   <td style={{ color: c.budget && c.left < 0 ? "#b42318" : undefined }}>{c.budget ? AZN(c.left) : "—"}</td>
                   <td><button type="button" className="secondary" onClick={() => { setCategory(c.id); setDraft(blank(c.id)); }}>+ Xərc yaz</button></td>
                 </tr>
@@ -157,14 +159,16 @@ export default function HrExpenses({ year, notify, version, onChanged }: { year:
                 <td>{e.department || <small className="muted">ümumi</small>}</td>
                 <td>{e.payee || "—"}</td>
                 <td>{AZN(e.amount)}</td>
-                <td><b style={{ color: STATUS[e.status].color }}>{STATUS[e.status].label}</b>{e.approvedBy && e.status !== "planned" && e.status !== "cancelled" ? <small className="muted"><br />direktor təsdiqi</small> : null}</td>
+                <td><b style={{ color: STATUS[e.status].color }}>{STATUS[e.status].label}</b>{e.orderNo ? <small className="muted"><br />№ {e.orderNo}</small> : null}{e.source === "erp" ? <small className="muted"><br />xarici sistemdən{e.externalId ? ` (${e.externalId})` : ""}</small> : null}{e.approvedBy && e.status !== "planned" && e.status !== "cancelled" ? <small className="muted"><br />direktor təsdiqi</small> : null}</td>
                 <td>{e.status === "paid" ? <small>{dmy(e.paidOn)}<br />{METHOD[e.method] || e.method}{e.payFrom ? ` · ${e.payFrom}` : ""}{e.payRef ? ` · №${e.payRef}` : ""}</small> : "—"}</td>
                 <td>
                   <div className="admin-actions">
                     {e.status === "planned" && <button type="button" className="secondary" onClick={() => setDraft({ id: e.id, category: e.category, title: e.title, department: e.department, employeeId: e.employeeId, amount: String(e.amount), date: e.date, payee: e.payee, note: e.note })}>Düzəlt</button>}
                     {e.status === "planned" && <button type="button" className="primary" disabled={busy || !data.canApprove} title={data.canApprove ? "" : "Xərci yalnız direktor təsdiqləyir"} onClick={() => void move(e.id, "approved")}>Təsdiqlə</button>}
-                    {e.status === "approved" && <button type="button" className="primary" disabled={busy} onClick={() => setPaying({ id: e.id, paidOn: today(), method: "bank", payFrom: "", payRef: "" })}>Ödə</button>}
-                    {(e.status === "planned" || e.status === "approved") && <button type="button" className="secondary" disabled={busy} onClick={() => void move(e.id, "cancelled")}>Ləğv et</button>}
+                    {e.status === "approved" && <button type="button" className="primary" disabled={busy} onClick={() => void move(e.id, "ordered")}>Sifariş göndər</button>}
+                    {(e.status === "approved" || e.status === "ordered") && <button type="button" className="secondary" disabled={busy} onClick={() => setPaying({ id: e.id, paidOn: today(), method: "bank", payFrom: "", payRef: "" })}>{e.status === "ordered" ? "Ödənildi (əl ilə)" : "Ödə (əl ilə)"}</button>}
+                    {e.status === "ordered" && <button type="button" className="secondary" disabled={busy} onClick={() => { if (window.confirm("Sifariş xarici sistemdən geri çəkilsin?")) void move(e.id, "approved"); }}>Sifarişi geri çək</button>}
+                    {(e.status === "planned" || e.status === "approved" || e.status === "ordered") && <button type="button" className="secondary" disabled={busy} onClick={() => void move(e.id, "cancelled")}>Ləğv et</button>}
                     {e.status === "paid" && <button type="button" className="secondary" disabled={busy || !data.canApprove} title={data.canApprove ? "" : "Yalnız direktor"} onClick={() => { if (window.confirm("Ödəniş geri qaytarılsın?")) void move(e.id, "approved"); }}>Ödənişi geri qaytar</button>}
                     {e.status === "cancelled" && <button type="button" className="secondary" disabled={busy} onClick={() => void move(e.id, "planned")}>Bərpa et</button>}
                     {(e.status === "planned" || e.status === "cancelled") && <button type="button" className="secondary" disabled={busy} onClick={() => { if (window.confirm("Xərc silinsin?")) void run(() => call("company/hr-expenses/delete", { id: e.id }), "Xərc silindi."); }}>Sil</button>}

@@ -1,5 +1,5 @@
 // The HR costs other than pay and the training plan: each kind has its own budget line in the plan, its own place
-// to write an expense, and a place to record the payment. An expense is planned → approved → paid.
+// to write an expense, and a place to record the payment. An expense is planned → approved → ordered (sent to the outside program) → paid.
 export const EXPENSE_CATEGORIES = [
   { id: "hiring", label: "İşə qəbul", hint: "Elan, agentlik, test, namizəd yol xərci, uyğunlaşdırma" },
   { id: "certificate", label: "Sertifikat və imtahan", hint: "Sertifikat, lisenziya, imtahan və yenilənmə haqqı" },
@@ -11,15 +11,18 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]["id"];
 export const EXPENSE_CATEGORY_IDS: string[] = EXPENSE_CATEGORIES.map((c) => c.id);
-export const EXPENSE_STATUS = ["planned", "approved", "paid", "cancelled"] as const;
+export const EXPENSE_STATUS = ["planned", "approved", "ordered", "paid", "cancelled"] as const;
 export type ExpenseStatus = (typeof EXPENSE_STATUS)[number];
 export const PAY_METHODS = ["bank", "card", "cash", "other"] as const;
 
 // What may follow what: a planned expense is approved (or cancelled), an approved one is paid (or cancelled),
 // a paid one can only have its payment taken back.
+// An approved expense can be sent to the outside program as an order; the order is paid there (the program reports it back)
+// or, where nothing is connected, the payment is recorded by hand.
 export const NEXT: Record<ExpenseStatus, ExpenseStatus[]> = {
   planned: ["approved", "cancelled"],
-  approved: ["paid", "cancelled", "planned"],
+  approved: ["ordered", "paid", "cancelled", "planned"],
+  ordered: ["paid", "approved", "cancelled"],
   paid: ["approved"],
   cancelled: ["planned"],
 };

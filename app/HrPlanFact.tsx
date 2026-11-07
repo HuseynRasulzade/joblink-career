@@ -3,15 +3,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import HrTrends from "./HrTrends";
 import BudgetPlan from "./BudgetPlan";
 import HrExpenses from "./HrExpenses";
+import PlanFactExcel from "./PlanFactExcel";
+import PlanFactIntegrations from "./PlanFactIntegrations";
 import { EXPENSE_CATEGORIES } from "@/lib/hr-expenses";
 import { StaffTable } from "./StaffPages";
 import { takeFocus } from "./focus";
 
 type Notify = (message: string) => void;
 type PlanState = { year: string; status: "draft" | "pending" | "approved"; by: string; at: string; canApprove: boolean };
-type Tab = "summary" | "headcount" | "staff" | "budget" | "expenses";
+type Tab = "summary" | "headcount" | "staff" | "budget" | "expenses" | "integration";
 type Line = { month: string; department: string; category: string; kind: string; amount: number };
-type Fact = { month: string; amount: number };
+type Fact = { month: string; amount: number; state?: string; estimate?: boolean };
 type Budget = { nowMonth: string; budgets: Line[]; facts: Record<string, Fact[]> };
 type Trends = { planned: number; filled: number; targets: Record<string, number>; series: { month: string; headcount: number }[]; alerts: { text: string; level: string }[] };
 
@@ -79,6 +81,7 @@ export default function HrPlanFact({ notify }: { notify: Notify }) {
     { id: "staff", label: "Ştat cədvəli" },
     { id: "budget", label: "Büdcə" },
     { id: "expenses", label: "Xərclər" },
+    { id: "integration", label: "İnteqrasiya (1C, SAP)" },
   ];
   const years = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1];
   return (
@@ -90,6 +93,7 @@ export default function HrPlanFact({ notify }: { notify: Notify }) {
           {state?.at && status !== "draft" && <small className="muted">{dmy(state.at.slice(0, 10))}</small>}
         </div>
         <div className="admin-actions" style={{ justifyContent: "flex-end" }}>
+          <PlanFactExcel year={year} notify={notify} onDone={() => setVersion((n) => n + 1)} />
           {status === "draft" && <button type="button" className="primary" disabled={busy} onClick={() => void act("submit")}>{state?.canApprove ? "Planı təsdiqlə" : "Təsdiqə göndər"}</button>}
           {status === "pending" && <button type="button" className="secondary" onClick={() => { window.location.hash = "hr-approvals"; }}>Təsdiqlərə keç</button>}
           {status === "approved" && <button type="button" className="secondary" disabled={busy || !state?.canApprove} title={state?.canApprove ? "" : "Yalnız direktor aça bilər"} onClick={() => void act("reopen")}>Redaktə üçün aç</button>}
@@ -109,6 +113,7 @@ export default function HrPlanFact({ notify }: { notify: Notify }) {
       {tab === "headcount" && <HrTrends notify={notify} editable locked={locked} year={year} />}
       {tab === "staff" && <StaffTable notify={notify} initialQuery={focus?.department || ""} />}
       {tab === "budget" && <BudgetPlan year={year} notify={notify} editable version={version} />}
+      {tab === "integration" && <PlanFactIntegrations notify={notify} />}
       {tab === "expenses" && <HrExpenses year={year} notify={notify} version={version} onChanged={() => undefined} />}
     </div>
   );
@@ -138,8 +143,10 @@ function Summary({ year, version, go, notify }: { year: string; version: number;
   ].map((c) => {
     const yearBudget = budget.budgets.filter((l) => l.category === c.id).reduce((t, l) => t + l.amount, 0);
     const ytdBudget = budget.budgets.filter((l) => l.category === c.id && upTo(l.month)).reduce((t, l) => t + l.amount, 0);
-    const fact = (budget.facts[c.id] || []).filter((f) => upTo(f.month)).reduce((t, f) => t + f.amount, 0);
-    return { ...c, yearBudget, ytdBudget, fact };
+    const mine = (budget.facts[c.id] || []).filter((f) => upTo(f.month));
+    const fact = mine.filter((f) => (f.state || (f.estimate ? "estimate" : "paid")) === "paid").reduce((t, f) => t + f.amount, 0);
+    const ordered = mine.filter((f) => f.state === "ordered").reduce((t, f) => t + f.amount, 0);
+    return { ...c, yearBudget, ytdBudget, fact, ordered };
   });
   const last = trends.series[trends.series.length - 1];
   const target = trends.targets[nowMonth];
@@ -153,9 +160,9 @@ function Summary({ year, version, go, notify }: { year: string; version: number;
         </div>
         {cats.map((c) => (
           <div key={c.id} className={`staff-kpi ${c.ytdBudget && c.fact > c.ytdBudget ? "" : c.ytdBudget ? "staff-kpi-good" : ""}`}>
-            <small>{c.label}</small>
+            <small>{c.label} (real)</small>
             <strong>{AZN(c.fact)}</strong>
-            <span>{c.ytdBudget ? `bu günə plan ${AZN(c.ytdBudget)} · ${Math.round((c.fact / c.ytdBudget) * 100)}%` : c.yearBudget ? `illik plan ${AZN(c.yearBudget)}` : "büdcə yazılmayıb"}</span>
+            <span>{c.ytdBudget ? `bu günə plan ${AZN(c.ytdBudget)} · real ${Math.round((c.fact / c.ytdBudget) * 100)}%` : c.yearBudget ? `illik plan ${AZN(c.yearBudget)}` : "büdcə yazılmayıb"}{c.ordered ? ` · sifarişdə ${AZN(c.ordered)}` : ""}</span>
           </div>
         ))}
       </div>

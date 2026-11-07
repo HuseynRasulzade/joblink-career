@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { EXPENSE_CATEGORIES } from "@/lib/hr-expenses";
 
 type Line = { month: string; department: string; category: string; kind: string; amount: number };
-type Fact = { month: string; department: string; amount: number; estimate: boolean };
+type Fact = { month: string; department: string; amount: number; estimate: boolean; state?: "paid" | "ordered" | "approved" | "estimate" };
+const stateOf = (f: Fact) => f.state || (f.estimate ? "estimate" : "paid");
 type Data = { state?: { status: "draft" | "pending" | "approved" }; canApprove?: boolean; year: string; nowMonth: string; departments: string[]; budgets: Line[]; facts: Record<string, Fact[]> };
 
 const MONTHS = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"];
@@ -60,11 +61,15 @@ export default function BudgetPlan({ year, notify, editable = false, version = 0
   };
   const num = (text: string) => (text === "" ? 0 : Number(text.replace(",", ".")) || 0);
   const budgetOf = (cat: string, month: string, dept?: string) => rows.filter((d) => dept === undefined || d === dept).reduce((t, d) => t + num(shown(cat, "budget", d, month)), 0);
-  const factOf = (cat: string, month: string) => {
-    const list = (data.facts[cat] || []).filter((f) => f.month === month);
-    return { amount: list.reduce((t, f) => t + f.amount, 0), estimate: list.some((f) => f.estimate), any: list.length > 0 };
-  };
-  const factDept = (cat: string, month: string, dept: string) => (data.facts[cat] || []).filter((f) => f.month === month && f.department === dept).reduce((t, f) => t + f.amount, 0);
+  // Real = paid; ordered = sent to the outside program, not paid yet; pending = approved without an order, or an estimate.
+  const split = (list: Fact[]) => ({
+    paid: list.filter((f) => stateOf(f) === "paid").reduce((t, f) => t + f.amount, 0),
+    ordered: list.filter((f) => stateOf(f) === "ordered").reduce((t, f) => t + f.amount, 0),
+    pending: list.filter((f) => ["approved", "estimate"].includes(stateOf(f))).reduce((t, f) => t + f.amount, 0),
+  });
+  const factOf = (cat: string, month: string) => split((data.facts[cat] || []).filter((f) => f.month === month));
+  const factDept = (cat: string, month: string, dept: string) => split((data.facts[cat] || []).filter((f) => f.month === month && f.department === dept));
+  const anyFact = (x: { paid: number; ordered: number; pending: number }) => x.paid + x.ordered + x.pending > 0;
   const label = (d: string) => (d === COMPANY ? "Bölünməmiş (ümumi)" : d);
 
   function spread() {
@@ -167,15 +172,18 @@ export default function BudgetPlan({ year, notify, editable = false, version = 0
                 <td><b>{AZN(months.reduce((t, m) => t + num(shown(category, "budget", d, m)), 0))}</b></td>
               </tr>
             ))}
-            {rows.filter((d) => months.some((m) => factDept(category, m, d) > 0)).map((d) => (
+            {rows.filter((d) => months.some((m) => anyFact(factDept(category, m, d)))).map((d) => (
               <tr key={`f-${d || "company"}`} className="muted">
-                <td>{label(d)}<br /><small className="muted">fakt</small></td>
+                <td>{label(d)}<br /><small className="muted">fakt: real / sifarişdə / gözləyən</small></td>
                 {months.map((m) => {
                   const v = factDept(category, m, d);
-                  const est = (data.facts[category] || []).some((f) => f.month === m && f.department === d && f.estimate);
-                  return <td key={m}>{v ? <>{AZN(v)}{est ? <small className="muted"> təxmini</small> : null}</> : "—"}</td>;
+                  return (
+                    <td key={m}>
+                      {anyFact(v) ? <>{v.paid ? AZN(v.paid) : "—"}{v.ordered ? <small style={{ display: "block", color: "#1f4f9c" }}>+ {AZN(v.ordered)} sifarişdə</small> : null}{v.pending ? <small className="muted" style={{ display: "block" }}>+ {AZN(v.pending)} gözləyən</small> : null}</> : "—"}
+                    </td>
+                  );
                 })}
-                <td><b>{AZN(months.reduce((t, m) => t + factDept(category, m, d), 0))}</b></td>
+                <td><b>{AZN(months.reduce((t, m) => t + factDept(category, m, d).paid, 0))}</b></td>
               </tr>
             ))}
           </tbody>
@@ -185,21 +193,24 @@ export default function BudgetPlan({ year, notify, editable = false, version = 0
       <h4 style={{ marginTop: 18 }}>Ümumi müqayisə: növlər üzrə</h4>
       <div className="admin-table-wrap" style={{ overflowX: "auto" }}>
         <table className="admin-table">
-          <thead><tr><th>Növ</th><th>İllik büdcə</th><th>Bu günə büdcə</th><th>Bu günə fakt</th><th>Fərq</th><th>İcra</th></tr></thead>
+          <thead><tr><th>Növ</th><th>İllik büdcə</th><th>Bu günə büdcə</th><th>Real xərc (ödənilib)</th><th>Sifarişdə (ödənilməyib)</th><th>Gözləyən / təxmini</th><th>Qalıq (büdcə − real − sifariş)</th><th>İcra (real)</th></tr></thead>
           <tbody>
             {CATEGORIES.map((c) => {
               const upTo = months.filter((m) => m <= data.nowMonth);
               const yearB = months.reduce((t, m) => t + budgetOf(c.id, m), 0);
               const ytdB = upTo.reduce((t, m) => t + budgetOf(c.id, m), 0);
-              const ytdF = upTo.reduce((t, m) => t + factOf(c.id, m).amount, 0);
+              const f = upTo.reduce((t, m) => { const x = factOf(c.id, m); return { paid: t.paid + x.paid, ordered: t.ordered + x.ordered, pending: t.pending + x.pending }; }, { paid: 0, ordered: 0, pending: 0 });
+              const left = ytdB - f.paid - f.ordered;
               return (
                 <tr key={c.id}>
                   <td>{c.label}</td>
                   <td>{yearB ? AZN(yearB) : "—"}</td>
                   <td>{ytdB ? AZN(ytdB) : "—"}</td>
-                  <td>{ytdF ? AZN(ytdF) : "—"}</td>
-                  <td style={{ color: ytdB - ytdF < 0 ? "#b42318" : undefined }}>{ytdB || ytdF ? AZN(ytdB - ytdF) : "—"}</td>
-                  <td style={{ color: ytdB && ytdF > ytdB ? "#b42318" : undefined }}>{ytdB ? `${Math.round((ytdF / ytdB) * 100)}%` : "—"}</td>
+                  <td><b>{f.paid ? AZN(f.paid) : "—"}</b></td>
+                  <td style={{ color: "#1f4f9c" }}>{f.ordered ? AZN(f.ordered) : "—"}</td>
+                  <td className="muted">{f.pending ? AZN(f.pending) : "—"}</td>
+                  <td style={{ color: left < 0 ? "#b42318" : undefined }}>{ytdB || anyFact(f) ? AZN(left) : "—"}</td>
+                  <td style={{ color: ytdB && f.paid > ytdB ? "#b42318" : undefined }}>{ytdB ? `${Math.round((f.paid / ytdB) * 100)}%` : "—"}</td>
                 </tr>
               );
             })}
@@ -210,29 +221,30 @@ export default function BudgetPlan({ year, notify, editable = false, version = 0
       <h4 style={{ marginTop: 18 }}>Aylar üzrə: bütün növlərin cəmi</h4>
       <div className="admin-table-wrap" style={{ overflowX: "auto" }}>
         <table className="admin-table">
-          <thead><tr><th>Ay</th><th>Cəmi büdcə</th><th>Cəmi fakt</th><th>Fərq</th><th>İcra</th></tr></thead>
+          <thead><tr><th>Ay</th><th>Cəmi büdcə</th><th>Real xərc (ödənilib)</th><th>Sifarişdə</th><th>Gözləyən / təxmini</th><th>Qalıq</th><th>İcra (real)</th></tr></thead>
           <tbody>
             {months.map((m, i) => {
               const past = m <= data.nowMonth;
               const tb = CATEGORIES.reduce((t, c) => t + budgetOf(c.id, m), 0);
-              const facts = CATEGORIES.map((c) => factOf(c.id, m));
-              const tf = facts.reduce((t, x) => t + x.amount, 0);
-              const est = facts.some((x) => x.estimate);
-              const show = past && (tf > 0 || tb > 0);
+              const f = CATEGORIES.reduce((t, c) => { const x = factOf(c.id, m); return { paid: t.paid + x.paid, ordered: t.ordered + x.ordered, pending: t.pending + x.pending }; }, { paid: 0, ordered: 0, pending: 0 });
+              const show = past && (anyFact(f) || tb > 0);
+              const left = tb - f.paid - f.ordered;
               return (
                 <tr key={m}>
                   <td>{MONTHS[i]}</td>
                   <td>{tb ? AZN(tb) : "—"}</td>
-                  <td>{tf ? <>{AZN(tf)}{est ? <small className="muted"> təx.</small> : null}</> : "—"}</td>
-                  <td style={{ color: show && tb - tf < 0 ? "#b42318" : undefined }}>{show && tb ? AZN(tb - tf) : "—"}</td>
-                  <td style={{ color: show && tb && tf > tb ? "#b42318" : undefined }}>{show && tb ? `${Math.round((tf / tb) * 100)}%` : "—"}</td>
+                  <td><b>{f.paid ? AZN(f.paid) : "—"}</b></td>
+                  <td style={{ color: "#1f4f9c" }}>{f.ordered ? AZN(f.ordered) : "—"}</td>
+                  <td className="muted">{f.pending ? AZN(f.pending) : "—"}</td>
+                  <td style={{ color: show && left < 0 ? "#b42318" : undefined }}>{show && tb ? AZN(left) : "—"}</td>
+                  <td style={{ color: show && tb && f.paid > tb ? "#b42318" : undefined }}>{show && tb ? `${Math.round((f.paid / tb) * 100)}%` : "—"}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      <small className="skill-picker-help">«təx.» təxmini deməkdir: ay hələ təsdiqlənməyib (əmək haqqı) və ya təlim başa çatmayıb. Gələcək aylar üçün fakt göstərilmir.</small>
+      <small className="skill-picker-help">Real xərc: ödənilmiş (xarici sistemdə ödənilib və ya əl ilə qeyd olunub), təsdiqlənmiş əmək haqqı və bitmiş təlim. Sifarişdə: xarici sistemə sifariş kimi göndərilib, hələ ödənilməyib. Gözləyən: təsdiqlənib amma sifariş verilməyib, həm də təxmini əmək haqqı və başa çatmayan təlim. Gələcək aylar üçün fakt göstərilmir.</small>
     </div>
   );
 }

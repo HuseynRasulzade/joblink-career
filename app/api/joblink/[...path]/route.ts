@@ -418,6 +418,9 @@ import { DEFAULT_CLOCK, bakuNow, earlyLeaveMinutes, hoursFromClock, lateMinutes,
 import { vacationDaysBetween } from "@/lib/hr-calc";
 import { BENEFIT_CAP_FACTOR, BENEFIT_MIN_INSURANCE_MONTHS, MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
 import { checkVacancyAgainstPlan } from "@/lib/vacancy-plan";
+import { categoryLabel as expenseCategoryLabel, integrationSetting, logIntegration, orderExpense, pushWebhook, recordPaid, setIntegrationSetting, ORDER_COLUMNS } from "@/lib/expense-ops";
+import { generateApiKey, hashApiKey, keyPrefix, safeWebhookUrl, type OrderRow } from "@/lib/integration";
+import { parsePlanFactSheets } from "@/lib/plan-fact-excel";
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_IDS, PAY_METHODS, budgetProblem, canMove, type ExpenseStatus } from "@/lib/hr-expenses";
 import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
@@ -11831,15 +11834,15 @@ async function route(request: Request) {
     const year = report.year;
     const nowMonth = new Date().toISOString().slice(0, 7);
     const lines = (await db.prepare("SELECT month,department,category,kind,amount FROM budget_lines WHERE company_id=? AND month LIKE ? ORDER BY month").bind(id, `${year}-%`).all<{ month: string; department: string; category: string; kind: string; amount: number }>().catch(() => ({ results: [] as { month: string; department: string; category: string; kind: string; amount: number }[] }))).results;
-    type Fact = { month: string; department: string; amount: number; estimate: boolean };
+    type Fact = { month: string; department: string; amount: number; estimate: boolean; state: "paid" | "ordered" | "approved" | "estimate" };
     const facts: Record<string, Fact[]> = { payroll: [], training: [], ...Object.fromEntries(EXPENSE_CATEGORY_IDS.map((c) => [c, [] as Fact[]])) };
     const approvedMonths = new Set(report.monthly.map((m) => m.month));
-    for (const m of report.monthly) facts.payroll.push({ month: m.month, department: m.department, amount: m.gross, estimate: false });
+    for (const m of report.monthly) facts.payroll.push({ month: m.month, department: m.department, amount: m.gross, estimate: false, state: "paid" });
     // A month that is not approved yet (up to this month) is shown at today's pay fund, marked as an estimate.
     for (let i = 1; i <= 12; i++) {
       const month = `${year}-${String(i).padStart(2, "0")}`;
       if (month > nowMonth || approvedMonths.has(month)) continue;
-      for (const d of report.departments) if (d.monthlyFund > 0) facts.payroll.push({ month, department: d.department, amount: Math.round(d.monthlyFund * 100) / 100, estimate: true });
+      for (const d of report.departments) if (d.monthlyFund > 0) facts.payroll.push({ month, department: d.department, amount: Math.round(d.monthlyFund * 100) / 100, estimate: true, state: "estimate" });
     }
     const [tr, parts, emps] = await Promise.all([
       db.prepare("SELECT id,start_date,cost_cents,status FROM trainings WHERE company_id=? AND start_date LIKE ? AND status<>'cancelled'").bind(id, `${year}-%`).all<{ id: string; start_date: string; cost_cents: number; status: string }>(),
@@ -11856,17 +11859,20 @@ async function route(request: Request) {
       const shares = people.length ? people : [""];
       for (const dept of shares) {
         const k = `${month}|${dept}`;
-        const cur = trainingSum.get(k) || { month, department: dept, amount: 0, estimate: false };
+        const cur = trainingSum.get(k) || { month, department: dept, amount: 0, estimate: false, state: "paid" as const };
         cur.amount += t.cost_cents / 100 / shares.length;
-        if (t.status !== "done") cur.estimate = true;
+        if (t.status !== "done") {
+          cur.estimate = true;
+          cur.state = "estimate";
+        }
         trainingSum.set(k, cur);
       }
     }
     facts.training = [...trainingSum.values()].map((f) => ({ ...f, amount: Math.round(f.amount * 100) / 100 }));
     // Earlier hand-written hiring actuals still count; every other HR cost comes from the expense register (approved and paid).
-    facts.hiring = lines.filter((l) => l.category === "hiring" && l.kind === "actual").map((l) => ({ month: l.month, department: l.department, amount: l.amount, estimate: false }));
-    const spent = (await db.prepare("SELECT category,department,expense_date,amount,status FROM hr_expenses WHERE company_id=? AND expense_date LIKE ? AND status IN ('approved','paid')").bind(id, `${year}-%`).all<{ category: string; department: string; expense_date: string; amount: number; status: string }>().catch(() => ({ results: [] as { category: string; department: string; expense_date: string; amount: number; status: string }[] }))).results;
-    for (const e of spent) (facts[e.category] ||= []).push({ month: e.expense_date.slice(0, 7), department: e.department, amount: e.amount, estimate: e.status !== "paid" });
+    facts.hiring = lines.filter((l) => l.category === "hiring" && l.kind === "actual").map((l) => ({ month: l.month, department: l.department, amount: l.amount, estimate: false, state: "paid" as const }));
+    const spent = (await db.prepare("SELECT category,department,expense_date,amount,status FROM hr_expenses WHERE company_id=? AND expense_date LIKE ? AND status IN ('approved','ordered','paid')").bind(id, `${year}-%`).all<{ category: string; department: string; expense_date: string; amount: number; status: string }>().catch(() => ({ results: [] as { category: string; department: string; expense_date: string; amount: number; status: string }[] }))).results;
+    for (const e of spent) (facts[e.category] ||= []).push({ month: e.expense_date.slice(0, 7), department: e.department, amount: e.amount, estimate: e.status !== "paid", state: e.status === "paid" ? "paid" : e.status === "ordered" ? "ordered" : "approved" });
     const names = new Set<string>(report.departments.map((d) => d.department));
     for (const l of lines) if (l.department) names.add(l.department);
     return ok({ state: await yearPlanState(year), canApprove: canAct("approve-director"), year, nowMonth, departments: [...names].sort((a, b) => a.localeCompare(b, "az")), budgets: lines.filter((l) => l.kind === "budget"), facts });
@@ -11900,9 +11906,11 @@ async function route(request: Request) {
     return ok({ ok: true });
   }
   // ---- HR costs beyond pay and training: an expense is written, approved, paid; each kind has its budget line in the plan ----
-  const expenseRow = (r: { id: string; category: string; title: string; department: string; employee_id: string; amount: number; expense_date: string; payee: string; note: string; status: string; paid_on: string; pay_method: string; pay_from: string; pay_ref: string; approved_by: string; created_by: string }) => ({
+  type ExpenseDbRow = { id: string; category: string; title: string; department: string; employee_id: string; amount: number; expense_date: string; payee: string; note: string; status: string; paid_on: string; pay_method: string; pay_from: string; pay_ref: string; approved_by: string; created_by: string; order_no: string; ordered_at: string; external_id: string; source: string };
+  const expenseRow = (r: ExpenseDbRow) => ({
     id: r.id, category: r.category, title: r.title, department: r.department, employeeId: r.employee_id, amount: r.amount, date: r.expense_date, payee: r.payee, note: r.note,
     status: r.status, paidOn: r.paid_on, method: r.pay_method, payFrom: r.pay_from, payRef: r.pay_ref, approvedBy: r.approved_by, createdBy: r.created_by,
+    orderNo: r.order_no, orderedAt: r.ordered_at, externalId: r.external_id, source: r.source,
   });
   const categoryLabel = (c: string) => EXPENSE_CATEGORIES.find((x) => x.id === c)?.label || c;
   // What the year's budget of a kind holds: planned, approved and paid expenses (cancelled ones free the money).
@@ -11917,17 +11925,18 @@ async function route(request: Request) {
     requirePermission("salaries", "HR xərclərini yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
     const y = str(requestUrl.searchParams.get("year"), 4);
     const year = /^\d{4}$/.test(y) ? y : new Date().toISOString().slice(0, 4);
-    const rows = (await db.prepare("SELECT * FROM hr_expenses WHERE company_id=? AND expense_date LIKE ? ORDER BY expense_date DESC, created DESC LIMIT 1000").bind(id, `${year}-%`).all<Parameters<typeof expenseRow>[0]>().catch(() => ({ results: [] as Parameters<typeof expenseRow>[0][] }))).results;
+    const rows = (await db.prepare("SELECT * FROM hr_expenses WHERE company_id=? AND expense_date LIKE ? ORDER BY expense_date DESC, created DESC LIMIT 1000").bind(id, `${year}-%`).all<ExpenseDbRow>().catch(() => ({ results: [] as ExpenseDbRow[] }))).results;
     const budgets = (await db.prepare("SELECT category,SUM(amount) AS s FROM budget_lines WHERE company_id=? AND month LIKE ? AND kind='budget' GROUP BY category").bind(id, `${year}-%`).all<{ category: string; s: number }>().catch(() => ({ results: [] as { category: string; s: number }[] }))).results;
     const categories = EXPENSE_CATEGORIES.map((c) => {
       const mine = rows.filter((r) => r.category === c.id);
       const budget = Number(budgets.find((b) => b.category === c.id)?.s) || 0;
       const held = mine.filter((r) => r.status !== "cancelled").reduce((t, r) => t + r.amount, 0);
-      return { id: c.id, label: c.label, hint: c.hint, budget, held: Math.round(held * 100) / 100, paid: Math.round(mine.filter((r) => r.status === "paid").reduce((t, r) => t + r.amount, 0) * 100) / 100, left: Math.round((budget - held) * 100) / 100 };
+      const sum = (status: string) => Math.round(mine.filter((r) => r.status === status).reduce((t, r) => t + r.amount, 0) * 100) / 100;
+      return { id: c.id, label: c.label, hint: c.hint, budget, held: Math.round(held * 100) / 100, paid: sum("paid"), ordered: sum("ordered"), left: Math.round((budget - held) * 100) / 100 };
     });
     const people = (await db.prepare("SELECT id,name,department FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY name").bind(id).all<{ id: string; name: string; department: string }>()).results;
     const departments = [...new Set([...people.map((p) => p.department).filter(Boolean), ...rows.map((r) => r.department).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "az"));
-    return ok({ year, expenses: rows.map(expenseRow), categories, employees: people, departments, canApprove: canAct("approve-director") });
+    return ok({ year, expenses: rows.map(expenseRow), categories, employees: people, departments, canApprove: canAct("approve-director"), ordersEnabled: (await integrationSetting(db, id, "orders_enabled")) === "1" });
   }
   if (request.method === "POST" && path === "company/hr-expenses/save") {
     requirePermission("salaries", "HR xərcini yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
@@ -11961,31 +11970,48 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "hr-expense", created, `${title}: ${amount}`);
     return ok({ ok: true, id: created });
   }
-  // Status changes: approve (director), pay (with the place and way of payment), cancel, take the payment back, reopen, delete.
+  // Status changes: approve (director; the order goes to the outside program when that is switched on), order, pay (reported by the
+  // outside program or recorded by hand), cancel, take the payment or the order back, reopen.
   if (request.method === "POST" && path === "company/hr-expenses/move") {
     requirePermission("salaries", "HR xərcini yalnız əmək haqqı icazəsi olan şəxs idarə edə bilər.");
     const b = await jsonBody(request);
     const expenseId = str(b.id, 100);
     const to = String(b.to ?? "") as ExpenseStatus;
-    const row = await db.prepare("SELECT * FROM hr_expenses WHERE id=? AND company_id=?").bind(expenseId, id).first<Parameters<typeof expenseRow>[0]>();
+    const row = await db.prepare("SELECT * FROM hr_expenses WHERE id=? AND company_id=?").bind(expenseId, id).first<ExpenseDbRow>();
     if (!row) throw new HttpError(404, "Xərc tapılmadı.");
     if (!canMove(row.status as ExpenseStatus, to)) throw new HttpError(409, "Bu vəziyyətdən həmin vəziyyətə keçmək olmaz.");
     const now = new Date().toISOString();
+    const orderRow = async (): Promise<OrderRow> => (await db.prepare(`SELECT ${ORDER_COLUMNS} FROM hr_expenses WHERE id=? AND company_id=?`).bind(expenseId, id).first<OrderRow>()) as OrderRow;
+    let event = "";
     if (to === "approved" && row.status === "planned") {
       if (!canAct("approve-director")) throw new HttpError(403, "Xərci yalnız direktor (təsdiq səlahiyyəti olan şəxs) təsdiqləyir.");
       const h = await heldBudget(row.category, row.expense_date.slice(0, 4), expenseId);
       const fit = budgetProblem(categoryLabel(row.category), row.expense_date.slice(0, 4), h.budget, h.held, row.amount);
       if (fit) throw new HttpError(409, fit);
       await db.prepare("UPDATE hr_expenses SET status='approved',approved_by=?,updated=? WHERE id=? AND company_id=?").bind(userId, now, expenseId, id).run();
+      // Where an outside program is connected, the approved expense drops into it as an order at once.
+      if ((await integrationSetting(db, id, "orders_enabled")) === "1") {
+        await orderExpense(db, id, expenseId);
+        event = "order.created";
+      }
+    } else if (to === "ordered") {
+      await orderExpense(db, id, expenseId);
+      event = "order.created";
     } else if (to === "paid") {
       const paidOn = str(b.paidOn, 10);
       const method = String(b.method ?? "");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(paidOn)) throw new HttpError(400, "Ödəniş tarixini seçin.");
       if (!(PAY_METHODS as readonly string[]).includes(method)) throw new HttpError(400, "Ödəniş üsulunu seçin.");
-      await db.prepare("UPDATE hr_expenses SET status='paid',paid_on=?,pay_method=?,pay_from=?,pay_ref=?,updated=? WHERE id=? AND company_id=?").bind(paidOn, method, str(b.payFrom, 200).trim(), str(b.payRef, 200).trim(), now, expenseId, id).run();
+      await recordPaid(db, id, expenseId, { paidOn, method, payFrom: str(b.payFrom, 200).trim(), payRef: str(b.payRef, 200).trim() });
+      event = row.order_no ? "order.paid" : "";
     } else if (to === "approved" && row.status === "paid") {
       if (!canAct("approve-director")) throw new HttpError(403, "Ödənişi yalnız direktor geri qaytara bilər.");
-      await db.prepare("UPDATE hr_expenses SET status='approved',paid_on='',pay_method='',pay_from='',pay_ref='',updated=? WHERE id=? AND company_id=?").bind(now, expenseId, id).run();
+      // A paid order goes back to “ordered”; an expense that never had an order goes back to “approved”.
+      await db.prepare("UPDATE hr_expenses SET status=?,paid_on='',pay_method='',pay_from='',pay_ref='',updated=? WHERE id=? AND company_id=?").bind(row.order_no ? "ordered" : "approved", now, expenseId, id).run();
+      event = row.order_no ? "order.payment_reverted" : "";
+    } else if (to === "approved" && row.status === "ordered") {
+      await db.prepare("UPDATE hr_expenses SET status='approved',ordered_at='',updated=? WHERE id=? AND company_id=?").bind(now, expenseId, id).run();
+      event = "order.withdrawn";
     } else if (to === "planned" && row.status === "cancelled") {
       const h = await heldBudget(row.category, row.expense_date.slice(0, 4), expenseId);
       const fit = budgetProblem(categoryLabel(row.category), row.expense_date.slice(0, 4), h.budget, h.held, row.amount);
@@ -11993,8 +12019,10 @@ async function route(request: Request) {
       await db.prepare("UPDATE hr_expenses SET status='planned',updated=? WHERE id=? AND company_id=?").bind(now, expenseId, id).run();
     } else {
       await db.prepare("UPDATE hr_expenses SET status=?,approved_by=CASE WHEN ?='planned' THEN '' ELSE approved_by END,updated=? WHERE id=? AND company_id=?").bind(to, to, now, expenseId, id).run();
+      event = to === "cancelled" && row.order_no ? "order.cancelled" : "";
     }
     await companyAudit(db, id, userId, "hr-expense-status", expenseId, `${row.title}: ${row.status} → ${to}`);
+    if (event) await pushWebhook(db, id, event, await orderRow());
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/hr-expenses/delete") {
@@ -12007,6 +12035,130 @@ async function route(request: Request) {
     await db.prepare("DELETE FROM hr_expenses WHERE id=? AND company_id=?").bind(expenseId, id).run();
     await companyAudit(db, id, userId, "hr-expense-deleted", expenseId, row.title);
     return ok({ ok: true });
+  }
+  // ---- Outside programs (1C, SAP, any ERP): keys, the web address to tell, the log; the exchange itself is on /api/integration ----
+  if (request.method === "GET" && path === "company/integrations") {
+    requirePermission("salaries", "İnteqrasiyaları yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    const [keys, log] = await Promise.all([
+      db.prepare("SELECT id,name,system,key_prefix,created,last_used,revoked FROM integration_keys WHERE company_id=? ORDER BY created DESC").bind(id).all<{ id: string; name: string; system: string; key_prefix: string; created: string; last_used: string; revoked: string }>().catch(() => ({ results: [] as { id: string; name: string; system: string; key_prefix: string; created: string; last_used: string; revoked: string }[] })),
+      db.prepare("SELECT at,direction,actor,action,ref,ok,message FROM integration_log WHERE company_id=? ORDER BY at DESC LIMIT 40").bind(id).all<{ at: string; direction: string; actor: string; action: string; ref: string; ok: number; message: string }>().catch(() => ({ results: [] as { at: string; direction: string; actor: string; action: string; ref: string; ok: number; message: string }[] })),
+    ]);
+    return ok({
+      keys: keys.results.map((k) => ({ id: k.id, name: k.name, system: k.system, prefix: k.key_prefix, created: k.created, lastUsed: k.last_used, revoked: k.revoked })),
+      ordersEnabled: (await integrationSetting(db, id, "orders_enabled")) === "1",
+      webhookUrl: await integrationSetting(db, id, "webhook_url"),
+      hasWebhookSecret: !!(await integrationSetting(db, id, "webhook_secret")),
+      log: log.results.map((l) => ({ at: l.at, direction: l.direction, actor: l.actor, action: l.action, ref: l.ref, ok: !!l.ok, message: l.message })),
+      canManage: canAct("approve-director"),
+    });
+  }
+  if (request.method === "POST" && path === "company/integrations/key-create") {
+    requirePermission("salaries", "Açarı yalnız əmək haqqı icazəsi olan şəxs yarada bilər.");
+    if (!canAct("approve-director")) throw new HttpError(403, "İnteqrasiya açarını yalnız direktor (təsdiq səlahiyyəti olan şəxs) yarada bilər.");
+    const b = await jsonBody(request);
+    const name = str(b.name, 80).trim();
+    if (!name) throw new HttpError(400, "Açarın adını yazın (məs. 1C mühasibat).");
+    const system = ["1c", "sap", "other"].includes(String(b.system)) ? String(b.system) : "other";
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM integration_keys WHERE company_id=? AND revoked=''").bind(id).first<{ n: number }>();
+    if (Number(count?.n) >= 10) throw new HttpError(409, "Ən çox 10 aktiv açar ola bilər. Köhnəsini ləğv edin.");
+    const key = generateApiKey();
+    await db.prepare("INSERT INTO integration_keys(id,company_id,name,system,key_hash,key_prefix,created,created_by) VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, name, system, await hashApiKey(key), keyPrefix(key), new Date().toISOString(), userId).run();
+    await companyAudit(db, id, userId, "integration-key-created", "", `${name} (${system})`);
+    return ok({ ok: true, key });
+  }
+  if (request.method === "POST" && path === "company/integrations/key-revoke") {
+    requirePermission("salaries", "Açarı yalnız əmək haqqı icazəsi olan şəxs ləğv edə bilər.");
+    if (!canAct("approve-director")) throw new HttpError(403, "İnteqrasiya açarını yalnız direktor ləğv edə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("UPDATE integration_keys SET revoked=? WHERE id=? AND company_id=? AND revoked=''").bind(new Date().toISOString(), str(b.id, 100), id).run();
+    await companyAudit(db, id, userId, "integration-key-revoked", str(b.id, 100), "");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/integrations/settings") {
+    requirePermission("salaries", "İnteqrasiya ayarlarını yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
+    if (!canAct("approve-director")) throw new HttpError(403, "İnteqrasiya ayarlarını yalnız direktor dəyişə bilər.");
+    const b = await jsonBody(request);
+    if (typeof b.ordersEnabled === "boolean") await setIntegrationSetting(db, id, "orders_enabled", b.ordersEnabled ? "1" : "0");
+    if (typeof b.webhookUrl === "string") {
+      const raw = b.webhookUrl.trim();
+      const safe = raw ? safeWebhookUrl(raw) : "";
+      if (raw && !safe) throw new HttpError(400, "Ünvan https:// ilə başlayan açıq internet ünvanı olmalıdır (localhost, daxili şəbəkə və IP ünvanı olmaz).");
+      await setIntegrationSetting(db, id, "webhook_url", safe);
+    }
+    if (typeof b.webhookSecret === "string" && b.webhookSecret.trim()) await setIntegrationSetting(db, id, "webhook_secret", str(b.webhookSecret, 200).trim());
+    await companyAudit(db, id, userId, "integration-settings", "", "ayarlar dəyişdi");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/integrations/test") {
+    requirePermission("salaries", "Sınağı yalnız əmək haqqı icazəsi olan şəxs göndərə bilər.");
+    if (!safeWebhookUrl(await integrationSetting(db, id, "webhook_url"))) throw new HttpError(409, "Əvvəl bildiriş ünvanını yazın.");
+    const sample: OrderRow = { id: "test", order_no: "JL-TEST-000000", status: "ordered", category: "other", title: "Sınaq sifarişi", department: "", amount: 1, expense_date: new Date().toISOString().slice(0, 10), payee: "", note: "Joblink sınaq bildirişi", ordered_at: new Date().toISOString(), paid_on: "", pay_method: "", pay_ref: "", external_id: "" };
+    await pushWebhook(db, id, "ping", sample);
+    return ok({ ok: true });
+  }
+  // The plan and the actual in Excel: what the file is built from, and the reading of a filled file (checked first, saved when asked).
+  if (request.method === "GET" && path === "company/plan-fact/export-data") {
+    requirePermission("salaries", "Plan və fakt məlumatını yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
+    const y = str(requestUrl.searchParams.get("year"), 4);
+    const year = /^\d{4}$/.test(y) ? y : new Date().toISOString().slice(0, 4);
+    const [lines, targets, expenses] = await Promise.all([
+      db.prepare("SELECT month,department,category,amount FROM budget_lines WHERE company_id=? AND month LIKE ? AND kind='budget' ORDER BY category,department,month").bind(id, `${year}-%`).all<{ month: string; department: string; category: string; amount: number }>().catch(() => ({ results: [] as { month: string; department: string; category: string; amount: number }[] })),
+      db.prepare("SELECT month,target FROM headcount_targets WHERE company_id=? AND month LIKE ? ORDER BY month").bind(id, `${year}-%`).all<{ month: string; target: number }>().catch(() => ({ results: [] as { month: string; target: number }[] })),
+      db.prepare("SELECT * FROM hr_expenses WHERE company_id=? AND expense_date LIKE ? ORDER BY expense_date,created").bind(id, `${year}-%`).all<ExpenseDbRow>().catch(() => ({ results: [] as ExpenseDbRow[] })),
+    ]);
+    return ok({ year, budgets: lines.results, targets: targets.results, expenses: expenses.results.map(expenseRow) });
+  }
+  if (request.method === "POST" && path === "company/plan-fact/import") {
+    requirePermission("salaries", "Planı yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
+    const b = await jsonBody(request);
+    const sheets = (Array.isArray(b.sheets) ? b.sheets : []).slice(0, 10).map((sh: { name?: unknown; rows?: unknown }) => ({ name: String(sh?.name ?? ""), rows: (Array.isArray(sh?.rows) ? sh.rows : []).slice(0, 5001).map((r: unknown) => (Array.isArray(r) ? r.map((c) => String(c ?? "")) : [])) }));
+    const parsed = parsePlanFactSheets(sheets);
+    const apply = b.apply === true;
+    const problems = [...parsed.issues];
+    const years = new Set([...parsed.budgets.map((x) => x.month.slice(0, 4)), ...parsed.targets.map((x) => x.month.slice(0, 4))]);
+    for (const y of years) {
+      const st = await yearPlanState(y);
+      if (st.status !== "draft") problems.push({ sheet: "", line: 0, reason: `${y} planı ${st.status === "approved" ? "təsdiqlənib" : "təsdiqdədir"}: büdcə və işçi sayı planı dəyişmir. Direktor «Redaktə üçün aç» etməlidir.` });
+    }
+    // Expenses are checked one by one against the budget of their kind (the budget of this very file counts).
+    const budgetNow = new Map<string, number>();
+    const heldNow = new Map<string, number>();
+    const budgetOf = async (category: string, year: string) => {
+      const k = `${category}|${year}`;
+      if (!budgetNow.has(k)) {
+        const h = await heldBudget(category, year, "");
+        const incoming = parsed.budgets.filter((x) => x.category === category && x.month.startsWith(year));
+        // A line of this file replaces the stored one of the same department and month.
+        const stored = (await db.prepare("SELECT month,department,amount FROM budget_lines WHERE company_id=? AND month LIKE ? AND category=? AND kind='budget'").bind(id, `${year}-%`, category).all<{ month: string; department: string; amount: number }>().catch(() => ({ results: [] as { month: string; department: string; amount: number }[] }))).results;
+        const replaced = new Set(incoming.map((x) => `${x.department}|${x.month}`));
+        const total = stored.filter((x) => !replaced.has(`${x.department}|${x.month}`)).reduce((t, x) => t + x.amount, 0) + incoming.reduce((t, x) => t + x.amount, 0);
+        budgetNow.set(k, total);
+        heldNow.set(k, h.held);
+      }
+      return { budget: budgetNow.get(k) as number, held: heldNow.get(k) as number, k };
+    };
+    const okExpenses: typeof parsed.expenses = [];
+    for (const e of parsed.expenses) {
+      const { budget, held, k } = await budgetOf(e.category, e.date.slice(0, 4));
+      const fit = budgetProblem(expenseCategoryLabel(e.category), e.date.slice(0, 4), budget, held, e.amount);
+      if (fit) {
+        problems.push({ sheet: "Xərclər", line: 0, reason: `${e.title}: ${fit}` });
+        continue;
+      }
+      heldNow.set(k, held + e.amount);
+      okExpenses.push(e);
+    }
+    const blocked = problems.some((x) => !x.sheet) || (parsed.found.length === 0);
+    const summary = { budgets: parsed.budgets.length, targets: parsed.targets.length, expenses: okExpenses.length, skipped: parsed.skipped, found: parsed.found };
+    if (!apply || blocked) return ok({ applied: false, summary, issues: problems });
+    const now = new Date().toISOString();
+    const statements: D1PreparedStatement[] = [];
+    for (const x of parsed.budgets) statements.push(db.prepare("INSERT INTO budget_lines(company_id,month,department,category,kind,amount,updated,updated_by) VALUES(?,?,?,?,'budget',?,?,?) ON CONFLICT(company_id,month,department,category,kind) DO UPDATE SET amount=excluded.amount,updated=excluded.updated,updated_by=excluded.updated_by").bind(id, x.month, x.department, x.category, x.amount, now, userId));
+    for (const x of parsed.targets) statements.push(db.prepare("INSERT INTO headcount_targets(company_id,month,target,updated,updated_by) VALUES(?,?,?,?,?) ON CONFLICT(company_id,month) DO UPDATE SET target=excluded.target,updated=excluded.updated,updated_by=excluded.updated_by").bind(id, x.month, x.target, now, userId));
+    for (const x of okExpenses) statements.push(db.prepare("INSERT INTO hr_expenses(id,company_id,category,title,department,employee_id,amount,expense_date,payee,note,status,created_by,created,updated,source) VALUES(?,?,?,?,?,'',?,?,?,?,'planned',?,?,?,'excel')").bind(crypto.randomUUID(), id, x.category, x.title, x.department, x.amount, x.date, x.payee, x.note, userId, now, now));
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "plan-fact-import", "", `${parsed.budgets.length} büdcə, ${parsed.targets.length} ay planı, ${okExpenses.length} xərc`);
+    return ok({ applied: true, summary, issues: problems });
   }
   if (request.method === "GET" && path === "company/hr-report") {
     requirePermission("salaries", "Kadr və əmək haqqı fondu hesabatını yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
