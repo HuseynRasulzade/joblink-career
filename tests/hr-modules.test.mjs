@@ -27,3 +27,9 @@ test("each program has a home that is one of its own pages, and an unknown page 
   for (const mode of Object.keys(HR_MODULES)) assert.ok(inModule(HR_MODULES[mode].home, mode) && ids.includes(HR_MODULES[mode].home));
   assert.equal(moduleOf("hr-something-new"), "both");
 });
+
+test("the holding (group) section is kept in the code but hidden from the menu", async () => {
+  const { HIDDEN_HR_PAGES } = await import("../lib/hr-modules.ts");
+  assert.ok(HIDDEN_HR_PAGES.has("hr-group"));
+  assert.ok(ids.includes("hr-group"));
+});

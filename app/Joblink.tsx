@@ -123,7 +123,7 @@ import {
 import { HrCalculators } from "./HrCalculators";
 import WorkplacePage from "./WorkplacePage";
 import PayrollPage from "./PayrollPage";
-import { HR_MODULES, inModule, moduleOf, type HrModule } from "@/lib/hr-modules";
+import { HIDDEN_HR_PAGES, HR_MODULES, inModule, moduleOf, type HrModule } from "@/lib/hr-modules";
 import PeopleOps from "./PeopleOps";
 import GrowthHub from "./GrowthHub";
 import EncryptionPanel from "./EncryptionPanel";
@@ -491,9 +491,10 @@ export default function Joblink() {
   }, [hrMode]);
   const hrVisible = hrNav.filter(
     (item) =>
-      !hrNeeds[item.id] ||
+      !HIDDEN_HR_PAGES.has(item.id) &&
+      (!hrNeeds[item.id] ||
       !companyMe ||
-      companyMe.permissions.includes(hrNeeds[item.id] as never),
+      companyMe.permissions.includes(hrNeeds[item.id] as never)),
   );
   const navigation = admin ? adminNav : hr ? hrVisible.filter((item) => inModule(item.id, hrMode)) : candidateNav;
   const label = (admin ? adminNav : hr ? hrVisible : candidateNav).find((n) => n.id === page)?.label || "Ümumi baxış";

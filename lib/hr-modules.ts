@@ -40,3 +40,6 @@ export const inModule = (id: string, mode: HrModule) => {
   const m = moduleOf(id);
   return m === "both" || m === mode;
 };
+
+// Sections kept in the code but not shown in the menu for now (to be developed later).
+export const HIDDEN_HR_PAGES = new Set<string>(["hr-group"]);
