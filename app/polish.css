@@ -270,3 +270,27 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 .nav-item.active > span { color: #147b70; }
 .nav-item.active:hover { background: #d9f0ea; }
 .nav-item.active b { background: #147b70; color: #fff; }
+
+/* Alt bölmə sekmələri (Təşkilat sxemi və s.): açıq olan sekmə dolu rəngli, qalan sekmələr solğun */
+[role="tablist"] { gap: 6px; }
+[role="tablist"] > [role="tab"]:not(.iv-tile),
+.tabs button {
+  border: 1.5px solid #cfe0dc;
+  background: #fff;
+  color: #3d5559;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: none;
+}
+[role="tablist"] > [role="tab"]:not(.iv-tile):hover:not([aria-selected="true"]),
+.tabs button:hover:not(.selected) { background: #eef6f4; color: #0e564d; border-color: #9fcfc6; }
+[role="tablist"] > [role="tab"]:not(.iv-tile)[aria-selected="true"],
+.tabs button.selected {
+  background: #147b70;
+  border-color: #0e564d;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 0 3px rgba(27, 154, 138, 0.2), 0 3px 8px rgba(14, 86, 77, 0.25);
+}
+[role="tablist"] > [role="tab"]:not(.iv-tile)[aria-selected="true"]:hover,
+.tabs button.selected:hover { background: #0e6b61; color: #fff; }
