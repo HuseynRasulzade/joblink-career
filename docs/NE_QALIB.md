@@ -102,3 +102,5 @@ Mənbə: sizin yüklədiyiniz Nazirlər Kabinetinin 25.01.2008-ci il 14 nömrəl
 - Təyinat qanunun cədvəlində olmayan ezamiyyət sətri yüklənmir və səbəbi göstərilir.
 
 Qalan məhdudiyyətlər: Microsoft Excel-də açılış mən tərəfindən sınanmayıb (fayl LibreOffice və openpyxl ilə yoxlanıb, formulların uzunluğu və dərinliyi Excel hədləri daxilindədir). Sığorta müavinətinin ödənilməsi sığortaçı tərəfindəndir və iş kitabında yalnız hesablanır.
+
+**FİN:** iş kitabının işçi siyahısı göstərən bütün vərəqlərində (Tabel, Azad olmalar, Əlavə-Tutulma, Saatlar, Ezamiyyət, Hesablama) ad yanında FİN göstərilir (İşçilər vərəqindən avtomatik gəlir) və platformaya yükləmədə işçi FİN ilə tapılır. Platformanın qaydası: FİN yazılıbsa, işçi yalnız həmin FİN ilə tapılır; kartda olmayan və ya səhv FİN olan sətir yüklənmir.
