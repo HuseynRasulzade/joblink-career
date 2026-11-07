@@ -642,5 +642,13 @@ export function buildPayrollWorkbook(input: WorkbookInput): XlsxSheet[] {
   ];
   const guideSheet: XlsxSheet = { name: WB.guide, headers: [], rows: guideRows, free: true, widths: [34, 130], freeze: { rows: 0, cols: 0 } };
 
-  return [guideSheet, staffSheet, leaveSheet, tabelSheet, addsSheet, hoursSheet, tripsSheet, calcSheet, paramsSheet, normsSheet, fxSheet, codesSheet];
+  // The note under each title runs across the sheet instead of wrapping inside the first column.
+  const list = [guideSheet, staffSheet, leaveSheet, tabelSheet, addsSheet, hoursSheet, tripsSheet, calcSheet, paramsSheet, normsSheet, fxSheet, codesSheet];
+  for (const sheet of list) {
+    const width = Math.max(...sheet.rows.map((r) => r.length), 1);
+    const span = sheet === guideSheet ? 2 : sheet === tabelSheet ? Math.min(width, 18) : Math.min(width, sheet === paramsSheet ? 2 : 9);
+    sheet.merges = [...(sheet.merges || []), `A2:${L(span)}2`];
+    sheet.rowHeights = { ...(sheet.rowHeights || {}), 2: sheet === guideSheet ? 34 : 48 };
+  }
+  return list;
 }

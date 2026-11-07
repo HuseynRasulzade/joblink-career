@@ -67,6 +67,7 @@ export type XlsxSheet = {
   freeze?: { rows: number; cols: number };
   lists?: { ref: string; items?: string[]; source?: string }[];
   merges?: string[];
+  rowHeights?: Record<number, number>; // 1-based row → height in points
 };
 
 function sheetXml(sheet: XlsxSheet) {
@@ -75,7 +76,8 @@ function sheetXml(sheet: XlsxSheet) {
   const allRows = free ? rows : [headers, ...rows];
   const worksheetRows = allRows.map((row, rowIndex) => {
     const cells = row.map((value, columnIndex) => cellXml(value, rowIndex + 1, columnIndex, !free && rowIndex === 0 ? 1 : 0)).join("");
-    return `<row r="${rowIndex + 1}">${cells}</row>`;
+    const height = sheet.rowHeights?.[rowIndex + 1];
+    return `<row r="${rowIndex + 1}"${height ? ` ht="${height}" customHeight="1"` : ""}>${cells}</row>`;
   }).join("");
   const width = Math.max(headers.length, ...allRows.map((r) => r.length), 1);
   const lastColumn = columnName(Math.max(0, width - 1));

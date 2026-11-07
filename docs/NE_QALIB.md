@@ -88,3 +88,11 @@ Mənbə: sizin yüklədiyiniz Nazirlər Kabinetinin 25.01.2008-ci il 14 nömrəl
 - Norma mehmanxana (70%) və gündəlik xərcləri əhatə edir; ölkə daxilində mehmanxana sənədi yoxdursa mehmanxana hissəsinin 50%-i ödənilir; yol xərci sənədlərə görə ayrıca.
 - Rəsmi cədvəldə tapılmayan yer üçün şirkətin əvvəlki ümumi norması qalır.
 - Rəhbər işçilər üçün 2 nömrəli əlavə (əlavə faizlər, biznes klass nəqliyyat) proqrama daxil edilməyib: bu, yalnız dövlət rəhbər vəzifələrinə aiddir.
+
+## 9. Əmək haqqı hesablama iş kitabı (Excel)
+
+Əmək haqqı → **"Hesablama iş kitabı (Excel)"** düyməsi seçilmiş ay üçün formullu çoxvərəqli fayl yükləyir: İşçilər, Azad olmalar (məzuniyyət, xəstəlik, ezamiyyət və s. aralıqlar), Tabel (aralıqlardan avtomatik doldurulan davamiyyət cədvəli), Əlavə-Tutulma (mükafat, əlavə, tutulma, avans), Saatlar, Ezamiyyət (qanunun normaları + Mərkəzi Bankın məzənnəsi), Hesablama (gross, vergi və sığorta, xalis, tutulma həddi, ödəniləcək, işəgötürən xərci), Parametrlər, Normlar, Məzənnə, Kodlar.
+
+- Formullar platformanın hesablama qaydalarını izləyir; testlər faylı LibreOffice ilə yenidən hesablayıb platformanın nəticəsi ilə müqayisə edir (`tests/payroll-workbook.test.mjs`).
+- **"Excel iş kitabından yüklə"**: Azad olmalar, Əlavə-Tutulma (mükafat, əlavə, tutulma), Saatlar və Ezamiyyət vərəqləri platformanın mövcud idxalları ilə yazılır; əvvəl önizləmə göstərilir, təsdiqlənmiş ay dəyişdirilmir.
+- Avans bu yolla yüklənmir (ödənişlər bölməsində qeyd olunur). Sığorta müavinəti, ay ərzində maaş dəyişikliyi və şəxsi vergi güzəştlərinin xüsusi halları Excel-də sadələşdirilib; dəqiq hesablama platformadadır.
