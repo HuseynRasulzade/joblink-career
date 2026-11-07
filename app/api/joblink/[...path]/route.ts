@@ -22680,6 +22680,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         400,
         "Müraciət müddəti bitib. Yeni son tarixlə yeni elan yaradın.",
       );
+    // A paused vacancy that opens again takes its place of the plan again.
+    if (action === "publish" && job.status === "paused") await assertVacancyPlan(db, id, { ...current, id: String(job.id) });
     const status =
       action === "publish"
         ? "published"
