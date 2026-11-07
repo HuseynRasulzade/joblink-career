@@ -62,12 +62,11 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const [advance, setAdvance] = useState<Row | null>(null);
   const [paying, setPaying] = useState<Row | null>(null);
   const [settings, setSettings] = useState(false);
-  const [bank, setBank] = useState(false);
   const [importing, setImporting] = useState(false);
   const [workbookImport, setWorkbookImport] = useState(false);
   const [accounts, setAccounts] = useState(false);
   const [benefits, setBenefits] = useState(false);
-  const [view, setView] = useState<"sheet" | "report">("sheet");
+  const [view, setView] = useState<"sheet" | "report" | "bank">("sheet");
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -109,6 +108,16 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <b>İşçilərlə hesablaşma hesabatı</b>
         </div>
         <PayrollReport initialMonth={month} notify={notify} />
+      </div>
+    );
+  if (view === "bank")
+    return (
+      <div className="company-page payroll-page">
+        <div className="admin-actions">
+          <button type="button" className="secondary" onClick={() => setView("sheet")}>← Əmək haqqı cədvəli</button>
+          <b>Bank və ödəniş sənədləri</b>
+        </div>
+        <PayrollBank month={month} notify={notify} onClose={() => setView("sheet")} onChanged={load} />
       </div>
     );
   if (!sheet) return <p className="muted">Yüklənir…</p>;
@@ -156,7 +165,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <button type="button" className="secondary" onClick={() => setView("report")}>
             Hesablaşma hesabatı
           </button>
-          <button type="button" className="primary" onClick={() => setBank(true)}>
+          <button type="button" className="primary" onClick={() => setView("bank")}>
             Bank və ödəniş sənədləri
           </button>
           <button type="button" className="secondary" onClick={() => setSettings(true)}>
@@ -307,7 +316,6 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       {accounts && <AccountingModal month={month} notify={notify} onClose={() => setAccounts(false)} />}
       {workbookImport && <WorkbookImport month={month} notify={notify} onClose={() => setWorkbookImport(false)} onDone={load} />}
       {importing && <SheetImport kind="payroll" extra={{ month }} notify={notify} onClose={() => setImporting(false)} onDone={load} />}
-      {bank && <PayrollBank month={month} notify={notify} onClose={() => setBank(false)} onChanged={load} />}
       {settings && <SettingsModal settings={sheet.settings} notify={notify} onClose={() => setSettings(false)} onSaved={load} />}
     </div>
   );

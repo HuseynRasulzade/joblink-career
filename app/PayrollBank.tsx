@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
-import { Field, Modal } from "./components";
+import { Field } from "./components";
 import { readSheetRows } from "@/lib/question-file";
 
 type Notify = (message: string) => void;
@@ -83,7 +83,7 @@ export default function PayrollBank({ month, notify, onClose, onChanged }: { mon
       notify((error as Error).message);
     }
   }
-  if (!data) return <Modal title="Bank və ödəniş sənədləri" onClose={onClose}><p className="muted">Yüklənir…</p></Modal>;
+  if (!data) return <p className="muted">Yüklənir…</p>;
   const set = (key: keyof Account, value: string | boolean) => setForm(form ? { ...form, [key]: value } : form);
   const input = (key: keyof Account, label: string, props: Record<string, unknown> = {}) => (
     <Field label={label}>
@@ -91,7 +91,7 @@ export default function PayrollBank({ month, notify, onClose, onChanged }: { mon
     </Field>
   );
   return (
-    <Modal title="Bank və ödəniş sənədləri" onClose={onClose}>
+    <>
       <div className="offer-composer payroll-bank">
         <h4>Şirkətin bank hesabları</h4>
         {!data.accounts.length && <p className="muted">Hələ bank hesabı yoxdur. Əmək haqqı bu hesabdan köçürüləcək.</p>}
@@ -207,6 +207,6 @@ export default function PayrollBank({ month, notify, onClose, onChanged }: { mon
           </div>
         ))}
       </div>
-    </Modal>
+    </>
   );
 }
