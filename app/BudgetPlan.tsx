@@ -3,7 +3,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 
 type Line = { month: string; department: string; category: string; kind: string; amount: number };
 type Fact = { month: string; department: string; amount: number; estimate: boolean };
-type Data = { year: string; nowMonth: string; departments: string[]; budgets: Line[]; facts: Record<string, Fact[]> };
+type Data = { state?: { status: "draft" | "pending" | "approved" }; canApprove?: boolean; year: string; nowMonth: string; departments: string[]; budgets: Line[]; facts: Record<string, Fact[]> };
 
 const MONTHS = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"];
 const CATEGORIES = [
@@ -15,7 +15,7 @@ const AZN = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFraction
 const COMPANY = "";
 
 // The yearly budget: pay, hiring and training, per month and per department, against the actual.
-export default function BudgetPlan({ year, notify }: { year: string; notify: (message: string) => void }) {
+export default function BudgetPlan({ year, notify, editable = false, version = 0, onOpenPlan }: { year: string; notify: (message: string) => void; editable?: boolean; version?: number; onOpenPlan?: () => void }) {
   const [data, setData] = useState<Data | null>(null);
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]["id"]>("payroll");
   const [values, setValues] = useState<Record<string, string>>({});
@@ -42,7 +42,7 @@ export default function BudgetPlan({ year, notify }: { year: string; notify: (me
     return () => {
       live = false;
     };
-  }, [year, reloads]);
+  }, [year, reloads, version]);
   if (!data) return <div className="year-budget"><h4>{year}-ci il büdcəsi</h4><p className="muted">Yüklənir…</p></div>;
 
   const months = MONTHS.map((_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
@@ -103,6 +103,23 @@ export default function BudgetPlan({ year, notify }: { year: string; notify: (me
     setNewDept("");
   }
   const cat = CATEGORIES.find((c) => c.id === category)!;
+  async function clearCategory() {
+    if (!window.confirm(`${year}-ci ilin «${cat.label}» büdcəsi tamamilə silinsin?`)) return;
+    setBusy(true);
+    try {
+      const response = await fetch("/api/joblink/company/budget-plan/clear", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ year, category }) });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(body.error || "Silinmədi.");
+      notify(`${cat.label} büdcəsi silindi.`);
+      setReloads((n) => n + 1);
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const status = data.state?.status || "draft";
+  const locked = !editable || status !== "draft";
   const dirty = Object.keys(values).length > 0;
 
   return (
@@ -117,13 +134,19 @@ export default function BudgetPlan({ year, notify }: { year: string; notify: (me
       </div>
       <p className="muted" style={{ marginTop: 8 }}>{cat.factNote}</p>
 
-      <div className="admin-actions" style={{ justifyContent: "flex-start", alignItems: "center", gap: 8 }}>
-        <label>İllik cəmi (AZN) <input inputMode="decimal" value={yearTotal} onChange={(e) => setYearTotal(e.target.value)} placeholder="məs. 240000" style={{ width: 120 }} /></label>
-        <button type="button" className="secondary" onClick={spread}>«Bölünməmiş» sətrinə 12 aya böl</button>
-        <input value={newDept} onChange={(e) => setNewDept(e.target.value)} placeholder="Departament əlavə et" style={{ width: 170 }} aria-label="Departament adı" />
-        <button type="button" className="secondary" onClick={addDepartment}>Əlavə et</button>
-        <button type="button" className="primary" disabled={busy || !dirty} onClick={() => void save()}>Büdcəni saxla</button>
-      </div>
+      {editable ? (
+        <div className="admin-actions" style={{ justifyContent: "flex-start", alignItems: "center", gap: 8 }}>
+          <label>İllik cəmi (AZN) <input inputMode="decimal" value={yearTotal} disabled={locked} onChange={(e) => setYearTotal(e.target.value)} placeholder="məs. 240000" style={{ width: 120 }} /></label>
+          <button type="button" className="secondary" disabled={locked} onClick={spread}>«Bölünməmiş» sətrinə 12 aya böl</button>
+          <input value={newDept} disabled={locked} onChange={(e) => setNewDept(e.target.value)} placeholder="Departament əlavə et" style={{ width: 170 }} aria-label="Departament adı" />
+          <button type="button" className="secondary" disabled={locked} onClick={addDepartment}>Əlavə et</button>
+          <button type="button" className="primary" disabled={busy || !dirty || locked} onClick={() => void save()}>Büdcəni saxla</button>
+          <button type="button" className="secondary" disabled={busy || locked} onClick={() => void clearCategory()}>{cat.label} büdcəsini sil</button>
+        </div>
+      ) : onOpenPlan ? (
+        <p className="panel"><b>Büdcə harada yazılır?</b> <span className="muted">Büdcə, işçi sayı planı və ştat «Plan və fakt» bölməsində yazılır, silinir və təsdiqlənir. Burada yalnız baxış var.</span> <button type="button" className="secondary" onClick={onOpenPlan}>Plan və fakt bölməsinə keç</button></p>
+      ) : null}
+      {editable && status !== "draft" && <p className="muted">{status === "approved" ? "Plan təsdiqlənib: dəyişmək üçün yuxarıda «Redaktə üçün aç» düyməsi (direktor)." : "Plan təsdiq gözləyir: bu müddətdə dəyişmək olmur."}</p>}
 
       <div className="admin-table-wrap" style={{ overflowX: "auto" }}>
         <table className="admin-table">
@@ -139,7 +162,7 @@ export default function BudgetPlan({ year, notify }: { year: string; notify: (me
               <tr key={d || "company"}>
                 <td>{label(d)}<br /><small className="muted">büdcə</small></td>
                 {months.map((m) => (
-                  <td key={m}><input inputMode="decimal" aria-label={`${label(d)} ${m} büdcəsi`} style={{ width: 84 }} value={shown(category, "budget", d, m)} onChange={(e) => setValues({ ...values, [key(category, "budget", d, m)]: e.target.value })} /></td>
+                  <td key={m}><input inputMode="decimal" aria-label={`${label(d)} ${m} büdcəsi`} style={{ width: 84 }} disabled={locked} value={shown(category, "budget", d, m)} onChange={(e) => setValues({ ...values, [key(category, "budget", d, m)]: e.target.value })} /></td>
                 ))}
                 <td><b>{AZN(months.reduce((t, m) => t + num(shown(category, "budget", d, m)), 0))}</b></td>
               </tr>
@@ -148,7 +171,7 @@ export default function BudgetPlan({ year, notify }: { year: string; notify: (me
               <tr>
                 <td>Faktiki xərc<br /><small className="muted">əl ilə, ümumi</small></td>
                 {months.map((m) => (
-                  <td key={m}><input inputMode="decimal" aria-label={`${m} işə qəbul xərci`} style={{ width: 84 }} value={shown("hiring", "actual", COMPANY, m)} onChange={(e) => setValues({ ...values, [key("hiring", "actual", COMPANY, m)]: e.target.value })} /></td>
+                  <td key={m}><input inputMode="decimal" aria-label={`${m} işə qəbul xərci`} style={{ width: 84 }} disabled={status !== "draft" || !editable} value={shown("hiring", "actual", COMPANY, m)} onChange={(e) => setValues({ ...values, [key("hiring", "actual", COMPANY, m)]: e.target.value })} /></td>
                 ))}
                 <td><b>{AZN(months.reduce((t, m) => t + num(shown("hiring", "actual", COMPANY, m)), 0))}</b></td>
               </tr>

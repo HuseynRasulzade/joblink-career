@@ -260,7 +260,7 @@ export function Training({ notify }: { notify: Notify }) {
       <div className="section-heading">
         <div className="admin-actions">
           <select value={year} onChange={(e) => setYear(e.target.value)} aria-label="İl">{[-1, 0, 1].map((d) => <option key={d} value={String(new Date().getFullYear() + d)}>{new Date().getFullYear() + d}</option>)}</select>
-          <button type="button" className="secondary" onClick={() => { const v = window.prompt(`${year}-ci il üçün təlim büdcəsi (AZN):`, String(data.budget)); if (v !== null) void run(notify, load, "company/training/budget", { year, amount: Number(v) }, "Büdcə saxlanıldı."); }}>Büdcəni yaz</button>
+          <button type="button" className="secondary" onClick={() => { window.location.hash = "hr-planfact"; }}>Büdcəni Plan və fakt bölməsində dəyiş ↗</button>
         </div>
         <div className="admin-actions">
           <button type="button" className="secondary" onClick={() => setImporting(true)}>Excel-dən yüklə</button>

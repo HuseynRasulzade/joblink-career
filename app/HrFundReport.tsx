@@ -16,7 +16,7 @@ const azn = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFraction
 const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 // Headcount against the plan, the pay fund against the budget, the vacation owed and the turnover, per department.
-export default function HrFundReport({ notify }: { notify: (message: string) => void }) {
+export default function HrFundReport({ notify, onOpenPlan }: { notify: (message: string) => void; onOpenPlan?: () => void }) {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(String(thisYear));
   const [loaded, setLoaded] = useState<{ year: string; data: Report } | null>(null);
@@ -98,7 +98,7 @@ export default function HrFundReport({ notify }: { notify: (message: string) => 
           </tbody>
         </table>
       </div>
-      <BudgetPlan year={year} notify={notify} />
+      <BudgetPlan year={year} notify={notify} onOpenPlan={onOpenPlan} />
       <small className="skill-picker-help">Büdcə ştat cədvəlindəki yerlərin yuxarı maaş həddi ilə hesablanır. Fond işçilərin hazırkı gross maaşlarının cəmidir. Məzuniyyət borcu istifadə olunmamış günlərin maaşın gün payı (÷ 30,4) ilə dəyəridir. Dövriyyə = il ərzindəki çıxışlar / orta işçi sayı.</small>
     </section>
   );

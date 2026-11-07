@@ -10718,7 +10718,7 @@ async function route(request: Request) {
     for (const t of list.results) if (t.status === "done") for (const p of parts.results.filter((x) => x.training_id === t.id && x.status === "completed")) hoursBy.set(p.employee_id, (hoursBy.get(p.employee_id) || 0) + t.hours);
     return ok({
       year,
-      budget: Number(budget?.value || 0) / 100,
+      budget: await (async () => { const planned = await db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM budget_lines WHERE company_id=? AND month LIKE ? AND category='training' AND kind='budget'").bind(id, `${year}-%`).first<{ s: number }>().catch(() => null); return Number(planned?.s) > 0 ? Number(planned?.s) : Number(budget?.value || 0) / 100; })(),
       spent,
       trainings: inYear.map((t) => ({ id: t.id, title: t.title, provider: t.provider, kind: t.kind, start: t.start_date, end: t.end_date, hours: t.hours, cost: t.cost_cents / 100, status: t.status, note: t.note, validMonths: t.valid_months, requiredFor: t.required_for, skillId: t.skill_id, skillLevel: t.skill_level, participants: parts.results.filter((p) => p.training_id === t.id).map((p) => ({ employeeId: p.employee_id, name: names.get(p.employee_id) || "", status: p.status, result: p.result, certificateNo: p.certificate_no, completedOn: p.completed_on, validUntil: p.valid_until, bondMonths: p.bond_months, bondUntil: p.bond_until, bondCost: p.bond_cost_cents / 100 })) })),
       employees: people.results.map((p) => ({ id: p.id, name: p.name, department: p.department, hours: hoursBy.get(p.id) || 0 })),
@@ -11739,6 +11739,68 @@ async function route(request: Request) {
   // The yearly budget of the company: pay, hiring and training, per month and per department, against the actual.
   // Pay and training facts come from the platform itself; the hiring cost is typed (nothing else knows it).
   const BUDGET_CATEGORIES = ["payroll", "hiring", "training"];
+  // The plan of a year (headcount per month and the budget) is one thing with one status: draft → pending → approved.
+  // While it waits for approval or is approved it cannot be changed; the director opens it again.
+  const yearPlanState = async (year: string) => {
+    const row = await db.prepare("SELECT status,updated_by,updated FROM plan_year_state WHERE company_id=? AND year=?").bind(id, year).first<{ status: string; updated_by: string; updated: string }>().catch(() => null);
+    return { year, status: (row?.status || "draft") as "draft" | "pending" | "approved", by: row?.updated_by || "", at: row?.updated || "" };
+  };
+  const setYearPlan = async (year: string, status: "draft" | "pending" | "approved", by: string) => {
+    await db.prepare("INSERT INTO plan_year_state(company_id,year,status,updated_by,updated) VALUES(?,?,?,?,?) ON CONFLICT(company_id,year) DO UPDATE SET status=excluded.status,updated_by=excluded.updated_by,updated=excluded.updated").bind(id, year, status, by, new Date().toISOString()).run();
+  };
+  const assertYearOpen = async (year: string) => {
+    const st = await yearPlanState(year);
+    if (st.status === "approved") throw new HttpError(409, `${year} planı təsdiqlənib. Dəyişmək üçün direktor əvvəl «Redaktə üçün aç» düyməsini basmalıdır.`);
+    if (st.status === "pending") throw new HttpError(409, `${year} planı təsdiqə göndərilib. Təsdiq gözlənilir.`);
+  };
+  if (request.method === "GET" && path === "company/plan-fact/state") {
+    requirePermission("salaries", "Planı yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    const y = str(requestUrl.searchParams.get("year"), 4);
+    return ok({ ...(await yearPlanState(/^\d{4}$/.test(y) ? y : new Date().toISOString().slice(0, 4))), canApprove: canAct("approve-director") });
+  }
+  if (request.method === "POST" && path === "company/plan-fact/submit") {
+    requirePermission("salaries", "Planı yalnız HR, direktor və hesab sahibi təsdiqə göndərə bilər.");
+    const b = await jsonBody(request);
+    const year = str(b.year, 4);
+    if (!/^\d{4}$/.test(year)) throw new HttpError(400, "İl düzgün deyil.");
+    const st = await yearPlanState(year);
+    if (st.status !== "draft") throw new HttpError(409, st.status === "approved" ? "Plan artıq təsdiqlənib." : "Plan artıq təsdiqə göndərilib.");
+    const counts = await Promise.all([
+      db.prepare("SELECT COUNT(*) AS n FROM budget_lines WHERE company_id=? AND month LIKE ? AND kind='budget'").bind(id, `${year}-%`).first<{ n: number }>(),
+      db.prepare("SELECT COUNT(*) AS n FROM headcount_targets WHERE company_id=? AND month LIKE ?").bind(id, `${year}-%`).first<{ n: number }>().catch(() => ({ n: 0 })),
+    ]);
+    if (!Number(counts[0]?.n) && !Number(counts[1]?.n)) throw new HttpError(400, `${year} üçün nə büdcə, nə də işçi sayı planı yazılıb.`);
+    if (canAct("approve-director")) {
+      await setYearPlan(year, "approved", userId);
+      await companyAudit(db, id, userId, "year-plan-approved", year, `${year} planı təsdiqləndi`);
+      return ok({ ok: true, status: "approved" });
+    }
+    await setYearPlan(year, "pending", userId);
+    await queueApproval("headcount", `${year} planının təsdiqi (işçi sayı və büdcə)`, { approveYearPlan: year });
+    return ok({ ok: true, status: "pending" });
+  }
+  if (request.method === "POST" && path === "company/plan-fact/reopen") {
+    requirePermission("salaries", "Planı yalnız əmək haqqı icazəsi olan şəxs aça bilər.");
+    if (!canAct("approve-director")) throw new HttpError(403, "Təsdiqlənmiş planı yalnız direktor (təsdiq səlahiyyəti olan şəxs) redaktə üçün aça bilər.");
+    const b = await jsonBody(request);
+    const year = str(b.year, 4);
+    if (!/^\d{4}$/.test(year)) throw new HttpError(400, "İl düzgün deyil.");
+    await setYearPlan(year, "draft", userId);
+    await companyAudit(db, id, userId, "year-plan-reopened", year, `${year} planı redaktə üçün açıldı`);
+    return ok({ ok: true, status: "draft" });
+  }
+  // Wipes one kind of the year's budget (the manual hiring actuals too, when asked).
+  if (request.method === "POST" && path === "company/budget-plan/clear") {
+    requirePermission("salaries", "Büdcəni yalnız əmək haqqı icazəsi olan şəxs silə bilər.");
+    const b = await jsonBody(request);
+    const year = str(b.year, 4);
+    const category = String(b.category ?? "");
+    if (!/^\d{4}$/.test(year) || !BUDGET_CATEGORIES.includes(category)) throw new HttpError(400, "İl və ya büdcə növü düzgün deyil.");
+    await assertYearOpen(year);
+    await db.prepare("DELETE FROM budget_lines WHERE company_id=? AND month LIKE ? AND category=?").bind(id, `${year}-%`, category).run();
+    await companyAudit(db, id, userId, "budget-plan-cleared", year, `${year}: ${category} büdcəsi silindi`);
+    return ok({ ok: true });
+  }
   if (request.method === "GET" && path === "company/budget-plan") {
     requirePermission("salaries", "Büdcə planını yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
     const report = (await hrFundReport()) as { year: string; monthly: { month: string; department: string; gross: number }[]; departments: { department: string; monthlyFund: number }[] };
@@ -11780,13 +11842,14 @@ async function route(request: Request) {
     facts.hiring = lines.filter((l) => l.category === "hiring" && l.kind === "actual").map((l) => ({ month: l.month, department: l.department, amount: l.amount, estimate: false }));
     const names = new Set<string>(report.departments.map((d) => d.department));
     for (const l of lines) if (l.department) names.add(l.department);
-    return ok({ year, nowMonth, departments: [...names].sort((a, b) => a.localeCompare(b, "az")), budgets: lines.filter((l) => l.kind === "budget"), facts });
+    return ok({ state: await yearPlanState(year), canApprove: canAct("approve-director"), year, nowMonth, departments: [...names].sort((a, b) => a.localeCompare(b, "az")), budgets: lines.filter((l) => l.kind === "budget"), facts });
   }
   if (request.method === "POST" && path === "company/budget-plan/save") {
     requirePermission("salaries", "Büdcəni yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
     const b = await jsonBody(request);
     const list = (Array.isArray(b.lines) ? b.lines : []).slice(0, 600) as { month?: unknown; department?: unknown; category?: unknown; kind?: unknown; amount?: unknown }[];
     if (!list.length) throw new HttpError(400, "Büdcə yazılmayıb.");
+    for (const y of new Set(list.map((t) => String(t.month ?? "").slice(0, 4)))) if (/^\d{4}$/.test(y)) await assertYearOpen(y);
     const now = new Date().toISOString();
     const statements: D1PreparedStatement[] = [];
     for (const t of list) {
@@ -13867,6 +13930,7 @@ async function route(request: Request) {
     const b = await jsonBody(request);
     const list = (Array.isArray(b.targets) ? b.targets : []).slice(0, 60) as { month?: unknown; target?: unknown }[];
     if (!list.length) throw new HttpError(400, "Plan hədəfi yazılmayıb.");
+    for (const y of new Set(list.map((t) => String(t.month ?? "").slice(0, 4)))) if (/^\d{4}$/.test(y)) await assertYearOpen(y);
     const now = new Date().toISOString();
     const statements: D1PreparedStatement[] = [];
     for (const t of list) {
@@ -19289,7 +19353,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       } else facts.push({ label: "Departament", value: String(payload.department || "—") }, { label: "Yeni plan", value: payload.planned === null ? "plan silinir" : `${payload.planned} ştat` });
       {
         const u = (payload.unit && typeof payload.unit === "object" ? payload.unit : {}) as { department?: string; position?: string };
-        links.push({ label: "Ştat planı", page: "hr-employees", target: { kind: "staff", department: String(payload.department || u.department || ""), position: u.position || "" } });
+        links.push({ label: "Ştat planı", page: "hr-planfact", target: { kind: "staff", department: String(payload.department || u.department || ""), position: u.position || "" } });
       }
     }
     if (!facts.length) facts.push({ label: "Sorğu", value: row.subject });
@@ -19490,6 +19554,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
             ),
         ]);
         await companyAudit(db, id, userId, "employee-left", String(payload.employeeId), `${emp.name} (təsdiqləndi)`);
+      } else if (req.kind === "headcount" && typeof payload.approveYearPlan === "string") {
+        await setYearPlan(String(payload.approveYearPlan), "approved", userId);
+        await companyAudit(db, id, userId, "year-plan-approved", String(payload.approveYearPlan), `${payload.approveYearPlan} planı təsdiqləndi`);
       } else if (req.kind === "headcount" && payload.approvePlan) {
         await setPlanStatus(db, id, "approved");
         await companyAudit(db, id, userId, "staff-plan-approved", "", "Ştat planı təsdiqləndi");

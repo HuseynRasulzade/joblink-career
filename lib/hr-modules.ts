@@ -20,6 +20,7 @@ export const HR_MODULE_OF: Record<string, HrModule | "both"> = {
   "hr-employees": "ops",
   "hr-orders": "ops",
   "hr-payroll": "ops",
+  "hr-planfact": "ops",
   "hr-people-ops": "ops",
   "hr-growth": "ops",
   "hr-attendance": "ops",

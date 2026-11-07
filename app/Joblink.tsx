@@ -79,6 +79,7 @@ import { AdminAiUsage, AdminOps, AdminReviews } from "./CompanyReviews";
 import AdminCatalogCheck from "./AdminCatalogCheck";
 import AdminAiFeedback from "./AdminAiFeedback";
 import { AiBudgetPanel } from "./AdminAiBudget";
+import HrPlanFact from "./HrPlanFact";
 import { similarJobs } from "@/lib/similar-jobs";
 import { salaryInsight } from "@/lib/salary-view";
 import TailoredCv from "./TailoredCv";
@@ -160,6 +161,7 @@ const hrNav = [
   { id: "hr-employees", label: "İşçilər", icon: Contact },
   { id: "hr-orders", label: "Əmrlər reyestri", icon: FileCheck2 },
   { id: "hr-payroll", label: "Əmək haqqı", icon: Banknote },
+  { id: "hr-planfact", label: "Plan və fakt", icon: Target },
   { id: "hr-people-ops", label: "Kadr əməliyyatları", icon: ClipboardList },
   { id: "hr-growth", label: "İnkişaf və kommunikasiya", icon: Sparkles },
   { id: "hr-attendance", label: "Davamiyyət", icon: CalendarCheck },
@@ -466,6 +468,7 @@ export default function Joblink() {
     "hr-orders": "orders",
     "hr-attendance": "attendance",
     "hr-payroll": "payroll",
+    "hr-planfact": "payroll",
     "hr-people-ops": "employees",
     "hr-growth": "employees",
   };
@@ -2781,6 +2784,7 @@ export default function Joblink() {
               "hr-orders",
               "hr-attendance",
               "hr-payroll",
+              "hr-planfact",
               "hr-people-ops",
               "hr-growth",
               "hr-workforce",
@@ -2827,6 +2831,7 @@ export default function Joblink() {
               {page === "hr-employees" && <EmployeesPage notify={notify} />}
               {page === "hr-orders" && <OrdersRegistry notify={notify} />}
               {page === "hr-payroll" && <PayrollPage notify={notify} />}
+              {page === "hr-planfact" && <HrPlanFact notify={notify} />}
               {page === "hr-people-ops" && <PeopleOps notify={notify} />}
               {page === "hr-growth" && <GrowthHub notify={notify} />}
               {page === "hr-attendance" && <AttendancePage notify={notify} />}

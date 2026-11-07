@@ -2581,8 +2581,8 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const [bulkCodes, setBulkCodes] = useState(false);
   // The employee list and the staff table are two views of one page, shown one at a time.
   // A link from another screen (e.g. an approval) shows exactly one employee or one department of the staff table.
-  const [focus] = useState(() => takeFocus("employee", "staff"));
-  const [view, setView] = useState<"people" | "staff">(focus?.kind === "staff" ? "staff" : "people");
+  const [focus] = useState(() => takeFocus("employee"));
+  const [view, setView] = useState<"people" | "staff">("people");
   const focusId = focus?.kind === "employee" ? focus.id : "";
   // Extra sections of the employee card open in their own pop-up windows.
   const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | "link" | "hrdocs" | "salaryhist" | null>(null);
@@ -2645,8 +2645,8 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           <button type="button" role="tab" aria-selected={view === "people"} className={view === "people" ? "primary" : "ghost"} onClick={() => setView("people")}>
             İşçi siyahısı ({active.length})
           </button>
-          <button type="button" role="tab" aria-selected={view === "staff"} className={view === "staff" ? "primary" : "ghost"} onClick={() => setView("staff")}>
-            Ştat cədvəli
+          <button type="button" role="tab" aria-selected={false} className="ghost" onClick={() => { window.location.hash = "hr-planfact"; }}>
+            Ştat cədvəli (Plan və fakt bölməsində) ↗
           </button>
         </div>
       )}
@@ -2840,7 +2840,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
       {data.canStaff && view === "staff" && (
         <StaffTable
           notify={notify}
-          initialQuery={focus?.kind === "staff" ? focus.department : ""}
+          initialQuery=""
           onEditEmployee={(employeeId) => {
             const person = data.employees.find((x) => x.id === employeeId);
             if (!person) return notify("İşçi tapılmadı.");

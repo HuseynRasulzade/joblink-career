@@ -16,8 +16,8 @@ test("every section of the employer menu belongs to a program", () => {
 test("recruitment and HR operations each have their own sections, and the shared ones show in both", () => {
   const of = (mode) => ids.filter((id) => inModule(id, mode));
   assert.ok(of("recruit").includes("hr-jobs") && of("recruit").includes("hr-candidates") && of("recruit").includes("hr-interviews"));
-  assert.ok(of("ops").includes("hr-employees") && of("ops").includes("hr-payroll") && of("ops").includes("hr-attendance") && of("ops").includes("hr-orders"));
-  assert.ok(!of("recruit").includes("hr-payroll") && !of("ops").includes("hr-candidates"));
+  assert.ok(of("ops").includes("hr-employees") && of("ops").includes("hr-payroll") && of("ops").includes("hr-attendance") && of("ops").includes("hr-orders") && of("ops").includes("hr-planfact"));
+  assert.ok(!of("recruit").includes("hr-payroll") && !of("recruit").includes("hr-planfact") && !of("ops").includes("hr-candidates"));
   for (const shared of ["hr-overview", "hr-approvals", "hr-team", "hr-company"]) assert.ok(of("recruit").includes(shared) && of("ops").includes(shared), shared);
   // nothing is lost: every section is in at least one menu
   for (const id of ids) assert.ok(inModule(id, "recruit") || inModule(id, "ops"), id);

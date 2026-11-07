@@ -47,6 +47,10 @@ const PERIOD: Spec[] = [
 const DEPARTMENT: Spec = { id: "department", label: "Departament", type: "department" };
 
 // Every report has a name, a short description and its own filters; the ones with a table also give Excel and print.
+const openPlan = () => {
+  window.location.hash = "hr-planfact";
+};
+
 const REPORTS: Report[] = [
   { id: "hiring", group: "İşə qəbul", title: "İşə qəbul icmalı", description: "Vakansiyalar, müraciətlər, müsahibə, təklif və işə qəbul göstəriciləri; tarix və vakansiya üzrə süzgəc.", need: "reports" },
   { id: "referrals", group: "İşə qəbul", title: "Tövsiyə proqramı", description: "İşçilərin tövsiyə etdiyi namizədlər, vəziyyəti və bonusları.", filters: [...PERIOD, { id: "status", label: "Vəziyyət", type: "select", options: [["new", "Yeni"], ["contacted", "Əlaqə saxlanılıb"], ["interview", "Müsahibə"], ["hired", "İşə qəbul olunub"], ["rejected", "Uyğun gəlmədi"]] }],
@@ -62,7 +66,7 @@ const REPORTS: Report[] = [
       return { columns: ["Namizəd", "Vakansiya", "Rəy verən", "Vəzifə / şirkət", "Vəziyyət", "Orta qiymət", "Nəticə", "Rəy", "Tarix"], rows: rows.map((r) => [r.candidate, r.jobTitle, r.referee, [r.role, r.company].filter(Boolean).join(" / "), r.status === "done" ? "Yoxlanılıb" : "Gözləyir", r.score ?? "", r.reading, r.verdict, dmy(r.checkedAt)]) };
     } },
 
-  { id: "fund", group: "Kadr və əmək haqqı", title: "Kadr və əmək haqqı fondu", description: "Departament üzrə işçi, plan, büdcə ilə fond, məzuniyyət borcu və dövriyyə; il üzrə süzgəc.", need: "payroll", render: ({ notify }) => <HrFundReport notify={notify} /> },
+  { id: "fund", group: "Kadr və əmək haqqı", title: "Kadr və əmək haqqı fondu", description: "Departament üzrə işçi, plan, büdcə ilə fond, məzuniyyət borcu və dövriyyə; il üzrə süzgəc.", need: "payroll", render: ({ notify }) => <HrFundReport notify={notify} onOpenPlan={openPlan} /> },
   { id: "settlement", group: "Kadr və əmək haqqı", title: "İşçilərlə hesablaşma hesabatı", description: "Hər işçiyə nə qədər hesablanıb, nə qədər və nəyə görə ödənilib, hər tərəfin borcu; dövr üzrə süzgəc, aylar üzrə ətraflı jurnal.", need: "payroll", render: ({ notify }) => <PayrollReport initialMonth={thisMonth()} notify={notify} /> },
   { id: "payroll-month", group: "Kadr və əmək haqqı", title: "Aylıq əmək haqqı cədvəli", description: "Seçilmiş ay üçün hər işçinin hesablanan, tutulan və ödəniləcək məbləği.", need: "payroll", filters: [{ id: "month", label: "Ay", type: "month" }, DEPARTMENT, { id: "q", label: "İşçi", type: "text" }],
     run: async (f) => {
@@ -76,7 +80,7 @@ const REPORTS: Report[] = [
         totals: ["CƏMİ", "", "", sum((r) => r.result.gross), sum((r) => r.result.incomeTax), sum((r) => r.result.employeeSocial + r.result.employeeUnemployment + r.result.employeeMedical), sum((r) => r.result.net), sum((r) => r.advances), sum((r) => r.salaryPaid), sum((r) => r.outstanding), sum((r) => r.result.employerCost)],
       };
     } },
-  { id: "trends", group: "Kadr və əmək haqqı", title: "Kadr dinamikası, proqnoz və plan-fakt", description: "Son 12 ayda işçi sayı, işə qəbul və çıxış qrafiki, 3 aylıq proqnoz, ştat cədvəli ilə faktiki işçi müqayisəsi və xəbərdarlıqlar.", need: "reports", render: ({ notify }) => <HrTrends notify={notify} /> },
+  { id: "trends", group: "Kadr və əmək haqqı", title: "Kadr dinamikası, proqnoz və plan-fakt", description: "Son 12 ayda işçi sayı, işə qəbul və çıxış qrafiki, 3 aylıq proqnoz, ştat cədvəli ilə faktiki işçi müqayisəsi və xəbərdarlıqlar.", need: "reports", render: ({ notify }) => <HrTrends notify={notify} onOpenPlan={openPlan} /> },
   { id: "workforce", group: "Kadr və əmək haqqı", title: "İşçi axını və dövriyyə", description: "İşə qəbul, ayrılma, işçi sayı və dövriyyə faizi; dövr üzrə süzgəc.", need: "reports" },
 
   { id: "attendance", group: "Davamiyyət və vaxt", title: "Davamiyyət xülasəsi", description: "Ay üzrə hər işçinin norma, işlənmiş gün və məzuniyyət, xəstəlik, yoxluq günləri.", need: "attendance", filters: [{ id: "month", label: "Ay", type: "month" }, DEPARTMENT],
