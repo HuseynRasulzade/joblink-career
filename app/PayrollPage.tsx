@@ -103,7 +103,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   if (view === "report")
     return (
       <div className="company-page payroll-page">
-        <div className="admin-actions">
+        <div className="admin-actions" style={{ justifyContent: "flex-start", alignItems: "center", gap: 12 }}>
           <button type="button" className="secondary" onClick={() => setView("sheet")}>← Əmək haqqı cədvəli</button>
           <b>İşçilərlə hesablaşma hesabatı</b>
         </div>
@@ -113,7 +113,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   if (view === "bank")
     return (
       <div className="company-page payroll-page">
-        <div className="admin-actions">
+        <div className="admin-actions" style={{ justifyContent: "flex-start", alignItems: "center", gap: 12 }}>
           <button type="button" className="secondary" onClick={() => setView("sheet")}>← Əmək haqqı cədvəli</button>
           <b>Bank və ödəniş sənədləri</b>
         </div>
