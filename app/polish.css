@@ -294,3 +294,30 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 }
 [role="tablist"] > [role="tab"]:not(.iv-tile)[aria-selected="true"]:hover,
 .tabs button.selected:hover { background: #0e6b61; color: #fff; }
+
+/* Düymə qrupları (.admin-actions): oxunaqlı şrift, əsas düymə öz rəngini saxlayır, hover aktiv sekmə kimi görünmür */
+.admin-actions { flex-wrap: wrap; }
+.admin-actions button, .admin-action {
+  font-size: 12.5px;
+  padding: 8px 13px;
+  min-height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.admin-actions button.primary { background: var(--teal); border-color: var(--teal); color: #fff; font-weight: 700; }
+.admin-actions button.primary:hover:not(:disabled) { background: var(--teal-strong); border-color: var(--teal-strong); color: #fff; }
+.admin-actions button:not(.primary):not([role="tab"]):hover:not(:disabled),
+.admin-action:hover:not(:disabled) { background: #eef6f4; border-color: #9fcfc6; color: #0e564d; }
+.admin-actions button.danger, .admin-actions button.danger-link { color: #a33a2f; border-color: #efcdc8; }
+.admin-actions button.danger:hover:not(:disabled) { background: #fdeceb; border-color: #e3a8a1; color: #8c2b21; }
+.secondary, .primary, .ghost { min-height: 34px; }
+/* Mətn düymələri: kiçik, amma toxunma sahəsi rahat */
+.text-button { padding: 5px 4px; min-height: 28px; display: inline-flex; align-items: center; gap: 4px; }
+.text-button:hover { text-decoration: underline; }
+@media (max-width: 760px) {
+  .admin-actions { justify-content: flex-start; }
+  .admin-actions button, .secondary, .primary, .ghost { min-height: 40px; }
+}
