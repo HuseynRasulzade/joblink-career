@@ -38,7 +38,7 @@ export type OrderKind =
   | "overtime";
 
 // The fields of the order form that apply to each kind.
-export type OrderField = "from" | "to" | "vacationKind" | "salary" | "newPosition" | "newDepartment" | "basis" | "place" | "penalty" | "newName" | "result" | "schedule" | "quantity";
+export type OrderField = "from" | "to" | "vacationKind" | "salary" | "newPosition" | "newDepartment" | "newSection" | "newBranch" | "basis" | "place" | "penalty" | "newName" | "result" | "schedule" | "quantity";
 
 export const ORDER_KINDS: { id: OrderKind; label: string; group: string; fields: OrderField[]; leaveCode?: string }[] = [
   { id: "hire", label: "İşə qəbul haqqında əmr", group: "İşə qəbul və xitam", fields: [] },
@@ -68,7 +68,7 @@ export const ORDER_KINDS: { id: OrderKind; label: string; group: string; fields:
   { id: "overtime", label: "İş vaxtından artıq işə cəlb haqqında əmr", group: "İş yeri və iş rejimi", fields: ["from", "to", "quantity", "basis"] },
   { id: "trip", label: "Ezamiyyət haqqında əmr", group: "İş yeri və iş rejimi", fields: ["from", "to", "place", "basis"], leaveCode: "trip" },
   { id: "training", label: "Təlimə göndərmə haqqında əmr", group: "İş yeri və iş rejimi", fields: ["from", "to", "place", "basis"] },
-  { id: "transfer", label: "Başqa vəzifəyə keçirmə haqqında əmr", group: "İş yeri və iş rejimi", fields: ["from", "newPosition", "newDepartment", "salary", "basis"] },
+  { id: "transfer", label: "Başqa vəzifəyə, departamentə, şöbəyə və ya filiala keçirmə haqqında əmr (maaş dəyişikliyi ilə birgə də ola bilər)", group: "İş yeri və iş rejimi", fields: ["from", "newPosition", "newBranch", "newDepartment", "newSection", "salary", "basis"] },
   { id: "substitute", label: "Müvəqqəti əvəzetmə (əlavə vəzifənin icrası) haqqında əmr", group: "İş yeri və iş rejimi", fields: ["from", "to", "newPosition", "salary", "basis"] },
   { id: "schedule", label: "İş rejiminin dəyişdirilməsi haqqında əmr", group: "İş yeri və iş rejimi", fields: ["from", "schedule", "basis"] },
   { id: "suspension", label: "İşdən kənarlaşdırma haqqında əmr", group: "İş yeri və iş rejimi", fields: ["from", "to", "basis"] },
@@ -96,6 +96,8 @@ export type OrderInput = {
   vacationKind?: string;
   newPosition?: string;
   newDepartment?: string;
+  newSection?: string;
+  newBranch?: string;
   basis?: string; // legal basis or reason
   place?: string; // trip or training: where
   penalty?: string; // disciplinary penalty
@@ -170,7 +172,7 @@ export function buildOrder(input: OrderInput): Order {
       break;
     case "transfer":
       body = [
-        `${who} ${dmy(input.from)} tarixindən ${fill(input.newPosition)} vəzifəsinə${input.newDepartment ? `, ${input.newDepartment} bölməsinə` : ""} keçirilsin.`,
+        `${who} ${dmy(input.from)} tarixindən ${input.newPosition ? `${input.newPosition} vəzifəsinə` : "digər vəzifəyə"}${input.newBranch ? `, ${input.newBranch} filialına` : ""}${input.newDepartment ? `, ${input.newDepartment} departamentinə` : ""}${input.newSection ? `, ${input.newSection} şöbəsinə` : ""} keçirilsin.`,
         input.salary ? `Yeni aylıq əmək haqqı ${azn(input.salary)} (${kind(input.salaryType)}) müəyyən edilsin.` : "",
         input.basis ? `Əsas: ${input.basis}.` : "İşçinin yazılı razılığı əsasında.",
       ].filter(Boolean);

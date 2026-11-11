@@ -77,6 +77,9 @@ const input = {
       { name: "Orxan Məzuniyyət", fin: "", branch: "A filialı", role: "Satış meneceri", sharePct: 0, bonusEligible: true, from: "", to: "" },
       { name: "Nigar Dövlət", fin: "", branch: "C filialı", role: "Kassir", sharePct: 0, bonusEligible: true, from: "", to: "" },
       { name: "Nigar Dövlət", fin: "", branch: "B filialı", role: "Kassir", sharePct: 0, bonusEligible: false, from: "", to: "" },
+      // Aysel moved in the middle of the month: A until the 13th, B from the 16th; her pay follows the working days spent in each
+      { name: "Aysel Tam", fin: "", branch: "A filialı", role: "Mühasib", sharePct: 0, bonusEligible: false, from: "", to: "2026-11-13" },
+      { name: "Aysel Tam", fin: "", branch: "B filialı", role: "Baş mühasib", sharePct: 0, bonusEligible: false, from: "2026-11-16", to: "" },
     ],
   },
 };
@@ -383,11 +386,27 @@ test("the branch sheets go back into the platform as the standard sheets of the 
   const parsed = parseBranchSheets(imported.branchSheets);
   assert.deepEqual(parsed.issues, []);
   assert.deepEqual(parsed.branches.map((b) => [b.name, b.active]), [["A filialı", true], ["B filialı", true], ["C filialı", false]]);
-  assert.equal(parsed.links.length, 5);
+  assert.equal(parsed.links.length, 7);
   assert.equal(parsed.links[0].fin, finOf("Vüsal Hissəli"));
   const a = parsed.sales.find((x) => x.branch === "A filialı");
   assert.deepEqual([a.month, a.target, a.sales, a.kind, a.value], [month, 1000, 1500, "fixed", 200]);
   assert.equal(parsed.mode, "sales");
   // the bonus is calculated in the sheet, not typed: it is not among the lines sent as pay inputs
   assert.ok(!(imported.payroll || []).flat().includes("Filial bonusu"));
+});
+
+test("moved between branches inside the month: the share follows the working days (the platform and the workbook formulas agree)", () => {
+  const people = sheetOf(WB.branchPeople);
+  const head = people.rows[2];
+  const rows = people.rows.filter((r) => r[1] === "Aysel Tam");
+  assert.equal(rows.length, 2);
+  const share = head.indexOf("Pay (hesablanan)");
+  const daysCol = head.indexOf("Filialda iş günü");
+  const worked = days.filter((d) => d.off === "").map((d) => d.date);
+  const a = worked.filter((d) => d <= "2026-11-13").length;
+  const b = worked.filter((d) => d >= "2026-11-16").length;
+  assert.equal(Number(rows[0][daysCol]), a);
+  assert.equal(Number(rows[1][daysCol]), b);
+  assert.ok(Math.abs(Number(rows[0][share]) - a / (a + b)) < 1e-9);
+  assert.ok(Math.abs(Number(rows[1][share]) - b / (a + b)) < 1e-9);
 });

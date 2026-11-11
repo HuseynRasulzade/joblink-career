@@ -19,7 +19,12 @@ export const linkActiveIn = (link: Pick<BranchLink, "from" | "to">, month: strin
 
 // The shares (summing to 1) of one employee's pay over his active branches. Percentages written by hand win; otherwise
 // the branches share it equally, or by their sales of the month (no sales at all falls back to equal).
-export function sharesOf(links: Pick<BranchLink, "branchId" | "sharePct">[], mode: AllocationMode, salesOf: (branchId: string) => number): Map<string, number> {
+// The working days of a link inside the month: the days (dates of the month's working days) that fall between its dates.
+export const daysOfLink = (link: Pick<BranchLink, "from" | "to">, workingDates: string[]) => workingDates.filter((d) => (!link.from || d >= link.from) && (!link.to || d <= link.to)).length;
+
+// When the person moved between branches inside the month (a link that covers only a part of the working days), the pay follows
+// the working days spent in each branch: 15 of 20 days in A and 5 in B give A 75% and B 25%. Percentages written by hand win.
+export function sharesOf(links: (Pick<BranchLink, "branchId" | "sharePct"> & Partial<Pick<BranchLink, "from" | "to">>)[], mode: AllocationMode, salesOf: (branchId: string) => number, workingDates: string[] = []): Map<string, number> {
   const out = new Map<string, number>();
   if (!links.length) return out;
   const manual = links.filter((l) => l.sharePct > 0);
@@ -27,6 +32,14 @@ export function sharesOf(links: Pick<BranchLink, "branchId" | "sharePct">[], mod
     const total = manual.reduce((t, l) => t + l.sharePct, 0);
     for (const l of manual) out.set(l.branchId, l.sharePct / total);
     return out;
+  }
+  if (workingDates.length) {
+    const days = links.map((l) => daysOfLink({ from: l.from || "", to: l.to || "" }, workingDates));
+    const total = days.reduce((t, d) => t + d, 0);
+    if (total > 0 && days.some((d) => d < workingDates.length)) {
+      links.forEach((l, i) => out.set(l.branchId, days[i] / total));
+      return out;
+    }
   }
   if (mode === "sales") {
     const total = links.reduce((t, l) => t + Math.max(0, salesOf(l.branchId)), 0);

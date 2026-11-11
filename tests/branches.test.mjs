@@ -75,3 +75,30 @@ test("a row of a branch takes only people who work in that branch; people with n
   const sum = summarize(units, [person("x", ["B filialı"])]);
   assert.deepEqual(sum.rows.map((r) => [r.id, r.filled]), [["a", 0], ["b", 1]]);
 });
+
+// ---- Moved inside the month: the pay follows the working days spent in each branch ----
+import { daysOfLink } from "../lib/branches.ts";
+const march = (() => { const out = []; for (let d = 1; d <= 31; d++) { const date = new Date(Date.UTC(2026, 2, d)); const wd = date.getUTCDay(); if (wd !== 0 && wd !== 6) out.push(date.toISOString().slice(0, 10)); } return out; })();
+test("15 working days in A and 5 in B: the pay falls 75% / 25%", () => {
+  const days = march.slice(0, 20); // 20 working days
+  const a = { branchId: "A", sharePct: 0, from: "", to: days[14] };
+  const b = { branchId: "B", sharePct: 0, from: days[15], to: "" };
+  assert.equal(daysOfLink(a, days), 15);
+  assert.equal(daysOfLink(b, days), 5);
+  const shares = sharesOf([a, b], "equal", () => 0, days);
+  assert.equal(shares.get("A"), 0.75);
+  assert.equal(shares.get("B"), 0.25);
+  const split = splitAmount(2000, shares);
+  assert.equal(split.get("A"), 1500);
+  assert.equal(split.get("B"), 500);
+});
+test("two branches that both cover the whole month still share equally", () => {
+  const days = march.slice(0, 20);
+  const shares = sharesOf([{ branchId: "A", sharePct: 0, from: "", to: "" }, { branchId: "B", sharePct: 0, from: "", to: "" }], "equal", () => 0, days);
+  assert.equal(shares.get("A"), 0.5);
+});
+test("percentages written by hand still win over the days", () => {
+  const days = march.slice(0, 20);
+  const shares = sharesOf([{ branchId: "A", sharePct: 60, from: "", to: days[14] }, { branchId: "B", sharePct: 40, from: days[15], to: "" }], "equal", () => 0, days);
+  assert.equal(shares.get("A"), 0.6);
+});

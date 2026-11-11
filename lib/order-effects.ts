@@ -1,11 +1,15 @@
 // What a signed order changes in the employee card, worked out as a plan: the new values, the date they take effect, the
 // days to mark and a bonus to pay. The server applies the plan, keeps what was there before and can take it back.
-export type CardSnapshot = { name: string; position: string; department: string; salaryCents: number; salaryType: string; status: string; endDate: string; exitType: string; exitReason: string; probationEnd: string; contractEnd: string; workMode: string };
+export type CardSnapshot = { name: string; position: string; department: string; section: string; salaryCents: number; salaryType: string; status: string; endDate: string; exitType: string; exitReason: string; probationEnd: string; contractEnd: string; workMode: string };
 export type CardPatch = Partial<CardSnapshot>;
+// The card as the plan sees it: the fields above and the branches the person works in now.
+export type CardContext = CardSnapshot & { branches?: string[] };
 export type EffectPlan = {
   kind: string;
   effectiveDate: string;
   patch: CardPatch; // the card fields that change
+  // A move to another branch: the old links end the day before, the new one starts on the effective date (with this place in it).
+  branchMove?: { branch: string; department: string; section: string; role: string };
   marks?: { from: string; to: string; code: string }; // attendance days to mark
   bonus?: { amount: number; month: string }; // an amount for the pay of a month
   events?: { type: string; from: string; to: string; note: string }[]; // lines for the history of the card only
@@ -25,12 +29,12 @@ const azn = (cents: number) => `${(cents / 100).toFixed(2).replace(/\.00$/, "")}
 const FAILED = /kecmed|ugursuz|neqativ|qane|yararsiz|failed/;
 const fold = (v: string) => v.toLocaleLowerCase("az").replace(/ə/g, "e").replace(/ı/g, "i").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g");
 
-export function planOrderEffect(kind: string, input: Record<string, unknown>, card: CardSnapshot, orderDate: string): EffectPlan | null {
+export function planOrderEffect(kind: string, input: Record<string, unknown>, card: CardContext, orderDate: string): EffectPlan | null {
   if (!hasEffect(kind)) return null;
   const effectiveDate = isDate(input.from) ? input.from : orderDate;
   const patch: CardPatch = {};
   const summary: string[] = [];
-  const plan = (extra: Partial<EffectPlan> = {}): EffectPlan | null => (Object.keys(patch).length || extra.marks || extra.bonus || extra.events ? { kind, effectiveDate, patch, summary, ...extra } : null);
+  const plan = (extra: Partial<EffectPlan> = {}): EffectPlan | null => (Object.keys(patch).length || extra.branchMove || extra.marks || extra.bonus || extra.events ? { kind, effectiveDate, patch, summary, ...extra } : null);
   const newSalary = amount(input.salary);
   const setSalary = () => {
     if (newSalary > 0 && Math.round(newSalary * 100) !== card.salaryCents) {
@@ -43,7 +47,15 @@ export function planOrderEffect(kind: string, input: Record<string, unknown>, ca
     const department = text(input.newDepartment);
     if (position && position !== card.position) { patch.position = position; summary.push(`Vəzifə: ${card.position || "—"} → ${position}`); }
     if (department && department !== card.department) { patch.department = department; summary.push(`Departament: ${card.department || "—"} → ${department}`); }
+    const section = text(input.newSection);
+    if (section && section !== card.section) { patch.section = section; summary.push(`Şöbə: ${card.section || "—"} → ${section}`); }
     setSalary();
+    const branch = text(input.newBranch);
+    const here = (card.branches || []).map((b) => b.toLocaleLowerCase("az"));
+    if (branch && !(here.length === 1 && here[0] === branch.toLocaleLowerCase("az"))) {
+      summary.push(`Filial: ${(card.branches || []).join(", ") || "—"} → ${branch}${isDate(input.from) ? ` (${input.from.split("-").reverse().join(".")} tarixindən; maaş və bonus həmin gündən yeni filiala hesablanır, əvvəlki günlər köhnə filialda qalır)` : ""}`);
+      return plan({ branchMove: { branch, department: department || patch.department || card.department, section: section || patch.section || card.section, role: position || card.position } });
+    }
     return plan();
   }
   if (kind === "salary") {
@@ -116,14 +128,14 @@ export function planOrderEffect(kind: string, input: Record<string, unknown>, ca
 }
 
 // The values that stood there before the patch, to put them back.
-export function beforeOf(card: CardSnapshot, patch: CardPatch): CardPatch {
+export function beforeOf(card: CardContext, patch: CardPatch): CardPatch {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(patch) as (keyof CardSnapshot)[]) out[key] = card[key];
   return out as CardPatch;
 }
 
 // What will happen once the order is signed, in plain words, for the form to show before it is sent.
-export function previewOrder(kind: string, input: Record<string, unknown>, card: CardSnapshot, orderDate: string, leaveCode?: string): string[] {
+export function previewOrder(kind: string, input: Record<string, unknown>, card: CardContext, orderDate: string, leaveCode?: string): string[] {
   const out: string[] = [];
   const plan = planOrderEffect(kind, input, card, orderDate);
   if (plan) {

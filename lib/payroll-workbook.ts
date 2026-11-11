@@ -12,7 +12,7 @@ import { DOMESTIC_NORMS, DOMESTIC_OTHER, lookupNorm } from "./trip-norms.ts";
 import { OTHER_DOMESTIC } from "./trip-places.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { excelDateSerial } from "./xlsx.ts";
-import { bonusesOf, sharesOf, type AllocationMode, type BranchLink, type BranchRule, type BranchSales } from "./branches.ts";
+import { bonusesOf, daysOfLink, sharesOf, type AllocationMode, type BranchLink, type BranchRule, type BranchSales } from "./branches.ts";
 
 export const WB = {
   guide: "Təlimat",
@@ -196,10 +196,10 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   const branchValues = (name: string, salary: number) => {
     const activeBranches = new Map((BRI?.branches || []).filter((b) => b.active).map((b) => [b.name, b]));
     const mine = (BRI?.links || []).filter((l) => l.name === name && activeBranches.has(l.branch));
-    const links: BranchLink[] = mine.map((l) => ({ employeeId: name, branchId: l.branch, role: l.role, sharePct: l.sharePct, bonusEligible: l.bonusEligible, from: "", to: "" }));
+    const links: BranchLink[] = mine.map((l) => ({ employeeId: name, branchId: l.branch, role: l.role, sharePct: l.sharePct, bonusEligible: l.bonusEligible, from: l.from || "", to: l.to || "" }));
     const sales: BranchSales[] = [...activeBranches.values()].map((b) => ({ branchId: b.name, month: input.month, target: b.target, sales: b.sales }));
     const rules: BranchRule[] = [...activeBranches.values()].filter((b) => b.value > 0).map((b) => ({ branchId: b.name, kind: b.kind, value: b.value, active: b.ruleActive }));
-    const shares = sharesOf(links, BRI?.mode || "equal", (id) => activeBranches.get(id)?.sales || 0);
+    const shares = sharesOf(links, BRI?.mode || "equal", (id) => activeBranches.get(id)?.sales || 0, input.days.filter((d) => d.off === "").map((d) => d.date));
     const bonuses = bonusesOf({ links, shares, grossSalary: salary, rules, sales, nameOf: (id) => id });
     return { shares, bonusOf: (branch: string) => r2(bonuses.filter((b) => b.branchId === branch).reduce((t, b) => t + b.amount, 0)), total: r2(bonuses.reduce((t, b) => t + b.amount, 0)) };
   };
@@ -831,7 +831,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   const linkRows: XlsxCell[][] = [
     [{ v: "İşçilərin filiallara bölgüsü", s: "title" }],
     [{ v: "Hər sətir bir işçinin bir filialdakı işidir; eyni işçi bir neçə sətirdə (bir neçə filialda) ola bilər. Pay % boşdursa maaş «Bölgü rejimi»nə görə bölünür; yazılıbsa həmin faizlə. Sağdakı xanalar hesablanır (filiala düşən pay və bonus).", s: "note" }],
-    ["FİN", "Ad Soyad", "Filial", "Vəzifə (filialda)", "Pay %", "Bonus alır", "Başlama", "Bitmə", "Pay (hesablanan)", "Filialın satışı", "Filial aktiv", "Aylıq maaş", "Filial bonusu"].map((v) => ({ v, s: "head" as const })),
+    ["FİN", "Ad Soyad", "Filial", "Vəzifə (filialda)", "Pay %", "Bonus alır", "Başlama", "Bitmə", "Pay (hesablanan)", "Filialın satışı", "Filial aktiv", "Aylıq maaş", "Filial bonusu", "Filialda iş günü"].map((v) => ({ v, s: "head" as const })),
   ];
   const LKB = LKR("B");
   const LKK = LKR("K");
@@ -855,11 +855,12 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
       { v: l ? (l.bonusEligible ? "Bəli" : "Xeyr") : "", s: "input" },
       { v: l?.from ? l.from : null, s: "inputDate" },
       { v: l?.to ? l.to : null, s: "inputDate" },
-      { f: `IF(B${r}="","",IF(K${r}<>"Bəli",0,IF(${manual}>0,N(E${r})/${manual},IF(AND(${MODE_CELL}="Satışa görə",${salesTotal}>0),J${r}/${salesTotal},1/COUNTIFS(${LKB},B${r},${LKK},"Bəli")))))`, v: l ? share : "", s: "pct" },
+      { f: `IF(B${r}="","",IF(K${r}<>"Bəli",0,IF(${manual}>0,N(E${r})/${manual},IF(AND(COUNTIFS(${LKB},B${r},${LKK},"Bəli",${LKR("N")},"<"&${P("workingDays")})>0,SUMIFS(${LKR("N")},${LKB},B${r},${LKK},"Bəli")>0),N(N${r})/SUMIFS(${LKR("N")},${LKB},B${r},${LKK},"Bəli"),IF(AND(${MODE_CELL}="Satışa görə",${salesTotal}>0),J${r}/${salesTotal},1/COUNTIFS(${LKB},B${r},${LKK},"Bəli"))))))`, v: l ? share : "", s: "pct" },
       { f: `IF(C${r}="","",IFERROR(INDEX(${FBR("F")},${m}),0))`, v: l ? (br ? br.sales : 0) : "", s: "money" },
       { f: `IF(C${r}="","",IFERROR(INDEX(${FBR("D")},${m}),"Xeyr"))`, v: l ? (br ? (br.active ? "Bəli" : "Xeyr") : "Xeyr") : "", s: "cell" },
       { f: `IF(B${r}="","",IFERROR(INDEX(${q(WB.calc)}$${L(H.salary)}$${C0}:$${L(H.salary)}$${C0 + staffRows - 1},MATCH(B${r},${q(WB.calc)}$A$${C0}:$A$${C0 + staffRows - 1},0)),0))`, v: l ? salaryOfName.get(l.name) ?? 0 : "", s: "money" },
       { f: `IF(B${r}="","",ROUND(IF(OR(K${r}<>"Bəli",F${r}="Xeyr"),0,IFERROR(IF(AND(INDEX(${FBR("I")},${m})<>"Xeyr",INDEX(${FBR("J")},${m})="Bəli",N(INDEX(${FBR("H")},${m}))>0),IF(INDEX(${FBR("G")},${m})="Sabit məbləğ",INDEX(${FBR("H")},${m}),L${r}*I${r}*INDEX(${FBR("H")},${m})/100),0),0)),2))`, v: l ? (active && l.bonusEligible ? cache?.bonusOf(l.branch) ?? 0 : 0) : "", s: "money" },
+      { f: `IF(B${r}="","",COUNTIFS(${q(WB.sheet)}${typeRow},"iş",${q(WB.sheet)}${dateRow},">="&IF(G${r}="",0,G${r}),${q(WB.sheet)}${dateRow},"<="&IF(H${r}="",99999,H${r})))`, v: l ? daysOfLink({ from: l.from || "", to: l.to || "" }, input.days.filter((d) => d.off === "").map((d) => d.date)) : "", s: "cell" },
     ]);
   }
   const peopleSheet: XlsxSheet = {
@@ -867,7 +868,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     headers: [],
     rows: linkRows,
     free: true,
-    widths: [12, 30, 24, 26, 10, 12, 14, 14, 14, 16, 12, 14, 16],
+    widths: [12, 30, 24, 26, 10, 12, 14, 14, 14, 16, 12, 14, 16, 14],
     freeze: { rows: 3, cols: 2 },
     lists: [
       { ref: `B${LK_FIRST}:B${LK_LAST}`, source: staffNames },
@@ -887,7 +888,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     ["Tabel", "Davamiyyət cədvəli: “Azad olmalar” vərəqindən avtomatik doldurulur, gün sayları çıxarılır. Burada əl ilə yazılmır."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Əlavə-Tutulma", "Mükafat, əlavə, tutulma, avans. Hamısı platformaya yüklənir (avans yalnız ödəniş tarixi yazılıbsa)."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Filiallar", "Filiallar, aylıq satış limiti, satış və bonus qaydası. Satış limitə çatanda filial bonusu avtomatik hesablanır. Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
-    ["İşçi-filial", "Hansı işçi hansı filialda (bir neçə filialda da) hansı vəzifədə işləyir; maaş filiallara bölünür. Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
+    ["İşçi-filial", "Hansı işçi hansı filialda (bir neçə filialda da) hansı vəzifədə işləyir; maaş filiallara bölünür. Ay ərzində filial dəyişibsə (Başlama/Bitmə tarixləri), maaş hər filialda işlənən iş gününə görə bölünür (məsələn 20 iş gününün 15-i A-da, 5-i B-də: 75% / 25%). Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Saatlar", "Artıq iş, istirahət günü və gecə saatları (ay yekunu). Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Ezamiyyət", "Ezamiyyətlər, qanunun gündəlik normaları və Mərkəzi Bankın məzənnəsi ilə gündəlik hesabı. Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Hesablama", "Hər işçi üçün gross, vergi və sığorta, xalis, tutulma, ödəniləcək məbləğ və işəgötürən xərci. Formullarla hesablanır."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),

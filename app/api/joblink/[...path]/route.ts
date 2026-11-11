@@ -7908,10 +7908,10 @@ async function route(request: Request) {
   };
   // ── What a signed order does to the employee card ──
   type EffectRow = { id: string; order_id: string; employee_id: string; kind: string; effective_date: string; status: string; plan: string; before: string; summary: string; applied_at: string; reverted_at: string; reverted_by: string };
-  const CARD_COLUMN: Record<keyof CardSnapshot, string> = { name: "name", position: "position", department: "department", salaryCents: "salary_cents", salaryType: "salary_type", status: "status", endDate: "end_date", exitType: "exit_type", exitReason: "exit_reason", probationEnd: "probation_end", contractEnd: "contract_end", workMode: "work_mode" };
+  const CARD_COLUMN: Record<keyof CardSnapshot, string> = { name: "name", position: "position", department: "department", section: "section", salaryCents: "salary_cents", salaryType: "salary_type", status: "status", endDate: "end_date", exitType: "exit_type", exitReason: "exit_reason", probationEnd: "probation_end", contractEnd: "contract_end", workMode: "work_mode" };
   const cardOf = async (employeeId: string): Promise<CardSnapshot | null> => {
-    const r = await db.prepare("SELECT name,position,department,salary_cents,salary_type,status,end_date,exit_type,exit_reason,probation_end,contract_end,work_mode FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(employeeId, id).first<{ name: string; position: string; department: string; salary_cents: number; salary_type: string; status: string; end_date: string; exit_type: string; exit_reason: string; probation_end: string; contract_end: string; work_mode: string }>();
-    return r ? { name: r.name, position: r.position, department: r.department, salaryCents: r.salary_cents, salaryType: r.salary_type || "gross", status: r.status, endDate: r.end_date || "", exitType: r.exit_type || "", exitReason: r.exit_reason || "", probationEnd: r.probation_end || "", contractEnd: r.contract_end || "", workMode: r.work_mode || "" } : null;
+    const r = await db.prepare("SELECT name,position,department,section,salary_cents,salary_type,status,end_date,exit_type,exit_reason,probation_end,contract_end,work_mode FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(employeeId, id).first<{ name: string; position: string; department: string; section: string; salary_cents: number; salary_type: string; status: string; end_date: string; exit_type: string; exit_reason: string; probation_end: string; contract_end: string; work_mode: string }>();
+    return r ? { name: r.name, position: r.position, department: r.department, section: r.section || "", salaryCents: r.salary_cents, salaryType: r.salary_type || "gross", status: r.status, endDate: r.end_date || "", exitType: r.exit_type || "", exitReason: r.exit_reason || "", probationEnd: r.probation_end || "", contractEnd: r.contract_end || "", workMode: r.work_mode || "" } : null;
   };
   const writeCard = (employeeId: string, patch: CardPatch) => {
     const keys = Object.keys(patch) as (keyof CardSnapshot)[];
@@ -7941,15 +7941,23 @@ async function route(request: Request) {
     const today = new Date().toISOString().slice(0, 10);
     const effectId = crypto.randomUUID();
     const now = new Date().toISOString();
-    const plan = planOrderEffect(order.kind, input, card, order.order_date);
+    const nowBranches = await db.prepare("SELECT b.name AS name FROM employee_branches l JOIN branches b ON b.id=l.branch_id WHERE l.employee_id=? AND l.company_id=? AND (l.to_date='' OR l.to_date>=?) AND (l.from_date='' OR l.from_date<=?)").bind(order.employee_id, id, today, today).all<{ name: string }>().catch(() => ({ results: [] as { name: string }[] }));
+    const plan = planOrderEffect(order.kind, input, { ...card, branches: nowBranches.results.map((b) => b.name) }, order.order_date);
     const note = `Əmr № ${order.number || "—"}`;
     const store = async (status: string, summary: string, before: Record<string, unknown>, effective: string) => {
       await db.prepare("INSERT INTO order_effects(id,company_id,order_id,employee_id,kind,effective_date,status,plan,before,summary,applied_at,created) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(effectId, id, orderId, order.employee_id, order.kind, effective, status, JSON.stringify(plan || {}), JSON.stringify(before), summary, status === "applied" ? now : "", now).run();
       return { status, summary };
     };
     if (!plan) return store("skipped", "Kartda dəyişiklik yoxdur: məlumat artıq əmrdəki kimidir.", {}, order.order_date);
+    // A move to another branch needs a branch that exists in the staff table (a branch is born there only).
+    let moveTarget: { id: string; name: string } | undefined;
+    if (plan.branchMove) {
+      const all = await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(id).all<{ id: string; name: string }>();
+      moveTarget = all.results.find((b) => b.name.trim().toLocaleLowerCase("az") === plan.branchMove!.branch.trim().toLocaleLowerCase("az"));
+      if (!moveTarget) return store("skipped", `“${plan.branchMove.branch}” filialı ştat cədvəlində yoxdur: filial dəyişmədi. Filial yalnız ştat cədvəlindən gəlir; onu ştatda yazıb əmri yenidən tətbiq edin.`, {}, order.order_date);
+    }
     const changesCard = Object.keys(plan.patch).length > 0;
-    if ((changesCard || plan.events?.length) && plan.effectiveDate > today && !immediate) return store("scheduled", plan.summary.join("; "), {}, plan.effectiveDate);
+    if ((changesCard || plan.branchMove || plan.events?.length) && plan.effectiveDate > today && !immediate) return store("scheduled", plan.summary.join("; "), {}, plan.effectiveDate);
     const before: Record<string, unknown> = { ...beforeOf(card, plan.patch) };
     const statements: D1PreparedStatement[] = [];
     if (changesCard) {
@@ -7957,8 +7965,24 @@ async function route(request: Request) {
       if (plan.patch.salaryCents !== undefined) statements.push(...(await salaryChange(order.employee_id, card.salaryCents, card.salaryType, plan.patch.salaryCents, card.salaryType, plan.effectiveDate, userId)));
       if (plan.patch.position !== undefined) statements.push(cardEvent(order.employee_id, "position", card.position, plan.patch.position, note, plan.effectiveDate));
       if (plan.patch.department !== undefined) statements.push(cardEvent(order.employee_id, "department", card.department, plan.patch.department, note, plan.effectiveDate));
+      if (plan.patch.section !== undefined) statements.push(cardEvent(order.employee_id, "section", card.section, plan.patch.section, note, plan.effectiveDate));
       if (plan.patch.salaryCents !== undefined) statements.push(cardEvent(order.employee_id, "salary", "", "", note, plan.effectiveDate));
       if (plan.patch.status === "left") statements.push(cardEvent(order.employee_id, "left", card.status, plan.patch.exitType || "", plan.patch.exitReason || "", plan.effectiveDate));
+    }
+    if (plan.branchMove && moveTarget) {
+      // The old links end the day before the move; the new one starts on that day. The pay of the month then follows the working days of each branch.
+      const dayBefore = new Date(Date.parse(`${plan.effectiveDate}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+      const rows = await db.prepare("SELECT branch_id,role,share_pct,bonus_eligible,from_date,to_date,department,section FROM employee_branches WHERE employee_id=? AND company_id=?").bind(order.employee_id, id).all<{ branch_id: string; role: string; share_pct: number; bonus_eligible: number; from_date: string; to_date: string; department: string; section: string }>();
+      const touched = rows.results.filter((l) => l.branch_id === moveTarget!.id || !l.to_date || l.to_date >= plan.effectiveDate);
+      before._branchRows = touched;
+      before._branchOpened = moveTarget.id;
+      for (const l of touched) {
+        if (l.branch_id === moveTarget.id) continue;
+        if (l.from_date && l.from_date >= plan.effectiveDate) statements.push(db.prepare("DELETE FROM employee_branches WHERE employee_id=? AND branch_id=? AND company_id=?").bind(order.employee_id, l.branch_id, id));
+        else statements.push(db.prepare("UPDATE employee_branches SET to_date=? WHERE employee_id=? AND branch_id=? AND company_id=?").bind(dayBefore, order.employee_id, l.branch_id, id));
+      }
+      statements.push(db.prepare("INSERT INTO employee_branches(company_id,employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date,department,section) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,branch_id) DO UPDATE SET role=excluded.role,share_pct=0,from_date=excluded.from_date,to_date='',department=excluded.department,section=excluded.section").bind(id, order.employee_id, moveTarget.id, plan.branchMove.role, 0, 1, plan.effectiveDate, "", plan.branchMove.department, plan.branchMove.section));
+      statements.push(cardEvent(order.employee_id, "branch", (nowBranches.results.map((b) => b.name)).join(", "), moveTarget.name, note, plan.effectiveDate));
     }
     if (plan.bonus) {
       if (await payrollMonthLocked(plan.bonus.month)) return store("skipped", `${plan.bonus.month} ayı təsdiqlənib: mükafatı əmək haqqında əllə yazın.`, {}, order.order_date);
@@ -8003,7 +8027,17 @@ async function route(request: Request) {
       }
       if (restore.position !== undefined) statements.push(cardEvent(effect.employee_id, "position", card.position, restore.position, note, today));
       if (restore.department !== undefined) statements.push(cardEvent(effect.employee_id, "department", card.department, restore.department, note, today));
+      if (restore.section !== undefined) statements.push(cardEvent(effect.employee_id, "section", card.section, restore.section, note, today));
       if (restore.status !== undefined && restore.status !== "left") statements.push(cardEvent(effect.employee_id, "returned", "left", restore.status, note, today));
+    }
+    // A branch move is taken back: the new link goes (or gets its earlier values) and the old links get their dates back.
+    const movedRows = before._branchRows as { branch_id: string; role: string; share_pct: number; bonus_eligible: number; from_date: string; to_date: string; department: string; section: string }[] | undefined;
+    const openedId = before._branchOpened as string | undefined;
+    if (openedId) {
+      const had = movedRows?.find((l) => l.branch_id === openedId);
+      if (!had) statements.push(db.prepare("DELETE FROM employee_branches WHERE employee_id=? AND branch_id=? AND company_id=?").bind(effect.employee_id, openedId, id));
+      for (const l of movedRows || []) statements.push(db.prepare("INSERT INTO employee_branches(company_id,employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date,department,section) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,branch_id) DO UPDATE SET role=excluded.role,share_pct=excluded.share_pct,bonus_eligible=excluded.bonus_eligible,from_date=excluded.from_date,to_date=excluded.to_date,department=excluded.department,section=excluded.section").bind(id, effect.employee_id, l.branch_id, l.role, l.share_pct, l.bonus_eligible, l.from_date, l.to_date, l.department, l.section));
+      statements.push(cardEvent(effect.employee_id, "reverted", "branch", "", note, today));
     }
     for (const e of plan.events || []) statements.push(cardEvent(effect.employee_id, "reverted", e.type, "", note, today));
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
@@ -9483,7 +9517,7 @@ async function route(request: Request) {
       }
       // The branches the employee works in this month: his pay is shared between them, and a branch that reached its sales limit gives a bonus.
       const myLinks = bctx.links.filter((l) => l.employeeId === p.id && activeBranch.has(l.branchId) && linkActiveIn(l, monthRaw));
-      const branchShares = sharesOf(myLinks, bctx.mode, (branchId) => bctx.sales.find((x) => x.branchId === branchId)?.sales || 0);
+      const branchShares = sharesOf(myLinks, bctx.mode, (branchId) => bctx.sales.find((x) => x.branchId === branchId)?.sales || 0, working.map((d) => d.date));
       const branchBonus = bonusesOf({ links: myLinks, shares: branchShares, grossSalary: pay?.gross || 0, rules: bctx.rules, sales: bctx.sales, nameOf: (branchId) => branchName.get(branchId) || "" });
       const branchBonusTotal = Math.round(branchBonus.reduce((t, x) => t + x.amount, 0) * 100) / 100;
       const marksOf = markBy.get(p.id) || new Map<string, string>();

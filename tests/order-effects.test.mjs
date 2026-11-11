@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { beforeOf, hasEffect, planOrderEffect } from "../lib/order-effects.ts";
 
-const card = { name: "Aysel Məmmədova", position: "Mühasib", department: "Maliyyə", salaryCents: 150000, salaryType: "gross", status: "active", endDate: "", exitType: "", exitReason: "", probationEnd: "2026-05-01", contractEnd: "2026-12-31", workMode: "" };
+const card = { name: "Aysel Məmmədova", position: "Mühasib", department: "Maliyyə", section: "Mühasibat", salaryCents: 150000, salaryType: "gross", status: "active", endDate: "", exitType: "", exitReason: "", probationEnd: "2026-05-01", contractEnd: "2026-12-31", workMode: "" };
 
 test("a transfer changes position, department and pay, and remembers what was there", () => {
   const plan = planOrderEffect("transfer", { from: "2026-04-01", newPosition: "Baş mühasib", newDepartment: "Maliyyə", salary: "2000" }, card, "2026-03-20");
@@ -38,7 +38,7 @@ test("kinds without an effect on the card are left alone", () => {
 });
 
 test("discipline, extension, substitution and schedule orders leave a line in the card history", () => {
-  const card = { name: "A", position: "Mühasib", department: "Maliyyə", salaryCents: 100000, salaryType: "gross", status: "active", endDate: "", exitType: "", exitReason: "", probationEnd: "", contractEnd: "", workMode: "" };
+  const card = { name: "A", position: "Mühasib", department: "Maliyyə", section: "", salaryCents: 100000, salaryType: "gross", status: "active", endDate: "", exitType: "", exitReason: "", probationEnd: "", contractEnd: "", workMode: "" };
   const d = planOrderEffect("discipline", { penalty: "Töhmət", basis: "Gecikmə" }, card, "2026-11-03");
   assert.deepEqual(d.patch, {});
   assert.equal(d.events[0].type, "discipline");
@@ -57,4 +57,18 @@ test("a contract extension moves the end date on the card and a schedule order s
   const s = planOrderEffect("schedule", { schedule: "Natamam iş vaxtı, 4 saat" }, c, "2026-11-03");
   assert.equal(s.patch.workMode, "Natamam iş vaxtı, 4 saat");
   assert.deepEqual(beforeOf(c, s.patch), { workMode: "" });
+});
+
+test("a transfer to another branch, department and section is one plan: the card fields, the branch move and the pay", () => {
+  const plan = planOrderEffect("transfer", { from: "2026-03-16", newPosition: "Baş mühasib", newBranch: "B filialı", newDepartment: "Satış", newSection: "Hesabat", salary: 2000 }, { ...card, branches: ["A filialı"] }, "2026-03-10");
+  assert.equal(plan.patch.position, "Baş mühasib");
+  assert.equal(plan.patch.department, "Satış");
+  assert.equal(plan.patch.section, "Hesabat");
+  assert.equal(plan.patch.salaryCents, 200000);
+  assert.deepEqual(plan.branchMove, { branch: "B filialı", department: "Satış", section: "Hesabat", role: "Baş mühasib" });
+  assert.equal(plan.effectiveDate, "2026-03-16");
+  assert.ok(plan.summary.some((l) => l.startsWith("Filial: A filialı → B filialı")));
+});
+test("a transfer into the branch the person already works in only (and nothing else) changes nothing", () => {
+  assert.equal(planOrderEffect("transfer", { from: "2026-03-16", newBranch: "a FİLİALI" }, { ...card, branches: ["A filialı"] }, "2026-03-10"), null);
 });

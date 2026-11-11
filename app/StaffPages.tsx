@@ -492,7 +492,9 @@ const FIELD_TEXT: Record<OrderField, (kind: OrderKind, salaryType: SalaryType) =
   quantity: (kind) => (kind === "compensation" ? "Kompensasiya ödənilən gün sayı" : kind === "overtime" ? "Cəmi artıq iş saatı" : "İşlənən saat"),
   salary: (kind, type) => (kind === "bonus" ? "Mükafatın məbləği (AZN)" : kind === "substitute" ? "Əlavə haqq (AZN)" : `Yeni əmək haqqı (AZN, ${type})`),
   newPosition: (kind) => (kind === "substitute" ? "İcra ediləcək vəzifə" : "Yeni vəzifə"),
-  newDepartment: () => "Yeni departament / şöbə",
+  newDepartment: () => "Yeni departament (ştat cədvəlindən)",
+  newSection: () => "Yeni şöbə (ştat cədvəlindən)",
+  newBranch: () => "Yeni filial (ştat cədvəlindən; boş = dəyişmir)",
   basis: (kind) =>
     ({ termination: "Xitamın əsası (maddə və səbəb)", reduction: "İxtisarın əsası (təşkilati qərar, nömrə)", maternity: "Əsas (tibbi rəy və ya xəstəlik vərəqəsinin nömrəsi)", study: "Əsas (təhsil müəssisəsinin çağırış arayışı)", childcare: "Əsas (ərizə, uşağın doğum şəhadətnaməsi)", paternity: "Əsas (ərizə, doğum şəhadətnaməsi)", unpaid: "Əsas (işçinin ərizəsi və s.)", addleave: "Əsas (məsələn: staj 6 gün — 116-cı maddə)", creative: "Əsas (elmi şuranın arayışı)", postpone: "Keçirilmənin səbəbi (134-cü maddə)", extendleave: "Uzadılmanın səbəbi (xəstəlik vərəqəsi, bayram günləri)", compensation: "Əsas (xitam haqqında əmr)", donor: "Əsas (tibb müəssisəsinin arayışı)", medical: "Əsas (tibb müəssisəsinin arayışı)", summons: "Əsas (çağırış vərəqəsi)", military: "Əsas (hərbi komissarlığın çağırışı)", downtime: "Boşdayanmanın səbəbi", remote: "Əsas (ərizə, razılıq)", restday: "İşə cəlbin səbəbi (107-ci maddənin halı)", overtime: "İşə cəlbin səbəbi (99.2-ci maddənin halı)", recall: "Çağırışın səbəbi", trip: "Ezamiyyətin məqsədi", training: "Təlimin məqsədi", bonus: "Mükafatın səbəbi (nəticə, layihə)", discipline: "Pozuntunun mahiyyəti, izahat və ya imtina aktının nömrəsi", suspension: "Kənarlaşdırmanın əsası", probation: "Əsas (rəhbərin rəyi)", name: "Əsas (sənəd)" } as Record<string, string>)[kind] || "Əsas",
   place: (kind) => (kind === "training" ? "Təlimin yeri və ya təşkilatı" : kind === "summons" ? "Çağıran orqan (məhkəmə, prokurorluq və s.)" : "Ezam olunan yer"),
@@ -502,8 +504,8 @@ const FIELD_TEXT: Record<OrderField, (kind: OrderKind, salaryType: SalaryType) =
   schedule: () => "Yeni iş rejimi (məsələn, həftədə 3 gün, 10:00–15:00)",
 };
 
-type FormValues = { date: string; from: string; to: string; newPosition: string; newDepartment: string; salary: string; basis: string; vacationKind: string; place: string; penalty: string; newName: string; result: string; schedule: string; quantity: string };
-function OrderFormField({ field, kind, form, salaryType, set }: { field: OrderField; kind: OrderKind; form: FormValues; salaryType: SalaryType; set: (key: keyof FormValues, value: string) => void }) {
+type FormValues = { date: string; from: string; to: string; newPosition: string; newDepartment: string; newSection: string; newBranch: string; salary: string; basis: string; vacationKind: string; place: string; penalty: string; newName: string; result: string; schedule: string; quantity: string };
+function OrderFormField({ field, kind, form, salaryType, set, structure }: { field: OrderField; kind: OrderKind; form: FormValues; salaryType: SalaryType; set: (key: keyof FormValues, value: string) => void; structure: { branch: string; department: string; section: string; position: string }[] }) {
   const label = FIELD_TEXT[field](kind, salaryType);
   if (field === "from" || field === "to")
     return (
@@ -562,6 +564,19 @@ function OrderFormField({ field, kind, form, salaryType, set }: { field: OrderFi
         </datalist>
       </Field>
     );
+  if (field === "newBranch" || field === "newDepartment" || field === "newSection" || field === "newPosition") {
+    // The names come from the staff table: branch, department, section and position (narrowed by what is already chosen).
+    const pick = (list: string[]) => [...new Set(list.filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
+    const az = (v: string) => v.toLocaleLowerCase("az");
+    const rows = structure.filter((u) => (!form.newBranch || field === "newBranch" || az(u.branch) === az(form.newBranch)) && (!form.newDepartment || field === "newDepartment" || field === "newBranch" || az(u.department) === az(form.newDepartment)) && (!form.newSection || field !== "newPosition" || az(u.section) === az(form.newSection)));
+    const options = pick(rows.map((u) => (field === "newBranch" ? u.branch : field === "newDepartment" ? u.department : field === "newSection" ? u.section : u.position)));
+    return (
+      <Field label={label}>
+        <input list={`order-${field}`} value={form[field]} onChange={(e) => set(field, e.target.value)} />
+        <datalist id={`order-${field}`}>{options.map((v) => <option key={v} value={v} />)}</datalist>
+      </Field>
+    );
+  }
   return (
     <Field label={label}>
       <input value={form[field]} onChange={(e) => set(field, e.target.value)} />
@@ -584,6 +599,8 @@ export function OrderMaker({ employee, notify, editing, onSaved, prefill, initia
     to: prior?.to || prefill?.to || "",
     newPosition: prior?.newPosition || "",
     newDepartment: prior?.newDepartment || "",
+    newSection: prior?.newSection || "",
+    newBranch: prior?.newBranch || "",
     salary: prior?.salary && editing?.kind !== "hire" ? String(prior.salary) : "",
     basis: prior?.basis || prefill?.basis || "",
     vacationKind: prior?.vacationKind || prefill?.vacationKind || (editing?.kind === "unpaid" || prefill?.kind === "unpaid" ? "" : "illik əmək məzuniyyəti"),
@@ -594,6 +611,15 @@ export function OrderMaker({ employee, notify, editing, onSaved, prefill, initia
     schedule: prior?.schedule || "",
     quantity: prior?.quantity ? String(prior.quantity) : prefill?.quantity || "",
   });
+  // The staff table (for the branch, department, section and position of a transfer) and the branches the person works in now.
+  const [structure, setStructure] = useState<{ branch: string; department: string; section: string; position: string }[]>([]);
+  const [myBranches, setMyBranches] = useState<string[]>([]);
+  useEffect(() => {
+    request<{ units: { branch: string; department: string; section: string; position: string }[] }>("company/staff/structure").then((r) => setStructure(r.units || [])).catch(() => setStructure([]));
+    request<{ branches: { id: string; name: string }[]; links: { employeeId: string; branchId: string; to: string }[] }>("company/branches")
+      .then((r) => setMyBranches(r.links.filter((l) => l.employeeId === employee.id && !l.to).map((l) => r.branches.find((b) => b.id === l.branchId)?.name || "").filter(Boolean)))
+      .catch(() => setMyBranches([]));
+  }, [employee.id]);
   const [number, setNumber] = useState(editing?.number || "");
   // The section head and the director are picked from the staff list; the names can be changed.
   const [head, setHead] = useState({ use: true, name: "", note: "" });
@@ -650,6 +676,8 @@ export function OrderMaker({ employee, notify, editing, onSaved, prefill, initia
     probationEnd: employee.probationEnd,
     newPosition: form.newPosition,
     newDepartment: form.newDepartment,
+    newSection: form.newSection,
+    newBranch: form.newBranch,
     basis: form.basis,
     place: form.place,
     penalty: form.penalty,
@@ -663,7 +691,7 @@ export function OrderMaker({ employee, notify, editing, onSaved, prefill, initia
   const willHappen = previewOrder(
     kind,
     input as unknown as Record<string, unknown>,
-    { name: employee.name, position: employee.position, department: employee.department, salaryCents: Math.round((employee.salary || 0) * 100), salaryType: employee.salaryType, status: "active", endDate: employee.endDate || "", exitType: "", exitReason: "", probationEnd: employee.probationEnd || "", contractEnd: employee.contractEnd || "", workMode: employee.workMode || "" },
+    { name: employee.name, position: employee.position, department: employee.department, section: employee.section, branches: myBranches, salaryCents: Math.round((employee.salary || 0) * 100), salaryType: employee.salaryType, status: "active", endDate: employee.endDate || "", exitType: "", exitReason: "", probationEnd: employee.probationEnd || "", contractEnd: employee.contractEnd || "", workMode: employee.workMode || "" },
     form.date,
     ORDER_KINDS.find((item) => item.id === kind)?.leaveCode,
   );
@@ -725,7 +753,7 @@ export function OrderMaker({ employee, notify, editing, onSaved, prefill, initia
           <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
         </Field>
         {(ORDER_KINDS.find((item) => item.id === kind)?.fields || []).map((field) => (
-          <OrderFormField key={field} field={field} kind={kind} form={form} salaryType={employee.salaryType} set={set} />
+          <OrderFormField key={field} field={field} kind={kind} form={form} salaryType={employee.salaryType} set={set} structure={structure} />
         ))}
       </div>
       <h4>İmzalayanlar (növbə ilə: əvvəl şöbə rəhbəri, sonra direktor)</h4>
