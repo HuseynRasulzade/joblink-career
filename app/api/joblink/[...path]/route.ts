@@ -12212,7 +12212,7 @@ async function route(request: Request) {
       branches: ctx.branches,
       rules: ctx.rules,
       sales: ctx.sales.map((x) => ({ ...x, reached: x.target > 0 && x.sales >= x.target })),
-      links: ctx.links.filter((l) => byId.has(l.employeeId)).map((l) => ({ ...l, name: byId.get(l.employeeId)?.name || "", position: byId.get(l.employeeId)?.position || "", department: byId.get(l.employeeId)?.department || "" })),
+      links: ctx.links.filter((l) => byId.has(l.employeeId)).map((l) => ({ ...l, name: byId.get(l.employeeId)?.name || "", position: byId.get(l.employeeId)?.position || "", department: l.department || byId.get(l.employeeId)?.department || "" })),
       employees: people.map((p) => ({ id: p.id, name: p.name, position: p.position, department: p.department })),
       // The staff table is where the structure comes from: branch → department → section → position.
       units: (await db.prepare("SELECT branch,department,section,position,planned FROM staff_units WHERE company_id=? ORDER BY branch,department,section,position").bind(id).all<{ branch: string; department: string; section: string; position: string; planned: number }>().catch(() => ({ results: [] as { branch: string; department: string; section: string; position: string; planned: number }[] }))).results,
