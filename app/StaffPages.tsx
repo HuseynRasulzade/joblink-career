@@ -2576,6 +2576,8 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
   const [data, setData] = useState<StructureData | null>(null);
   const [department, setDepartment] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  // Branch → department → section → position, read from the staff table rows (the branch names come from there too).
+  const [units, setUnits] = useState<{ branch: string; department: string; section: string; position: string }[]>([]);
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -2584,6 +2586,9 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
     request<StructureData>("company/structure")
       .then(setData)
       .catch((error) => notifyRef.current((error as Error).message));
+    request<{ units: { branch: string; department: string; section: string; position: string }[] }>("company/staff/structure")
+      .then((r) => setUnits(r.units || []))
+      .catch(() => setUnits([]));
   }, []);
   useEffect(load, [load]);
   async function add() {
@@ -2622,6 +2627,20 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
       .catch((error) => notify((error as Error).message));
   }
   if (!data) return null;
+  const hasBranches = units.some((u) => u.branch);
+  const tree = (() => {
+    const out = new Map<string, Map<string, Map<string, Set<string>>>>();
+    for (const u of units) {
+      const b = out.get(u.branch || "") || new Map<string, Map<string, Set<string>>>();
+      const d = b.get(u.department || "—") || new Map<string, Set<string>>();
+      const sec = d.get(u.section || "") || new Set<string>();
+      if (u.position) sec.add(u.position);
+      d.set(u.section || "", sec);
+      b.set(u.department || "—", d);
+      out.set(u.branch || "", b);
+    }
+    return [...out.entries()].sort(([a], [b]) => (a && !b ? -1 : !a && b ? 1 : a.localeCompare(b, "az")));
+  })();
   return (
     <div className="structure-panel">
       <div className="admin-actions staff-toolbar">
@@ -2643,6 +2662,7 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
         <table className="admin-table">
           <thead>
             <tr>
+              {hasBranches && <th>Filial</th>}
               <th>Departament</th>
               <th>Şöbələr</th>
               <th>Ştat sətri</th>
@@ -2653,6 +2673,7 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
           <tbody>
             {data.departments.map((d) => (
               <tr key={d.name}>
+                {hasBranches && <td>{[...new Set(units.filter((u) => u.department.toLocaleLowerCase("az") === d.name.toLocaleLowerCase("az") && u.branch).map((u) => u.branch))].join(", ") || <span className="muted">—</span>}</td>}
                 <td>
                   <b>{d.name}</b>
                 </td>
@@ -2685,6 +2706,34 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
           </tbody>
         </table>
       </div>
+      {hasBranches && (
+        <div className="branch-tree">
+          <h4>Filial → departament → şöbə → vəzifə</h4>
+          <p className="muted">Filialların adları ştat cədvəlindəki sətirlərdən avtomatik gəlir; burada onların departamentləri, şöbələri və vəzifələri görünür.</p>
+          {tree.map(([branch, departments]) => (
+            <details key={branch || "—"} open>
+              <summary>
+                <b>{branch || "Şirkət (filialsız)"}</b>
+              </summary>
+              <ul>
+                {[...departments.entries()].map(([department, sections]) => (
+                  <li key={department}>
+                    <b>{department}</b>
+                    <ul>
+                      {[...sections.entries()].map(([section, positions]) => (
+                        <li key={section || "—"}>
+                          {section ? <>Şöbə: <b>{section}</b></> : <span className="muted">Şöbəsiz</span>}
+                          {positions.size > 0 && <span className="muted"> — {[...positions].join(", ")}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ))}
+        </div>
+      )}
       {!!data.looseSections.length && (
         <p className="muted">
           Departamentə bağlanmamış şöbə adları: {data.looseSections.map((s) => s.name).join(", ")}. Bunlar ştat sətri və ya işçi kartında istifadə olunanda departamentə bağlanır.

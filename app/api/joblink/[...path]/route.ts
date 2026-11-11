@@ -15735,6 +15735,12 @@ async function route(request: Request) {
       rows = structure.departments.flatMap((d) =>
         d.sections.length ? d.sections.map((sec) => [d.name, sec.name, sec.units, sec.people]) : [[d.name, "", d.units, d.people]],
       );
+      // With branches the file follows the same tree as the screen: branch → department → section → position.
+      const branchRows = await db.prepare("SELECT branch,department,section,position,planned FROM staff_units WHERE company_id=? ORDER BY branch,department,section,position").bind(id).all<{ branch: string; department: string; section: string; position: string; planned: number }>().catch(() => ({ results: [] as { branch: string; department: string; section: string; position: string; planned: number }[] }));
+      if (branchRows.results.some((r) => r.branch)) {
+        headers = ["Filial", "Departament", "Şöbə", "Vəzifə", "Ştat sayı"];
+        rows = branchRows.results.map((r) => [r.branch, r.department, r.section, r.position, r.planned]);
+      }
     } else if (kind === "employees") {
       const showSalary = can(memberRole, "salaries");
       const result = await db
