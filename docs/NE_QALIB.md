@@ -135,4 +135,13 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **İşçi kartında:** «Filiallar» bölməsi: işçini bir neçə filiala bağlamaq, hər biri üçün filialın ştatından departament, şöbə və vəzifə seçmək. Departament, şöbə və vəzifə siyahıları artıq ştat cədvəlindən gəlir (kartda yeni ad yaradılmır).
 - **Ştat sayı filiala görə:** filialın ştat sətri yalnız həmin filialda işləyənləri sayır.
 - **Təşkilat sxemi:** «Filial» seçimi ilə bir filialın ağacı çəkilir (şirkət › filial › departament › şöbə › işçi).
-- **Məhdudiyyət:** vakansiya yoxlaması (ştatda yer, maaş həddi) filialı hələ bilmir: vakansiya departament və vəzifə üzrə yoxlanır.
+- **Vakansiya yoxlaması filialı bilir:** vakansiyada «Filial» seçilir, ştatda yer, departament və vəzifə həmin filialın sətirlərinə görə yoxlanır; ştatda olmayan filial rədd edilir.
+
+## 13. Vəzifə, maaş, departament, şöbə və filial dəyişikliyi (2026-11-11)
+
+- **Harada:** Kadr rejimi → «Kadr hadisəsi» (və ya işçinin əmrləri) → «Başqa vəzifəyə, departamentə, şöbəyə və ya filiala keçirmə» əmri; maaş artımı/azalması üçün «Əmək haqqının dəyişdirilməsi» əmri. Hər ikisində tarix yazılır (keçmiş, bu gün və ya gələcək).
+- **Əmr imzalananda kart özü dəyişir:** vəzifə, departament, şöbə, maaş (maaş tarixçəsinə sətir düşür), filial (köhnə filial bağlantısı həmin tarixdən bir gün əvvəl bitir, yenisi həmin gündən başlayır). Kartın tarixçəsində hər dəyişiklik görünür. Gələcək tarixli dəyişiklik həmin gün çatanda tətbiq olunur. «Geri qaytar» düyməsi hamısını (filial bağlantıları daxil) əvvəlki vəziyyətə qaytarır.
+- **Ad və şöbə siyahıları ştat cədvəlindən gəlir.** Ştatda olmayan filial seçilsə dəyişiklik tətbiq olunmur, səbəbi əmrin yanında yazılır.
+- **Maaşın filiallara bölünməsi ay ərzində keçiddə:** məsələn ayda 20 iş günü var, işçi 15 gün A filialında, 5 gün B filialında işləyib: maaş (gross, xalis, işəgötürən xərci) 75% / 25% bölünür. Gün sayı istehsalat təqviminə görə (bayram və istirahət günləri çıxılır). Əl ilə pay % yazılıbsa o üstün olur. Maaş artımı ay ortasında olarsa, mövcud qaydada aylıq maaş iş günlərinə görə orta götürülür.
+- **Excel:** hesablama iş kitabının «İşçi-filial» vərəqində Başlama/Bitmə tarixləri və yeni «Filialda iş günü» sütunu var; «Pay (hesablanan)» formulu bu günlərə görə bölür (LibreOffice-də platforma ilə eyni nəticə verir). Maaş dəyişikliyi sütunları («Yeni maaş» + «Dəyişmə tarixi») əvvəlki kimi əmr kimi yüklənir.
+- **Hələ yoxdur:** Excel faylı ilə vəzifə/departament/şöbə/filial dəyişikliyi (yalnız maaş dəyişikliyi Excel-dən yüklənir); bonus filial dəyişəndə günə görə bölünmür (satış limitinə çatan filialın bonusu həmin filialda işlədiyi dövrə yox, aylıq maaşın payına görə hesablanır).
