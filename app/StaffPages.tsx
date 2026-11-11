@@ -2921,7 +2921,7 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
       const mine = units.filter((u) => u.branch === branch);
       const lines: StructureLine[] = uniq([...mine.map((u) => u.department), ...branchDepartments.filter((x) => x.branch === branch).map((x) => x.department)]).map((department) => {
         const rows = mine.filter((u) => u.department === department);
-        return { branch, department, sections: uniq(rows.map((u) => u.section)), positions: uniq(rows.map((u) => u.position)), units: rows.length, people: people.filter((x) => x.branch === branch && az(x.department) === az(department)).length, catalog: false };
+        return { branch, department, sections: uniq([...rows.map((u) => u.section), ...(data.departments.find((d) => az(d.name) === az(department))?.sections.map((x) => x.name) || [])]), positions: uniq(rows.map((u) => u.position)), units: rows.length, people: people.filter((x) => x.branch === branch && az(x.department) === az(department)).length, catalog: false };
       });
       return { branch, lines };
     });
