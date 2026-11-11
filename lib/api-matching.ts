@@ -7,6 +7,7 @@ import { MATCHING_KEY, normalizeMatching, ratingHash, type MatchingSettings } fr
 import { certificationDisplayName } from "./certification-catalog";
 import { addMonthsIso } from "./company";
 import { seedOnboardingTasks } from "./onboarding";
+import { resolveStaffPlace } from "./staff-place.ts";
 // AI vacancy ratings (one per candidate and vacancy, reused until the CV or vacancy changes) and the
 // move of a hired candidate into the employees list.
 // ---- AI vacancy ratings: one per candidate and vacancy, reused until the CV or vacancy changes ----
@@ -122,6 +123,13 @@ export async function addHiredEmployee(db: D1Database, applicationId: string) {
     const offer = row.offer ? (JSON.parse(row.offer) as { position?: string; salary?: number; startDate?: string; salaryPeriod?: string; probationMonths?: number }) : null;
     const now = new Date().toISOString();
     const employeeId = crypto.randomUUID();
+    // The place of the staff table the vacancy was opened for goes onto the card; what the vacancy lacks is filled from the table.
+    const planUnits = await db
+      .prepare("SELECT branch,department,section,position FROM staff_units WHERE company_id=?")
+      .bind(row.owner)
+      .all<{ branch: string; department: string; section: string; position: string }>()
+      .catch(() => ({ results: [] as { branch: string; department: string; section: string; position: string }[] }));
+    const place = resolveStaffPlace(planUnits.results, { branch: job.branch, department: job.department, section: job.section, position: offer?.position || job.title });
     const startDate = offer?.startDate || now.slice(0, 10);
     const probationMonths = Math.max(0, Math.min(6, Math.round(Number(offer?.probationMonths) || 0)));
     const probationEnd = probationMonths ? addMonthsIso(startDate, probationMonths) : "";
@@ -130,7 +138,7 @@ export async function addHiredEmployee(db: D1Database, applicationId: string) {
       db.prepare(`INSERT INTO company_employees(id,company_id,name,position,department,section,email,phone,start_date,salary_cents,salary_type,status,source,application_id,job_id,user_id,created,updated)
           VALUES(?,?,?,?,?,?,?,?,?,?,?,'active','hired',?,?,?,?,?)`)
         // The pay stays as the offer named it (net or gross), and the department of the vacancy puts the person in the staff table.
-        .bind(employeeId, row.owner, profile.name, offer?.position || job.title, job.department || "", job.section || "", profile.email || "", profile.phone || "",
+        .bind(employeeId, row.owner, profile.name, place.position || offer?.position || job.title, place.department, place.section, profile.email || "", profile.phone || "",
           startDate, Math.round((offer?.salary || 0) * 100), offer?.salaryPeriod === "gross" ? "gross" : offer ? "net" : "gross", applicationId, row.job_id, row.candidate_id || "", now, now),
       db.prepare("INSERT INTO employee_events(id,company_id,employee_id,type,from_value,to_value,note,actor_id,event_date,created) VALUES(?,?,?,?,?,?,?,?,?,?)")
         .bind(crypto.randomUUID(), row.owner, employeeId, "hired", "", "", "joblink", "", startDate, now),
@@ -138,6 +146,19 @@ export async function addHiredEmployee(db: D1Database, applicationId: string) {
       // The probation period promised in the offer becomes the employee's probation end (reminded before it ends).
       if (probationEnd) await db.prepare("UPDATE company_employees SET probation_end=? WHERE id=?").bind(probationEnd, employeeId).run().catch(() => {});
       await seedOnboardingTasks(db, row.owner, employeeId, startDate).catch(() => {});
+      // The branch of the place: the person works in it, with the department, section and position of the row.
+      if (place.branch) {
+        const branches = await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(row.owner).all<{ id: string; name: string }>();
+        const wanted = place.branch.toLocaleLowerCase("az");
+        const branch = branches.results.find((b) => b.name.trim().toLocaleLowerCase("az") === wanted);
+        if (branch) {
+          await db
+            .prepare("INSERT INTO employee_branches(company_id,employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date,department,section) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,branch_id) DO NOTHING")
+            .bind(row.owner, employeeId, branch.id, place.position || offer?.position || job.title, 0, 1, startDate, "", place.department, place.section)
+            .run()
+            .catch(() => {});
+        }
+      }
     } catch {
       // Before migration 0022 the employee is saved without the vacancy link and history.
       await db

@@ -2590,6 +2590,8 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | "link" | "hrdocs" | "salaryhist" | null>(null);
   const { names: orgNames, remember: rememberOrg } = useOrgNames();
   // The staff table gives the departments, sections and positions; the card chooses from them (nothing new is invented on the card).
+  // On an existing card the place (position, department, section, branch) comes from the vacancy / staff table; it is changed only in the correction block.
+  const [fixingId, setFixingId] = useState("");
   const [structure, setStructure] = useState<{ branch: string; department: string; section: string; position: string }[]>([]);
   useEffect(() => {
     request<{ units: { branch: string; department: string; section: string; position: string }[] }>("company/staff/structure").then((d) => setStructure(d.units)).catch(() => setStructure([]));
@@ -2885,10 +2887,26 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   }
                 />
               </Field>
+              {editing.id && fixingId !== editing.id ? (
+                <div className="panel" style={{ gridColumn: "1 / -1", display: "grid", gap: 6 }}>
+                  <b>Struktur (ştat cədvəlindən avtomatik gəlir)</b>
+                  <span>
+                    Vəzifə: <b>{editing.position || "—"}</b> · Departament: <b>{editing.department || "—"}</b> · Şöbə: <b>{editing.section || "—"}</b>
+                  </span>
+                  <EmployeeBranches employeeId={editing.id} notify={notify} readOnly />
+                  <div className="admin-actions" style={{ justifyContent: "flex-start" }}>
+                    <button type="button" className="secondary" onClick={() => setFixingId(editing.id || "")}>Düzəliş et</button>
+                  </div>
+                  <small className="muted">Vakansiya ştat cədvəlinə uyğun açılıbsa, işə qəbul zamanı bu məlumatlar kartda özü yazılır. Yalnız səhv olanı «Düzəliş et» ilə dəyişin.</small>
+                </div>
+              ) : (
+                <>
               <OrgNameInput label="Vəzifə" kind="position" names={orgNames} onAdded={rememberOrg} fixedList={structure.length ? uniqueSorted(structure.filter((u) => !editing.department || u.department === editing.department).filter((u) => !editing.section || u.section === editing.section).map((u) => u.position)) : undefined} value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
               <OrgNameInput label="Departament" kind="department" names={orgNames} onAdded={rememberOrg} fixedList={structure.length ? uniqueSorted(structure.map((u) => u.department)) : undefined} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
               <OrgNameInput label="Şöbə" kind="section" names={orgNames} onAdded={rememberOrg} department={editing.department || ""} fixedList={structure.length ? uniqueSorted(structure.filter((u) => u.department === editing.department).map((u) => u.section)) : undefined} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
               {editing.id && <div style={{ gridColumn: "1 / -1" }}><EmployeeBranches employeeId={editing.id} notify={notify} /></div>}
+                </>
+              )}
               <Field label="İşə başlama">
                 <input
                   type="date"
