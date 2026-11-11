@@ -2155,6 +2155,12 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
     }
     window.location.hash = "hr-ai";
   }
+  // The branches made in «Departament və şöbələr» are offered here too (the rows with a branch are always in the list).
+  const [madeBranches, setMadeBranches] = useState<string[]>([]);
+  const rowCount = data?.rows.length ?? -1;
+  useEffect(() => {
+    request<{ branches?: { name: string }[] }>("company/staff/structure").then((r) => setMadeBranches((r.branches || []).map((b) => b.name))).catch(() => setMadeBranches([]));
+  }, [rowCount]);
   if (!data) return null;
   const needle = query.toLocaleLowerCase("az").trim();
   const match = (row: { department: string; section: string; position: string }) => !needle || `${row.department} ${row.section} ${row.position}`.toLocaleLowerCase("az").includes(needle);
@@ -2163,11 +2169,6 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
   const state = data.planStatus || "draft";
   // With branches the table is grouped branch → department; without them it stays as it was (department → section → position).
   const hasBranches = data.rows.some((r) => r.branch);
-  // The branches made in «Departament və şöbələr» are offered here too (the rows with a branch are always in the list).
-  const [madeBranches, setMadeBranches] = useState<string[]>([]);
-  useEffect(() => {
-    request<{ branches?: { name: string }[] }>("company/staff/structure").then((r) => setMadeBranches((r.branches || []).map((b) => b.name))).catch(() => setMadeBranches([]));
-  }, [data.rows.length]);
   const branchNames = [...new Set([...data.rows.map((r) => r.branch || ""), ...madeBranches].filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
   type Group = StaffDepartment & { branch: string | null };
   const departments: Group[] = hasBranches
