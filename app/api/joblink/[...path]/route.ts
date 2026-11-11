@@ -418,6 +418,8 @@ import { DEFAULT_CLOCK, bakuNow, earlyLeaveMinutes, hoursFromClock, lateMinutes,
 import { vacationDaysBetween } from "@/lib/hr-calc";
 import { BENEFIT_CAP_FACTOR, BENEFIT_MIN_INSURANCE_MONTHS, MATERNITY_BENEFIT_PERCENT, SICK_BENEFIT_PERCENT, averageMonthlyForLeave, unusedLeaveCompensation } from "@/lib/hr-calc";
 import { checkVacancyAgainstPlan } from "@/lib/vacancy-plan";
+import { bonusesOf, linkActiveIn, normalizeMode, sharesOf, splitAmount, type AllocationMode, type Branch, type BranchLink, type BranchRule, type BranchSales } from "@/lib/branches";
+import { parseBranchSheets } from "@/lib/branches-excel";
 import { categoryLabel as expenseCategoryLabel, integrationSetting, logIntegration, orderExpense, pushWebhook, recordPaid, setIntegrationSetting, ORDER_COLUMNS as EXPENSE_ORDER_COLUMNS } from "@/lib/expense-ops";
 import { generateApiKey, hashApiKey, keyPrefix, safeWebhookUrl, type OrderRow } from "@/lib/integration";
 import { parsePlanFactSheets } from "@/lib/plan-fact-excel";
@@ -9315,6 +9317,25 @@ async function route(request: Request) {
     }
     return shared.gross!;
   };
+  // Branches of the company for a month: who works where, the rule and the sales of each branch. Defined before the payroll rows,
+  // which take the bonus and the share of every branch from it.
+  type BranchCtx = { branches: Branch[]; links: BranchLink[]; rules: BranchRule[]; sales: BranchSales[]; mode: AllocationMode };
+  const branchContext = async (monthRaw: string): Promise<BranchCtx> => {
+    const [b, l, r, sl, m] = await Promise.all([
+      db.prepare("SELECT id,name,code,city,active FROM branches WHERE company_id=? ORDER BY name").bind(id).all<{ id: string; name: string; code: string; city: string; active: number }>().catch(() => ({ results: [] as { id: string; name: string; code: string; city: string; active: number }[] })),
+      db.prepare("SELECT employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date FROM employee_branches WHERE company_id=?").bind(id).all<{ employee_id: string; branch_id: string; role: string; share_pct: number; bonus_eligible: number; from_date: string; to_date: string }>().catch(() => ({ results: [] as { employee_id: string; branch_id: string; role: string; share_pct: number; bonus_eligible: number; from_date: string; to_date: string }[] })),
+      db.prepare("SELECT branch_id,kind,value,active FROM branch_bonus_rules WHERE company_id=?").bind(id).all<{ branch_id: string; kind: string; value: number; active: number }>().catch(() => ({ results: [] as { branch_id: string; kind: string; value: number; active: number }[] })),
+      db.prepare("SELECT branch_id,month,target,sales FROM branch_sales WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ branch_id: string; month: string; target: number; sales: number }>().catch(() => ({ results: [] as { branch_id: string; month: string; target: number; sales: number }[] })),
+      db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key='branch_alloc_mode'").bind(id).first<{ value: string }>().catch(() => null),
+    ]);
+    return {
+      branches: b.results.map((x) => ({ id: x.id, name: x.name, code: x.code, city: x.city, active: !!x.active })),
+      links: l.results.map((x) => ({ employeeId: x.employee_id, branchId: x.branch_id, role: x.role, sharePct: x.share_pct, bonusEligible: !!x.bonus_eligible, from: x.from_date, to: x.to_date })),
+      rules: r.results.map((x) => ({ branchId: x.branch_id, kind: x.kind === "salary_percent" ? "salary_percent" : "fixed", value: x.value, active: !!x.active })),
+      sales: sl.results.map((x) => ({ branchId: x.branch_id, month: x.month, target: x.target, sales: x.sales })),
+      mode: normalizeMode(m?.value),
+    };
+  };
   const payrollRows = async (monthRaw: string, shared: PayrollShared = {}) => {
     const year = Number(monthRaw.slice(0, 4));
     const month = Number(monthRaw.slice(5, 7));
@@ -9407,6 +9428,9 @@ async function route(request: Request) {
     const frozen: { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] } | null = run?.status === "approved" && run.snapshot ? (() => { try { return JSON.parse(run.snapshot); } catch { return null; } })() : null;
     const sectionFor = await staffSections();
     const profiles = await revealAll(people.results);
+    const bctx = await branchContext(monthRaw);
+    const branchName = new Map(bctx.branches.map((x) => [x.id, x.name]));
+    const activeBranch = new Set(bctx.branches.filter((x) => x.active).map((x) => x.id));
     // The gross pay of the last approved month, to point out a sudden change.
     const previousMonth = new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
     const previousGross = new Map<string, number>();
@@ -9437,6 +9461,11 @@ async function route(request: Request) {
         if (mean > 0 && pay) pay = { ...pay, gross: Math.round(mean * 100) / 100 };
         else if (mean > 0) pay = payOf(Math.round(mean * 100), "gross");
       }
+      // The branches the employee works in this month: his pay is shared between them, and a branch that reached its sales limit gives a bonus.
+      const myLinks = bctx.links.filter((l) => l.employeeId === p.id && activeBranch.has(l.branchId) && linkActiveIn(l, monthRaw));
+      const branchShares = sharesOf(myLinks, bctx.mode, (branchId) => bctx.sales.find((x) => x.branchId === branchId)?.sales || 0);
+      const branchBonus = bonusesOf({ links: myLinks, shares: branchShares, grossSalary: pay?.gross || 0, rules: bctx.rules, sales: bctx.sales, nameOf: (branchId) => branchName.get(branchId) || "" });
+      const branchBonusTotal = Math.round(branchBonus.reduce((t, x) => t + x.amount, 0) * 100) / 100;
       const marksOf = markBy.get(p.id) || new Map<string, string>();
       const statuses: DayStatus[] = working.map((d) => ((p.start_date && d.date < p.start_date) || (p.status === "left" && p.end_date && d.date > p.end_date) ? "outside" : dayStatus(marksOf.get(d.date) || "")));
       const mine = payments.results.filter((x) => x.employee_id === p.id);
@@ -9500,7 +9529,7 @@ async function route(request: Request) {
       const base = { monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: (() => {
           const merged = withStanding(inputsOf, p.id);
           // The hours come only from Saat uçotu; the night supplement is a term of the contract, kept on the employee card.
-          return { ...merged, overtimeHours: hoursAuto.overtime, restDayHours: hoursAuto.restDay, nightHours: hoursAuto.night, nightPercent: Number(profile.nightPercent) || merged.nightPercent };
+          return { ...merged, bonus: Math.round((merged.bonus + branchBonusTotal) * 100) / 100, overtimeHours: hoursAuto.overtime, restDayHours: hoursAuto.restDay, nightHours: hoursAuto.night, nightPercent: Number(profile.nightPercent) || merged.nightPercent };
         })(), annual, insured, leaveCompensation };
       const result = frozen?.rows?.find((r) => r.employeeId === p.id)?.result || computePay({ ...base, advances });
       const upTo = month === Number(todayIso.slice(5, 7)) && year === Number(todayIso.slice(0, 4)) ? behind : todayIso > `${monthRaw}-31` ? statuses.length : 0;
@@ -9540,6 +9569,9 @@ async function route(request: Request) {
         annual: annualInfo,
         warnings: [...payWarnings({ gross: pay?.gross || 0, weekHours: week.hours, workedAll: result.workedDays + result.paidLeaveDays >= result.normDays && result.normDays > 0, hasIban: !!profile.iban || !!profile.cardNumber, cashPay: profile.payMethod === "cash", advanceExcess: result.advanceExcess, earned: result.gross, previousEarned: previousGross.get(p.id) }), ...(result.benefitCalendarDays > 0 && !inputsOf.benefitDoc ? ["Xəstəlik/analıq günləri var, e-bülleten nömrəsi yazılmayıb (əlavələr və tutulmalar pəncərəsində)."] : [])],
         inputs: inputsOf,
+        branches: myLinks.map((l) => ({ branchId: l.branchId, name: branchName.get(l.branchId) || "", role: l.role, share: Math.round((branchShares.get(l.branchId) || 0) * 10000) / 10000 })),
+        branchBonuses: branchBonus.map((x) => ({ branchId: x.branchId, label: x.label, amount: x.amount })),
+        branchBonusTotal,
         hours: hoursAuto,
         hoursSource: chosen.source,
         nightPercent: Number(profile.nightPercent) || inputsOf.nightPercent || 0,
@@ -12042,6 +12074,232 @@ async function route(request: Request) {
     await db.prepare("DELETE FROM hr_expenses WHERE id=? AND company_id=?").bind(expenseId, id).run();
     await companyAudit(db, id, userId, "hr-expense-deleted", expenseId, row.title);
     return ok({ ok: true });
+  }
+  // ---- Branches: where each employee works, the sales limit and bonus rule of each branch ----
+  const monthOf = (value: string | null) => (/^\d{4}-(0[1-9]|1[0-2])$/.test(String(value || "")) ? String(value) : new Date().toISOString().slice(0, 7));
+  const monthApproved = async (month: string) => (await db.prepare("SELECT status FROM payroll_runs WHERE company_id=? AND month=?").bind(id, month).first<{ status: string }>().catch(() => null))?.status === "approved";
+  if (request.method === "GET" && path === "company/branches") {
+    requirePermission("salaries", "Filialları yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    const month = monthOf(requestUrl.searchParams.get("month"));
+    const ctx = await branchContext(month);
+    const people = (await db.prepare("SELECT id,name,position,department,status FROM company_employees WHERE company_id=? AND status IN ('active','leave') ORDER BY name").bind(id).all<{ id: string; name: string; position: string; department: string; status: string }>()).results;
+    const byId = new Map(people.map((p) => [p.id, p]));
+    return ok({
+      month,
+      locked: await monthApproved(month),
+      mode: ctx.mode,
+      branches: ctx.branches,
+      rules: ctx.rules,
+      sales: ctx.sales.map((x) => ({ ...x, reached: x.target > 0 && x.sales >= x.target })),
+      links: ctx.links.filter((l) => byId.has(l.employeeId)).map((l) => ({ ...l, name: byId.get(l.employeeId)?.name || "", position: byId.get(l.employeeId)?.position || "", department: byId.get(l.employeeId)?.department || "" })),
+      employees: people.map((p) => ({ id: p.id, name: p.name, position: p.position, department: p.department })),
+    });
+  }
+  if (request.method === "POST" && path === "company/branches/save") {
+    requirePermission("salaries", "Filialı yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
+    const b = await jsonBody(request);
+    const name = str(b.name, 120).trim();
+    if (!name) throw new HttpError(400, "Filialın adını yazın.");
+    const branchId = str(b.id, 100);
+    const clash = await db.prepare("SELECT id FROM branches WHERE company_id=? AND lower(name)=lower(?) AND id<>?").bind(id, name, branchId).first();
+    if (clash) throw new HttpError(409, "Bu adda filial artıq var.");
+    const row = [name, str(b.code, 40).trim(), str(b.city, 120).trim(), b.active === false ? 0 : 1] as const;
+    if (branchId) {
+      const r = await db.prepare("UPDATE branches SET name=?,code=?,city=?,active=? WHERE id=? AND company_id=?").bind(...row, branchId, id).run();
+      if (!r.meta.changes) throw new HttpError(404, "Filial tapılmadı.");
+      await companyAudit(db, id, userId, "branch", branchId, name);
+      return ok({ ok: true, id: branchId });
+    }
+    const count = await db.prepare("SELECT COUNT(*) AS n FROM branches WHERE company_id=?").bind(id).first<{ n: number }>();
+    if (Number(count?.n) >= 200) throw new HttpError(409, "Ən çox 200 filial ola bilər.");
+    const created = crypto.randomUUID();
+    await db.prepare("INSERT INTO branches(id,company_id,name,code,city,active,created) VALUES(?,?,?,?,?,?,?)").bind(created, id, ...row, new Date().toISOString()).run();
+    await companyAudit(db, id, userId, "branch", created, name);
+    return ok({ ok: true, id: created });
+  }
+  if (request.method === "POST" && path === "company/branches/delete") {
+    requirePermission("salaries", "Filialı yalnız əmək haqqı icazəsi olan şəxs silə bilər.");
+    const b = await jsonBody(request);
+    const branchId = str(b.id, 100);
+    const used = await db.prepare("SELECT COUNT(*) AS n FROM employee_branches WHERE company_id=? AND branch_id=?").bind(id, branchId).first<{ n: number }>();
+    if (Number(used?.n)) throw new HttpError(409, `Bu filialda ${used?.n} işçi bağlıdır. Əvvəl onların filial bağlantısını silin (və ya filialı passiv edin).`);
+    await db.batch([
+      db.prepare("DELETE FROM branch_sales WHERE company_id=? AND branch_id=?").bind(id, branchId),
+      db.prepare("DELETE FROM branch_bonus_rules WHERE company_id=? AND branch_id=?").bind(id, branchId),
+      db.prepare("DELETE FROM branches WHERE company_id=? AND id=?").bind(id, branchId),
+    ]);
+    await companyAudit(db, id, userId, "branch-deleted", branchId, "");
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/branches/link") {
+    requirePermission("salaries", "Filial bağlantısını yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
+    const b = await jsonBody(request);
+    const employeeId = str(b.employeeId, 100);
+    const branchId = str(b.branchId, 100);
+    if (!(await db.prepare("SELECT 1 AS x FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(employeeId, id).first())) throw new HttpError(404, "İşçi tapılmadı.");
+    if (!(await db.prepare("SELECT 1 AS x FROM branches WHERE id=? AND company_id=?").bind(branchId, id).first())) throw new HttpError(404, "Filial tapılmadı.");
+    const pct = b.sharePct === undefined || b.sharePct === null || b.sharePct === "" ? 0 : Number(b.sharePct);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) throw new HttpError(400, "Pay faizi 0–100 arası olmalıdır (boş = rejimə görə).");
+    const from = str(b.from, 10);
+    const to = str(b.to, 10);
+    for (const d of [from, to]) if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new HttpError(400, "Tarix düzgün deyil.");
+    if (from && to && to < from) throw new HttpError(400, "Bitmə tarixi başlamadan əvvəl ola bilməz.");
+    await db.prepare("INSERT INTO employee_branches(company_id,employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,branch_id) DO UPDATE SET role=excluded.role,share_pct=excluded.share_pct,bonus_eligible=excluded.bonus_eligible,from_date=excluded.from_date,to_date=excluded.to_date").bind(id, employeeId, branchId, str(b.role, 120).trim(), Math.round(pct * 100) / 100, b.bonusEligible === false ? 0 : 1, from, to).run();
+    await companyAudit(db, id, userId, "branch-link", employeeId, branchId);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/branches/unlink") {
+    requirePermission("salaries", "Filial bağlantısını yalnız əmək haqqı icazəsi olan şəxs silə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM employee_branches WHERE company_id=? AND employee_id=? AND branch_id=?").bind(id, str(b.employeeId, 100), str(b.branchId, 100)).run();
+    await companyAudit(db, id, userId, "branch-unlink", str(b.employeeId, 100), str(b.branchId, 100));
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/branches/rule") {
+    requirePermission("salaries", "Bonus qaydasını yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
+    const b = await jsonBody(request);
+    const branchId = str(b.branchId, 100);
+    if (!(await db.prepare("SELECT 1 AS x FROM branches WHERE id=? AND company_id=?").bind(branchId, id).first())) throw new HttpError(404, "Filial tapılmadı.");
+    const kind = b.kind === "salary_percent" ? "salary_percent" : "fixed";
+    const value = Math.round((Number(b.value) || 0) * 100) / 100;
+    if (!(value >= 0) || value > (kind === "salary_percent" ? 1000 : 1e7)) throw new HttpError(400, "Bonus dəyəri düzgün deyil.");
+    await db.prepare("INSERT INTO branch_bonus_rules(company_id,branch_id,kind,value,active) VALUES(?,?,?,?,?) ON CONFLICT(branch_id) DO UPDATE SET kind=excluded.kind,value=excluded.value,active=excluded.active").bind(id, branchId, kind, value, b.active === false ? 0 : 1).run();
+    await companyAudit(db, id, userId, "branch-rule", branchId, `${kind} ${value}`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/branches/sales") {
+    requirePermission("salaries", "Satışı yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
+    const b = await jsonBody(request);
+    const month = str(b.month, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpError(400, "Ayı düzgün seçin.");
+    if (await monthApproved(month)) throw new HttpError(409, `${month} ayının əmək haqqı təsdiqlənib: satış və limit dəyişmir.`);
+    const list = (Array.isArray(b.rows) ? b.rows : []).slice(0, 500) as { branchId?: unknown; target?: unknown; sales?: unknown }[];
+    const known = new Set((await db.prepare("SELECT id FROM branches WHERE company_id=?").bind(id).all<{ id: string }>()).results.map((r) => r.id));
+    const now = new Date().toISOString();
+    const statements: D1PreparedStatement[] = [];
+    for (const r of list) {
+      const branchId = String(r.branchId ?? "");
+      const target = Math.round((Number(r.target) || 0) * 100) / 100;
+      const sales = Math.round((Number(r.sales) || 0) * 100) / 100;
+      if (!known.has(branchId)) throw new HttpError(404, "Filial tapılmadı.");
+      if (target < 0 || sales < 0 || target > 1e12 || sales > 1e12) throw new HttpError(400, "Satış və limit mənfi olmayan rəqəm olmalıdır.");
+      statements.push(db.prepare("INSERT INTO branch_sales(company_id,branch_id,month,target,sales,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(branch_id,month) DO UPDATE SET target=excluded.target,sales=excluded.sales,updated=excluded.updated").bind(id, branchId, month, target, sales, now));
+    }
+    if (!statements.length) throw new HttpError(400, "Satış yazılmayıb.");
+    await db.batch(statements);
+    await companyAudit(db, id, userId, "branch-sales", month, `${statements.length} filial`);
+    return ok({ ok: true });
+  }
+  if (request.method === "POST" && path === "company/branches/mode") {
+    requirePermission("salaries", "Bölgü rejimini yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    await db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, "branch_alloc_mode", normalizeMode(b.mode)).run();
+    await companyAudit(db, id, userId, "branch-mode", "", normalizeMode(b.mode));
+    return ok({ ok: true });
+  }
+  // The whole branch picture for Excel (the month's sales and rule of every branch, the links and the mode).
+  if (request.method === "GET" && path === "company/branches/export-data") {
+    requirePermission("salaries", "Filial məlumatını yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
+    const rows = (await db.prepare("SELECT id,name,profile FROM company_employees WHERE company_id=? AND status<>'removed'").bind(id).all<{ id: string; name: string; profile: string }>()).results;
+    const opened = await revealAll(rows);
+    const ctx = await branchContext("0000-00");
+    const allSales = (await db.prepare("SELECT branch_id,month,target,sales FROM branch_sales WHERE company_id=? ORDER BY month DESC LIMIT 600").bind(id).all<{ branch_id: string; month: string; target: number; sales: number }>().catch(() => ({ results: [] as { branch_id: string; month: string; target: number; sales: number }[] }))).results;
+    const nameOf = new Map(ctx.branches.map((x) => [x.id, x.name]));
+    const empOf = new Map(rows.map((r) => [r.id, r]));
+    return ok({
+      mode: ctx.mode,
+      branches: ctx.branches.map((x) => ({ name: x.name, code: x.code, city: x.city, active: x.active })),
+      links: ctx.links.filter((l) => empOf.has(l.employeeId)).map((l) => ({ fin: opened.get(l.employeeId)?.fin || "", name: empOf.get(l.employeeId)?.name || "", branch: nameOf.get(l.branchId) || "", role: l.role, sharePct: l.sharePct, bonusEligible: l.bonusEligible, from: l.from, to: l.to })),
+      sales: allSales.map((x) => { const rule = ctx.rules.find((r) => r.branchId === x.branch_id); return { month: x.month, branch: nameOf.get(x.branch_id) || "", target: x.target, sales: x.sales, kind: rule?.kind || "fixed", value: rule?.value || 0, active: rule ? rule.active : true }; }),
+    });
+  }
+  if (request.method === "POST" && path === "company/branches/import") {
+    requirePermission("salaries", "Filialları yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
+    const b = await jsonBody(request);
+    const sheets = (Array.isArray(b.sheets) ? b.sheets : []).slice(0, 10).map((sh: { name?: unknown; rows?: unknown }) => ({ name: String(sh?.name ?? ""), rows: (Array.isArray(sh?.rows) ? sh.rows : []).slice(0, 5001).map((r: unknown) => (Array.isArray(r) ? r.map((c) => String(c ?? "")) : [])) }));
+    const parsed = parseBranchSheets(sheets);
+    const issues = [...parsed.issues];
+    const apply = b.apply === true;
+    const known = new Map((await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results.map((r) => [plainFold(r.name), r.id]));
+    const created = new Map<string, string>();
+    for (const x of parsed.branches) if (!known.has(plainFold(x.name))) created.set(plainFold(x.name), crypto.randomUUID());
+    const branchIdOf = (name: string) => known.get(plainFold(name)) || created.get(plainFold(name)) || "";
+    const people = await employeeRefs();
+    const lockedMonths = new Map<string, boolean>();
+    const statements: D1PreparedStatement[] = [];
+    const now = new Date().toISOString();
+    let nLinks = 0;
+    let nSales = 0;
+    for (const x of parsed.branches) {
+      const existing = known.get(plainFold(x.name));
+      statements.push(existing
+        ? db.prepare("UPDATE branches SET code=?,city=?,active=? WHERE id=? AND company_id=?").bind(x.code, x.city, x.active ? 1 : 0, existing, id)
+        : db.prepare("INSERT INTO branches(id,company_id,name,code,city,active,created) VALUES(?,?,?,?,?,?,?)").bind(created.get(plainFold(x.name)), id, x.name, x.code, x.city, x.active ? 1 : 0, now));
+    }
+    for (const x of parsed.links) {
+      const branchId = branchIdOf(x.branch);
+      if (!branchId) {
+        issues.push({ sheet: "İşçi-filial", line: 0, reason: `${x.name || x.fin}: “${x.branch}” filialı yoxdur (Filiallar vərəqinə əlavə edin).` });
+        continue;
+      }
+      const found = matchEmployee(people, { name: x.name, email: "", fin: x.fin });
+      if ("error" in found) {
+        issues.push({ sheet: "İşçi-filial", line: 0, reason: found.error });
+        continue;
+      }
+      statements.push(db.prepare("INSERT INTO employee_branches(company_id,employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,branch_id) DO UPDATE SET role=excluded.role,share_pct=excluded.share_pct,bonus_eligible=excluded.bonus_eligible,from_date=excluded.from_date,to_date=excluded.to_date").bind(id, found.id, branchId, x.role, x.sharePct, x.bonusEligible ? 1 : 0, x.from, x.to));
+      nLinks++;
+    }
+    for (const x of parsed.sales) {
+      const branchId = branchIdOf(x.branch);
+      if (!branchId) {
+        issues.push({ sheet: "Satış və bonus", line: 0, reason: `“${x.branch}” filialı yoxdur.` });
+        continue;
+      }
+      if (!lockedMonths.has(x.month)) lockedMonths.set(x.month, await monthApproved(x.month));
+      if (lockedMonths.get(x.month)) {
+        issues.push({ sheet: "Satış və bonus", line: 0, reason: `${x.branch}: ${x.month} ayının əmək haqqı təsdiqlənib, satış dəyişmir.` });
+        continue;
+      }
+      statements.push(db.prepare("INSERT INTO branch_sales(company_id,branch_id,month,target,sales,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(branch_id,month) DO UPDATE SET target=excluded.target,sales=excluded.sales,updated=excluded.updated").bind(id, branchId, x.month, x.target, x.sales, now));
+      if (x.kind) statements.push(db.prepare("INSERT INTO branch_bonus_rules(company_id,branch_id,kind,value,active) VALUES(?,?,?,?,?) ON CONFLICT(branch_id) DO UPDATE SET kind=excluded.kind,value=excluded.value,active=excluded.active").bind(id, branchId, x.kind, x.value, x.active ? 1 : 0));
+      nSales++;
+    }
+    if (parsed.mode) statements.push(db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, "branch_alloc_mode", parsed.mode));
+    const summary = { branches: parsed.branches.length, newBranches: created.size, links: nLinks, sales: nSales, mode: parsed.mode, found: parsed.found };
+    if (!apply || !parsed.found.length) return ok({ applied: false, summary, issues });
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "branch-import", "", `${parsed.branches.length} filial, ${nLinks} bağlantı, ${nSales} satış`);
+    return ok({ applied: true, summary, issues });
+  }
+  // How the month's pay falls on the branches: the shares, the pay of each employee shared over his branches, and the bonuses earned.
+  if (request.method === "GET" && path === "company/payroll/branches") {
+    requirePermission("salaries", "Filial bölgüsünü yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    const { raw: monthRaw } = payrollMonth();
+    await auditView("view-payroll-branches", monthRaw);
+    const sheet = await payrollRows(monthRaw);
+    const ctx = await branchContext(monthRaw);
+    type Line = { employeeId: string; name: string; position: string; branchId: string; branch: string; role: string; share: number; gross: number; net: number; employerCost: number; bonus: number };
+    const lines: Line[] = [];
+    for (const r of sheet.rows) {
+      const mine = (r as unknown as { branches?: { branchId: string; name: string; role: string; share: number }[] }).branches || [];
+      const bonuses = (r as unknown as { branchBonuses?: { branchId: string; amount: number }[] }).branchBonuses || [];
+      if (!mine.length) continue;
+      const shares = new Map(mine.map((x) => [x.branchId, x.share]));
+      const gross = splitAmount(r.result.gross, shares);
+      const net = splitAmount(r.result.net, shares);
+      const cost = splitAmount(r.result.employerCost, shares);
+      for (const l of mine) lines.push({ employeeId: r.employeeId, name: r.name, position: r.position, branchId: l.branchId, branch: l.name, role: l.role, share: l.share, gross: gross.get(l.branchId) || 0, net: net.get(l.branchId) || 0, employerCost: cost.get(l.branchId) || 0, bonus: Math.round(bonuses.filter((x) => x.branchId === l.branchId).reduce((t, x) => t + x.amount, 0) * 100) / 100 });
+    }
+    const unassigned = sheet.rows.filter((r) => !((r as unknown as { branches?: unknown[] }).branches || []).length && r.result.gross > 0).map((r) => ({ employeeId: r.employeeId, name: r.name, gross: r.result.gross, net: r.result.net, employerCost: r.result.employerCost }));
+    const branches = ctx.branches.map((br) => {
+      const mine = lines.filter((l) => l.branchId === br.id);
+      const sales = ctx.sales.find((x) => x.branchId === br.id);
+      const rule = ctx.rules.find((x) => x.branchId === br.id);
+      const sum = (pick: (l: Line) => number) => Math.round(mine.reduce((t, l) => t + pick(l), 0) * 100) / 100;
+      return { id: br.id, name: br.name, active: br.active, people: mine.length, target: sales?.target || 0, sales: sales?.sales || 0, reached: !!sales && sales.target > 0 && sales.sales >= sales.target, rule: rule ? { kind: rule.kind, value: rule.value, active: rule.active } : null, gross: sum((l) => l.gross), net: sum((l) => l.net), employerCost: sum((l) => l.employerCost), bonus: sum((l) => l.bonus) };
+    });
+    return ok({ month: monthRaw, status: sheet.status, mode: ctx.mode, branches, lines, unassigned });
   }
   // ---- Outside programs (1C, SAP, any ERP): keys, the web address to tell, the log; the exchange itself is on /api/integration ----
   if (request.method === "GET" && path === "company/integrations") {

@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Download, Printer } from "lucide-react";
 import { Field, Modal } from "./components";
 import PayrollBank from "./PayrollBank";
 import PayrollReport from "./PayrollReport";
+import BranchAllocation from "./BranchAllocation";
 import { payslipHtml } from "@/lib/payslip-html";
 import { SheetImport } from "./StaffPages";
 import { WorkbookButtons, WorkbookImport } from "./PayrollWorkbook";
@@ -66,7 +67,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const [workbookImport, setWorkbookImport] = useState(false);
   const [accounts, setAccounts] = useState(false);
   const [benefits, setBenefits] = useState(false);
-  const [view, setView] = useState<"sheet" | "report" | "bank">("sheet");
+  const [view, setView] = useState<"sheet" | "report" | "bank" | "branches">("sheet");
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -108,6 +109,17 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <b>İşçilərlə hesablaşma hesabatı</b>
         </div>
         <PayrollReport initialMonth={month} notify={notify} />
+      </div>
+    );
+  if (view === "branches")
+    return (
+      <div className="company-page payroll-page">
+        <div className="admin-actions" style={{ justifyContent: "flex-start", alignItems: "center", gap: 12 }}>
+          <button type="button" className="secondary" onClick={() => setView("sheet")}>← Əmək haqqı cədvəli</button>
+          <b>Filiallar üzrə maaş bölgüsü və bonus</b>
+          <button type="button" className="secondary" onClick={() => { window.location.hash = "hr-branches"; }}>Filialları idarə et ↗</button>
+        </div>
+        <BranchAllocation initialMonth={month} notify={notify} />
       </div>
     );
   if (view === "bank")
@@ -164,6 +176,9 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           </button>
           <button type="button" className="secondary" onClick={() => setView("report")}>
             Hesablaşma hesabatı
+          </button>
+          <button type="button" className="secondary" onClick={() => setView("branches")}>
+            Filiallar üzrə bölgü
           </button>
           <button type="button" className="primary" onClick={() => setView("bank")}>
             Bank və ödəniş sənədləri

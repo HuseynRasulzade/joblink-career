@@ -750,6 +750,13 @@
       "when": 1800126000000,
       "tag": "0106_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "6",
+      "when": 1800212400000,
+      "tag": "0107_branches",
+      "breakpoints": true
     }
   ]
 }
