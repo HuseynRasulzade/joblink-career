@@ -12949,8 +12949,22 @@ async function route(request: Request) {
       const n = Number(benefitRows.find((x) => x.key === key)?.value);
       return Number.isFinite(n) && n >= 0 && n <= 100 && benefitRows.some((x) => x.key === key) ? n : fallback;
     };
+    // The branches of the month: limits, sales, rules and who works where (only links that count in this month).
+    const wbBranches = await branchContext(monthRaw);
+    const empByWb = new Map(sheet.rows.map((r) => [r.employeeId, r]));
     return ok({
       month: monthRaw,
+      branches: {
+        mode: wbBranches.mode,
+        branches: wbBranches.branches.map((b) => {
+          const sales = wbBranches.sales.find((x) => x.branchId === b.id);
+          const rule = wbBranches.rules.find((x) => x.branchId === b.id);
+          return { name: b.name, code: b.code, city: b.city, active: b.active, target: sales?.target || 0, sales: sales?.sales || 0, kind: rule?.kind || "fixed", value: rule?.value || 0, ruleActive: rule ? rule.active : true };
+        }),
+        links: wbBranches.links
+          .filter((l) => empByWb.has(l.employeeId) && linkActiveIn(l, monthRaw))
+          .map((l) => ({ name: empByWb.get(l.employeeId)?.name || "", fin: empByWb.get(l.employeeId)?.fin || "", branch: wbBranches.branches.find((b) => b.id === l.branchId)?.name || "", role: l.role, sharePct: l.sharePct, bonusEligible: l.bonusEligible, from: l.from, to: l.to })),
+      },
       days,
       employees: sheet.rows.map((r) => ({
         name: r.name,

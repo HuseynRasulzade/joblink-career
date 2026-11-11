@@ -12,6 +12,7 @@ import { DOMESTIC_NORMS, DOMESTIC_OTHER, lookupNorm } from "./trip-norms.ts";
 import { OTHER_DOMESTIC } from "./trip-places.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { excelDateSerial } from "./xlsx.ts";
+import { bonusesOf, sharesOf, type AllocationMode, type BranchLink, type BranchRule, type BranchSales } from "./branches.ts";
 
 export const WB = {
   guide: "Təlimat",
@@ -28,6 +29,8 @@ export const WB = {
   codes: "Kodlar",
   benefits: "Güzəştlər",
   helper: "Köməkçi",
+  branches: "Filiallar",
+  branchPeople: "İşçi-filial",
 } as const;
 
 export type WorkbookEmployee = {
@@ -50,8 +53,15 @@ export type WorkbookEmployee = {
   start: string;
   end: string;
 };
+// Branches in the workbook: each branch with its sales limit, sales and bonus rule, and who works in which of them.
+export type WorkbookBranches = {
+  mode: AllocationMode;
+  branches: { name: string; code: string; city: string; active: boolean; target: number; sales: number; kind: "fixed" | "salary_percent"; value: number; ruleActive: boolean }[];
+  links: { name: string; fin: string; branch: string; role: string; sharePct: number; bonusEligible: boolean; from: string; to: string }[];
+};
 export type WorkbookInput = {
   month: string;
+  branches?: WorkbookBranches;
   days: { date: string; off: "" | "weekend" | "holiday" | "transfer" | "company" }[];
   employees: WorkbookEmployee[];
   leaves: { name: string; code: string; from: string; to: string; note: string }[];
@@ -172,6 +182,28 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   const typeRow = `$${firstDay}$4:$${lastDay}$4`;
   const dateRow = `$${firstDay}$3:$${lastDay}$3`;
 
+  // ---- Branches: the layout of the two sheets and the values their formulas give ----
+  const BRI = input.branches;
+  const BR_FIRST = 5;
+  const BR_LAST = BR_FIRST + Math.max(30, (BRI?.branches.length || 0) + 20) - 1;
+  const LK_FIRST = 4;
+  const LK_LAST = LK_FIRST + Math.max(60, (BRI?.links.length || 0) + 40) - 1;
+  const FBR = (col: string) => `${q(WB.branches)}$${col}$${BR_FIRST}:$${col}$${BR_LAST}`;
+  const LKR = (col: string) => `${q(WB.branchPeople)}$${col}$${LK_FIRST}:$${col}$${LK_LAST}`;
+  const MODE_CELL = `${q(WB.branches)}$B$3`;
+  const MODE_TEXT = { equal: "Bərabər", sales: "Satışa görə" } as const;
+  // The share and the bonus of every link of one employee, the way the formulas give them (and the platform: lib/branches.ts).
+  const branchValues = (name: string, salary: number) => {
+    const activeBranches = new Map((BRI?.branches || []).filter((b) => b.active).map((b) => [b.name, b]));
+    const mine = (BRI?.links || []).filter((l) => l.name === name && activeBranches.has(l.branch));
+    const links: BranchLink[] = mine.map((l) => ({ employeeId: name, branchId: l.branch, role: l.role, sharePct: l.sharePct, bonusEligible: l.bonusEligible, from: "", to: "" }));
+    const sales: BranchSales[] = [...activeBranches.values()].map((b) => ({ branchId: b.name, month: input.month, target: b.target, sales: b.sales }));
+    const rules: BranchRule[] = [...activeBranches.values()].filter((b) => b.value > 0).map((b) => ({ branchId: b.name, kind: b.kind, value: b.value, active: b.ruleActive }));
+    const shares = sharesOf(links, BRI?.mode || "equal", (id) => activeBranches.get(id)?.sales || 0);
+    const bonuses = bonusesOf({ links, shares, grossSalary: salary, rules, sales, nameOf: (id) => id });
+    return { shares, bonusOf: (branch: string) => r2(bonuses.filter((b) => b.branchId === branch).reduce((t, b) => t + b.amount, 0)), total: r2(bonuses.reduce((t, b) => t + b.amount, 0)) };
+  };
+
   // ---- The values the formulas give (shown before the program recalculates; computePay is the platform's own function) ----
   type Calc = ReturnType<typeof computeEmployee>;
   const codeOn = (e: WorkbookEmployee, date: string, type: string): string => {
@@ -223,7 +255,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
       sector: e.sector,
       taxReduction: reduction,
       inputs: {
-        bonus: sum("Mükafat"),
+        bonus: r2(sum("Mükafat") + branchValues(e.name, salary).total),
         allowance: sum("Əlavə"),
         overtimeHours: hours?.overtime || 0,
         restDayHours: hours?.restDay || 0,
@@ -258,7 +290,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
       pay,
       line,
       allowance: sum("Əlavə"),
-      bonus: sum("Mükafat"),
+      bonus: r2(sum("Mükafat") + branchValues(e.name, salary).total),
       deducted: r2(mine.filter((a) => a.kind === "Tutulma").reduce((t, a) => t + a.amount, 0)),
       advance: sum("Avans"),
       trips: r2(input.trips.filter((t) => t.name === e.name && (tripNorm(t.destination) || t.daily)).reduce((s, t) => s + tripTotal(t) + t.other - t.advance, 0)),
@@ -716,7 +748,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
       f(`ROUND(${a("hour")}*${q(WB.hours)}D${ir},2)`, line("rest-day"), "money"),
       f(`ROUND(${a("hour")}*${st}J${ir}*${q(WB.hours)}E${ir}/100,2)`, line("night"), "money"),
       f(`ROUND(SUMIFS(${AD("E")},${AD("A")},$A${r},${AD("C")},"Əlavə"),2)`, c?.allowance ?? 0, "money"),
-      f(`ROUND(SUMIFS(${AD("E")},${AD("A")},$A${r},${AD("C")},"Mükafat"),2)`, c?.bonus ?? 0, "money"),
+      f(`ROUND(SUMIFS(${AD("E")},${AD("A")},$A${r},${AD("C")},"Mükafat")+SUMIFS(${LKR("M")},${LKR("B")},$A${r}),2)`, c?.bonus ?? 0, "money"),
       f(`ROUND(SUM(${L(H.payWorked)}${r}:${L(H.bonus)}${r}),2)`, pay?.gross ?? 0, "total"),
       f(taxBase, Math.max(0, (pay?.gross ?? 0) - (c?.reduction ?? 0)), "money"),
       f(`IF(${st}F${ir}="Dövlət",IF(${a("base")}<=${P("tier1")},${a("base")}*${P("pubRate1")},${P("pubBase")}+(${a("base")}-${P("tier1")})*${P("pubRate2")}),IF(${a("base")}<=${P("tier1")},MAX(0,${a("base")}-${P("taxFree")})*${P("rate1")},IF(${a("base")}<=${P("tier2")},${P("base2")}+(${a("base")}-${P("tier1")})*${P("rate2")},${P("base3")}+(${a("base")}-${P("tier2")})*${P("rate3")})))`, pay?.incomeTax ?? 0, "money"),
@@ -753,6 +785,97 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   calcRows.push(sums);
   const calcSheet: XlsxSheet = { name: WB.calc, headers: [], rows: calcRows, free: true, widths: [30, ...HEAD.slice(1).map(() => 13)], freeze: { rows: 4, cols: 1 } };
 
+  // ---- Filiallar: branches with their sales limit, sales and bonus rule ----
+  const branchRows: XlsxCell[][] = [
+    [{ v: "Filiallar, satış limiti və bonus qaydası", s: "title" }],
+    [{ v: "Hər filialın satış limiti, satışı və bonus qaydası. Satış limitə çatanda (və ya keçəndə) filialın işçilərinə bonus avtomatik hesablanır: sabit məbləğ (hər işçiyə) və ya filiala düşən maaşın faizi (100 = maaşın özü qədər). Bonus «Hesablama» vərəqində «Mükafat»a əlavə olunur.", s: "note" }],
+    [{ v: "Bölgü rejimi", s: "label" }, { v: BRI ? MODE_TEXT[BRI.mode] : MODE_TEXT.equal, s: "input" }, { v: "Bir neçə filialda işləyən işçinin maaşı: Bərabər (filial sayına görə) və ya Satışa görə. Pay % yazılıbsa o üstündür.", s: "note" }],
+    ["Filial", "Kod", "Şəhər", "Aktiv", "Satış limiti", "Satış", "Bonus növü", "Bonus dəyəri", "Qayda aktiv", "Limit çatıb"].map((v) => ({ v, s: "head" as const })),
+  ];
+  for (let i = 0; i < BR_LAST - BR_FIRST + 1; i++) {
+    const b = BRI?.branches[i];
+    const r = BR_FIRST + i;
+    const reached = !!b && b.target > 0 && b.sales >= b.target;
+    branchRows.push([
+      { v: b?.name ?? "", s: "input" },
+      { v: b?.code ?? "", s: "input" },
+      { v: b?.city ?? "", s: "input" },
+      { v: b ? (b.active ? "Bəli" : "Xeyr") : "", s: "input" },
+      { v: b && b.target ? b.target : null, s: "inputMoney" },
+      { v: b && b.sales ? b.sales : null, s: "inputMoney" },
+      { v: b ? (b.kind === "fixed" ? "Sabit məbləğ" : "Maaşın %") : "", s: "input" },
+      { v: b && b.value ? b.value : null, s: "inputMoney" },
+      { v: b ? (b.ruleActive ? "Bəli" : "Xeyr") : "", s: "input" },
+      { f: `IF(A${r}="","",IF(AND(N(E${r})>0,N(F${r})>=N(E${r})),"Bəli","Xeyr"))`, v: b ? (reached ? "Bəli" : "Xeyr") : "", s: "cell" },
+    ]);
+  }
+  const branchSheet: XlsxSheet = {
+    name: WB.branches,
+    headers: [],
+    rows: branchRows,
+    free: true,
+    widths: [26, 10, 16, 10, 16, 16, 18, 14, 12, 12],
+    freeze: { rows: 4, cols: 1 },
+    lists: [
+      { ref: "B3", items: ["Bərabər", "Satışa görə"] },
+      { ref: `D${BR_FIRST}:D${BR_LAST}`, items: ["Bəli", "Xeyr"] },
+      { ref: `G${BR_FIRST}:G${BR_LAST}`, items: ["Sabit məbləğ", "Maaşın %"] },
+      { ref: `I${BR_FIRST}:I${BR_LAST}`, items: ["Bəli", "Xeyr"] },
+    ],
+  };
+
+  // ---- İşçi-filial: who works in which branch, the share of the pay and the bonus ----
+  const salaryOfName = new Map(input.employees.map((e, i) => [e.name, calcs[i]?.salary ?? e.salary]));
+  const branchByName = new Map((BRI?.branches || []).map((b) => [b.name, b]));
+  const linkCached = new Map<string, ReturnType<typeof branchValues>>();
+  const linkRows: XlsxCell[][] = [
+    [{ v: "İşçilərin filiallara bölgüsü", s: "title" }],
+    [{ v: "Hər sətir bir işçinin bir filialdakı işidir; eyni işçi bir neçə sətirdə (bir neçə filialda) ola bilər. Pay % boşdursa maaş «Bölgü rejimi»nə görə bölünür; yazılıbsa həmin faizlə. Sağdakı xanalar hesablanır (filiala düşən pay və bonus).", s: "note" }],
+    ["FİN", "Ad Soyad", "Filial", "Vəzifə (filialda)", "Pay %", "Bonus alır", "Başlama", "Bitmə", "Pay (hesablanan)", "Filialın satışı", "Filial aktiv", "Aylıq maaş", "Filial bonusu"].map((v) => ({ v, s: "head" as const })),
+  ];
+  const LKB = LKR("B");
+  const LKK = LKR("K");
+  for (let i = 0; i < LK_LAST - LK_FIRST + 1; i++) {
+    const l = BRI?.links[i];
+    const r = LK_FIRST + i;
+    const br = l ? branchByName.get(l.branch) : undefined;
+    if (l && !linkCached.has(l.name)) linkCached.set(l.name, branchValues(l.name, salaryOfName.get(l.name) ?? 0));
+    const cache = l ? linkCached.get(l.name) : undefined;
+    const active = !!br && br.active;
+    const share = l && active ? cache?.shares.get(l.branch) ?? 0 : 0;
+    const m = `MATCH(C${r},${FBR("A")},0)`;
+    const manual = `SUMIFS(${LKR("E")},${LKB},B${r},${LKK},"Bəli")`;
+    const salesTotal = `SUMIFS(${LKR("J")},${LKB},B${r},${LKK},"Bəli")`;
+    linkRows.push([
+      { f: `IF(B${r}="","",IFERROR(INDEX(${staffFins},MATCH(B${r},${staffNames},0)),""))`, v: l ? l.fin : "", s: "cell" },
+      { v: l?.name ?? "", s: "input" },
+      { v: l?.branch ?? "", s: "input" },
+      { v: l?.role ?? "", s: "input" },
+      { v: l && l.sharePct ? l.sharePct : null, s: "inputMoney" },
+      { v: l ? (l.bonusEligible ? "Bəli" : "Xeyr") : "", s: "input" },
+      { v: l?.from ? l.from : null, s: "inputDate" },
+      { v: l?.to ? l.to : null, s: "inputDate" },
+      { f: `IF(B${r}="","",IF(K${r}<>"Bəli",0,IF(${manual}>0,N(E${r})/${manual},IF(AND(${MODE_CELL}="Satışa görə",${salesTotal}>0),J${r}/${salesTotal},1/COUNTIFS(${LKB},B${r},${LKK},"Bəli")))))`, v: l ? share : "", s: "pct" },
+      { f: `IF(C${r}="","",IFERROR(INDEX(${FBR("F")},${m}),0))`, v: l ? (br ? br.sales : 0) : "", s: "money" },
+      { f: `IF(C${r}="","",IFERROR(INDEX(${FBR("D")},${m}),"Xeyr"))`, v: l ? (br ? (br.active ? "Bəli" : "Xeyr") : "Xeyr") : "", s: "cell" },
+      { f: `IF(B${r}="","",IFERROR(INDEX(${q(WB.calc)}$${L(H.salary)}$${C0}:$${L(H.salary)}$${C0 + staffRows - 1},MATCH(B${r},${q(WB.calc)}$A$${C0}:$A$${C0 + staffRows - 1},0)),0))`, v: l ? salaryOfName.get(l.name) ?? 0 : "", s: "money" },
+      { f: `IF(B${r}="","",ROUND(IF(OR(K${r}<>"Bəli",F${r}="Xeyr"),0,IFERROR(IF(AND(INDEX(${FBR("I")},${m})<>"Xeyr",INDEX(${FBR("J")},${m})="Bəli",N(INDEX(${FBR("H")},${m}))>0),IF(INDEX(${FBR("G")},${m})="Sabit məbləğ",INDEX(${FBR("H")},${m}),L${r}*I${r}*INDEX(${FBR("H")},${m})/100),0),0)),2))`, v: l ? (active && l.bonusEligible ? cache?.bonusOf(l.branch) ?? 0 : 0) : "", s: "money" },
+    ]);
+  }
+  const peopleSheet: XlsxSheet = {
+    name: WB.branchPeople,
+    headers: [],
+    rows: linkRows,
+    free: true,
+    widths: [12, 30, 24, 26, 10, 12, 14, 14, 14, 16, 12, 14, 16],
+    freeze: { rows: 3, cols: 2 },
+    lists: [
+      { ref: `B${LK_FIRST}:B${LK_LAST}`, source: staffNames },
+      { ref: `C${LK_FIRST}:C${LK_LAST}`, source: FBR("A") },
+      { ref: `F${LK_FIRST}:F${LK_LAST}`, items: ["Bəli", "Xeyr"] },
+    ],
+  };
+
   // ---- Təlimat ----
   const guideRows: XlsxCell[][] = [
     [{ v: `Əmək haqqı hesablama iş kitabı: ${input.month}`, s: "title" }],
@@ -763,6 +886,8 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
     ["Azad olmalar", "Məzuniyyət, xəstəlik, ezamiyyət, icazə və s. aralıqlar. Platformaya yüklənir (davamiyyət)."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Tabel", "Davamiyyət cədvəli: “Azad olmalar” vərəqindən avtomatik doldurulur, gün sayları çıxarılır. Burada əl ilə yazılmır."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Əlavə-Tutulma", "Mükafat, əlavə, tutulma, avans. Hamısı platformaya yüklənir (avans yalnız ödəniş tarixi yazılıbsa)."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
+    ["Filiallar", "Filiallar, aylıq satış limiti, satış və bonus qaydası. Satış limitə çatanda filial bonusu avtomatik hesablanır. Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
+    ["İşçi-filial", "Hansı işçi hansı filialda (bir neçə filialda da) hansı vəzifədə işləyir; maaş filiallara bölünür. Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Saatlar", "Artıq iş, istirahət günü və gecə saatları (ay yekunu). Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Ezamiyyət", "Ezamiyyətlər, qanunun gündəlik normaları və Mərkəzi Bankın məzənnəsi ilə gündəlik hesabı. Platformaya yüklənir."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
     ["Hesablama", "Hər işçi üçün gross, vergi və sığorta, xalis, tutulma, ödəniləcək məbləğ və işəgötürən xərci. Formullarla hesablanır."].map((v, i) => ({ v, s: i ? ("text" as const) : ("label" as const) })),
@@ -786,7 +911,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   const guideSheet: XlsxSheet = { name: WB.guide, headers: [], rows: guideRows, free: true, widths: [34, 130], freeze: { rows: 0, cols: 0 } };
 
   // The note under each title runs across the sheet instead of wrapping inside the first column.
-  const list = [guideSheet, staffSheet, leaveSheet, tabelSheet, addsSheet, hoursSheet, tripsSheet, calcSheet, paramsSheet, normsSheet, fxSheet, benefitsSheet, codesSheet, helperSheet];
+  const list = [guideSheet, staffSheet, leaveSheet, tabelSheet, addsSheet, branchSheet, peopleSheet, hoursSheet, tripsSheet, calcSheet, paramsSheet, normsSheet, fxSheet, benefitsSheet, codesSheet, helperSheet];
   for (const sheet of list) {
     const width = Math.max(...sheet.rows.map((r) => r.length), 1);
     const span = sheet === guideSheet ? 2 : sheet === tabelSheet ? Math.min(width, 18) : Math.min(width, sheet === paramsSheet ? 2 : 9);

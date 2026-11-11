@@ -11,6 +11,7 @@ import { createXlsxBook } from "../lib/xlsx.ts";
 import { monthDays } from "../lib/calendar-az.ts";
 import { parseAttendanceRows, parsePayrollRows, parseTrips } from "../lib/sheet-imports.ts";
 import { parseHoursTotals } from "../lib/hours.ts";
+import { parseBranchSheets } from "../lib/branches-excel.ts";
 
 const month = "2026-11";
 const days = monthDays(2026, 11).map((d) => ({ date: d.date, off: d.off }));
@@ -62,7 +63,24 @@ const input = {
   ],
   rates: { USD: 1.7, EUR: 1.9037, GBP: 2.2834, JPY: 0.010768 }, ratesDate: "2026-11-06",
   benefit: { sickPercent: 80, maternityPercent: 100, minPension: 10 },
+  // Vüsal works in two branches (shared by sales: 1500 / 900), Orxan in one; Nigar's branch is passive and the bonus of another is switched off
+  branches: {
+    mode: "sales",
+    branches: [
+      { name: "A filialı", code: "A", city: "Bakı", active: true, target: 1000, sales: 1500, kind: "fixed", value: 200, ruleActive: true },
+      { name: "B filialı", code: "B", city: "Gəncə", active: true, target: 800, sales: 900, kind: "salary_percent", value: 50, ruleActive: true },
+      { name: "C filialı", code: "C", city: "Şəki", active: false, target: 100, sales: 500, kind: "fixed", value: 999, ruleActive: true },
+    ],
+    links: [
+      { name: "Vüsal Hissəli", fin: "", branch: "A filialı", role: "Baş mühasib", sharePct: 0, bonusEligible: true, from: "", to: "" },
+      { name: "Vüsal Hissəli", fin: "", branch: "B filialı", role: "Mühasib", sharePct: 0, bonusEligible: true, from: "", to: "" },
+      { name: "Orxan Məzuniyyət", fin: "", branch: "A filialı", role: "Satış meneceri", sharePct: 0, bonusEligible: true, from: "", to: "" },
+      { name: "Nigar Dövlət", fin: "", branch: "C filialı", role: "Kassir", sharePct: 0, bonusEligible: true, from: "", to: "" },
+      { name: "Nigar Dövlət", fin: "", branch: "B filialı", role: "Kassir", sharePct: 0, bonusEligible: false, from: "", to: "" },
+    ],
+  },
 };
+input.branches.links.forEach((l) => { l.fin = input.employees.find((e) => e.name === l.name).fin; });
 const finOf = (name) => input.employees.find((e) => e.name === name).fin;
 const sheets = buildPayrollWorkbook(input);
 const bytes = createXlsxBook(sheets);
@@ -70,7 +88,7 @@ const read = readWorkbookSheets(bytes);
 const sheetOf = (name) => read.find((s) => s.name === name);
 
 test("the workbook has every sheet, in a working order", () => {
-  assert.deepEqual(read.map((s) => s.name), [WB.guide, WB.staff, WB.leaves, WB.sheet, WB.adds, WB.hours, WB.trips, WB.calc, WB.params, WB.norms, WB.fx, WB.benefits, WB.codes, WB.helper]);
+  assert.deepEqual(read.map((s) => s.name), [WB.guide, WB.staff, WB.leaves, WB.sheet, WB.adds, WB.branches, WB.branchPeople, WB.hours, WB.trips, WB.calc, WB.params, WB.norms, WB.fx, WB.benefits, WB.codes, WB.helper]);
   assert.match(sheetOf(WB.guide).rows[0][0], /2026-11/);
 });
 
@@ -138,7 +156,7 @@ test("the timesheet shows the leave codes on the right days and the day counts",
 test("what goes back into the platform: every input sheet becomes rows of the platform's own imports", () => {
   const imported = workbookImportRows(read, month);
   assert.deepEqual(imported.issues, []);
-  assert.deepEqual(imported.found, [WB.leaves, WB.adds, WB.hours, WB.trips, WB.staff]);
+  assert.deepEqual(imported.found, [WB.leaves, WB.adds, WB.hours, WB.trips, WB.branches, WB.staff]);
 
   const attendance = parseAttendanceRows(imported.attendance);
   assert.deepEqual(attendance.issues, []);
@@ -204,7 +222,7 @@ test("LibreOffice recalculates every formula to the value the platform gives", {
   const recalculated = readWorkbookSheets(new Uint8Array(fs.readFileSync(path.join(dir, "out", "in.xlsx"))));
   let compared = 0;
   const problems = [];
-  for (const name of [WB.sheet, WB.calc, WB.trips, WB.leaves, WB.hours, WB.helper, WB.staff]) {
+  for (const name of [WB.sheet, WB.calc, WB.trips, WB.leaves, WB.hours, WB.helper, WB.staff, WB.branches, WB.branchPeople]) {
     const ours = sheetOf(name);
     const theirs = recalculated.find((s) => s.name === name);
     ours.rows.forEach((row, r) => {
@@ -338,4 +356,38 @@ test("the FİN of every line goes along to the platform's imports, so the person
   assert.equal(parsePayrollRows(imported.payroll).rows.find((r) => r.name === "Aysel Tam").fin, finOf("Aysel Tam").toUpperCase());
   assert.equal(parseHoursTotals(imported.hours, month).rows[0].fin, finOf("Orxan Məzuniyyət").toUpperCase());
   assert.equal(parseTrips(imported.trips).rows.find((t) => t.name === "Aysel Tam").fin, finOf("Aysel Tam").toUpperCase());
+});
+
+test("a branch that reached its limit gives a bonus: shown beside the pay and added to the bonus of the calculation", () => {
+  const calc = sheetOf(WB.calc);
+  const header = calc.rows[3];
+  const col = (title) => header.indexOf(title);
+  const n = (name, title) => Number(calc.rows.find((r) => r[0] === name)[col(title)]);
+  // Vüsal: 2000, shares 1500/2400 and 900/2400; A pays 200, B pays 50% of 2000 × 0.375 = 375
+  assert.equal(n("Vüsal Hissəli", "Mükafat"), 575);
+  // Orxan: one branch, the fixed 200
+  assert.equal(n("Orxan Məzuniyyət", "Mükafat"), 200);
+  // a passive branch gives nothing, and a person who does not take the branch bonus gets none
+  assert.equal(n("Nigar Dövlət", "Mükafat"), 0);
+  const people = sheetOf(WB.branchPeople).rows;
+  const vusal = people.filter((r) => r[1] === "Vüsal Hissəli");
+  assert.deepEqual(vusal.map((r) => [r[2], Math.round(Number(r[8]) * 1000) / 1000, Number(r[12])]), [["A filialı", 0.625, 200], ["B filialı", 0.375, 375]]);
+  const branches = sheetOf(WB.branches).rows;
+  assert.equal(branches.find((r) => r[0] === "A filialı")[9], "Bəli");
+  assert.equal(branches.find((r) => r[0] === "C filialı")[9], "Bəli");
+});
+
+test("the branch sheets go back into the platform as the standard sheets of the branch import", () => {
+  const imported = workbookImportRows(read, month);
+  assert.ok(imported.branchSheets);
+  const parsed = parseBranchSheets(imported.branchSheets);
+  assert.deepEqual(parsed.issues, []);
+  assert.deepEqual(parsed.branches.map((b) => [b.name, b.active]), [["A filialı", true], ["B filialı", true], ["C filialı", false]]);
+  assert.equal(parsed.links.length, 5);
+  assert.equal(parsed.links[0].fin, finOf("Vüsal Hissəli"));
+  const a = parsed.sales.find((x) => x.branch === "A filialı");
+  assert.deepEqual([a.month, a.target, a.sales, a.kind, a.value], [month, 1000, 1500, "fixed", 200]);
+  assert.equal(parsed.mode, "sales");
+  // the bonus is calculated in the sheet, not typed: it is not among the lines sent as pay inputs
+  assert.ok(!(imported.payroll || []).flat().includes("Filial bonusu"));
 });

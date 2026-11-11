@@ -45,7 +45,7 @@ export async function downloadPayrollWorkbook(month: string, notify: Notify) {
   }
 }
 
-type Step = { key: "attendance" | "payroll" | "hours" | "trips" | "advances" | "salary"; title: string; endpoint: string; rows: string[][] | null; ready: number; issues: string[] };
+type Step = { key: "attendance" | "payroll" | "hours" | "trips" | "advances" | "salary" | "branches"; title: string; endpoint: string; rows: string[][] | null; ready: number; issues: string[] };
 type PayrollRow = { employeeId: string; name: string; fin?: string; position: string; department: string; section: string; startDate: string; monthlySalary: number; salaryType: string; payments?: { kind: string; amount: number; paidOn: string; reversed?: boolean }[] };
 type SignerInfo = { head: { name: string; position: string } | null; director: { name: string; position: string; source: string } | null };
 const same = (a: string, b: string) => a.trim().toLocaleLowerCase("az") === b.trim().toLocaleLowerCase("az");
@@ -74,6 +74,7 @@ export function WorkbookImport({ month, notify, onClose, onDone }: { month: stri
       add("payroll", "Mükafat, əlavə və tutulmalar", "company/payroll/inputs-import", imported.payroll, (r) => parsePayrollRows(r));
       add("hours", "Əlavə saatlar", "company/hours/totals-import", imported.hours, (r) => parseHoursTotals(r, month));
       add("trips", "Ezamiyyətlər", "company/trips/import", imported.trips, parseTrips);
+      if (imported.branchSheets) steps.push({ key: "branches", title: "Filiallar (satış limiti, bonus qaydası, işçi-filial bölgüsü)", endpoint: "company/branches/import", rows: null, ready: imported.counts.branches, issues: [] });
       if (imported.advances.length) steps.push({ key: "advances", title: "Yeni avanslar (ödəniş qeydi)", endpoint: "company/payroll/pay", rows: null, ready: imported.advances.length, issues: [] });
       if (imported.salaryChanges.length) steps.push({ key: "salary", title: "Maaş dəyişikliyi (imzaya gedən əmr)", endpoint: "company/orders/save", rows: null, ready: imported.salaryChanges.length, issues: [] });
       return { steps, issues: imported.issues, imported };
@@ -102,6 +103,11 @@ export function WorkbookImport({ month, notify, onClose, onDone }: { month: stri
         continue;
       }
       try {
+        if (step.key === "branches") {
+          const result = await call<{ applied: boolean; summary: { branches: number; newBranches: number; links: number; sales: number }; issues: { sheet: string; line: number; reason: string }[] }>("company/branches/import", { sheets: plan.imported?.branchSheets || [], apply: true });
+          out.push({ title: step.title, text: `${result.summary.branches} filial, ${result.summary.links} işçi-filial bağlantısı, ${result.summary.sales} satış sətri yükləndi.`, issues: result.issues.slice(0, 8).map((i) => `${i.sheet}${i.line ? `, sətir ${i.line}` : ""}: ${i.reason}`) });
+          continue;
+        }
         if (step.key === "advances") {
           const rows = await payrollRows();
           let done = 0;

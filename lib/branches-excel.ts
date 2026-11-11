@@ -30,11 +30,13 @@ export type ParsedBranches = {
   found: string[];
 };
 
-function body(sheet: SheetRows | undefined, first: string) {
+// Rows below the header row (the first cell is the first column name); a row counts when one of its first `width` cells is filled
+// (the cells to the right may be formulas that show something for every line).
+function body(sheet: SheetRows | undefined, first: string, width: number) {
   if (!sheet) return [];
   const at = sheet.rows.findIndex((r) => fold(r[0] || "") === fold(first));
   if (at < 0) return [];
-  return sheet.rows.slice(at + 1).map((cells, i) => ({ line: at + i + 2, cells })).filter((r) => r.cells.some((c) => String(c ?? "").trim() !== ""));
+  return sheet.rows.slice(at + 1).map((cells, i) => ({ line: at + i + 2, cells })).filter((r) => r.cells.slice(0, width).some((c) => String(c ?? "").trim() !== ""));
 }
 
 export function parseBranchSheets(sheets: SheetRows[]): ParsedBranches {
@@ -46,7 +48,7 @@ export function parseBranchSheets(sheets: SheetRows[]): ParsedBranches {
   }
   // Filial | Kod | Şəhər | Aktiv
   const seen = new Set<string>();
-  for (const { line, cells } of body(by(BX.branches), "Filial")) {
+  for (const { line, cells } of body(by(BX.branches), "Filial", 4)) {
     out.found.push(BX.branches);
     const name = String(cells[0] || "").trim();
     if (!name) out.issues.push({ sheet: BX.branches, line, reason: "Filialın adı yazılmayıb." });
@@ -57,7 +59,7 @@ export function parseBranchSheets(sheets: SheetRows[]): ParsedBranches {
     }
   }
   // FİN | Ad Soyad | Filial | Vəzifə (filialda) | Pay % | Bonus alır | Başlama | Bitmə
-  for (const { line, cells } of body(by(BX.links), "FİN")) {
+  for (const { line, cells } of body(by(BX.links), "FİN", 8)) {
     out.found.push(BX.links);
     const fin = String(cells[0] || "").trim();
     const name = String(cells[1] || "").trim();
@@ -74,7 +76,7 @@ export function parseBranchSheets(sheets: SheetRows[]): ParsedBranches {
   }
   // Ay | Filial | Satış limiti | Satış | Bonus növü | Bonus dəyəri | Qayda aktiv
   const seenSale = new Set<string>();
-  for (const { line, cells } of body(by(BX.sales), "Ay")) {
+  for (const { line, cells } of body(by(BX.sales), "Ay", 7)) {
     out.found.push(BX.sales);
     const month = parseMonthCell(cells[0] || "");
     const branch = String(cells[1] || "").trim();
@@ -95,7 +97,7 @@ export function parseBranchSheets(sheets: SheetRows[]): ParsedBranches {
     }
   }
   // Bölgü rejimi | Bərabər / Satışa görə
-  for (const { cells } of body(by(BX.mode), "Parametr")) {
+  for (const { cells } of body(by(BX.mode), "Parametr", 2)) {
     out.found.push(BX.mode);
     if (fold(cells[0] || "").startsWith("bolgu")) out.mode = fold(cells[1] || "").includes("satis") ? "sales" : "equal";
   }
@@ -156,3 +158,23 @@ export function branchTemplate(month: string): XlsxSheet[] {
   });
 }
 export { MODE_LABEL };
+
+// The branch sheets of the payroll calculation workbook ("Filiallar" carries the limit, sales and rule of the month on the same line
+// as the branch; "İşçi-filial" the links) as the standard sheets of this import.
+export function branchSheetsFromWorkbook(sheets: SheetRows[], month: string, names: { branches: string; people: string }): SheetRows[] | null {
+  const bs = sheets.find((x) => fold(x.name) === fold(names.branches));
+  const bp = sheets.find((x) => fold(x.name) === fold(names.people));
+  if (!bs && !bp) return null;
+  const out: SheetRows[] = [];
+  if (bs) {
+    out.push({ name: BX.branches, rows: bs.rows });
+    const at = bs.rows.findIndex((r) => fold(r[0] || "") === "filial");
+    const sales: string[][] = [["Ay", "Filial", "Satış limiti", "Satış", "Bonus növü", "Bonus dəyəri", "Qayda aktiv"]];
+    if (at >= 0) for (const r of bs.rows.slice(at + 1)) if (String(r[0] || "").trim()) sales.push([month, r[0] || "", r[4] || "", r[5] || "", r[6] || "", r[7] || "", r[8] || ""]);
+    out.push({ name: BX.sales, rows: sales });
+    const modeRow = bs.rows.find((r) => fold(r[0] || "").startsWith("bolgu"));
+    if (modeRow) out.push({ name: BX.mode, rows: [["Parametr", "Dəyər"], ["Bölgü rejimi", modeRow[1] || ""]] });
+  }
+  if (bp) out.push({ name: BX.links, rows: bp.rows });
+  return out;
+}

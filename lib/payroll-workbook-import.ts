@@ -7,6 +7,7 @@ import { DOMESTIC_NORMS } from "./trip-norms.ts";
 import { OTHER_DOMESTIC } from "./trip-places.ts";
 import { WB } from "./payroll-workbook.ts";
 import { parseDateCell } from "./staff-import.ts";
+import { branchSheetsFromWorkbook, parseBranchSheets, type SheetRows } from "./branches-excel.ts";
 import type { WorkbookSheet } from "./workbook-read.ts";
 
 export type PayItemLine = { name: string; kind: "bonus" | "allowance"; label: string; amount: number };
@@ -21,7 +22,8 @@ export type WorkbookImport = {
   trips: string[][] | null;
   advances: AdvanceLine[];
   salaryChanges: SalaryChange[];
-  counts: { attendance: number; payroll: number; hours: number; trips: number; advances: number; salaryChanges: number };
+  branchSheets: SheetRows[] | null; // branches, their sales and rules, who works where (the standard sheets of the branch import)
+  counts: { attendance: number; payroll: number; hours: number; trips: number; advances: number; salaryChanges: number; branches: number };
   found: string[];
   issues: string[];
 };
@@ -48,8 +50,8 @@ function dataRows(sheet: WorkbookSheet | undefined): string[][] | null {
 
 export function workbookImportRows(sheets: WorkbookSheet[], month: string): WorkbookImport {
   const by = (name: string) => sheets.find((s) => fold(s.name) === fold(name));
-  const out: WorkbookImport = { attendance: null, payroll: null, items: [], hours: null, trips: null, advances: [], salaryChanges: [], counts: { attendance: 0, payroll: 0, hours: 0, trips: 0, advances: 0, salaryChanges: 0 }, found: [], issues: [] };
-  if (!by(WB.leaves) && !by(WB.adds) && !by(WB.hours) && !by(WB.trips)) {
+  const out: WorkbookImport = { attendance: null, payroll: null, items: [], hours: null, trips: null, advances: [], salaryChanges: [], branchSheets: null, counts: { attendance: 0, payroll: 0, hours: 0, trips: 0, advances: 0, salaryChanges: 0, branches: 0 }, found: [], issues: [] };
+  if (!by(WB.leaves) && !by(WB.adds) && !by(WB.hours) && !by(WB.trips) && !by(WB.branches) && !by(WB.branchPeople)) {
     out.issues.push("Bu fayl JobMatch hesablama iş kitabı deyil: “Azad olmalar”, “Əlavə-Tutulma”, “Saatlar” və ya “Ezamiyyət” vərəqi tapılmadı.");
     return out;
   }
@@ -137,6 +139,16 @@ export function workbookImportRows(sheets: WorkbookSheet[], month: string): Work
     }
     out.counts.trips = rows.length;
     out.trips = rows.length ? [["İşçi", "FİN", "Təyinat", "Başlama", "Bitmə", "Məqsəd", "Gündəlik", "Avans", "Xarici"], ...rows] : null;
+  }
+
+  // Branches: the limit, sales and bonus rule of the month, and who works in which branch (sent to the branch import).
+  const branchSheets = branchSheetsFromWorkbook(sheets, month, { branches: WB.branches, people: WB.branchPeople });
+  if (branchSheets) {
+    const parsed = parseBranchSheets(branchSheets);
+    out.branchSheets = parsed.branches.length || parsed.links.length || parsed.sales.length ? branchSheets : null;
+    out.counts.branches = parsed.branches.length + parsed.links.length + parsed.sales.length;
+    if (out.branchSheets) out.found.push(WB.branches);
+    for (const i of parsed.issues) out.issues.push(`${i.sheet}${i.line ? `, sətir ${i.line}` : ""}: ${i.reason}`);
   }
 
   // A pay change inside the month (İşçilər: new pay and the day it starts) becomes an order of the platform's usual kind.
