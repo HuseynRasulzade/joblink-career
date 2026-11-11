@@ -22,20 +22,22 @@ export function checkVacancyAgainstPlan(
   toGross: (amount: number, kind: string) => number = (a) => a,
 ): PlanCheck {
   if (!units.length) return { ok: true, unit: null, note: "no-table" };
-  const cu = units.map((u) => ({ ...u, position: u.position ? canon(u.position) : "" }));
-  const cp = people.map((p) => ({ ...p, position: p.position ? canon(p.position) : "" }));
+  const wanted = key(job.branch || "");
+  if (wanted && !units.some((u) => key(u.branch || "") === wanted)) {
+    return { ok: false, code: "no-branch", message: `Ştat planında yer yoxdur: “${job.branch}” filialı ştat cədvəlində yoxdur. Filial yalnız ştat cədvəlindən gəlir; filialı seçin və ya ştat sətrində yazın.` };
+  }
+  // A vacancy of a branch is counted inside that branch: its rows, the people who work there and its open vacancies.
+  const inBranch = (b?: string) => key(b || "") === wanted;
+  const cu = units.filter((u) => !wanted || inBranch(u.branch)).map((u) => ({ ...u, position: u.position ? canon(u.position) : "" }));
+  const cp = people.filter((p) => !wanted || (p.branches || []).some((b) => inBranch(b))).map((p) => ({ ...p, position: p.position ? canon(p.position) : "" }));
   const pseudo = (id: string, v: OpenVacancy): PlanPerson => ({ id, department: v.department, section: v.section, position: v.title ? canon(v.title) : "", status: "active", branches: v.branch ? [v.branch] : [] });
   // A temporary cover (leave and the like) fills no place of its own: the person away still holds theirs.
-  const others = open.filter((v) => v.reason !== "temporary").map((v, i) => pseudo(`open-${i}`, v));
+  const others = open.filter((v) => v.reason !== "temporary" && (!wanted || inBranch(v.branch))).map((v, i) => pseudo(`open-${i}`, v));
   const mine = pseudo("__new__", job);
   const { byUnit, unplaced } = assignPeople(cu, [...cp, ...others, mine]);
   const where = `${job.branch ? `${job.branch} / ` : ""}${job.department || "—"} / ${job.title || "—"}`;
   if (unplaced.some((p) => p.id === "__new__")) {
-    if (job.branch && !cu.some((u) => key(u.branch || "") === key(job.branch || ""))) {
-      return { ok: false, code: "no-branch", message: `Ştat planında yer yoxdur: “${job.branch}” filialı ştat cədvəlində yoxdur. Filial yalnız ştat cədvəlindən gəlir; filialı seçin və ya ştat sətrində yazın.` };
-    }
-    const scope = job.branch ? cu.filter((u) => key(u.branch || "") === key(job.branch || "")) : cu;
-    const inDepartment = scope.some((u) => key(u.department) === key(job.department));
+    const inDepartment = cu.some((u) => key(u.department) === key(job.department));
     return inDepartment
       ? { ok: false, code: "no-position", message: `Ştat planında yer yoxdur: ştat cədvəlində “${where}” vəzifəsi planlaşdırılmayıb. Vakansiyanın vəzifə adı ştat cədvəlindəki ilə eyni olmalıdır; yeni vəzifə üçün plana əlavə təsdiqlənməlidir.` }
       : { ok: false, code: "no-department", message: `Ştat planında yer yoxdur: “${job.department || "departament yazılmayıb"}” departamenti ştat cədvəlində yoxdur. Departamenti seçin və ya plana əlavə təsdiqlədin.` };

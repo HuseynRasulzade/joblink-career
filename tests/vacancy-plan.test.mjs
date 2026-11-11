@@ -81,3 +81,8 @@ test("a department that exists only in another branch is refused for this branch
   assert.equal(r.ok, false);
   assert.equal(r.code, "no-department");
 });
+test("a branch vacancy never takes a row without a branch", () => {
+  const r = checkVacancyAgainstPlan([unit({ planned: 5 }), A()], [], [], job({ branch: "C filialı" }));
+  assert.equal(r.code, "no-branch");
+  assert.equal(checkVacancyAgainstPlan([unit({ planned: 5 }), A()], [], [], job({ branch: "A filialı" })).unit.id, "ua");
+});
