@@ -5,12 +5,12 @@ on:
     branches: [claude/seed-demo-accounts]
   workflow_dispatch:
 
-concurrency:
-  group: deploy
-  cancel-in-progress: false
-
 jobs:
   deploy:
+    # Only the deploy job takes the lock: a browser-test job waiting for a runner must not hold the next deploys back.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
