@@ -120,3 +120,12 @@ Mənim tərəfimdən bağlana bilənlərin hamısı bağlanıb. Aşağıdakılar
 | Hüquqi yoxlama | Şablon mətnlər, saxlama illəri, ezamiyyət normaları hüquqşünas baxışı tələb edir | Hüquqşünasa göstərin |
 | ZZ-TEST məlumatları | Canlıda yoxlama üçün yaradılıb (hesablar, avans, məzuniyyət, maaş əmri) | İctimai açılışdan əvvəl silinməlidir (silməyə icazəniz var, deyin silim) |
 | Xarici müqavilə tələb edənlər | Bank API, qanuni e-imza, turniket, push bildiriş, kart ödənişi | Bölmə 3-də |
+
+## 11. Filiallar (2026-11-11)
+
+Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bilər; hər filialda öz vəzifəsi yazılır (məs. A filialında baş mühasib, B filialında mühasib).
+
+- **Maaş bölgüsü:** bir neçə filialda işləyənin maaşı və işəgötürən xərci filial sayına görə bərabər, filialların satışına görə, ya da işçi-filial sətrində əl ilə yazılmış faizlə bölünür. Bölgü Əmək haqqı → «Filiallar üzrə bölgü» hesabatında görünür (Excel-ə də çıxır). Vergi və ödəniş işçinin bir haqq-hesabı üzərindən gedir, bölgü yalnız xərc bölgüsüdür.
+- **Satış limiti və bonus:** hər filial üçün ay üzrə satış limiti və satış, bir də bonus qaydası (sabit məbləğ və ya filiala düşən maaşın faizi; 100 = maaşın özü qədər). Satış limitə çatanda və ya keçəndə bonus işçinin əmək haqqına mükafat kimi avtomatik əlavə olunur (gəlir vergisi və sığorta ilə). Təsdiqlənmiş ayın satışı dəyişmir.
+- **Excel:** Filiallar səhifəsində ixrac, nümunə fayl və yükləmə (Filiallar, İşçi-filial, Satış və bonus, Bölgü). Hesablama iş kitabında da «Filiallar» və «İşçi-filial» vərəqləri var; bonus və pay formullarla hesablanır, «Mükafat»a əlavə olunur və fayl platformaya geri yüklənir.
+- **Hələ yoxdur:** pilləli bonus (limiti nə qədər aşdıqca artan), işçi siyahısında filial sütunu, satışın avtomatik gəlməsi (satış cədvəli əl ilə və ya Excel ilə yazılır).
