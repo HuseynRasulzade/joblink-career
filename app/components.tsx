@@ -2104,6 +2104,7 @@ function StaffPlaceFields({
 }) {
   // Branches and the departments of each come only from the staff table.
   const [units, setUnits] = useState<{ branch: string; department: string; section: string }[]>([]);
+  const [branchNames, setBranchNames] = useState<string[]>([]);
   const [departments, setDepartments] = useState<{ department: string; free: number }[]>([]);
   const [sections, setSections] = useState<string[]>([]);
   useEffect(() => {
@@ -2112,8 +2113,11 @@ function StaffPlaceFields({
       .then((data) => setDepartments(data.departments || []))
       .catch(() => undefined);
     fetch("/api/joblink/company/staff/structure", { credentials: "same-origin", cache: "no-store" })
-      .then((response) => (response.ok ? (response.json() as Promise<{ units?: { branch: string; department: string; section: string }[] }>) : { units: [] }))
-      .then((data) => setUnits(data.units || []))
+      .then((response) => (response.ok ? (response.json() as Promise<{ units?: { branch: string; department: string; section: string }[]; branches?: { name: string }[] }>) : { units: [] }))
+      .then((data) => {
+        setUnits(data.units || []);
+        setBranchNames((data.branches || []).map((b) => b.name));
+      })
       .catch(() => undefined);
     fetch("/api/joblink/company/org-names", { credentials: "same-origin", cache: "no-store" })
       .then((response) => (response.ok ? (response.json() as Promise<{ sections?: string[] }>) : { sections: [] }))
@@ -2122,7 +2126,7 @@ function StaffPlaceFields({
   }, []);
   if (!departments.length && !department) return null;
   const az = (v: string) => v.toLocaleLowerCase("az");
-  const branches = [...new Set(units.map((u) => u.branch).filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
+  const branches = [...new Set([...units.map((u) => u.branch), ...branchNames].filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
   // With a branch chosen only its own departments and sections are offered.
   const scoped = branch ? units.filter((u) => az(u.branch) === az(branch)) : units;
   const scopedDepartments = branch ? departments.filter((d) => scoped.some((u) => az(u.department) === az(d.department))) : departments;

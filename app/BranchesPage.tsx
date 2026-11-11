@@ -87,7 +87,7 @@ function BranchList({ data, busy, run }: { data: Data; busy: boolean; run: Run }
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <p className="panel" style={{ margin: 0 }}>
-        <b>Filiallar Ştat cədvəlindən yaranır.</b> <span className="muted">Ştat sətrində «Filial» sahəsini yazın: filial burada özü görünür. Hər filialın altında departamentlər, onların şöbələri və vəzifələri var («Struktur» sekməsi). Burada yalnız filialın kodu, şəhəri, aktivliyi və bonus qaydası yazılır.</span>{" "}
+        <b>Filial ştat cədvəlinin «Departament və şöbələr» bölməsində yaradılır.</b> <span className="muted">Orada «Filiallar» siyahısına adı yazın (və ya ştat sətrinin «Filial» sahəsinə): filial burada özü görünür. Hər filialın altında departamentlər, onların şöbələri və vəzifələri var («Struktur» sekməsi). Burada yalnız filialın kodu, şəhəri, aktivliyi və bonus qaydası yazılır.</span>{" "}
         <button type="button" className="secondary" onClick={() => { window.location.hash = "hr-employees"; }}>Ştat cədvəlinə keç ↗</button>
       </p>
       <div className="admin-table-wrap" style={{ overflowX: "auto" }}>

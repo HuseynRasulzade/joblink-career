@@ -46,7 +46,7 @@ export default function EmployeeBranches({ employeeId, notify, readOnly = false 
   return (
     <div className={readOnly ? undefined : "panel"} style={{ display: "grid", gap: 8 }}>
       {!readOnly && <b>Filiallar</b>}
-      {!data.branches.length && <p className="muted" style={{ margin: 0 }}>Hələ filial yoxdur. Filiallar Ştat cədvəlindən yaranır: ştat sətrində «Filial» sahəsini yazın.</p>}
+      {!data.branches.length && <p className="muted" style={{ margin: 0 }}>Hələ filial yoxdur. Filial ştat cədvəlinin «Departament və şöbələr» bölməsində (Filiallar siyahısı) yaradılır.</p>}
       {mine.map((l) => (
         <div key={l.branchId} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span><b>{nameOf(l.branchId)}</b>{l.department ? ` › ${l.department}` : ""}{l.section ? ` › ${l.section}` : ""}{l.role ? ` › ${l.role}` : ""}{l.sharePct ? ` · pay ${l.sharePct}%` : ""}</span>

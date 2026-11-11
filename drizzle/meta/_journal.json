@@ -764,6 +764,13 @@
       "when": 1800298800000,
       "tag": "0108_branch_hierarchy",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "6",
+      "when": 1800385200000,
+      "tag": "0109_branch_departments",
+      "breakpoints": true
     }
   ]
 }

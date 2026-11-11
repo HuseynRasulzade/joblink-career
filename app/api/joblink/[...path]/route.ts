@@ -12221,14 +12221,18 @@ async function route(request: Request) {
   // The structure the staff table gives (branch → department → section → position): the employee card chooses from it.
   if (request.method === "GET" && path === "company/staff/structure") {
     requirePermission("employees", "Ştat strukturunu yalnız işçi kartına icazəsi olan şəxs görə bilər.");
-    return ok({ units: (await db.prepare("SELECT branch,department,section,position FROM staff_units WHERE company_id=? ORDER BY branch,department,section,position").bind(id).all<{ branch: string; department: string; section: string; position: string }>().catch(() => ({ results: [] as { branch: string; department: string; section: string; position: string }[] }))).results });
+    const unitRows = (await db.prepare("SELECT branch,department,section,position FROM staff_units WHERE company_id=? ORDER BY branch,department,section,position").bind(id).all<{ branch: string; department: string; section: string; position: string }>().catch(() => ({ results: [] as { branch: string; department: string; section: string; position: string }[] }))).results;
+    // Every branch (also one with no staff row yet) and the departments chosen for a branch when the department was created.
+    const branchRows = (await db.prepare("SELECT id,name FROM branches WHERE company_id=? ORDER BY name").bind(id).all<{ id: string; name: string }>().catch(() => ({ results: [] as { id: string; name: string }[] }))).results;
+    const linkRows = (await db.prepare("SELECT branch_id,department FROM branch_departments WHERE company_id=?").bind(id).all<{ branch_id: string; department: string }>().catch(() => ({ results: [] as { branch_id: string; department: string }[] }))).results;
+    return ok({ units: unitRows, branches: branchRows, departments: linkRows.map((l) => ({ branch: branchRows.find((b) => b.id === l.branch_id)?.name || "", department: l.department })).filter((l) => l.branch) });
   }
   // A branch is born in the staff table (a row names it); here only its code, city and whether it is active are written.
   if (request.method === "POST" && path === "company/branches/save") {
     requirePermission("salaries", "Filialı yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
     const b = await jsonBody(request);
     const branchId = str(b.id, 100);
-    if (!branchId) throw new HttpError(409, "Filial yalnız Ştat cədvəlindən yaradılır: ştat sətrində «Filial» sahəsini yazın, filial burada özü görünəcək.");
+    if (!branchId) throw new HttpError(409, "Filial burada yaradılmır: ştat cədvəlinin «Departament və şöbələr» bölməsində «Filiallar» siyahısında (və ya ştat sətrinin «Filial» sahəsində) yaradın, filial burada özü görünəcək.");
     const r = await db.prepare("UPDATE branches SET code=?,city=?,active=? WHERE id=? AND company_id=?").bind(str(b.code, 40).trim(), str(b.city, 120).trim(), b.active === false ? 0 : 1, branchId, id).run();
     if (!r.meta.changes) throw new HttpError(404, "Filial tapılmadı.");
     await companyAudit(db, id, userId, "branch", branchId, "");
@@ -12264,6 +12268,7 @@ async function route(request: Request) {
     await db.batch([
       db.prepare("DELETE FROM branch_sales WHERE company_id=? AND branch_id=?").bind(id, branchId),
       db.prepare("DELETE FROM branch_bonus_rules WHERE company_id=? AND branch_id=?").bind(id, branchId),
+      db.prepare("DELETE FROM branch_departments WHERE company_id=? AND branch_id=?").bind(id, branchId),
       db.prepare("DELETE FROM branches WHERE company_id=? AND id=?").bind(id, branchId),
     ]);
     await companyAudit(db, id, userId, "branch-deleted", branchId, "");
@@ -12372,7 +12377,7 @@ async function route(request: Request) {
     const known = new Map((await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results.map((r) => [plainFold(r.name), r.id]));
     // No branch is created here: they come from the staff table.
     const created = new Map<string, string>();
-    for (const x of parsed.branches) if (!known.has(plainFold(x.name))) issues.push({ sheet: "Filiallar", line: 0, reason: `“${x.name}” filialı ştat cədvəlində yoxdur. Filial yalnız Ştat cədvəlindən yaradılır.` });
+    for (const x of parsed.branches) if (!known.has(plainFold(x.name))) issues.push({ sheet: "Filiallar", line: 0, reason: `“${x.name}” filialı yoxdur. Filial yalnız ştat cədvəlinin «Departament və şöbələr» bölməsində (Filiallar siyahısı) yaradılır.` });
     const branchIdOf = (name: string) => known.get(plainFold(name)) || "";
     const unitsByBranch = new Map<string, { department: string; section: string }[]>();
     for (const u of (await db.prepare("SELECT branch,department,section FROM staff_units WHERE company_id=?").bind(id).all<{ branch: string; department: string; section: string }>()).results) unitsByBranch.set(plainFold(u.branch), [...(unitsByBranch.get(plainFold(u.branch)) || []), u]);
@@ -14329,12 +14334,32 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "structure-removed", name, "vəzifə");
     return ok({ ok: true });
   }
+  // A branch is created here (and by a staff table row); everywhere else it is only chosen from the list.
+  if (request.method === "POST" && path === "company/structure/branch/add") {
+    requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const name = cleanOrgName(str(b.name, 120));
+    if (name.length < 2) throw new HttpError(400, "Filialın adını yazın.");
+    const before = (await db.prepare("SELECT COUNT(*) AS n FROM branches WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0;
+    const canonical = await ensureBranch(db, id, name);
+    const after = (await db.prepare("SELECT COUNT(*) AS n FROM branches WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0;
+    if (after > before) await companyAudit(db, id, userId, "branch", canonical, "yaradıldı (struktur)");
+    return ok({ ok: true, name: canonical, existing: after === before });
+  }
   if (request.method === "POST" && path === "company/structure/add") {
     requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");
     const b = await jsonBody(request);
     const department = cleanOrgName(str(b.department, 120));
     if (department.length < 2) throw new HttpError(400, "Departamentin adını yazın.");
     const result = await addStructure(db, id, department, str(b.section, 120));
+    // A department made for a branch belongs to it: the branch is chosen from the list of the branches.
+    const branchName = str(b.branch, 120).trim();
+    if (branchName) {
+      const all = await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(id).all<{ id: string; name: string }>();
+      const found = all.results.find((x) => x.name.trim().toLocaleLowerCase("az") === branchName.toLocaleLowerCase("az"));
+      if (!found) throw new HttpError(409, `“${branchName}” filialı yoxdur. Əvvəlcə filialı «Filiallar» siyahısında yaradın.`);
+      await db.prepare("INSERT OR IGNORE INTO branch_departments(company_id,branch_id,department) VALUES(?,?,?)").bind(id, found.id, result.department).run();
+    }
     await companyAudit(db, id, userId, "structure-added", result.department, result.section || "departament");
     return ok({ ok: true, ...result });
   }
@@ -14356,6 +14381,7 @@ async function route(request: Request) {
     const department = str(b.department, 120);
     const section = str(b.section, 120);
     const name = await structureDb(() => renameStructure(db, id, department, str(b.to, 120), section));
+    if (!section) await db.prepare("UPDATE OR IGNORE branch_departments SET department=? WHERE company_id=? AND department=?").bind(name, id, department).run().catch(() => {});
     await companyAudit(db, id, userId, "structure-renamed", department, `${section || department} → ${name}`);
     return ok({ ok: true, name });
   }
@@ -14365,6 +14391,7 @@ async function route(request: Request) {
     const department = str(b.department, 120);
     const section = str(b.section, 120);
     await structureDb(() => deleteStructure(db, id, department, section));
+    if (!section) await db.prepare("DELETE FROM branch_departments WHERE company_id=? AND department=?").bind(id, department).run().catch(() => {});
     await companyAudit(db, id, userId, "structure-removed", department, section || "departament");
     return ok({ ok: true });
   }

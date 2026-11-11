@@ -119,7 +119,7 @@ export type BranchExport = {
 export const GUIDE = [
   "Filiallar: Excel ilə yükləmə təlimatı",
   "",
-  "«Filiallar» vərəqi: Filial | Kod | Şəhər | Aktiv (Bəli/Xeyr). Filiallar yalnız Ştat cədvəlindən yaranır; burada olmayan filial yüklənmir, yalnız mövcudun kodu, şəhəri və aktivliyi yazılır.",
+  "«Filiallar» vərəqi: Filial | Kod | Şəhər | Aktiv (Bəli/Xeyr). Filial ştat cədvəlinin «Departament və şöbələr» bölməsində yaradılır; burada olmayan filial yüklənmir, yalnız mövcudun kodu, şəhəri və aktivliyi yazılır.",
   "«İşçi-filial» vərəqi: FİN | Ad Soyad | Filial | Vəzifə (filialda) | Pay % | Bonus alır | Başlama | Bitmə | Departament | Şöbə (departament və şöbə həmin filialın ştat cədvəlindəki olmalıdır). Bir işçi bir neçə sətirdə (bir neçə filialda) ola bilər. Pay % boşdursa maaş «Bölgü» rejiminə görə bölünür; yazılıbsa həmin faizlə.",
   "«Satış və bonus» vərəqi: Ay | Filial | Satış limiti | Satış | Bonus növü (Sabit məbləğ / Maaşın %) | Bonus dəyəri | Qayda aktiv. Satış limitə çatanda və ya keçəndə bonus avtomatik hesablanır: sabit məbləğ (hər işçiyə) və ya filiala düşən maaşın faizi (100 = maaşın özü qədər).",
   "«Bölgü» vərəqi: Parametr | Dəyər. «Bölgü rejimi»: Bərabər (filial sayına görə) və ya Satışa görə.",
