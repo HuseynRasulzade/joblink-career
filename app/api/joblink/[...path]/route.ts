@@ -15062,6 +15062,8 @@ async function route(request: Request) {
       .run();
     await db.prepare("DELETE FROM employee_orders WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run();
     await db.prepare("DELETE FROM attendance_marks WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run();
+    // A removed person no longer works in a branch (the link would otherwise block deleting the branch).
+    await db.prepare("DELETE FROM employee_branches WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run().catch(() => {});
     await companyAudit(db, id, userId, "employee-removed", str(b.id, 100));
     return ok({ ok: true });
   }
