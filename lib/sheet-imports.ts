@@ -995,3 +995,93 @@ export function parseAnnouncements(rows: string[][], limit = 200): { rows: Annou
   }
   return { rows: out, issues };
 }
+
+// ── Surveys: one line per question; the lines with the same survey name make one survey ──
+export type SurveyImportRow = { line: number; survey: string; question: string; kind: "scale10" | "scale5" | "yesno" | "text"; anonymous: boolean; repeatMonths: number };
+type SurveyField = "survey" | "question" | "kind" | "anonymous" | "repeat";
+const SURVEY_ALIASES: Aliases<SurveyField> = {
+  survey: ["sorgu", "sorgunun adi", "anket", "anketin adi", "survey"],
+  question: ["sual", "sualin metni", "question"],
+  kind: ["sualin novu", "cavab novu", "nov", "kind", "type"],
+  anonymous: ["anonim", "anonymous"],
+  repeat: ["tekrar", "tekrar ay", "tekrarlanma", "repeat"],
+};
+// “1–10 şkala”, “1-5 şkala”, “Bəli / Xeyr” and “Mətn” (and their short forms) name the four kinds.
+export function surveyKindOf(text: string): SurveyImportRow["kind"] | "" {
+  const key = fold(text);
+  if (!key) return "text";
+  if (/(^| )10( |$)/.test(key) || key === "scale10") return "scale10";
+  if (/(^| )5( |$)/.test(key) || key === "scale5") return "scale5";
+  if (key.startsWith("beli") || key.startsWith("he") || key.includes("xeyr") || key === "yesno") return "yesno";
+  if (key.startsWith("metn") || key.startsWith("serbest") || key === "text") return "text";
+  return "";
+}
+export function parseSurveys(rows: string[][], limit = 200): { rows: SurveyImportRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, SURVEY_ALIASES, "survey");
+  if (!header || !header.map.has("question")) return { rows: [], issues: [{ line: 1, reason: "“Sorğu” və “Sual” sütunları tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  const out: SurveyImportRow[] = [];
+  const issues: RowIssue[] = [];
+  const perSurvey = new Map<string, number>();
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} sual yüklənir.` });
+      break;
+    }
+    const survey = cell(row, header.map, "survey").slice(0, 160);
+    const question = cell(row, header.map, "question").slice(0, 300);
+    const kind = surveyKindOf(cell(row, header.map, "kind"));
+    const repeatText = cell(row, header.map, "repeat");
+    const repeat = repeatText ? Number(repeatText.replace(/[^\d]/g, "")) : 0;
+    if (survey.length < 3) issues.push({ line, reason: "Sorğunun adı yazılmalıdır (ən azı 3 simvol)." });
+    else if (question.length < 3) issues.push({ line, reason: `${survey}: sual yazılmalıdır (ən azı 3 simvol).` });
+    else if (kind === "") issues.push({ line, reason: `${survey}: “${cell(row, header.map, "kind")}” sual növü tanınmadı (1–10 şkala, 1–5 şkala, Bəli / Xeyr, Mətn).` });
+    else if (repeatText && ![0, 1, 3, 6, 12].includes(repeat)) issues.push({ line, reason: `${survey}: təkrar 1, 3, 6 və ya 12 ay ola bilər.` });
+    else if ((perSurvey.get(survey.toLocaleLowerCase("az")) || 0) >= 20) issues.push({ line, reason: `${survey}: bir sorğuda ən çox 20 sual ola bilər.` });
+    else {
+      perSurvey.set(survey.toLocaleLowerCase("az"), (perSurvey.get(survey.toLocaleLowerCase("az")) || 0) + 1);
+      out.push({ line, survey, question, kind, anonymous: !["xeyr", "no", "0"].includes(fold(cell(row, header.map, "anonymous"))), repeatMonths: repeat });
+    }
+  }
+  return { rows: out, issues };
+}
+
+// ── Document deadlines: the date a document of an employee runs out (the document is already in his folder) ──
+export type DocDeadlineRow = { line: number; name: string; email: string; fin: string; docType: string; number: string; expires: string };
+type DocDeadlineField = "name" | "email" | "fin" | "docType" | "number" | "expires";
+const DOC_DEADLINE_ALIASES: Aliases<DocDeadlineField> = {
+  name: ["ad soyad", "isci", "isci adi", "ad", "full name", "name", "employee"],
+  email: ["e poct", "email", "e mail", "poct"],
+  fin: ["fin", "fin kod", "fin kodu"],
+  docType: ["senedin novu", "sened", "sened novu", "novu", "document", "type"],
+  number: ["sened nomresi", "nomre", "no", "number"],
+  expires: ["bitme tarixi", "muddet", "son tarix", "etibarlidir", "expires"],
+};
+export function parseDocDeadlines(rows: string[][], limit = 1000): { rows: DocDeadlineRow[]; issues: RowIssue[] } {
+  const header = findHeader(rows, DOC_DEADLINE_ALIASES, "docType");
+  if (!header || !header.map.has("expires")) return { rows: [], issues: [{ line: 1, reason: "“Sənədin növü” və “Bitmə tarixi” sütunları tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
+  const out: DocDeadlineRow[] = [];
+  const issues: RowIssue[] = [];
+  for (let i = header.index + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    if (blank(row)) continue;
+    const line = i + 1;
+    if (out.length >= limit) {
+      issues.push({ line, reason: `Bir dəfəyə ən çox ${limit} sətir yüklənir.` });
+      break;
+    }
+    const name = cell(row, header.map, "name");
+    const fin = finOf(cell(row, header.map, "fin"));
+    const email = cell(row, header.map, "email").slice(0, 160);
+    const docType = cell(row, header.map, "docType").slice(0, 120);
+    const text = cell(row, header.map, "expires");
+    const expires = text ? parseDateCell(text) : "";
+    if (!name && !fin && !email) issues.push({ line, reason: "İşçi (ad, FİN və ya e-poçt) yazılmayıb." });
+    else if (!docType && !cell(row, header.map, "number")) issues.push({ line, reason: `${name || fin}: sənədin növü və ya nömrəsi yazılmalıdır.` });
+    else if (text && !expires) issues.push({ line, reason: `${name || fin}: “${text}” bitmə tarixi oxunmadı (GGGG-AA-GG). Müddəti silmək üçün xananı boş buraxın.` });
+    else out.push({ line, name, email, fin, docType, number: cell(row, header.map, "number").slice(0, 80), expires });
+  }
+  return { rows: out, issues };
+}

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SHEET_TEMPLATES, templateSheets } from "../lib/sheet-templates.ts";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "../lib/staff-import.ts";
-import { parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips, parseAnnouncements } from "../lib/sheet-imports.ts";
+import { parseAttendanceRows, parseSurveys, parseDocDeadlines, parseCalendarRows, parseProfileRows, parsePayrollRows, matchAttendanceCode, parseCalendarKind, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips, parseAnnouncements } from "../lib/sheet-imports.ts";
 import { parseAssetRows } from "../lib/assets.ts";
 import { parseHoursRows, parseHoursTotals } from "../lib/hours.ts";
 import { createXlsxBook } from "../lib/xlsx.ts";
@@ -33,6 +33,8 @@ test("every sample file is read back by its own importer without a problem", () 
     trainings: parseTrainings,
     trips: parseTrips,
     announcements: parseAnnouncements,
+    surveys: parseSurveys,
+    docdeadlines: parseDocDeadlines,
   };
   for (const [kind, parse] of Object.entries(checks)) {
     const result = parse(asRows(kind));
@@ -270,4 +272,20 @@ test("announcement rows: title and text are required, flags and the expiry date 
   assert.equal(r.rows.length, 1);
   assert.deepEqual([r.rows[0].pinned, r.rows[0].requiresAck, r.rows[0].allowComments, r.rows[0].expires], [true, false, true, "2027-03-25"]);
   assert.deepEqual(r.issues.map((i) => i.line), [3, 4]);
+});
+
+import { surveyKindOf } from "../lib/sheet-imports.ts";
+test("survey kinds are read from the words people write; bad lines of surveys and deadlines are named", () => {
+  assert.equal(surveyKindOf("1–10 şkala"), "scale10");
+  assert.equal(surveyKindOf("1-5 şkala"), "scale5");
+  assert.equal(surveyKindOf("Bəli / Xeyr"), "yesno");
+  assert.equal(surveyKindOf(""), "text");
+  assert.equal(surveyKindOf("qarışıq"), "");
+  const bad = parseSurveys([["Sorğu", "Sual", "Sualın növü", "Anonim", "Təkrar (ay)"], ["", "Sual yazılıb", "", "", ""], ["Sorğu A", "", "", "", ""], ["Sorğu A", "Sual burada", "qarışıq", "", ""], ["Sorğu A", "Sual burada", "", "", "5"], ["Sorğu A", "Sual burada", "Mətn", "Xeyr", "3"]]);
+  assert.equal(bad.rows.length, 1);
+  assert.equal(bad.rows[0].anonymous, false);
+  assert.equal(bad.issues.length, 4);
+  const docs = parseDocDeadlines([["Ad Soyad", "FİN", "Sənədin növü", "Sənəd nömrəsi", "Bitmə tarixi"], ["", "", "Arayış", "", "2027-01-01"], ["A", "", "", "", "2027-01-01"], ["A", "", "Arayış", "", "tezliklə"], ["A", "", "Arayış", "", ""], ["B", "1abcde2", "Arayış", "7", "01.02.2027"]]);
+  assert.equal(docs.issues.length, 3);
+  assert.deepEqual(docs.rows.map((r) => [r.name, r.expires, r.fin]), [["A", "", ""], ["B", "2027-02-01", "1ABCDE2"]]);
 });

@@ -54,13 +54,11 @@ Lokalda və API ilə yoxlanıb, canlıda mən yoxlamamışam:
 
 ## 5. İnkişaf etdirmək olar (istəsəniz)
 
-Mühüm olan, amma hələ edilməyənlər:
-
-1. **Pilot sınaq:** 1–2 real şirkət və bir neçə işçi ilə canlıda yoxlama; ən çox xətanı bu tapar.
-2. **Excel idxalı olmayan bölmələr:** sorğular (anketlər) və sənəd reyestrində müddətlər. (Ezamiyyət və elanlar üçün idxal var: İnkişaf və kommunikasiya → Ezamiyyət / Elanlar → “Excel-dən yüklə”.)
-3. **Əmrlərin kartda təsiri:** müqavilə uzatma (kartda “Müqavilə: tarixədək”), iş rejimi (kartda “İş rejimi”) artıq kartı dəyişir, geri qaytarmaq olur və müqavilə 30 gün ərzində bitəndə “Bu gün” panelində xəbərdarlıq çıxır. Əvəzetmə və intizam əmrləri müvəqqəti/tənbeh xarakterli olduğu üçün yalnız kartın tarixçəsinə yazılır (bilərəkdən).
-4. **Şəkil:** işçilər siyahısında göstərilir (yalnız şəxsi məlumat icazəsi olanlara, sətir ekrana çıxanda yüklənir); təşkilat sxemində hələ göstərilmir (yük və məxfilik səbəbi ilə).
-5. **Avtomatik brauzer testləri:** `npm test` kod səviyyəsində testlərdir. Əsas ekranlar üçün brauzer smoke testi də var: `npm run e2e` (lokal serveri açın, `npm i --no-save playwright-core` quraşdırın; namizəd və işəgötürən hesabları ilə vakansiyalar, müsahibələr, təsdiqlər və vakansiya panelini yoxlayır). Hələ yalnız 6 yoxlamadır və avtomatik (CI) işə düşmür: tam ekran testləri hələ yoxdur.
+1. **Pilot sınaq:** 1–2 real şirkət və bir neçə işçi ilə canlıda yoxlama; ən çox xətanı bu tapar. (Bunu yalnız siz edə bilərsiniz; mən ZZ-TEST hesabları ilə yoxlayıram.)
+2. ~~Excel idxalı olmayan bölmələr~~ **hazırdır:** sorğular (İnkişaf və kommunikasiya → Elanlar və sorğular → «Excel-dən yüklə») və sənəd müddətləri (Kadr əməliyyatları → Sənəd reyestri → «Müddətləri Excel-dən yüklə»). Sənəd müddəti faylı yalnız artıq işçinin qovluğunda olan sənədin bitmə tarixini yazır.
+3. **Əmrlərin kartda təsiri:** müqavilə uzatma və iş rejimi kartı dəyişir, geri qaytarılır; müqavilə 30 gün ərzində bitəndə «Bu gün» panelində xəbərdarlıq çıxır. Əvəzetmə və intizam əmrləri müvəqqəti/tənbeh xarakterli olduğu üçün yalnız kartın tarixçəsinə yazılır (bilərəkdən).
+4. ~~Şəkil təşkilat sxemində~~ **hazırdır:** şəxsi məlumat icazəsi olanlar üçün sxemdə hər işçi kartında şəkil görünür (şəkil yalnız kart ekrana gələndə yüklənir); icazəsi olmayana göstərilmir.
+5. ~~Avtomatik brauzer testləri~~ **genişləndirildi:** `npm run e2e` indi 56 yoxlamadır: hər iki panelin hər menyu bəndi və hər sekməsi açılır, script xətası, 5xx cavab və «Sorğu tamamlanmadı» mesajı axtarılır; Plan və fakt, Filiallar və təşkilat sxemi adla yoxlanır. GitHub Actions-da deploy-dan sonra avtomatik işləyir, amma yalnız repo secret-ləri qoyulanda: `E2E_EMPLOYER_EMAIL`, `E2E_CANDIDATE_EMAIL`, `E2E_PASSWORD` (Settings → Secrets and variables → Actions). Qoyulmayıbsa addımı keçir və səbəbini yazır. Lokal: `E2E_BASE_URL`, həmin hesablar və `npm i --no-save playwright-core` ilə, ya da hazır sessiya cookie-si ilə (`E2E_COOKIE_EMPLOYER`, `E2E_COOKIE_CANDIDATE`). AI provayderi uğursuz olanda (502) test bunu ekran xətası saymır.
 
 ## 6. Mən nəyi seçməyi tövsiyə edirəm
 

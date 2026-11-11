@@ -2,12 +2,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Building2, ChevronDown, ChevronRight, Layers, Maximize2, Minus, Plus, UserRound, Users } from "lucide-react";
 import { layoutOrg, type OrgNode, type OrgPerson } from "@/lib/org-diagram";
+import { EmployeeAvatar } from "./EmployeePhoto";
 
 const LABEL: Record<OrgNode["kind"], string> = { root: "Şirkət", dept: "Departament", section: "Şöbə", person: "İşçi" };
 const ICON = { root: Building2, dept: Layers, section: Users, person: UserRound } as const;
 
 // The organisation as a flow of cards joined by arrows: company, departments, sections, people. A department can be folded.
-export default function OrgDiagram({ people, company }: { people: OrgPerson[]; company: string }) {
+// `photos`: show the photo of each person (only for those who may see personal data; each photo is fetched when its card comes into view).
+export default function OrgDiagram({ people, company, photos = false }: { people: OrgPerson[]; company: string; photos?: boolean }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [zoom, setZoom] = useState(1);
   const frame = useRef<HTMLDivElement>(null);
@@ -57,7 +59,8 @@ export default function OrgDiagram({ people, company }: { people: OrgPerson[]; c
               const Icon = ICON[n.kind];
               const foldable = n.kind === "dept" && n.childCount > 0;
               return (
-                <div key={n.id} className={`od-node od-${n.kind}`} style={{ left: pad + n.x, top: pad + n.y, width: n.w, height: n.h }}>
+                <div key={n.id} className={`od-node od-${n.kind}${photos && n.kind === "person" ? " has-photo" : ""}`} style={{ left: pad + n.x, top: pad + n.y, width: n.w, height: n.h }}>
+                  {photos && n.kind === "person" && <EmployeeAvatar employeeId={n.id.slice("person:".length)} name={n.title} size={38} />}
                   <span className="od-pill"><Icon size={13} /> {n.kind === "person" ? n.sub : LABEL[n.kind]}</span>
                   <div className="od-body">
                     <b title={n.title}>{n.title}</b>

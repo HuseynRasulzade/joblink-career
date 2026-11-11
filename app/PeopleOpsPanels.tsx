@@ -43,6 +43,7 @@ const CATEGORY: Record<string, string> = { contract: "Müqavilə", order: "Əmr"
 export function DocRegistry({ notify }: { notify: Notify }) {
   const [category, setCategory] = useState("");
   const [query, setQuery] = useState("");
+  const [importing, setImporting] = useState(false);
   const [data, load] = useLoad<{ documents: Doc[]; deadlines: Deadline[] }>(`company/doc-registry?category=${category}&q=${encodeURIComponent(query)}`, notify);
   async function setExpiry(doc: Doc) {
     const value = window.prompt("Bitmə tarixi (GGGG-AA-GG, boş — müddətsiz):", doc.expires);
@@ -56,6 +57,7 @@ export function DocRegistry({ notify }: { notify: Notify }) {
   }
   return (
     <div className="company-page">
+      {importing && <SheetImport kind="docdeadlines" notify={notify} onClose={() => setImporting(false)} onDone={load} />}
       {data && data.deadlines.length > 0 && (
         <div className="panel">
           <h4>Müddəti bitən və ya bitməyə yaxın (90 gün)</h4>
@@ -72,6 +74,7 @@ export function DocRegistry({ notify }: { notify: Notify }) {
           {Object.entries(CATEGORY).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
         </select>
         <input type="search" placeholder="İşçi, sənəd və ya nömrə" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <button type="button" className="secondary" onClick={() => setImporting(true)}>Müddətləri Excel-dən yüklə</button>
       </div>
       {!data ? <p className="muted">Yüklənir…</p> : (
         <div className="admin-table-wrap">
@@ -371,7 +374,7 @@ export function LeaveExport({ year }: { year: number }) {
 // ---------- Organisation chart ----------
 type ChartPerson = { id: string; name: string; position: string; department: string; section: string; status: string };
 export function OrgChart({ notify }: { notify: Notify }) {
-  const [data] = useLoad<{ employees: ChartPerson[] }>("company/employees", notify);
+  const [data] = useLoad<{ employees: ChartPerson[]; canPersonal?: boolean }>("company/employees", notify);
   const [company, setCompany] = useState("");
   useEffect(() => {
     fetch("/api/joblink/company/me", { credentials: "same-origin", cache: "no-store" })
@@ -385,7 +388,7 @@ export function OrgChart({ notify }: { notify: Notify }) {
   return (
     <div className="company-page org-chart">
       <p className="muted">Şirkət → departament → şöbə → işçi. {people.length} işçi, {departments.length} departament. Departamentin düyməsi ilə qolu yığıb aça bilərsiniz.</p>
-      {people.length ? <OrgDiagram people={people} company={company} /> : <p className="admin-empty">Hələ işçi yoxdur: sxem işçi əlavə olunanda çəkilir.</p>}
+      {people.length ? <OrgDiagram people={people} company={company} photos={!!data.canPersonal} /> : <p className="admin-empty">Hələ işçi yoxdur: sxem işçi əlavə olunanda çəkilir.</p>}
       <details className="od-text">
         <summary>Mətn variantı (siyahı)</summary>
         {departments.map((d) => {

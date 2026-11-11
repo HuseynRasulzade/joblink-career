@@ -395,7 +395,7 @@ import { forecast, monthSeries, planFactAlerts, targetAlerts } from "@/lib/hr-tr
 import { greeting, upcomingCelebrations } from "@/lib/celebrations";
 import { BRIEFING_KINDS, INCIDENT_KINDS, INCIDENT_STATUS, MEDICAL_KINDS, MEDICAL_RESULTS, RETENTION_CATEGORIES, cleanOhs, dueState, retentionEnd, retentionYears, textHash } from "@/lib/ohs";
 import { groupTotals, snapshotTotals, turnoverPercent, type MemberFigures } from "@/lib/company-group";
-import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips, parseAnnouncements, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { fold as plainFold, finOf as plainFinOf, matchEmployee, parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips, parseAnnouncements, parseSurveys, parseDocDeadlines, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { revealProfile, sealProfile, encryptionOn } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, validCard, validIban, type EmployeeProfile } from "@/lib/employee-profile";
 import { BATCH_STATUS, TRANSFER_HEADERS, batchTotal, matchStatement, parseBankStatement, type BatchKind, buildTransfers, transferFileRows, transferPurpose, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
@@ -10049,6 +10049,43 @@ async function route(request: Request) {
     await companyAudit(db, id, userId, "doc-expiry-set", str(b.id, 100), date);
     return ok({ ok: true });
   }
+  // The dates that documents run out, from Excel: the document is already in the employee's folder, the file only sets its date.
+  if (request.method === "POST" && path === "company/doc-registry/expires-import") {
+    requirePermission("salaries", "Sənədin müddətini yalnız sənədlərə icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseDocDeadlines((Array.isArray(b.rows) ? b.rows : []).slice(0, 1001).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda sətir tapılmadı.");
+    const issues = [...parsed.issues];
+    const people = await employeeRefs();
+    const docs = (await db.prepare("SELECT id,employee_id,subtype,name,doc_number FROM employee_documents WHERE company_id=?").bind(id).all<{ id: string; employee_id: string; subtype: string; name: string; doc_number: string }>()).results;
+    const statements: D1PreparedStatement[] = [];
+    let applied = 0;
+    for (const row of parsed.rows) {
+      const found = matchEmployee(people, { name: row.name, email: row.email, fin: row.fin });
+      if ("error" in found) {
+        issues.push({ line: row.line, reason: found.error });
+        continue;
+      }
+      const mine = docs.filter((d) => d.employee_id === found.id);
+      const type = plainFold(row.docType);
+      const byNumber = row.number ? mine.filter((d) => plainFold(d.doc_number) === plainFold(row.number)) : mine;
+      const hits = type ? byNumber.filter((d) => plainFold(d.subtype) === type || plainFold(d.name) === type || plainFold(d.subtype).includes(type) || plainFold(d.name).includes(type)) : byNumber;
+      const who = row.name || row.fin || row.email;
+      if (!hits.length) {
+        issues.push({ line: row.line, reason: `${who}: “${row.docType || row.number}” sənədi işçinin qovluğunda tapılmadı. Əvvəl sənədi yükləyin.` });
+        continue;
+      }
+      if (hits.length > 1) {
+        issues.push({ line: row.line, reason: `${who}: “${row.docType}” üçün ${hits.length} sənəd var. Sənəd nömrəsini də yazın.` });
+        continue;
+      }
+      statements.push(db.prepare("UPDATE employee_documents SET expires=? WHERE id=? AND company_id=?").bind(row.expires, hits[0].id, id));
+      applied++;
+    }
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "doc-expiry-imported", "", `${applied} sənədin müddəti Excel faylından yazılıb`);
+    return ok({ created: 0, applied, issues });
+  }
   // A document made in the program (a contract, a certificate) is kept as text in the employee's folder.
   if (request.method === "POST" && path === "company/doc-registry/save-generated") {
     requirePermission("salaries", "Sənədi yalnız sənədlərə icazəsi olan şəxs saxlaya bilər.");
@@ -11587,6 +11624,36 @@ async function route(request: Request) {
     await db.prepare("INSERT INTO surveys(id,company_id,title,kind,questions,anonymous,status,created,repeat_months,series_id) VALUES(?,?,?,?,?,?,'open',?,?,?)").bind(surveyId, id, title, kind, JSON.stringify(questions), b.anonymous === false ? 0 : 1, new Date().toISOString(), repeat, surveyId).run();
     await tellPayroll(null, `Yeni sorğu: ${title}`, "Fikrinizi bildirmək üçün İş yerim → Elanlar və sorğular bölməsinə baxın.");
     return ok({ ok: true, id: surveyId }, 201);
+  }
+  // Surveys from Excel: the lines with the same name are the questions of one survey; each opens at once, like one made by hand.
+  if (request.method === "POST" && path === "company/surveys/import") {
+    requirePermission("salaries", "Sorğunu yalnız kadr işçisi yarada bilər.");
+    const b = await jsonBody(request);
+    const parsed = parseSurveys((Array.isArray(b.rows) ? b.rows : []).slice(0, 201).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])));
+    if (!parsed.rows.length) throw new HttpError(400, parsed.issues[0]?.reason || "Faylda sual tapılmadı.");
+    const issues = [...parsed.issues];
+    const open = new Set((await db.prepare("SELECT title FROM surveys WHERE company_id=? AND status='open'").bind(id).all<{ title: string }>()).results.map((r) => r.title.toLocaleLowerCase("az")));
+    const groups = new Map<string, typeof parsed.rows>();
+    for (const row of parsed.rows) groups.set(row.survey.toLocaleLowerCase("az"), [...(groups.get(row.survey.toLocaleLowerCase("az")) || []), row]);
+    let created = 0;
+    let questions = 0;
+    for (const [key, rows] of groups) {
+      const title = rows[0].survey;
+      if (open.has(key)) {
+        issues.push({ line: rows[0].line, reason: `${title}: bu adlı açıq sorğu artıq var.` });
+        continue;
+      }
+      const list = cleanQuestions(rows.map((r) => ({ label: r.question, kind: r.kind })));
+      if (!list.length) continue;
+      const surveyId = crypto.randomUUID();
+      await db.prepare("INSERT INTO surveys(id,company_id,title,kind,questions,anonymous,status,created,repeat_months,series_id) VALUES(?,?,?,'custom',?,?,'open',?,?,?)").bind(surveyId, id, title, JSON.stringify(list), rows[0].anonymous ? 1 : 0, new Date().toISOString(), rows[0].repeatMonths, surveyId).run();
+      open.add(key);
+      created++;
+      questions += list.length;
+    }
+    if (created) await tellPayroll(null, `Yeni sorğu${created > 1 ? "lar" : ""}`, "Fikrinizi bildirmək üçün İş yerim → Elanlar və sorğular bölməsinə baxın.");
+    await companyAudit(db, id, userId, "surveys-imported", "", `${created} sorğu, ${questions} sual Excel faylından yüklənib`);
+    return ok({ created, questions, issues });
   }
   if (request.method === "POST" && path === "company/surveys/close") {
     requirePermission("salaries", "Sorğunu yalnız kadr işçisi bağlaya bilər.");

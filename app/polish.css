@@ -328,3 +328,8 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
   .hr-modes button { height: 40px; padding: 0; }
   .hr-modes button span { display: none; }
 }
+
+/* Təşkilat sxemi: işçi kartında şəkil (yalnız şəxsi məlumat icazəsi olanlara) */
+.od-person.has-photo { justify-content: flex-start; padding-left: 60px; text-align: left; }
+.od-person.has-photo .od-body { align-items: flex-start; }
+.od-person.has-photo .emp-avatar { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); flex: none; }

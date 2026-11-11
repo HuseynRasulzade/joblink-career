@@ -31,12 +31,19 @@ const failures = [];
 let checks = 0;
 
 async function session(kind, steps) {
-  const cookie = await login(ACCOUNTS[kind]);
+  // A ready session cookie (name=value) can be given instead of a login: E2E_COOKIE_EMPLOYER / E2E_COOKIE_CANDIDATE.
+  const given = process.env[`E2E_COOKIE_${kind.toUpperCase()}`];
+  const cookie = given ? { name: given.split("=")[0], value: given.slice(given.indexOf("=") + 1) } : await login(ACCOUNTS[kind]);
   const context = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
   await context.addCookies([{ ...cookie, domain: new URL(BASE).hostname, path: "/", httpOnly: true, secure: true, sameSite: "Lax" }]);
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
+  // A server error (5xx) of any call the screens make is a failure, whatever the screen shows.
+  page.on("response", (r) => {
+    // 502 is what the app answers when an outside AI provider fails (a key or a balance); that is not a fault of the screen.
+    if (r.status() >= 500 && r.status() !== 502 && r.url().includes("/api/")) errors.push(`HTTP ${r.status()} ${new URL(r.url()).pathname}`);
+  });
   await page.goto(BASE, { waitUntil: "networkidle" });
   const check = async (name, fn) => {
     checks += 1;
@@ -49,7 +56,7 @@ async function session(kind, steps) {
     }
   };
   const open = async (label) => {
-    await page.getByText(label, { exact: true }).first().click();
+    await page.getByText(label, { exact: true }).first().click({ timeout: 8000 }).catch(() => failures.push(`${kind}: could not open “${label}”`));
     await page.waitForTimeout(1200);
   };
   await steps({ page, check, open });
@@ -63,10 +70,11 @@ await session("candidate", async ({ page, check, open }) => {
   await check("choosing another vacancy changes the detail", async () => {
     const cards = page.locator(".jx-card-main");
     if ((await cards.count()) < 2) return true;
-    const before = await page.locator(".jx-detail h2").innerText();
+    // The whole detail pane is compared (several vacancies may share a title).
+    const before = await page.locator(".jx-detail").innerText();
     await cards.nth(1).click();
-    await page.waitForTimeout(300);
-    return (await page.locator(".jx-detail h2").innerText()) !== before;
+    await page.waitForTimeout(900);
+    return (await page.locator(".jx-detail").innerText()) !== before;
   });
 });
 
@@ -82,9 +90,10 @@ await session("employer", async ({ page, check, open }) => {
   });
   await open("Müsahibələr");
   await check("interviews: tabs, schedule grid", async () => {
+    await page.locator(".iv-tile").first().waitFor({ timeout: 6000 });
     if ((await page.locator(".iv-tile").count()) < 5) return false;
     await page.getByRole("tab", { name: /Cədvəl/ }).click();
-    await page.waitForTimeout(400);
+    await page.locator(".iv-grid table").first().waitFor({ timeout: 5000 });
     return (await page.locator(".iv-grid table").count()) === 1;
   });
   await open("Təsdiqlər");
@@ -96,16 +105,90 @@ await session("employer", async ({ page, check, open }) => {
     const rows = page.locator(".ap3-row-main");
     if (!(await rows.count())) return true;
     await rows.first().click();
-    await page.waitForTimeout(600);
-    if ((await page.locator(".ap3-detail .jd-facts").count()) !== 1) return false;
+    await page.waitForTimeout(1500);
+    // A request that has a detail shows its facts; a list entry without one (an older kind) opens without them.
+    if ((await page.locator(".ap3-detail").count()) !== 1) return false;
     const link = page.locator(".ap3-detail .approval-filter button").first();
     if (!(await link.count())) return true;
     await link.click();
     await page.waitForTimeout(1200);
     return (await page.locator(".row-focus").count()) >= 1 || (await page.locator(".staff-table, table").count()) > 0;
   });
+  // The approvals check may have followed a link into the HR operations menu: back to recruitment first.
+  await page.locator(".hr-modes button", { hasText: "İşə qəbul" }).first().click().catch(() => undefined);
+  await page.waitForTimeout(600);
   await open("Namizədlər");
   await check("candidates page opens", async () => (await page.getByText("Namizədlər", { exact: true }).count()) > 0);
+});
+
+// Every menu item of the panel, and every tab inside it: opened one by one. Nothing is changed (only tabs and menu items are clicked).
+// A screen fails when it throws a script error, a call of it answers 5xx, or the page shows the “request not completed” message.
+async function crawl(kind, { modes = [] } = {}) {
+  await session(kind, async ({ page, check }) => {
+    const bad = async () => (await page.getByText("Sorğu tamamlanmadı", { exact: false }).count()) > 0;
+    const visit = async (label) => {
+      const items = page.locator(".nav-item");
+      const names = await items.evaluateAll((els) => els.map((e) => (e.innerText || "").trim().split("\n")[0]));
+      for (const name of names) {
+        if (!name) continue;
+        await check(`${label}${name}: opens, its tabs open`, async () => {
+          await page.locator(".nav-item", { hasText: name }).first().click({ timeout: 4000 });
+          await page.waitForTimeout(900);
+          if (await bad()) return false;
+          const tabs = await page.locator('[role="tab"]').evaluateAll((els) => els.map((e) => (e.innerText || "").trim()).filter(Boolean));
+          for (const tab of tabs.slice(0, 12)) {
+            await page.locator('[role="tab"]', { hasText: tab }).first().click({ timeout: 3000 }).catch(() => undefined);
+            await page.waitForTimeout(450);
+            if (await bad()) return false;
+          }
+          return (await page.locator("main, .main-shell").count()) > 0;
+        });
+      }
+    };
+    if (!modes.length) return visit("");
+    for (const mode of modes) {
+      await page.locator(".hr-modes button", { hasText: mode }).first().click().catch(() => undefined);
+      await page.waitForTimeout(700);
+      await visit(`${mode} › `);
+    }
+  });
+}
+await crawl("candidate");
+await crawl("employer", { modes: ["İşə qəbul", "Kadr"] });
+
+// The newest screens by name: plan and fact, branches, the org chart.
+await session("employer", async ({ page, check }) => {
+  const nav = async (label) => {
+    if ((await page.locator(".hr-modes button", { hasText: "Kadr" }).count()) > 0) await page.locator(".hr-modes button", { hasText: "Kadr" }).first().click();
+    await page.waitForTimeout(500);
+    await page.locator(".nav-item", { hasText: label }).first().click();
+    await page.waitForTimeout(1500);
+  };
+  await nav("Plan və fakt");
+  await check("plan and fact: year, approval bar, five tabs, Excel buttons", async () => (await page.getByRole("tab").count()) >= 5 && (await page.getByRole("button", { name: /Excel: ixrac/ }).count()) === 1 && (await page.locator("select[aria-label='İl']").count()) === 1);
+  await check("plan and fact: the budget tab shows kinds and the comparison", async () => {
+    await page.getByRole("tab", { name: "Büdcə", exact: true }).click();
+    await page.getByText("Ümumi müqayisə").first().waitFor({ timeout: 8000 });
+    return (await page.getByRole("tab", { name: "Əmək haqqı" }).count()) > 0;
+  });
+  await check("plan and fact: the expenses tab lists the HR kinds", async () => {
+    await page.getByRole("tab", { name: "Xərclər", exact: true }).click();
+    await page.getByText("Hədiyyələr və təbriklər").first().waitFor({ timeout: 6000 });
+    return true;
+  });
+  await check("plan and fact: the integration tab shows keys and the log", async () => {
+    await page.getByRole("tab", { name: /İnteqrasiya/ }).click();
+    await page.getByText("Mübadilə jurnalı").first().waitFor({ timeout: 8000 });
+    return true;
+  });
+  await nav("Filiallar");
+  await check("branches: four tabs and the Excel buttons", async () => (await page.getByRole("tab").count()) >= 4 && (await page.getByRole("button", { name: /Nümunə fayl/ }).count()) === 1);
+  await nav("Kadr əməliyyatları");
+  await check("org chart: the flow diagram draws cards", async () => {
+    await page.getByRole("tab", { name: /Təşkilat sxemi/ }).click({ timeout: 4000 }).catch(() => page.getByText("Təşkilat sxemi", { exact: true }).first().click());
+    await page.waitForTimeout(1500);
+    return (await page.locator(".od-node").count()) > 0 || (await page.getByText("Hələ işçi yoxdur").count()) > 0;
+  });
 });
 
 await browser.close();

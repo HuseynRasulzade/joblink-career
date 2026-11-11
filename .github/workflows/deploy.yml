@@ -31,3 +31,36 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # After the deploy: the browser test opens every menu item and tab of both panels of the live site and fails on a script error,
+  # a 5xx answer or the "request not completed" message. It runs only where the test accounts are given as repository secrets
+  # (E2E_EMPLOYER_EMAIL, E2E_CANDIDATE_EMAIL, E2E_PASSWORD); without them it says so and passes.
+  e2e:
+    needs: deploy
+    runs-on: ubuntu-latest
+    env:
+      E2E_BASE_URL: ${{ vars.E2E_BASE_URL || 'https://joblink-career.huseynresulzade04.workers.dev' }}
+      E2E_EMPLOYER_EMAIL: ${{ secrets.E2E_EMPLOYER_EMAIL }}
+      E2E_CANDIDATE_EMAIL: ${{ secrets.E2E_CANDIDATE_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+    steps:
+      - name: No test accounts given
+        if: env.E2E_PASSWORD == ''
+        run: echo "E2E skipped - add E2E_EMPLOYER_EMAIL, E2E_CANDIDATE_EMAIL and E2E_PASSWORD as repository secrets to turn it on."
+      - uses: actions/checkout@v4
+        if: env.E2E_PASSWORD != ''
+      - uses: actions/setup-node@v4
+        if: env.E2E_PASSWORD != ''
+        with:
+          node-version: 22
+      - name: Browser driver
+        if: env.E2E_PASSWORD != ''
+        run: |
+          npm i --no-save playwright-core
+          npx playwright-core install --with-deps chromium
+      - name: Wait for the new version
+        if: env.E2E_PASSWORD != ''
+        run: sleep 25
+      - name: Browser test of every screen
+        if: env.E2E_PASSWORD != ''
+        run: npm run e2e

@@ -791,6 +791,7 @@ export function Engage({ notify }: { notify: Notify }) {
   const [surveys, loadSurveys] = useLoad<{ employees: number; surveys: SurveyResult[] }>("company/surveys", notify);
   const [edit, setEdit] = useState<Record<string, unknown> | null>(null);
   const [newsImport, setNewsImport] = useState(false);
+  const [surveyImport, setSurveyImport] = useState(false);
   const [survey, setSurvey] = useState<{ title: string; kind: string; anonymous: boolean; repeatMonths?: number; questions: { label: string; kind: string }[] } | null>(null);
   return (
     <div className="company-page">
@@ -815,6 +816,7 @@ export function Engage({ notify }: { notify: Notify }) {
       {news && !news.items.length && <p className="muted">Elan yoxdur.</p>}
       <div className="section-heading"><h4>Sorğular</h4>
         <div className="admin-actions">
+          <button type="button" className="secondary" onClick={() => setSurveyImport(true)}>Excel-dən yüklə</button>
           <button type="button" className="secondary" onClick={() => setSurvey({ title: "İşçi bağlılığı sorğusu (eNPS)", kind: "enps", anonymous: true, questions: [] })}>+ eNPS sorğusu</button>
           <button type="button" className="primary" onClick={() => setSurvey({ title: "", kind: "custom", anonymous: true, questions: [{ label: "", kind: "scale5" }] })}>+ Öz sorğum</button>
         </div>
@@ -836,6 +838,7 @@ export function Engage({ notify }: { notify: Notify }) {
         </div>
       ))}
       {newsImport && <SheetImport kind="announcements" notify={notify} onClose={() => setNewsImport(false)} onDone={loadNews} />}
+      {surveyImport && <SheetImport kind="surveys" notify={notify} onClose={() => setSurveyImport(false)} onDone={loadSurveys} />}
       {edit && (
         <Modal title="Yeni elan" onClose={() => setEdit(null)}>
           <div className="offer-composer">

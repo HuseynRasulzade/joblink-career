@@ -5,7 +5,7 @@ import { ATTENDANCE_CODES } from "./calendar-az.ts";
 import type { XlsxCell, XlsxSheet } from "./xlsx.ts";
 import { TAX_BENEFITS } from "./employee-rights.ts";
 
-export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix" | "perfgoals" | "trainings" | "trips" | "announcements";
+export type SheetKind = "employees" | "staff" | "structure" | "sections" | "attendance" | "calendar" | "profiles" | "questions" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix" | "perfgoals" | "trainings" | "trips" | "announcements" | "surveys" | "docdeadlines";
 export type TemplateColumn = { header: string; required: boolean; format: string; description: string; values?: string };
 export type SheetTemplate = {
   title: string; // what the file is for
@@ -403,6 +403,43 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       ["Yeni təhlükəsizlik qaydaları", "Qaydalarla tanış olub oxu təsdiqini verin.", "Maliyyə", "", "Xeyr", "Bəli", "Bəli"],
     ],
     rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Elanlar yeni elan kimi yazılır; eyni başlıqlı elan artıq varsa sətir keçilir. Yüklənəndə işçilərə bildiriş getmir (yalnız yeni elan formasında bildiriş seçimi var)."],
+  },
+  surveys: {
+    title: "Sorğular",
+    file: "sorgular-numune.xlsx",
+    sheet: "Sorğular",
+    columns: [
+      { header: "Sorğu", required: true, format: "Mətn", description: "Sorğunun adı. Eyni adlı sətirlər bir sorğunun sualları olur." },
+      { header: "Sual", required: true, format: "Mətn", description: "Sualın mətni (300 simvola qədər); bir sorğuda ən çox 20 sual." },
+      { header: "Sualın növü", required: false, format: "Siyahıdan", description: "Cavabın formatı; boşdursa mətn.", values: "1–10 şkala; 1–5 şkala; Bəli / Xeyr; Mətn" },
+      { header: "Anonim", required: false, format: "Bəli / Xeyr", description: "Boşdursa cavablar anonimdir." },
+      { header: "Təkrar (ay)", required: false, format: "1, 3, 6 və ya 12", description: "Sorğu bu müddətdən bir yenidən açılır; boşdursa təkrarlanmır." },
+    ],
+    examples: [
+      ["Komanda rəyi", "Komandanızı həmkarlarınıza tövsiyə edərdinizmi?", "1–10 şkala", "Bəli", 6],
+      ["Komanda rəyi", "İş yükünüz necədir?", "1–5 şkala", "Bəli", 6],
+      ["Komanda rəyi", "Nəyi dəyişərdiniz?", "Mətn", "Bəli", 6],
+      ["Ofis şəraiti", "Ofisin təmizliyindən razısınızmı?", "Bəli / Xeyr", "Xeyr", ""],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Hər sorğu «açıq» sorğu kimi yazılır və işçilərə bildiriş gedir; eyni adlı açıq sorğu varsa həmin sətirlər keçilir."],
+  },
+  docdeadlines: {
+    title: "Sənəd müddətləri",
+    file: "sened-muddetleri-numune.xlsx",
+    sheet: "Müddətlər",
+    columns: [
+      { header: "Ad Soyad", required: false, format: "Mətn", description: "İşçinin adı. FİN və ya e-poçt yazılıbsa, işçi onunla tapılır." },
+      { header: "FİN", required: false, format: "7 simvol", description: "İşçini dəqiq tapmaq üçün." },
+      { header: "E-poçt", required: false, format: "Mətn", description: "FİN yoxdursa işçini e-poçtla tapır." },
+      { header: "Sənədin növü", required: true, format: "Mətn", description: "İşçinin qovluğundakı sənədin növü və ya adı (məs. Sürücülük vəsiqəsi, Tibbi arayış). Sənəd nömrəsi yazılıbsa boş ola bilər." },
+      { header: "Sənəd nömrəsi", required: false, format: "Mətn", description: "Eyni növdən bir neçə sənəd varsa, hansı olduğunu bildirir." },
+      { header: "Bitmə tarixi", required: false, format: DATE, description: "Sənədin etibarlılıq müddətinin sonu. Boş buraxsanız müddət silinir." },
+    ],
+    examples: [
+      ["Aysel Məmmədova", "", "", "Tibbi arayış", "", "2027-03-01"],
+      ["Orxan Əliyev", "1ABCDE2", "", "Sürücülük vəsiqəsi", "AZE 123456", "2030-05-20"],
+    ],
+    rules: ["Birinci sətirdə sütun adları olmalıdır; sütunların sırası vacib deyil.", "Sənəd əvvəlcədən işçinin qovluğunda olmalıdır (Sənəd reyestri); bu fayl yalnız onun bitmə tarixini yazır. Tapılmayan sənəd üçün səbəb göstərilir."],
   },
   questions: {
     title: "Test sualları",

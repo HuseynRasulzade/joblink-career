@@ -9,7 +9,7 @@ import { readSheetRows } from "@/lib/question-file";
 import { parseHoursRows, parseHoursTotals } from "@/lib/hours";
 import { parseAssetRows } from "@/lib/assets";
 import { parseEmployeeRows, parseStaffRows, parseStructureRows } from "@/lib/staff-import";
-import { parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips, parseAnnouncements, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
+import { parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, parseSkillMatrix, parsePerfGoals, parseTrainings, parseTrips, parseAnnouncements, parseSurveys, parseDocDeadlines, parseAttendanceRows, parseCalendarRows, parseProfileRows, parsePayrollRows } from "@/lib/sheet-imports";
 import { SHEET_TEMPLATES, templateSheets } from "@/lib/sheet-templates";
 import { OTHER_REQUEST, REQUEST_KINDS, orderPrefill, requestKindLabel, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { ATTENDANCE_CODES } from "@/lib/calendar-az";
@@ -40,7 +40,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 const azn = (value: number) => `${value.toLocaleString("az-AZ", { maximumFractionDigits: 2 })} AZN`;
 
 // ---------- Excel file: template and import ----------
-export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix" | "perfgoals" | "trainings" | "trips" | "announcements";
+export type SheetKind = "employees" | "staff" | "structure" | "attendance" | "calendar" | "profiles" | "payroll" | "hours" | "hourtotals" | "shifts" | "shiftstaff" | "assets" | "leaveplan" | "ohs" | "skillmatrix" | "perfgoals" | "trainings" | "trips" | "announcements" | "surveys" | "docdeadlines";
 const SHEET_META: Record<SheetKind, { title: string; endpoint: string; done: (r: SheetResult) => string }> = {
   employees: { title: "İşçiləri Excel faylından əlavə et", endpoint: "company/employees/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən işçi yadda saxlanıldı.` },
   staff: { title: "Ştat cədvəlini Excel faylından əlavə et", endpoint: "company/staff/import", done: (r) => `${r.created} yeni, ${r.updated ?? 0} yenilənən ştat sətri yadda saxlanıldı.` },
@@ -55,6 +55,8 @@ const SHEET_META: Record<SheetKind, { title: string; endpoint: string; done: (r:
   payroll: { title: "Ayın əlavə və tutulmalarını Excel faylından yüklə", endpoint: "company/payroll/inputs-import", done: (r) => `${r.applied ?? 0} işçinin mükafat, əlavə və tutulma məlumatı yeniləndi.` },
   leaveplan: { title: "Məzuniyyət qrafikini Excel faylından yüklə", endpoint: "company/leave-schedule/import", done: (r) => `${r.created} məzuniyyət qrafikə yazıldı.` },
   perfgoals: { title: "Performans məqsədlərini Excel faylından yüklə", endpoint: "company/performance/goals-import", done: (r) => `${r.created} məqsəd yazıldı.` },
+  surveys: { title: "Sorğuları Excel faylından yüklə", endpoint: "company/surveys/import", done: (r) => `${r.created} sorğu açıldı (${(r as SheetResult & { questions?: number }).questions ?? 0} sual).` },
+  docdeadlines: { title: "Sənəd müddətlərini Excel faylından yüklə", endpoint: "company/doc-registry/expires-import", done: (r) => `${r.applied ?? 0} sənədin müddəti yazıldı.` },
   announcements: { title: "Elanları Excel faylından yüklə", endpoint: "company/announcements/import", done: (r) => `${r.created} elan yazıldı.` },
   trips: { title: "Ezamiyyətləri Excel faylından yüklə", endpoint: "company/trips/import", done: (r) => `${r.created} ezamiyyət sorğusu yazıldı (təsdiq gözləyir).` },
   trainings: { title: "Təlim planını Excel faylından yüklə", endpoint: "company/training/import", done: (r) => `${r.created} yeni təlim, ${(r as SheetResult & { participants?: number }).participants ?? 0} iştirakçı yazıldı.` },
@@ -93,6 +95,8 @@ function previewOf(kind: SheetKind, rows: unknown[]): { head: string[]; body: st
   if (kind === "attendance") return { head: ["Ad Soyad", "Başlama", "Bitmə", "Səbəb", "Qeyd"], body: list.map((r) => [str(r.name), str(r.from), str(r.to), codeName(String(r.code)), str(r.note)]) };
   if (kind === "calendar") return { head: ["Tarix", "Növ", "Ad"], body: list.map((r) => [str(r.day), KIND_NAME[String(r.kind)] || str(r.kind), str(r.label)]) };
   if (kind === "perfgoals") return { head: ["Ad Soyad / FİN", "Məqsəd", "Hədəf", "Çəki", "Dövr"], body: list.map((r) => [str(r.name), str(r.title), str(r.target), str(r.weight), str(r.cycle)]) };
+  if (kind === "surveys") return { head: ["Sorğu", "Sual", "Növ", "Anonim", "Təkrar"], body: list.map((r) => [str(r.survey), str(r.question), { scale10: "1–10 şkala", scale5: "1–5 şkala", yesno: "Bəli / Xeyr", text: "Mətn" }[String(r.kind)] || str(r.kind), r.anonymous ? "Bəli" : "Xeyr", r.repeatMonths ? `${r.repeatMonths} ay` : "—"]) };
+  if (kind === "docdeadlines") return { head: ["İşçi", "Sənəd", "Nömrə", "Bitmə tarixi"], body: list.map((r) => [str(r.name || r.fin || r.email), str(r.docType), str(r.number), r.expires ? str(r.expires) : "müddət silinir"]) };
   if (kind === "announcements") return { head: ["Başlıq", "Auditoriya", "Bitmə", "Sancılmış", "Oxu təsdiqi"], body: list.map((r) => [str(r.title), str(r.audience), str(r.expires), r.pinned ? "Bəli" : "—", r.requiresAck ? "Bəli" : "—"]) };
   if (kind === "trips") return { head: ["İşçi", "Təyinat", "Başlama", "Bitmə", "Gündəlik", "Xarici"], body: list.map((r) => [str(r.name || r.fin), str(r.destination), str(r.start), str(r.end), Number(r.daily) ? azn(Number(r.daily)) : "norma", r.abroad ? "Bəli" : "—"]) };
   if (kind === "trainings") return { head: ["Təlim", "Növ", "Başlama", "Status", "İştirakçı", "Bacarıq"], body: list.map((r) => [str(r.title), str(r.kind), str(r.start), str(r.status), str(r.name), str(r.skill)]) };
@@ -127,7 +131,7 @@ export function SheetImport({
   const template = SHEET_TEMPLATES[kind];
   const parsed = useMemo(() => {
     if (!rows) return null;
-    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows, payroll: parsePayrollRows, leaveplan: parseLeavePlan, ohs: parseOhsRows, skillmatrix: parseSkillMatrix, perfgoals: parsePerfGoals, trainings: parseTrainings, trips: parseTrips, announcements: parseAnnouncements, hours: parseHoursRows, hourtotals: (r: string[][]) => parseHoursTotals(r, (extra?.month as string) || ""), shifts: parseShiftSchedule, shiftstaff: parseShiftStaff, assets: parseAssetRows }[kind];
+    const parse = { employees: parseEmployeeRows, staff: parseStaffRows, structure: parseStructureRows, attendance: parseAttendanceRows, calendar: parseCalendarRows, profiles: parseProfileRows, payroll: parsePayrollRows, leaveplan: parseLeavePlan, ohs: parseOhsRows, skillmatrix: parseSkillMatrix, perfgoals: parsePerfGoals, trainings: parseTrainings, trips: parseTrips, announcements: parseAnnouncements, surveys: parseSurveys, docdeadlines: parseDocDeadlines, hours: parseHoursRows, hourtotals: (r: string[][]) => parseHoursTotals(r, (extra?.month as string) || ""), shifts: parseShiftSchedule, shiftstaff: parseShiftStaff, assets: parseAssetRows }[kind];
     return parse(rows) as { rows: unknown[]; issues: { line: number; reason: string }[] };
   }, [rows, kind, extra]);
   async function pick(file: File | undefined) {
