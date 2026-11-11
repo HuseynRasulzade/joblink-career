@@ -50,3 +50,34 @@ test("a temporary cover takes no place of its own", () => {
   const open = [{ department: "Maliyyə", section: "", title: "Mühasib", reason: "temporary" }];
   assert.equal(checkVacancyAgainstPlan([unit()], [person(1), person(2)], open, job()).ok, true);
 });
+
+const A = (extra = {}) => unit({ id: "ua", branch: "A filialı", planned: 1, ...extra });
+const B = (extra = {}) => unit({ id: "ub", branch: "B filialı", planned: 1, ...extra });
+test("a vacancy of a branch takes the place of that branch only", () => {
+  const r = checkVacancyAgainstPlan([A(), B()], [], [], job({ branch: "B filialı" }));
+  assert.equal(r.ok, true);
+  assert.equal(r.unit.id, "ub");
+});
+test("the branch's place is full when its own person works there, even if the other branch is free", () => {
+  const r = checkVacancyAgainstPlan([A(), B()], [person(1, { branches: ["A filialı"] })], [], job({ branch: "A filialı" }));
+  assert.equal(r.ok, false);
+  assert.equal(r.code, "no-place");
+});
+test("an open vacancy of branch A does not use the place of branch B", () => {
+  const open = [{ branch: "A filialı", department: "Maliyyə", section: "", title: "Mühasib" }];
+  assert.equal(checkVacancyAgainstPlan([A(), B()], [], open, job({ branch: "B filialı" })).ok, true);
+  assert.equal(checkVacancyAgainstPlan([A(), B()], [], open, job({ branch: "A filialı" })).ok, false);
+});
+test("a branch that is not in the staff table is refused", () => {
+  const r = checkVacancyAgainstPlan([A()], [], [], job({ branch: "C filialı" }));
+  assert.equal(r.ok, false);
+  assert.equal(r.code, "no-branch");
+});
+test("the branch name is compared the Azerbaijani way (İ/ı)", () => {
+  assert.equal(checkVacancyAgainstPlan([A()], [], [], job({ branch: "a FİLİALI" })).ok, true);
+});
+test("a department that exists only in another branch is refused for this branch", () => {
+  const r = checkVacancyAgainstPlan([A(), B({ department: "Satış", position: "Menecer" })], [], [], job({ branch: "A filialı", department: "Satış", title: "Menecer" }));
+  assert.equal(r.ok, false);
+  assert.equal(r.code, "no-department");
+});

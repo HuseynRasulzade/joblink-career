@@ -344,6 +344,7 @@ export function jobInput(
     reasonNote: str(j.reasonNote, 300),
     department: str(j.department, 120),
     section: str(j.section, 120),
+    branch: str(j.branch, 120),
     created: new Date().toISOString(),
     demo: false,
     status: "draft",

@@ -2121,7 +2121,7 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
   // The HR assistant opens with this place: it knows the department and section of the vacancy.
   function createVacancy(row: StaffRow) {
     try {
-      window.sessionStorage.setItem("joblink-staff-vacancy", JSON.stringify({ position: row.position, department: row.department, section: row.section }));
+      window.sessionStorage.setItem("joblink-staff-vacancy", JSON.stringify({ position: row.position, branch: row.branch || "", department: row.department, section: row.section }));
     } catch {
       // Without storage the vacancy is made by hand.
     }

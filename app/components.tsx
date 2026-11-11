@@ -2092,14 +2092,18 @@ export function ProfileEditor({
 }
 // Department and section of the staff table the vacancy belongs to, with the free places left.
 function StaffPlaceFields({
+  branch,
   department,
   section,
   onChange,
 }: {
+  branch: string;
   department: string;
   section: string;
-  onChange: (department: string, section: string) => void;
+  onChange: (department: string, section: string, branch: string) => void;
 }) {
+  // Branches and the departments of each come only from the staff table.
+  const [units, setUnits] = useState<{ branch: string; department: string; section: string }[]>([]);
   const [departments, setDepartments] = useState<{ department: string; free: number }[]>([]);
   const [sections, setSections] = useState<string[]>([]);
   useEffect(() => {
@@ -2107,19 +2111,41 @@ function StaffPlaceFields({
       .then((response) => (response.ok ? (response.json() as Promise<{ departments?: { department: string; free: number }[] }>) : { departments: [] }))
       .then((data) => setDepartments(data.departments || []))
       .catch(() => undefined);
+    fetch("/api/joblink/company/staff/structure", { credentials: "same-origin", cache: "no-store" })
+      .then((response) => (response.ok ? (response.json() as Promise<{ units?: { branch: string; department: string; section: string }[] }>) : { units: [] }))
+      .then((data) => setUnits(data.units || []))
+      .catch(() => undefined);
     fetch("/api/joblink/company/org-names", { credentials: "same-origin", cache: "no-store" })
       .then((response) => (response.ok ? (response.json() as Promise<{ sections?: string[] }>) : { sections: [] }))
       .then((data) => setSections(data.sections || []))
       .catch(() => undefined);
   }, []);
   if (!departments.length && !department) return null;
-  const known = departments.find((d) => d.department.toLocaleLowerCase("az") === department.toLocaleLowerCase("az"));
+  const az = (v: string) => v.toLocaleLowerCase("az");
+  const branches = [...new Set(units.map((u) => u.branch).filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
+  // With a branch chosen only its own departments and sections are offered.
+  const scoped = branch ? units.filter((u) => az(u.branch) === az(branch)) : units;
+  const scopedDepartments = branch ? departments.filter((d) => scoped.some((u) => az(u.department) === az(d.department))) : departments;
+  const scopedSections = branch ? [...new Set(scoped.filter((u) => !department || az(u.department) === az(department)).map((u) => u.section).filter(Boolean))] : sections;
+  const known = scopedDepartments.find((d) => d.department.toLocaleLowerCase("az") === department.toLocaleLowerCase("az"));
   return (
     <>
+      {branches.length > 0 && (
+        <Field label="Filial (ştat)">
+          <select value={branch} onChange={(e) => onChange(department, section, e.target.value)}>
+            <option value="">Filialsız (şirkətin özü)</option>
+            {branches.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
       <Field label="Departament (ştat)">
-        <input list="staff-departments" value={department} placeholder="Ştat cədvəlindəki departament" onChange={(e) => onChange(e.target.value, section)} />
+        <input list="staff-departments" value={department} placeholder="Ştat cədvəlindəki departament" onChange={(e) => onChange(e.target.value, section, branch)} />
         <datalist id="staff-departments">
-          {departments.map((d) => (
+          {scopedDepartments.map((d) => (
             <option key={d.department} value={d.department}>
               {d.free > 0 ? `${d.free} boş yer` : "boş yer yoxdur"}
             </option>
@@ -2128,9 +2154,9 @@ function StaffPlaceFields({
         {known && <small className="skill-picker-help">{known.free > 0 ? `${known.free} boş ştat yeri var.` : "Bu departamentdə boş ştat yeri yoxdur (yayımlayanda xəbərdarlıq çıxacaq)."}</small>}
       </Field>
       <Field label="Şöbə">
-        <input list="staff-sections" value={section} onChange={(e) => onChange(department, e.target.value)} />
+        <input list="staff-sections" value={section} onChange={(e) => onChange(department, e.target.value, branch)} />
         <datalist id="staff-sections">
-          {sections.map((name) => (
+          {scopedSections.map((name) => (
             <option key={name} value={name} />
           ))}
         </datalist>
@@ -2172,9 +2198,10 @@ export function JobForm({
           />
         </Field>
         <StaffPlaceFields
+          branch={job.branch || ""}
           department={job.department || ""}
           section={job.section || ""}
-          onChange={(department, section) => onChange({ ...job, department, section })}
+          onChange={(department, section, branch) => onChange({ ...job, department, section, branch })}
         />
         <Field label="Şəhər">
           <input

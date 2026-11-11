@@ -3,11 +3,11 @@
 // can be opened; an extra place first goes through the approval of a plan change.
 import { assignPeople, salaryBand, type PlanPerson, type PlanUnit } from "./staff-plan.ts";
 
-export type VacancyFacts = { department: string; section: string; title: string; minSalary: number; maxSalary: number; salaryKind: string; reason?: string };
-export type OpenVacancy = { department: string; section: string; title: string; reason?: string };
+export type VacancyFacts = { branch?: string; department: string; section: string; title: string; minSalary: number; maxSalary: number; salaryKind: string; reason?: string };
+export type OpenVacancy = { branch?: string; department: string; section: string; title: string; reason?: string };
 export type PlanCheck =
   | { ok: true; unit: PlanUnit | null; note: "" | "no-table" }
-  | { ok: false; code: "no-department" | "no-position" | "no-place" | "salary"; message: string };
+  | { ok: false; code: "no-branch" | "no-department" | "no-position" | "no-place" | "salary"; message: string };
 
 const key = (v: string) => (v || "").toLocaleLowerCase("az").replace(/\s+/g, " ").trim();
 const range = (min: number, max: number) => (min === max ? `${min} AZN` : `${min}–${max} AZN`);
@@ -24,14 +24,18 @@ export function checkVacancyAgainstPlan(
   if (!units.length) return { ok: true, unit: null, note: "no-table" };
   const cu = units.map((u) => ({ ...u, position: u.position ? canon(u.position) : "" }));
   const cp = people.map((p) => ({ ...p, position: p.position ? canon(p.position) : "" }));
-  const pseudo = (id: string, v: OpenVacancy): PlanPerson => ({ id, department: v.department, section: v.section, position: v.title ? canon(v.title) : "", status: "active" });
+  const pseudo = (id: string, v: OpenVacancy): PlanPerson => ({ id, department: v.department, section: v.section, position: v.title ? canon(v.title) : "", status: "active", branches: v.branch ? [v.branch] : [] });
   // A temporary cover (leave and the like) fills no place of its own: the person away still holds theirs.
   const others = open.filter((v) => v.reason !== "temporary").map((v, i) => pseudo(`open-${i}`, v));
   const mine = pseudo("__new__", job);
   const { byUnit, unplaced } = assignPeople(cu, [...cp, ...others, mine]);
-  const where = `${job.department || "—"} / ${job.title || "—"}`;
+  const where = `${job.branch ? `${job.branch} / ` : ""}${job.department || "—"} / ${job.title || "—"}`;
   if (unplaced.some((p) => p.id === "__new__")) {
-    const inDepartment = cu.some((u) => key(u.department) === key(job.department));
+    if (job.branch && !cu.some((u) => key(u.branch || "") === key(job.branch || ""))) {
+      return { ok: false, code: "no-branch", message: `Ştat planında yer yoxdur: “${job.branch}” filialı ştat cədvəlində yoxdur. Filial yalnız ştat cədvəlindən gəlir; filialı seçin və ya ştat sətrində yazın.` };
+    }
+    const scope = job.branch ? cu.filter((u) => key(u.branch || "") === key(job.branch || "")) : cu;
+    const inDepartment = scope.some((u) => key(u.department) === key(job.department));
     return inDepartment
       ? { ok: false, code: "no-position", message: `Ştat planında yer yoxdur: ştat cədvəlində “${where}” vəzifəsi planlaşdırılmayıb. Vakansiyanın vəzifə adı ştat cədvəlindəki ilə eyni olmalıdır; yeni vəzifə üçün plana əlavə təsdiqlənməlidir.` }
       : { ok: false, code: "no-department", message: `Ştat planında yer yoxdur: “${job.department || "departament yazılmayıb"}” departamenti ştat cədvəlində yoxdur. Departamenti seçin və ya plana əlavə təsdiqlədin.` };

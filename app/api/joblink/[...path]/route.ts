@@ -717,7 +717,7 @@ async function staffPlaces(db: D1Database, companyId: string, department: string
 }
 // A vacancy may only open a place of the staff table: its department, position, a free place and a pay inside the row's band.
 // There is no way around it; an extra place is first approved as a change of the plan.
-async function assertVacancyPlan(db: D1Database, companyId: string, job: { id?: string; reason?: string; department?: string; section?: string; title?: string; minSalary?: number; maxSalary?: number; salaryKind?: string }) {
+async function assertVacancyPlan(db: D1Database, companyId: string, job: { id?: string; branch?: string; reason?: string; department?: string; section?: string; title?: string; minSalary?: number; maxSalary?: number; salaryKind?: string }) {
   const [plan, openRows] = await Promise.all([
     loadPlanData(db, companyId),
     db
@@ -729,8 +729,8 @@ async function assertVacancyPlan(db: D1Database, companyId: string, job: { id?: 
     .filter((r) => r.id !== job.id)
     .map((r) => {
       try {
-        const d = JSON.parse(r.data) as { department?: string; section?: string; title?: string; reason?: string };
-        return { department: String(d.department || ""), section: String(d.section || ""), title: String(d.title || ""), reason: String(d.reason || "") };
+        const d = JSON.parse(r.data) as { branch?: string; department?: string; section?: string; title?: string; reason?: string };
+        return { branch: String(d.branch || ""), department: String(d.department || ""), section: String(d.section || ""), title: String(d.title || ""), reason: String(d.reason || "") };
       } catch {
         return { department: "", section: "", title: "" };
       }
@@ -738,10 +738,10 @@ async function assertVacancyPlan(db: D1Database, companyId: string, job: { id?: 
   const canon = (position: string) => bestCatalogMatch(position)?.title.label || position;
   const toGross = (amount: number, kind: string) => (kind === "net" ? employeePay(amount, "net", "private", 0)?.gross || amount : amount);
   const result = checkVacancyAgainstPlan(
-    plan.units.map((u) => ({ id: u.id, department: u.department, section: u.section, position: u.position, planned: u.planned, rate: u.rate, salaryMin: u.salaryMin, salaryMax: u.salaryMax })),
+    plan.units.map((u) => ({ id: u.id, branch: u.branch, department: u.department, section: u.section, position: u.position, planned: u.planned, rate: u.rate, salaryMin: u.salaryMin, salaryMax: u.salaryMax })),
     plan.people,
     open,
-    { department: String(job.department || ""), section: String(job.section || ""), title: String(job.title || ""), reason: String(job.reason || ""), minSalary: Number(job.minSalary) || 0, maxSalary: Number(job.maxSalary) || 0, salaryKind: String(job.salaryKind || "") },
+    { branch: String(job.branch || "").trim(), department: String(job.department || ""), section: String(job.section || ""), title: String(job.title || ""), reason: String(job.reason || ""), minSalary: Number(job.minSalary) || 0, maxSalary: Number(job.maxSalary) || 0, salaryKind: String(job.salaryKind || "") },
     canon,
     toGross,
   );
@@ -14176,18 +14176,19 @@ async function route(request: Request) {
   if (request.method === "POST" && path === "company/staff/request-place") {
     if (accountRole !== "company") throw new HttpError(403, "Bu əməliyyat üçün rolunuzun icazəsi yoxdur.");
     const b = await jsonBody(request);
+    const branch = str(b.branch, 120).trim();
     const department = str(b.department, 120).trim();
     const section = str(b.section, 120).trim();
     const title = str(b.position, 120).trim();
     if (!department || !title) throw new HttpError(400, "Departamenti və vəzifəni yazın.");
     const plan = await loadPlanData(db, id);
     const canon = (v: string) => (bestCatalogMatch(v)?.title.label || v).trim().toLocaleLowerCase("az");
-    const row = plan.units.find((u) => u.department.trim().toLocaleLowerCase("az") === department.toLocaleLowerCase("az") && canon(u.position) === canon(title) && (!section || !u.section || u.section.trim().toLocaleLowerCase("az") === section.toLocaleLowerCase("az")));
+    const row = plan.units.find((u) => (u.branch || "").trim().toLocaleLowerCase("az") === branch.toLocaleLowerCase("az") && u.department.trim().toLocaleLowerCase("az") === department.toLocaleLowerCase("az") && canon(u.position) === canon(title) && (!section || !u.section || u.section.trim().toLocaleLowerCase("az") === section.toLocaleLowerCase("az")));
     const minCents = Math.max(0, Math.round((Number(b.salaryMin) || 0) * 100));
     const maxCents = Math.max(minCents, Math.round((Number(b.salaryMax) || 0) * 100));
     const unit = row
-      ? { id: row.id, department: row.department, section: row.section, position: row.position, planned: row.planned + 1, rate: row.rate, salaryCents: Math.round(row.salaryMin * 100), salaryMaxCents: Math.round(row.salaryMax * 100), note: str((row as { note?: string }).note, 300) }
-      : { id: "", department, section, position: title, planned: 1, rate: 1, salaryCents: minCents, salaryMaxCents: maxCents, note: "Vakansiya üçün əlavə yer" };
+      ? { id: row.id, branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned + 1, rate: row.rate, salaryCents: Math.round(row.salaryMin * 100), salaryMaxCents: Math.round(row.salaryMax * 100), note: str((row as { note?: string }).note, 300) }
+      : { id: "", branch, department, section, position: title, planned: 1, rate: 1, salaryCents: minCents, salaryMaxCents: maxCents, note: "Vakansiya üçün əlavə yer" };
     const problem = await staffBandProblem(db, id, [unit]);
     if (problem) throw new HttpError(409, problem);
     const subject = `Plana əlavə yer: ${department} / ${title}: ${unit.planned} ştat (vakansiya üçün)`;
@@ -23152,7 +23153,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     const fields = changedFields(current, merged);
     if (!fields.length) return ok({ ok: true, changed: [] });
     // A change of the place, the position or the pay must still fit the staff plan.
-    if (fields.some((f) => ["department", "section", "title", "minSalary", "maxSalary", "salaryKind", "reason"].includes(String(f)))) await assertVacancyPlan(db, id, { ...merged, id: String(row.id) });
+    if (fields.some((f) => ["branch", "department", "section", "title", "minSalary", "maxSalary", "salaryKind", "reason"].includes(String(f)))) await assertVacancyPlan(db, id, { ...merged, id: String(row.id) });
     await db
       .prepare("UPDATE jobs SET data=? WHERE id=?")
       .bind(JSON.stringify(merged), row.id)

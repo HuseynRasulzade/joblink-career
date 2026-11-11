@@ -209,16 +209,16 @@ export default function HrPanel({
   const [candidate, setCandidate] = useState<Profile | null>(null);
   const [prompt, setPrompt] = useState("");
   // A free place chosen in the staff table: the vacancy draft gets its department and section.
-  const staffPlace = useRef<{ position: string; department: string; section: string } | null>(null);
+  const staffPlace = useRef<{ position: string; branch?: string; department: string; section: string } | null>(null);
   useEffect(() => {
     if (page !== "hr-ai") return;
     try {
       const raw = window.sessionStorage.getItem("joblink-staff-vacancy");
       if (!raw) return;
       window.sessionStorage.removeItem("joblink-staff-vacancy");
-      const place = JSON.parse(raw) as { position: string; department: string; section: string };
+      const place = JSON.parse(raw) as { position: string; branch?: string; department: string; section: string };
       staffPlace.current = place;
-      setPrompt(`${place.position || "Yeni"} vakansiyası yarat${place.department ? ` (${place.department}${place.section ? ` / ${place.section}` : ""})` : ""}`);
+      setPrompt(`${place.position || "Yeni"} vakansiyası yarat${place.department ? ` (${place.branch ? `${place.branch} / ` : ""}${place.department}${place.section ? ` / ${place.section}` : ""})` : ""}`);
     } catch {
       // Without storage the draft is made as usual.
     }
@@ -456,7 +456,7 @@ export default function HrPanel({
       if (b.draft) {
         const place = staffPlace.current;
         staffPlace.current = null;
-        setDraft(place ? { ...b.draft, department: b.draft.department || place.department, section: b.draft.section || place.section } : b.draft);
+        setDraft(place ? { ...b.draft, branch: b.draft.branch || place.branch || "", department: b.draft.department || place.department, section: b.draft.section || place.section } : b.draft);
       }
     } catch (e) {
       setMessages((v) => [
@@ -533,6 +533,7 @@ export default function HrPanel({
         setConfirm(false);
         if (window.confirm(`${message}\n\nPlana əlavə yer üçün təsdiq sorğusu göndərilsin? Təsdiqdən sonra vakansiyanı yarada bilərsiniz.`)) {
           const result = (await api("company/staff/request-place", {
+            branch: draft.branch || "",
             department: draft.department || "",
             section: draft.section || "",
             position: draft.title || "",

@@ -208,6 +208,8 @@ export type Job = {
   // The department and section of the employer's staff table that the place belongs to.
   department?: string;
   section?: string;
+  // The branch of the staff table the place belongs to (empty = the company itself).
+  branch?: string;
 };
 export const JOB_CATEGORIES = [
   "Satış və müştəri xidməti",
