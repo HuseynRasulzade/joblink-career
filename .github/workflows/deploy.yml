@@ -9,7 +9,7 @@ jobs:
   deploy:
     # Only the deploy job takes the lock: a browser-test job waiting for a runner must not hold the next deploys back.
     concurrency:
-      group: deploy
+      group: deploy-cloudflare
       cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
