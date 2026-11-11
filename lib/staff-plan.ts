@@ -6,6 +6,7 @@ export const RATE_LABEL: Record<number, string> = { 1: "Tam ÅŸtat", 0.75: "3/4 Å
 
 export type PlanUnit = {
   id: string;
+  branch?: string; // the branch the row belongs to (empty = the company itself)
   department: string;
   section: string;
   position: string;
@@ -14,7 +15,7 @@ export type PlanUnit = {
   salaryMin: number; // gross AZN a month; 0 = no band
   salaryMax: number; // 0 = same as the minimum
 };
-export type PlanPerson = { id: string; name?: string; department: string; section: string; position: string; status?: string; gross?: number };
+export type PlanPerson = { id: string; name?: string; department: string; section: string; position: string; status?: string; gross?: number; branches?: string[] };
 
 const key = (value: string) => (value || "").toLocaleLowerCase("az").replace(/\s+/g, " ").trim();
 const working = (person: PlanPerson) => person.status !== "left" && person.status !== "removed";
@@ -27,6 +28,8 @@ export const normalizeRate = (value: unknown) => {
 // How well a row suits a person: -1 = not at all; higher is closer.
 function score(unit: PlanUnit, person: PlanPerson) {
   if (key(unit.department) !== key(person.department)) return -1;
+  // A row of a branch takes only people who work in that branch (people with no branch fit any row).
+  if (unit.branch && person.branches?.length && !person.branches.some((b) => key(b) === key(unit.branch || ""))) return -1;
   let points = 0;
   if (unit.position && person.position) {
     if (key(unit.position) !== key(person.position)) return -1;

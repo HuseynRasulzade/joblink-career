@@ -23,7 +23,7 @@ const num = (v: string) => {
 export type SheetRows = { name: string; rows: string[][] };
 export type ParsedBranches = {
   branches: { name: string; code: string; city: string; active: boolean }[];
-  links: { fin: string; name: string; branch: string; role: string; sharePct: number; bonusEligible: boolean; from: string; to: string }[];
+  links: { fin: string; name: string; branch: string; role: string; sharePct: number; bonusEligible: boolean; from: string; to: string; department: string; section: string }[];
   sales: { month: string; branch: string; target: number; sales: number; kind: "fixed" | "salary_percent" | ""; value: number; active: boolean }[];
   mode: AllocationMode | "";
   issues: { sheet: string; line: number; reason: string }[];
@@ -59,7 +59,12 @@ export function parseBranchSheets(sheets: SheetRows[]): ParsedBranches {
     }
   }
   // FİN | Ad Soyad | Filial | Vəzifə (filialda) | Pay % | Bonus alır | Başlama | Bitmə
-  for (const { line, cells } of body(by(BX.links), "FİN", 8)) {
+  // Departament and Şöbə are read by their header names (the workbook's own sheet has other columns in those places).
+  const linksSheet = by(BX.links);
+  const linkHead = (linksSheet?.rows.find((r) => fold(r[0] || "") === "fin") || []).map((h) => fold(h));
+  const deptAt = linkHead.indexOf("departament");
+  const sectionAt = linkHead.indexOf("sobe");
+  for (const { line, cells } of body(linksSheet, "FİN", 8)) {
     out.found.push(BX.links);
     const fin = String(cells[0] || "").trim();
     const name = String(cells[1] || "").trim();
@@ -72,7 +77,7 @@ export function parseBranchSheets(sheets: SheetRows[]): ParsedBranches {
     else if (!Number.isFinite(pct) || pct < 0 || pct > 100) out.issues.push({ sheet: BX.links, line, reason: `“${cells[4]}” pay faizi 0–100 arası olmalıdır.` });
     else if (String(cells[6] || "").trim() && !from) out.issues.push({ sheet: BX.links, line, reason: `“${cells[6]}” başlama tarixi oxunmadı.` });
     else if (String(cells[7] || "").trim() && !to) out.issues.push({ sheet: BX.links, line, reason: `“${cells[7]}” bitmə tarixi oxunmadı.` });
-    else out.links.push({ fin, name, branch, role: String(cells[3] || "").trim(), sharePct: pct, bonusEligible: !no(cells[5] || ""), from, to });
+    else out.links.push({ fin, name, branch, role: String(cells[3] || "").trim(), sharePct: pct, bonusEligible: !no(cells[5] || ""), from, to, department: deptAt >= 0 ? String(cells[deptAt] || "").trim() : "", section: sectionAt >= 0 ? String(cells[sectionAt] || "").trim() : "" });
   }
   // Ay | Filial | Satış limiti | Satış | Bonus növü | Bonus dəyəri | Qayda aktiv
   const seenSale = new Set<string>();
@@ -108,14 +113,14 @@ export function parseBranchSheets(sheets: SheetRows[]): ParsedBranches {
 export type BranchExport = {
   mode: AllocationMode;
   branches: { name: string; code: string; city: string; active: boolean }[];
-  links: { fin: string; name: string; branch: string; role: string; sharePct: number; bonusEligible: boolean; from: string; to: string }[];
+  links: { fin: string; name: string; branch: string; role: string; sharePct: number; bonusEligible: boolean; from: string; to: string; department: string; section: string }[];
   sales: { month: string; branch: string; target: number; sales: number; kind: "fixed" | "salary_percent"; value: number; active: boolean }[];
 };
 export const GUIDE = [
   "Filiallar: Excel ilə yükləmə təlimatı",
   "",
-  "«Filiallar» vərəqi: Filial | Kod | Şəhər | Aktiv (Bəli/Xeyr).",
-  "«İşçi-filial» vərəqi: FİN | Ad Soyad | Filial | Vəzifə (filialda) | Pay % | Bonus alır | Başlama | Bitmə. Bir işçi bir neçə sətirdə (bir neçə filialda) ola bilər. Pay % boşdursa maaş «Bölgü» rejiminə görə bölünür; yazılıbsa həmin faizlə.",
+  "«Filiallar» vərəqi: Filial | Kod | Şəhər | Aktiv (Bəli/Xeyr). Filiallar yalnız Ştat cədvəlindən yaranır; burada olmayan filial yüklənmir, yalnız mövcudun kodu, şəhəri və aktivliyi yazılır.",
+  "«İşçi-filial» vərəqi: FİN | Ad Soyad | Filial | Vəzifə (filialda) | Pay % | Bonus alır | Başlama | Bitmə | Departament | Şöbə (departament və şöbə həmin filialın ştat cədvəlindəki olmalıdır). Bir işçi bir neçə sətirdə (bir neçə filialda) ola bilər. Pay % boşdursa maaş «Bölgü» rejiminə görə bölünür; yazılıbsa həmin faizlə.",
   "«Satış və bonus» vərəqi: Ay | Filial | Satış limiti | Satış | Bonus növü (Sabit məbləğ / Maaşın %) | Bonus dəyəri | Qayda aktiv. Satış limitə çatanda və ya keçəndə bonus avtomatik hesablanır: sabit məbləğ (hər işçiyə) və ya filiala düşən maaşın faizi (100 = maaşın özü qədər).",
   "«Bölgü» vərəqi: Parametr | Dəyər. «Bölgü rejimi»: Bərabər (filial sayına görə) və ya Satışa görə.",
   "Təsdiqlənmiş ayın satışı və limiti dəyişmir. Platformadan çıxarılmış faylı geri yükləmək olar.",
@@ -123,7 +128,7 @@ export const GUIDE = [
 
 const HEAD = {
   branches: ["Filial", "Kod", "Şəhər", "Aktiv"],
-  links: ["FİN", "Ad Soyad", "Filial", "Vəzifə (filialda)", "Pay %", "Bonus alır", "Başlama", "Bitmə"],
+  links: ["FİN", "Ad Soyad", "Filial", "Vəzifə (filialda)", "Pay %", "Bonus alır", "Başlama", "Bitmə", "Departament", "Şöbə"],
   sales: ["Ay", "Filial", "Satış limiti", "Satış", "Bonus növü", "Bonus dəyəri", "Qayda aktiv"],
   mode: ["Parametr", "Dəyər"],
 };
@@ -133,7 +138,7 @@ export function branchWorkbook(data: BranchExport): XlsxSheet[] {
   return [
     { name: BX.guide, headers: ["Təlimat"], rows: GUIDE.slice(1).map((l) => [l]) },
     { name: BX.branches, headers: HEAD.branches, rows: data.branches.map((b) => [b.name, b.code, b.city, yn(b.active)]) },
-    { name: BX.links, headers: HEAD.links, rows: data.links.map((l) => [l.fin, l.name, l.branch, l.role, l.sharePct || "", yn(l.bonusEligible), l.from, l.to]) },
+    { name: BX.links, headers: HEAD.links, rows: data.links.map((l) => [l.fin, l.name, l.branch, l.role, l.sharePct || "", yn(l.bonusEligible), l.from, l.to, l.department, l.section]) },
     { name: BX.sales, headers: HEAD.sales, rows: data.sales.map((s) => [s.month, s.branch, s.target, s.sales, s.kind === "fixed" ? "Sabit məbləğ" : "Maaşın %", s.value, yn(s.active)]) },
     { name: BX.mode, headers: HEAD.mode, rows: [["Bölgü rejimi", data.mode === "sales" ? "Satışa görə" : "Bərabər"]] },
   ];
@@ -147,9 +152,9 @@ export function branchTemplate(month: string): XlsxSheet[] {
       { name: "B filialı", code: "B", city: "Gəncə", active: true },
     ],
     links: [
-      { fin: "1ABCDE2", name: "Nümunə Baş Mühasib", branch: "A filialı", role: "Baş mühasib", sharePct: 0, bonusEligible: true, from: "", to: "" },
-      { fin: "1ABCDE2", name: "Nümunə Baş Mühasib", branch: "B filialı", role: "Mühasib", sharePct: 0, bonusEligible: true, from: "", to: "" },
-      { fin: "3FGHIJ4", name: "Nümunə Satıcı", branch: "A filialı", role: "Satış meneceri", sharePct: 100, bonusEligible: true, from: "", to: "" },
+      { fin: "1ABCDE2", name: "Nümunə Baş Mühasib", branch: "A filialı", role: "Baş mühasib", sharePct: 0, bonusEligible: true, from: "", to: "", department: "Maliyyə", section: "" },
+      { fin: "1ABCDE2", name: "Nümunə Baş Mühasib", branch: "B filialı", role: "Mühasib", sharePct: 0, bonusEligible: true, from: "", to: "", department: "Maliyyə", section: "" },
+      { fin: "3FGHIJ4", name: "Nümunə Satıcı", branch: "A filialı", role: "Satış meneceri", sharePct: 100, bonusEligible: true, from: "", to: "", department: "Satış", section: "" },
     ],
     sales: [
       { month, branch: "A filialı", target: 50000, sales: 56000, kind: "fixed", value: 200, active: true },

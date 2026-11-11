@@ -30,6 +30,8 @@ import {
 import { Field, Modal } from "./components";
 import { takeFocus, type FocusTarget } from "./focus";
 import { EmployeeAvatar } from "./EmployeePhoto";
+import EmployeeBranches from "./EmployeeBranches";
+const uniqueSorted = (list: string[]) => [...new Set(list.filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
 import { formatDate } from "@/lib/dates";
 import { VACANCY_REASONS } from "@/lib/recruitment";
 import type { WorkforceMetrics } from "@/lib/workforce";
@@ -2587,6 +2589,11 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   // Extra sections of the employee card open in their own pop-up windows.
   const [panel, setPanel] = useState<"pay" | "orders" | "docs" | "onboarding" | "history" | "profile" | "link" | "hrdocs" | "salaryhist" | null>(null);
   const { names: orgNames, remember: rememberOrg } = useOrgNames();
+  // The staff table gives the departments, sections and positions; the card chooses from them (nothing new is invented on the card).
+  const [structure, setStructure] = useState<{ branch: string; department: string; section: string; position: string }[]>([]);
+  useEffect(() => {
+    request<{ units: { branch: string; department: string; section: string; position: string }[] }>("company/staff/structure").then((d) => setStructure(d.units)).catch(() => setStructure([]));
+  }, []);
   const [history, setHistory] = useState<
     {
       type: string;
@@ -2878,9 +2885,10 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   }
                 />
               </Field>
-              <OrgNameInput label="Vəzifə" kind="position" names={orgNames} onAdded={rememberOrg} value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
-              <OrgNameInput label="Departament" kind="department" names={orgNames} onAdded={rememberOrg} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
-              <OrgNameInput label="Şöbə" kind="section" names={orgNames} onAdded={rememberOrg} department={editing.department || ""} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
+              <OrgNameInput label="Vəzifə" kind="position" names={orgNames} onAdded={rememberOrg} fixedList={structure.length ? uniqueSorted(structure.filter((u) => !editing.department || u.department === editing.department).filter((u) => !editing.section || u.section === editing.section).map((u) => u.position)) : undefined} value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
+              <OrgNameInput label="Departament" kind="department" names={orgNames} onAdded={rememberOrg} fixedList={structure.length ? uniqueSorted(structure.map((u) => u.department)) : undefined} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
+              <OrgNameInput label="Şöbə" kind="section" names={orgNames} onAdded={rememberOrg} department={editing.department || ""} fixedList={structure.length ? uniqueSorted(structure.filter((u) => u.department === editing.department).map((u) => u.section)) : undefined} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
+              {editing.id && <div style={{ gridColumn: "1 / -1" }}><EmployeeBranches employeeId={editing.id} notify={notify} /></div>}
               <Field label="İşə başlama">
                 <input
                   type="date"

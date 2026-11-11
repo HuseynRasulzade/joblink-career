@@ -376,6 +376,15 @@ type ChartPerson = { id: string; name: string; position: string; department: str
 export function OrgChart({ notify }: { notify: Notify }) {
   const [data] = useLoad<{ employees: ChartPerson[]; canPersonal?: boolean }>("company/employees", notify);
   const [company, setCompany] = useState("");
+  // Branches (when the staff table has any): the picture can show the whole company or one branch with its departments, sections and people.
+  const [branchData, setBranchData] = useState<{ branches: { id: string; name: string }[]; links: { employeeId: string; branchId: string; department?: string; section?: string; role: string }[] } | null>(null);
+  const [branch, setBranch] = useState("");
+  useEffect(() => {
+    fetch("/api/joblink/company/branches", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<NonNullable<typeof branchData>>) : null))
+      .then((d) => setBranchData(d && d.branches ? d : null))
+      .catch(() => setBranchData(null));
+  }, []);
   useEffect(() => {
     fetch("/api/joblink/company/me", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? (r.json() as Promise<{ company: { name: string } | null }>) : null))
@@ -383,12 +392,28 @@ export function OrgChart({ notify }: { notify: Notify }) {
       .catch(() => undefined);
   }, []);
   if (!data) return <p className="muted">Yüklənir…</p>;
-  const people = data.employees.filter((p) => p.status !== "left");
+  const everyone = data.employees.filter((p) => p.status !== "left");
+  const chosen = branchData?.branches.find((b) => b.id === branch);
+  // One branch: its people, each placed where his link puts him (department, section, position there).
+  const people = chosen && branchData
+    ? branchData.links.filter((l) => l.branchId === chosen.id).flatMap((l) => {
+        const p = everyone.find((x) => x.id === l.employeeId);
+        return p ? [{ ...p, department: l.department || p.department, section: l.section || "", position: l.role || p.position }] : [];
+      })
+    : everyone;
   const departments = [...new Set(people.map((p) => p.department || "Departamentsiz"))].sort((a, b) => a.localeCompare(b, "az"));
   return (
     <div className="company-page org-chart">
-      <p className="muted">Şirkət → departament → şöbə → işçi. {people.length} işçi, {departments.length} departament. Departamentin düyməsi ilə qolu yığıb aça bilərsiniz.</p>
-      {people.length ? <OrgDiagram people={people} company={company} photos={!!data.canPersonal} /> : <p className="admin-empty">Hələ işçi yoxdur: sxem işçi əlavə olunanda çəkilir.</p>}
+      <p className="muted">{chosen ? "Şirkət → filial → departament → şöbə → işçi." : "Şirkət → departament → şöbə → işçi."} {people.length} işçi, {departments.length} departament. Departamentin düyməsi ilə qolu yığıb aça bilərsiniz.</p>
+      {!!branchData?.branches.length && (
+        <div className="admin-actions" style={{ justifyContent: "flex-start", alignItems: "center" }}>
+          <label>Filial <select value={branch} onChange={(e) => setBranch(e.target.value)} style={{ marginLeft: 6 }}>
+            <option value="">Bütün şirkət</option>
+            {branchData.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select></label>
+        </div>
+      )}
+      {people.length ? <OrgDiagram key={branch} people={people} company={chosen ? `${company} › ${chosen.name}` : company} photos={!!data.canPersonal} /> : <p className="admin-empty">Hələ işçi yoxdur: sxem işçi əlavə olunanda çəkilir.</p>}
       <details className="od-text">
         <summary>Mətn variantı (siyahı)</summary>
         {departments.map((d) => {

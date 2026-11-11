@@ -517,7 +517,16 @@ async function resolvePosition(db: D1Database, companyId: string, input: string)
   });
   return { name, original, matched: null, requested: "new" };
 }
-type StaffInput = { department: string; section: string; position: string; planned: number; salaryCents: number; note: string; rate?: number; salaryMaxCents?: number };
+type StaffInput = { branch?: string; department: string; section: string; position: string; planned: number; salaryCents: number; note: string; rate?: number; salaryMaxCents?: number };
+// The branches exist only through the staff table: a row that names a branch brings it into being (with the spelling already used, if any).
+async function ensureBranch(db: D1Database, companyId: string, raw: string): Promise<string> {
+  const name = String(raw || "").trim().slice(0, 120);
+  if (!name) return "";
+  const found = await db.prepare("SELECT name FROM branches WHERE company_id=? AND lower(name)=lower(?)").bind(companyId, name).first<{ name: string }>().catch(() => null);
+  if (found) return found.name;
+  await db.prepare("INSERT INTO branches(id,company_id,name,code,city,active,created) VALUES(?,?,?,'','',1,?)").bind(crypto.randomUUID(), companyId, name, new Date().toISOString()).run();
+  return name;
+}
 async function saveStaffUnit(
   db: D1Database,
   companyId: string,
@@ -527,6 +536,7 @@ async function saveStaffUnit(
   const department = await canonicalOrg(db, companyId, "department", unit.department);
   unit = {
     ...unit,
+    branch: await ensureBranch(db, companyId, unit.branch || ""),
     department,
     section: await canonicalOrg(db, companyId, "section", unit.section, department),
     position: (await resolvePosition(db, companyId, unit.position)).name,
@@ -536,8 +546,8 @@ async function saveStaffUnit(
   const now = new Date().toISOString();
   if (unitId) {
     const result = await db
-      .prepare("UPDATE staff_units SET department=?,section=?,position=?,planned=?,rate=?,salary_cents=?,salary_max_cents=?,note=?,updated=? WHERE id=? AND company_id=?")
-      .bind(unit.department, unit.section, unit.position, unit.planned, rate, unit.salaryCents, salaryMaxCents, unit.note, now, unitId, companyId)
+      .prepare("UPDATE staff_units SET branch=?,department=?,section=?,position=?,planned=?,rate=?,salary_cents=?,salary_max_cents=?,note=?,updated=? WHERE id=? AND company_id=?")
+      .bind(unit.branch || "", unit.department, unit.section, unit.position, unit.planned, rate, unit.salaryCents, salaryMaxCents, unit.note, now, unitId, companyId)
       .run();
     if (!result.meta.changes) throw new HttpError(404, "Ştat sətri tapılmadı.");
     return unitId;
@@ -546,8 +556,8 @@ async function saveStaffUnit(
   if (Number(count?.n) >= 1000) throw new HttpError(409, "Ştat cədvəlində ən çox 1000 sətir ola bilər.");
   const created = crypto.randomUUID();
   await db
-    .prepare("INSERT INTO staff_units(id,company_id,department,section,position,planned,rate,salary_cents,salary_max_cents,note,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(created, companyId, unit.department, unit.section, unit.position, unit.planned, rate, unit.salaryCents, salaryMaxCents, unit.note, now)
+    .prepare("INSERT INTO staff_units(id,company_id,branch,department,section,position,planned,rate,salary_cents,salary_max_cents,note,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(created, companyId, unit.branch || "", unit.department, unit.section, unit.position, unit.planned, rate, unit.salaryCents, salaryMaxCents, unit.note, now)
     .run();
   return created;
 }
@@ -555,9 +565,9 @@ async function saveStaffUnit(
 async function loadPlanData(db: D1Database, companyId: string) {
   const [units, people] = await Promise.all([
     db
-      .prepare("SELECT id,department,section,position,planned,rate,salary_cents,salary_max_cents,note FROM staff_units WHERE company_id=? ORDER BY department,section,position")
+      .prepare("SELECT id,branch,department,section,position,planned,rate,salary_cents,salary_max_cents,note FROM staff_units WHERE company_id=? ORDER BY branch,department,section,position")
       .bind(companyId)
-      .all<{ id: string; department: string; section: string; position: string; planned: number; rate: number; salary_cents: number; salary_max_cents: number; note: string }>(),
+      .all<{ id: string; branch: string; department: string; section: string; position: string; planned: number; rate: number; salary_cents: number; salary_max_cents: number; note: string }>(),
     db
       .prepare("SELECT id,name,department,section,position,status,salary_cents,salary_type,sector,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave')")
       .bind(companyId)
@@ -566,6 +576,7 @@ async function loadPlanData(db: D1Database, companyId: string) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const planUnits: (PlanUnit & { note: string })[] = units.results.map((u) => ({
     id: u.id,
+    branch: u.branch || "",
     department: u.department,
     section: u.section,
     position: u.position,
@@ -575,8 +586,13 @@ async function loadPlanData(db: D1Database, companyId: string) {
     salaryMax: Math.max(u.salary_cents, u.salary_max_cents || 0) / 100,
     note: u.note,
   }));
+  // The branches each person works in (a row of a branch takes only people of that branch).
+  const linkRows = (await db.prepare("SELECT l.employee_id,b.name FROM employee_branches l JOIN branches b ON b.id=l.branch_id WHERE l.company_id=?").bind(companyId).all<{ employee_id: string; name: string }>().catch(() => ({ results: [] as { employee_id: string; name: string }[] }))).results;
+  const branchesOf = new Map<string, string[]>();
+  for (const l of linkRows) branchesOf.set(l.employee_id, [...(branchesOf.get(l.employee_id) || []), l.name]);
   const planPeople: (PlanPerson & { name: string })[] = people.results.map((p) => ({
     id: p.id,
+    branches: branchesOf.get(p.id) || [],
     name: p.name,
     department: p.department,
     section: p.section,
@@ -591,18 +607,19 @@ async function loadPlanData(db: D1Database, companyId: string) {
 async function staffBandProblem(
   db: D1Database,
   companyId: string,
-  changes: { id?: string; department: string; section: string; position: string; planned: number; rate?: number; salaryCents: number; salaryMaxCents?: number }[],
+  changes: { id?: string; branch?: string; department: string; section: string; position: string; planned: number; rate?: number; salaryCents: number; salaryMaxCents?: number }[],
 ): Promise<string> {
   if (!changes.some((c) => c.salaryCents > 0 || (c.salaryMaxCents || 0) > 0)) return "";
   const plan = await loadPlanData(db, companyId);
-  const units: PlanUnit[] = plan.units.map((u) => ({ id: u.id, department: u.department, section: u.section, position: u.position, planned: u.planned, rate: u.rate, salaryMin: u.salaryMin, salaryMax: u.salaryMax }));
+  const units: PlanUnit[] = plan.units.map((u) => ({ id: u.id, branch: u.branch, department: u.department, section: u.section, position: u.position, planned: u.planned, rate: u.rate, salaryMin: u.salaryMin, salaryMax: u.salaryMax }));
   const same = (a: string, b: string) => a.trim().toLocaleLowerCase("az") === b.trim().toLocaleLowerCase("az");
   const touched = new Set<string>();
   changes.forEach((c, index) => {
     const position = bestCatalogMatch(c.position)?.title.label || c.position;
-    const existing = units.find((u) => (c.id && u.id === c.id) || (!c.id && same(u.department, c.department) && same(u.section, c.section) && same(u.position, position)));
+    const existing = units.find((u) => (c.id && u.id === c.id) || (!c.id && same(u.branch || "", c.branch || "") && same(u.department, c.department) && same(u.section, c.section) && same(u.position, position)));
     const next: PlanUnit = {
       id: existing?.id || `new-${index}`,
+      branch: c.branch || "",
       department: c.department,
       section: c.section,
       position,
@@ -632,11 +649,12 @@ async function applyStaffRows(db: D1Database, companyId: string, rows: StaffInpu
     const department = await canonicalOrg(db, companyId, "department", row.department);
     const section = await canonicalOrg(db, companyId, "section", row.section, department);
     const position = (await resolvePosition(db, companyId, row.position)).name;
+    const branch = await ensureBranch(db, companyId, row.branch || "");
     const found = await db
-      .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(department)=lower(?) AND lower(section)=lower(?) AND lower(position)=lower(?)")
-      .bind(companyId, department, section, position)
+      .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(branch)=lower(?) AND lower(department)=lower(?) AND lower(section)=lower(?) AND lower(position)=lower(?)")
+      .bind(companyId, branch, department, section, position)
       .first<{ id: string }>();
-    await saveStaffUnit(db, companyId, found?.id || "", { ...row, department, section, position });
+    await saveStaffUnit(db, companyId, found?.id || "", { ...row, branch, department, section, position });
     if (found) updated++;
     else created++;
   }
@@ -9323,14 +9341,14 @@ async function route(request: Request) {
   const branchContext = async (monthRaw: string): Promise<BranchCtx> => {
     const [b, l, r, sl, m] = await Promise.all([
       db.prepare("SELECT id,name,code,city,active FROM branches WHERE company_id=? ORDER BY name").bind(id).all<{ id: string; name: string; code: string; city: string; active: number }>().catch(() => ({ results: [] as { id: string; name: string; code: string; city: string; active: number }[] })),
-      db.prepare("SELECT employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date FROM employee_branches WHERE company_id=?").bind(id).all<{ employee_id: string; branch_id: string; role: string; share_pct: number; bonus_eligible: number; from_date: string; to_date: string }>().catch(() => ({ results: [] as { employee_id: string; branch_id: string; role: string; share_pct: number; bonus_eligible: number; from_date: string; to_date: string }[] })),
+      db.prepare("SELECT employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date,department,section FROM employee_branches WHERE company_id=?").bind(id).all<{ employee_id: string; branch_id: string; role: string; share_pct: number; bonus_eligible: number; from_date: string; to_date: string; department: string; section: string }>().catch(() => ({ results: [] as { employee_id: string; branch_id: string; role: string; share_pct: number; bonus_eligible: number; from_date: string; to_date: string; department: string; section: string }[] })),
       db.prepare("SELECT branch_id,kind,value,active FROM branch_bonus_rules WHERE company_id=?").bind(id).all<{ branch_id: string; kind: string; value: number; active: number }>().catch(() => ({ results: [] as { branch_id: string; kind: string; value: number; active: number }[] })),
       db.prepare("SELECT branch_id,month,target,sales FROM branch_sales WHERE company_id=? AND month=?").bind(id, monthRaw).all<{ branch_id: string; month: string; target: number; sales: number }>().catch(() => ({ results: [] as { branch_id: string; month: string; target: number; sales: number }[] })),
       db.prepare("SELECT value FROM hr_settings WHERE company_id=? AND key='branch_alloc_mode'").bind(id).first<{ value: string }>().catch(() => null),
     ]);
     return {
       branches: b.results.map((x) => ({ id: x.id, name: x.name, code: x.code, city: x.city, active: !!x.active })),
-      links: l.results.map((x) => ({ employeeId: x.employee_id, branchId: x.branch_id, role: x.role, sharePct: x.share_pct, bonusEligible: !!x.bonus_eligible, from: x.from_date, to: x.to_date })),
+      links: l.results.map((x) => ({ employeeId: x.employee_id, branchId: x.branch_id, role: x.role, sharePct: x.share_pct, bonusEligible: !!x.bonus_eligible, from: x.from_date, to: x.to_date, department: x.department, section: x.section })),
       rules: r.results.map((x) => ({ branchId: x.branch_id, kind: x.kind === "salary_percent" ? "salary_percent" : "fixed", value: x.value, active: !!x.active })),
       sales: sl.results.map((x) => ({ branchId: x.branch_id, month: x.month, target: x.target, sales: x.sales })),
       mode: normalizeMode(m?.value),
@@ -12160,34 +12178,50 @@ async function route(request: Request) {
       sales: ctx.sales.map((x) => ({ ...x, reached: x.target > 0 && x.sales >= x.target })),
       links: ctx.links.filter((l) => byId.has(l.employeeId)).map((l) => ({ ...l, name: byId.get(l.employeeId)?.name || "", position: byId.get(l.employeeId)?.position || "", department: byId.get(l.employeeId)?.department || "" })),
       employees: people.map((p) => ({ id: p.id, name: p.name, position: p.position, department: p.department })),
+      // The staff table is where the structure comes from: branch → department → section → position.
+      units: (await db.prepare("SELECT branch,department,section,position,planned FROM staff_units WHERE company_id=? ORDER BY branch,department,section,position").bind(id).all<{ branch: string; department: string; section: string; position: string; planned: number }>().catch(() => ({ results: [] as { branch: string; department: string; section: string; position: string; planned: number }[] }))).results,
     });
   }
+  // The structure the staff table gives (branch → department → section → position): the employee card chooses from it.
+  if (request.method === "GET" && path === "company/staff/structure") {
+    requirePermission("employees", "Ştat strukturunu yalnız işçi kartına icazəsi olan şəxs görə bilər.");
+    return ok({ units: (await db.prepare("SELECT branch,department,section,position FROM staff_units WHERE company_id=? ORDER BY branch,department,section,position").bind(id).all<{ branch: string; department: string; section: string; position: string }>().catch(() => ({ results: [] as { branch: string; department: string; section: string; position: string }[] }))).results });
+  }
+  // A branch is born in the staff table (a row names it); here only its code, city and whether it is active are written.
   if (request.method === "POST" && path === "company/branches/save") {
     requirePermission("salaries", "Filialı yalnız əmək haqqı icazəsi olan şəxs yaza bilər.");
     const b = await jsonBody(request);
-    const name = str(b.name, 120).trim();
-    if (!name) throw new HttpError(400, "Filialın adını yazın.");
     const branchId = str(b.id, 100);
-    const clash = await db.prepare("SELECT id FROM branches WHERE company_id=? AND lower(name)=lower(?) AND id<>?").bind(id, name, branchId).first();
-    if (clash) throw new HttpError(409, "Bu adda filial artıq var.");
-    const row = [name, str(b.code, 40).trim(), str(b.city, 120).trim(), b.active === false ? 0 : 1] as const;
-    if (branchId) {
-      const r = await db.prepare("UPDATE branches SET name=?,code=?,city=?,active=? WHERE id=? AND company_id=?").bind(...row, branchId, id).run();
-      if (!r.meta.changes) throw new HttpError(404, "Filial tapılmadı.");
-      await companyAudit(db, id, userId, "branch", branchId, name);
-      return ok({ ok: true, id: branchId });
-    }
-    const count = await db.prepare("SELECT COUNT(*) AS n FROM branches WHERE company_id=?").bind(id).first<{ n: number }>();
-    if (Number(count?.n) >= 200) throw new HttpError(409, "Ən çox 200 filial ola bilər.");
-    const created = crypto.randomUUID();
-    await db.prepare("INSERT INTO branches(id,company_id,name,code,city,active,created) VALUES(?,?,?,?,?,?,?)").bind(created, id, ...row, new Date().toISOString()).run();
-    await companyAudit(db, id, userId, "branch", created, name);
-    return ok({ ok: true, id: created });
+    if (!branchId) throw new HttpError(409, "Filial yalnız Ştat cədvəlindən yaradılır: ştat sətrində «Filial» sahəsini yazın, filial burada özü görünəcək.");
+    const r = await db.prepare("UPDATE branches SET code=?,city=?,active=? WHERE id=? AND company_id=?").bind(str(b.code, 40).trim(), str(b.city, 120).trim(), b.active === false ? 0 : 1, branchId, id).run();
+    if (!r.meta.changes) throw new HttpError(404, "Filial tapılmadı.");
+    await companyAudit(db, id, userId, "branch", branchId, "");
+    return ok({ ok: true, id: branchId });
+  }
+  // The name of a branch is its name in the staff table: renaming changes it in every row that carries it.
+  if (request.method === "POST" && path === "company/branches/rename") {
+    requirePermission("salaries", "Filialın adını yalnız əmək haqqı icazəsi olan şəxs dəyişə bilər.");
+    const b = await jsonBody(request);
+    const branchId = str(b.id, 100);
+    const name = str(b.name, 120).trim();
+    if (!name) throw new HttpError(400, "Yeni adı yazın.");
+    const current = await db.prepare("SELECT name FROM branches WHERE id=? AND company_id=?").bind(branchId, id).first<{ name: string }>();
+    if (!current) throw new HttpError(404, "Filial tapılmadı.");
+    if (await db.prepare("SELECT 1 AS x FROM branches WHERE company_id=? AND lower(name)=lower(?) AND id<>?").bind(id, name, branchId).first()) throw new HttpError(409, "Bu adda filial artıq var.");
+    await db.batch([
+      db.prepare("UPDATE branches SET name=? WHERE id=? AND company_id=?").bind(name, branchId, id),
+      db.prepare("UPDATE staff_units SET branch=? WHERE company_id=? AND lower(branch)=lower(?)").bind(name, id, current.name),
+    ]);
+    await companyAudit(db, id, userId, "branch-renamed", branchId, `${current.name} → ${name}`);
+    return ok({ ok: true });
   }
   if (request.method === "POST" && path === "company/branches/delete") {
     requirePermission("salaries", "Filialı yalnız əmək haqqı icazəsi olan şəxs silə bilər.");
     const b = await jsonBody(request);
     const branchId = str(b.id, 100);
+    const named = await db.prepare("SELECT name FROM branches WHERE id=? AND company_id=?").bind(branchId, id).first<{ name: string }>();
+    const rows = named ? await db.prepare("SELECT COUNT(*) AS n FROM staff_units WHERE company_id=? AND lower(branch)=lower(?)").bind(id, named.name).first<{ n: number }>() : null;
+    if (Number(rows?.n)) throw new HttpError(409, `Bu filial ştat cədvəlinin ${rows?.n} sətrində yazılıb. Filialı silmək üçün əvvəl həmin sətirlərin «Filial» sahəsini dəyişin və ya silin.`);
     const used = await db.prepare("SELECT COUNT(*) AS n FROM employee_branches WHERE company_id=? AND branch_id=?").bind(id, branchId).first<{ n: number }>();
     if (Number(used?.n)) throw new HttpError(409, `Bu filialda ${used?.n} işçi bağlıdır. Əvvəl onların filial bağlantısını silin (və ya filialı passiv edin).`);
     await db.batch([
@@ -12211,7 +12245,18 @@ async function route(request: Request) {
     const to = str(b.to, 10);
     for (const d of [from, to]) if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new HttpError(400, "Tarix düzgün deyil.");
     if (from && to && to < from) throw new HttpError(400, "Bitmə tarixi başlamadan əvvəl ola bilməz.");
-    await db.prepare("INSERT INTO employee_branches(company_id,employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,branch_id) DO UPDATE SET role=excluded.role,share_pct=excluded.share_pct,bonus_eligible=excluded.bonus_eligible,from_date=excluded.from_date,to_date=excluded.to_date").bind(id, employeeId, branchId, str(b.role, 120).trim(), Math.round(pct * 100) / 100, b.bonusEligible === false ? 0 : 1, from, to).run();
+    // The department and the section must be ones the staff table has under that branch.
+    const department = str(b.department, 120).trim();
+    const section = str(b.section, 120).trim();
+    const branchName = (await db.prepare("SELECT name FROM branches WHERE id=?").bind(branchId).first<{ name: string }>())?.name || "";
+    const branchRows = (await db.prepare("SELECT department,section FROM staff_units WHERE company_id=? AND lower(branch)=lower(?)").bind(id, branchName).all<{ department: string; section: string }>()).results;
+    const sameName = (a: string, c: string) => a.trim().toLocaleLowerCase("az") === c.trim().toLocaleLowerCase("az");
+    if (branchRows.length) {
+      if (!department) throw new HttpError(400, "Departamenti seçin (bu filialın ştat cədvəlindən).");
+      if (!branchRows.some((r) => sameName(r.department, department))) throw new HttpError(409, `“${department}” departamenti “${branchName}” filialının ştat cədvəlində yoxdur.`);
+      if (section && !branchRows.some((r) => sameName(r.department, department) && sameName(r.section, section))) throw new HttpError(409, `“${section}” şöbəsi “${branchName} / ${department}” üçün ştat cədvəlində yoxdur.`);
+    }
+    await db.prepare("INSERT INTO employee_branches(company_id,employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date,department,section) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,branch_id) DO UPDATE SET role=excluded.role,share_pct=excluded.share_pct,bonus_eligible=excluded.bonus_eligible,from_date=excluded.from_date,to_date=excluded.to_date,department=excluded.department,section=excluded.section").bind(id, employeeId, branchId, str(b.role, 120).trim(), Math.round(pct * 100) / 100, b.bonusEligible === false ? 0 : 1, from, to, department, section).run();
     await companyAudit(db, id, userId, "branch-link", employeeId, branchId);
     return ok({ ok: true });
   }
@@ -12276,7 +12321,7 @@ async function route(request: Request) {
     return ok({
       mode: ctx.mode,
       branches: ctx.branches.map((x) => ({ name: x.name, code: x.code, city: x.city, active: x.active })),
-      links: ctx.links.filter((l) => empOf.has(l.employeeId)).map((l) => ({ fin: opened.get(l.employeeId)?.fin || "", name: empOf.get(l.employeeId)?.name || "", branch: nameOf.get(l.branchId) || "", role: l.role, sharePct: l.sharePct, bonusEligible: l.bonusEligible, from: l.from, to: l.to })),
+      links: ctx.links.filter((l) => empOf.has(l.employeeId)).map((l) => ({ fin: opened.get(l.employeeId)?.fin || "", name: empOf.get(l.employeeId)?.name || "", branch: nameOf.get(l.branchId) || "", role: l.role, sharePct: l.sharePct, bonusEligible: l.bonusEligible, from: l.from, to: l.to, department: l.department || "", section: l.section || "" })),
       sales: allSales.map((x) => { const rule = ctx.rules.find((r) => r.branchId === x.branch_id); return { month: x.month, branch: nameOf.get(x.branch_id) || "", target: x.target, sales: x.sales, kind: rule?.kind || "fixed", value: rule?.value || 0, active: rule ? rule.active : true }; }),
     });
   }
@@ -12288,9 +12333,12 @@ async function route(request: Request) {
     const issues = [...parsed.issues];
     const apply = b.apply === true;
     const known = new Map((await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results.map((r) => [plainFold(r.name), r.id]));
+    // No branch is created here: they come from the staff table.
     const created = new Map<string, string>();
-    for (const x of parsed.branches) if (!known.has(plainFold(x.name))) created.set(plainFold(x.name), crypto.randomUUID());
-    const branchIdOf = (name: string) => known.get(plainFold(name)) || created.get(plainFold(name)) || "";
+    for (const x of parsed.branches) if (!known.has(plainFold(x.name))) issues.push({ sheet: "Filiallar", line: 0, reason: `“${x.name}” filialı ştat cədvəlində yoxdur. Filial yalnız Ştat cədvəlindən yaradılır.` });
+    const branchIdOf = (name: string) => known.get(plainFold(name)) || "";
+    const unitsByBranch = new Map<string, { department: string; section: string }[]>();
+    for (const u of (await db.prepare("SELECT branch,department,section FROM staff_units WHERE company_id=?").bind(id).all<{ branch: string; department: string; section: string }>()).results) unitsByBranch.set(plainFold(u.branch), [...(unitsByBranch.get(plainFold(u.branch)) || []), u]);
     const people = await employeeRefs();
     const lockedMonths = new Map<string, boolean>();
     const statements: D1PreparedStatement[] = [];
@@ -12299,9 +12347,7 @@ async function route(request: Request) {
     let nSales = 0;
     for (const x of parsed.branches) {
       const existing = known.get(plainFold(x.name));
-      statements.push(existing
-        ? db.prepare("UPDATE branches SET code=?,city=?,active=? WHERE id=? AND company_id=?").bind(x.code, x.city, x.active ? 1 : 0, existing, id)
-        : db.prepare("INSERT INTO branches(id,company_id,name,code,city,active,created) VALUES(?,?,?,?,?,?,?)").bind(created.get(plainFold(x.name)), id, x.name, x.code, x.city, x.active ? 1 : 0, now));
+      if (existing) statements.push(db.prepare("UPDATE branches SET code=?,city=?,active=? WHERE id=? AND company_id=?").bind(x.code, x.city, x.active ? 1 : 0, existing, id));
     }
     for (const x of parsed.links) {
       const branchId = branchIdOf(x.branch);
@@ -12314,7 +12360,12 @@ async function route(request: Request) {
         issues.push({ sheet: "İşçi-filial", line: 0, reason: found.error });
         continue;
       }
-      statements.push(db.prepare("INSERT INTO employee_branches(company_id,employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,branch_id) DO UPDATE SET role=excluded.role,share_pct=excluded.share_pct,bonus_eligible=excluded.bonus_eligible,from_date=excluded.from_date,to_date=excluded.to_date").bind(id, found.id, branchId, x.role, x.sharePct, x.bonusEligible ? 1 : 0, x.from, x.to));
+      const rowsOfBranch = unitsByBranch.get(plainFold(x.branch)) || [];
+      if (rowsOfBranch.length && x.department && !rowsOfBranch.some((r) => plainFold(r.department) === plainFold(x.department) && (!x.section || plainFold(r.section) === plainFold(x.section)))) {
+        issues.push({ sheet: "İşçi-filial", line: 0, reason: `${x.name || x.fin}: “${x.department}${x.section ? ` / ${x.section}` : ""}” “${x.branch}” filialının ştat cədvəlində yoxdur.` });
+        continue;
+      }
+      statements.push(db.prepare("INSERT INTO employee_branches(company_id,employee_id,branch_id,role,share_pct,bonus_eligible,from_date,to_date,department,section) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,branch_id) DO UPDATE SET role=excluded.role,share_pct=excluded.share_pct,bonus_eligible=excluded.bonus_eligible,from_date=excluded.from_date,to_date=excluded.to_date,department=excluded.department,section=excluded.section").bind(id, found.id, branchId, x.role, x.sharePct, x.bonusEligible ? 1 : 0, x.from, x.to, x.department, x.section));
       nLinks++;
     }
     for (const x of parsed.sales) {
@@ -12333,7 +12384,7 @@ async function route(request: Request) {
       nSales++;
     }
     if (parsed.mode) statements.push(db.prepare("INSERT INTO hr_settings(company_id,key,value) VALUES(?,?,?) ON CONFLICT(company_id,key) DO UPDATE SET value=excluded.value").bind(id, "branch_alloc_mode", parsed.mode));
-    const summary = { branches: parsed.branches.length, newBranches: created.size, links: nLinks, sales: nSales, mode: parsed.mode, found: parsed.found };
+    const summary = { branches: parsed.branches.filter((x) => known.has(plainFold(x.name))).length, newBranches: 0, links: nLinks, sales: nSales, mode: parsed.mode, found: parsed.found };
     if (!apply || !parsed.found.length) return ok({ applied: false, summary, issues });
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
     await companyAudit(db, id, userId, "branch-import", "", `${parsed.branches.length} filial, ${nLinks} bağlantı, ${nSales} satış`);
@@ -14107,6 +14158,7 @@ async function route(request: Request) {
     return ok({ places: department ? await staffPlaces(db, id, department) : null });
   }
   const unitInput = (b: Record<string, unknown>) => ({
+    branch: str(b.branch, 120).trim(),
     department: str(b.department, 120),
     section: str(b.section, 120),
     position: str(b.position, 120),
@@ -14373,7 +14425,7 @@ async function route(request: Request) {
       (Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])),
     );
     if (!incoming.rows.length) throw new HttpError(400, incoming.issues[0]?.reason || "Faylda ştat sətri tapılmadı.");
-    const rows = incoming.rows.map((row) => ({ department: row.department, section: row.section, position: row.position, planned: row.planned, rate: row.rate, salaryCents: Math.round(row.salary * 100), salaryMaxCents: Math.round(row.salaryMax * 100), note: row.note }));
+    const rows = incoming.rows.map((row) => ({ branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned, rate: row.rate, salaryCents: Math.round(row.salary * 100), salaryMaxCents: Math.round(row.salaryMax * 100), note: row.note }));
     const importProblem = await staffBandProblem(db, id, rows);
     if (importProblem) throw new HttpError(409, importProblem);
     if (await planLocked()) {

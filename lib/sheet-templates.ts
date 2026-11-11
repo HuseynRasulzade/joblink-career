@@ -51,6 +51,7 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
     file: "stat-numune.xlsx",
     sheet: "Ştat",
     columns: [
+      { header: "Filial", required: false, format: "Mətn", description: "Ştat sətrinin filialı; yoxdursa yaradılır (filiallar yalnız ştat cədvəlindən yaranır). Boşdursa şirkət üzrə." },
       { header: "Departament", required: true, format: "Mətn", description: "Departamentin adı; strukturda yoxdursa yaradılır." },
       { header: "Şöbə", required: false, format: "Mətn", description: "Departamentin şöbəsi; boş ola bilər." },
       { header: "Vəzifə", required: true, format: "Mətn", description: "Vəzifə adı (kataloqdan)." },
@@ -61,9 +62,9 @@ export const SHEET_TEMPLATES: Record<SheetKind, SheetTemplate> = {
       { header: "Qeyd", required: false, format: "Mətn", description: "İstədiyiniz izah." },
     ],
     examples: [
-      ["Maliyyə", "Mühasibat", "Baş mühasib", 1, "tam", 2500, 3000, ""],
-      ["Maliyyə", "Mühasibat", "Mühasib", 2, "yarım", 800, 1200, "yarım ştat"],
-      ["Satış", "Daxili satış", "Satış meneceri", 3, "tam", 1000, 1800, ""],
+      ["A filialı", "Maliyyə", "Mühasibat", "Baş mühasib", 1, "tam", 2500, 3000, ""],
+      ["A filialı", "Maliyyə", "Mühasibat", "Mühasib", 2, "yarım", 800, 1200, "yarım ştat"],
+      ["A filialı", "Satış", "Daxili satış", "Satış meneceri", 3, "tam", 1000, 1800, ""],
     ],
     rules: ["Plan təsdiqləndikdən sonra yükləmə direktorun təsdiqinə göndərilir.", "Eyni departament, şöbə və vəzifə olan sətir yenilənir, yenisi əlavə olunur.", "Fayl əvvəlcə “XLSX” ixracı ilə də alına bilər: ixrac fayl bu şablonun sütunları ilə başlayır."],
   },

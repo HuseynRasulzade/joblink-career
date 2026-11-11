@@ -17,7 +17,7 @@ export type EmployeeRow = {
   vacationUsed: number;
   fin: string;
 };
-export type StaffRow = { line: number; department: string; section: string; position: string; planned: number; rate: number; salary: number; salaryMax: number; note: string };
+export type StaffRow = { line: number; branch: string; department: string; section: string; position: string; planned: number; rate: number; salary: number; salaryMax: number; note: string };
 export type StructureRow = { line: number; department: string; section: string };
 export type RowIssue = { line: number; reason: string };
 
@@ -65,12 +65,13 @@ export function parseNumberCell(value: string): number {
   return Number.isFinite(number) ? number : 0;
 }
 
-type Field = "fin" | "name" | "position" | "department" | "section" | "startDate" | "salary" | "salaryType" | "sector" | "email" | "phone" | "vacationDays" | "vacationUsed" | "planned" | "note" | "rate" | "salaryMax";
+type Field = "branch" | "fin" | "name" | "position" | "department" | "section" | "startDate" | "salary" | "salaryType" | "sector" | "email" | "phone" | "vacationDays" | "vacationUsed" | "planned" | "note" | "rate" | "salaryMax";
 const ALIASES: Record<Field, string[]> = {
   fin: ["fin", "fin kod", "fin kodu", "fin kodu 7 simvol"],
   name: ["ad soyad", "ad soyad ata adi", "soyad ad", "isci", "isci adi", "ad", "fio", "ф и о", "фио", "full name", "name", "employee"],
   position: ["vezife", "ixtisas", "position", "title", "job title", "должность"],
   department: ["departament", "department", "idare", "департамент"],
+  branch: ["filial", "filialin adi", "branch", "филиал"],
   section: ["sobe", "section", "sektor bolme", "bolme", "otdel", "отдел"],
   startDate: ["ise baslama", "ise baslama tarixi", "ise qebul tarixi", "ise qebul", "baslama tarixi", "start date", "hire date", "дата приема"],
   salary: ["emek haqqi", "emek haqqi azn", "minimum emek haqqi", "minimum maas", "min emek haqqi", "min maas", "emek haqqi min", "maas", "maas azn", "salary", "gross", "net", "оклад", "зарплата"],
@@ -181,7 +182,7 @@ export function parseRateCell(value: string): number {
 }
 
 export function parseStaffRows(rows: string[][], limit = 500): { rows: StaffRow[]; issues: RowIssue[] } {
-  const fields: Field[] = ["department", "section", "position", "planned", "rate", "salaryMax", "salary", "note"];
+  const fields: Field[] = ["branch", "department", "section", "position", "planned", "rate", "salaryMax", "salary", "note"];
   const header = findHeader(rows, fields, "department") || findHeader(rows, fields, "position");
   if (!header) return { rows: [], issues: [{ line: 1, reason: "“Departament” və ya “Vəzifə” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
   const get = (row: string[], field: Field) => String(row[header.map.get(field) ?? -1] ?? "").trim();
@@ -214,7 +215,7 @@ export function parseStaffRows(rows: string[][], limit = 500): { rows: StaffRow[
     }
     const salary = Math.max(0, parseNumberCell(get(row, "salary")));
     const salaryMax = Math.max(salary, parseNumberCell(get(row, "salaryMax")));
-    out.push({ line, department, section: get(row, "section").slice(0, 120), position, planned, rate, salary, salaryMax, note: get(row, "note").slice(0, 300) });
+    out.push({ line, branch: get(row, "branch").slice(0, 120), department, section: get(row, "section").slice(0, 120), position, planned, rate, salary, salaryMax, note: get(row, "note").slice(0, 300) });
   }
   return { rows: out, issues };
 }

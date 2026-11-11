@@ -2,7 +2,7 @@
 // (equally, by the sales of each branch, or by percentages written by hand), and a branch that reaches its sales limit
 // gives its people a bonus (a fixed amount, or a percentage of the pay that falls on that branch: 100% = the pay itself).
 export type Branch = { id: string; name: string; code: string; city: string; active: boolean };
-export type BranchLink = { employeeId: string; branchId: string; role: string; sharePct: number; bonusEligible: boolean; from: string; to: string };
+export type BranchLink = { employeeId: string; branchId: string; role: string; sharePct: number; bonusEligible: boolean; from: string; to: string; department?: string; section?: string };
 export type BranchRule = { branchId: string; kind: "fixed" | "salary_percent"; value: number; active: boolean };
 export type BranchSales = { branchId: string; month: string; target: number; sales: number };
 export type AllocationMode = "equal" | "sales";

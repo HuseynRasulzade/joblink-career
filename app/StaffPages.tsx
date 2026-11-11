@@ -1622,6 +1622,7 @@ export function OrgNameInput({
   names,
   onAdded,
   department = "",
+  fixedList,
 }: {
   label: string;
   kind: OrgKind;
@@ -1632,10 +1633,12 @@ export function OrgNameInput({
   placeholder?: string;
   // For a section: the department it belongs to; only its sections are listed.
   department?: string;
+  // The names come from the staff table only (nothing new can be added here).
+  fixedList?: string[];
 }) {
   const [scoped, setScoped] = useState<string[] | null>(null);
   useEffect(() => {
-    if (kind !== "section" || !department.trim()) return;
+    if (fixedList || kind !== "section" || !department.trim()) return;
     let live = true;
     request<OrgNames>(`company/org-names?department=${encodeURIComponent(department)}`)
       .then((data) => live && setScoped(data.sections))
@@ -1644,7 +1647,7 @@ export function OrgNameInput({
       live = false;
     };
   }, [kind, department]);
-  const list = kind === "section" ? (department.trim() ? scoped || [] : []) : names[ORG_KEY[kind]];
+  const list = fixedList ?? (kind === "section" ? (department.trim() ? scoped || [] : []) : names[ORG_KEY[kind]]);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [hint, setHint] = useState("");
@@ -1699,7 +1702,7 @@ export function OrgNameInput({
               {name}
             </option>
           ))}
-          <option value={NEW_NAME}>{NEW_LABEL[kind]}</option>
+          {!fixedList && <option value={NEW_NAME}>{NEW_LABEL[kind]}</option>}
         </select>
       </Field>
       {adding && (
@@ -2130,7 +2133,20 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
   const total = data.total;
   const free = Math.max(0, total.planned - total.filled);
   const state = data.planStatus || "draft";
-  const departments = data.departments;
+  // With branches the table is grouped branch → department; without them it stays as it was (department → section → position).
+  const hasBranches = data.rows.some((r) => r.branch);
+  const branchNames = [...new Set(data.rows.map((r) => r.branch || "").filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
+  type Group = StaffDepartment & { branch: string | null };
+  const departments: Group[] = hasBranches
+    ? [...branchNames, ""].flatMap((branch) => {
+        const inBranch = data.rows.filter((r) => (r.branch || "") === branch);
+        return [...new Set(inBranch.map((r) => r.department))].sort((a, b) => a.localeCompare(b, "az")).map((department) => {
+          const mine = inBranch.filter((r) => r.department === department);
+          const sum = (pick: (r: StaffRow) => number) => mine.reduce((t, r) => t + pick(r), 0);
+          return { branch, department, planned: sum((r) => r.planned), filled: sum((r) => r.filled), free: sum((r) => r.free), fte: sum((r) => r.fte), budget: sum((r) => r.budget), unplaced: 0, units: mine.length, openVacancies: 0 };
+        });
+      })
+    : data.departments.map((d) => ({ ...d, branch: null }));
   const planned = editing ? (editing.planned ?? 1) : 1;
   const band = editing ? { salaryMin: editing.salaryMin || 0, salaryMax: editing.salaryMax || 0 } : null;
   const checkPeople = editing?.id ? data.rows.find((r) => r.id === editing.id)?.people.length || 0 : 0;
@@ -2241,11 +2257,13 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
                 </tr>
               </thead>
               <tbody>
-                {departments.map((d) => {
-                  const rows = data.rows.filter((r) => r.department === d.department && match(r));
+                {departments.map((d, at) => {
+                  const rows = data.rows.filter((r) => r.department === d.department && (d.branch === null || (r.branch || "") === d.branch) && match(r));
                   if (needle && !rows.length) return null;
+                  const firstOfBranch = d.branch !== null && (at === 0 || departments[at - 1].branch !== d.branch);
                   return [
-                    <tr key={`d-${d.department}`} className="staff-department">
+                    ...(firstOfBranch ? [<tr key={`b-${d.branch}`} className="staff-branch"><td colSpan={8}><b>Filial: {d.branch || "filialsız (ümumi)"}</b> <small className="muted">{departments.filter((x) => x.branch === d.branch).reduce((t, x) => t + x.planned, 0)} ştat · {departments.filter((x) => x.branch === d.branch).reduce((t, x) => t + x.filled, 0)} işləyir</small></td></tr>] : []),
+                    <tr key={`d-${d.branch ?? ""}-${d.department}`} className="staff-department">
                       <td colSpan={2}>
                         <b>{d.department || "Departamentsiz"}</b>
                       </td>
@@ -2325,6 +2343,11 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
         <Modal title={editing.id ? "Ştat sətrini düzəlt" : "Yeni ştat sətri"} onClose={() => setEditing(null)}>
           <div className="offer-composer">
             <div className="form-grid">
+              <Field label="Filial (istəyə görə)">
+                <input list="staff-branch-names" value={editing.branch || ""} onChange={(e) => setEditing({ ...editing, branch: e.target.value })} placeholder="məs. A filialı; boş = şirkət üzrə" />
+                <datalist id="staff-branch-names">{branchNames.map((b) => <option key={b} value={b} />)}</datalist>
+                <small className="skill-picker-help">Filial burada yazılanda yaranır; Filiallar bölməsi onu buradan alır. Departament filialın alt qrupudur, sonra şöbə və vəzifə.</small>
+              </Field>
               <OrgNameInput label="Departament" kind="department" names={names} onAdded={remember} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department, section: "" })} />
               <OrgNameInput label="Şöbə" kind="section" names={names} onAdded={remember} department={editing.department || ""} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
               <OrgNameInput label="Vəzifə" kind="position" names={names} onAdded={remember} value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />

@@ -127,3 +127,12 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Satış limiti və bonus:** hər filial üçün ay üzrə satış limiti və satış, bir də bonus qaydası (sabit məbləğ və ya filiala düşən maaşın faizi; 100 = maaşın özü qədər). Satış limitə çatanda və ya keçəndə bonus işçinin əmək haqqına mükafat kimi avtomatik əlavə olunur (gəlir vergisi və sığorta ilə). Təsdiqlənmiş ayın satışı dəyişmir.
 - **Excel:** Filiallar səhifəsində ixrac, nümunə fayl və yükləmə (Filiallar, İşçi-filial, Satış və bonus, Bölgü). Hesablama iş kitabında da «Filiallar» və «İşçi-filial» vərəqləri var; bonus və pay formullarla hesablanır, «Mükafat»a əlavə olunur və fayl platformaya geri yüklənir.
 - **Hələ yoxdur:** pilləli bonus (limiti nə qədər aşdıqca artan), işçi siyahısında filial sütunu, satışın avtomatik gəlməsi (satış cədvəli əl ilə və ya Excel ilə yazılır).
+
+## 12. Filial → departament → şöbə → vəzifə (2026-11-11)
+
+- **Filial yalnız Ştat cədvəlindən yaranır.** Ştat sətrində «Filial» sahəsi var (boş = şirkət üzrə); orada yazılan ad filial kimi Filiallar bölməsində özü görünür. Filiallar bölməsində «+ Filial» yoxdur: orada yalnız kod, şəhər, aktivlik, adı dəyişmək (ştatın bütün sətirlərində dəyişir) və bonus qaydası var. Ştat sətri olan filialı silmək olmur. Excel ilə ştat yükləyəndə də «Filial» sütunu var.
+- **Hierarxiya:** filial → departament → şöbə → vəzifə. Ştat cədvəli indi filial üzrə qruplanır; Filiallar → «Struktur» sekməsi ağacı və hər vəzifədə kimin işlədiyini göstərir.
+- **İşçi kartında:** «Filiallar» bölməsi: işçini bir neçə filiala bağlamaq, hər biri üçün filialın ştatından departament, şöbə və vəzifə seçmək. Departament, şöbə və vəzifə siyahıları artıq ştat cədvəlindən gəlir (kartda yeni ad yaradılmır).
+- **Ştat sayı filiala görə:** filialın ştat sətri yalnız həmin filialda işləyənləri sayır.
+- **Təşkilat sxemi:** «Filial» seçimi ilə bir filialın ağacı çəkilir (şirkət › filial › departament › şöbə › işçi).
+- **Məhdudiyyət:** vakansiya yoxlaması (ştatda yer, maaş həddi) filialı hələ bilmir: vakansiya departament və vəzifə üzrə yoxlanır.

@@ -59,3 +59,19 @@ test("links outside the month do not count; an amount splits to the cent", () =>
   assert.equal(normalizeMode("sales"), "sales");
   assert.equal(normalizeMode("x"), "equal");
 });
+
+import { assignPeople, summarize } from "../lib/staff-plan.ts";
+test("a row of a branch takes only people who work in that branch; people with no branch fit any row", () => {
+  const units = [
+    { id: "a", branch: "A filialı", department: "Maliyyə", section: "", position: "Mühasib", planned: 1, rate: 1, salaryMin: 0, salaryMax: 0 },
+    { id: "b", branch: "B filialı", department: "Maliyyə", section: "", position: "Mühasib", planned: 1, rate: 1, salaryMin: 0, salaryMax: 0 },
+  ];
+  const person = (id, branches) => ({ id, department: "Maliyyə", section: "", position: "Mühasib", status: "active", branches });
+  const placed = assignPeople(units, [person("x", ["B filialı"]), person("y", ["A filialı"])]);
+  assert.deepEqual(placed.byUnit.get("a").map((p) => p.id), ["y"]);
+  assert.deepEqual(placed.byUnit.get("b").map((p) => p.id), ["x"]);
+  const loose = assignPeople(units, [person("z", [])]);
+  assert.equal(loose.unplaced.length, 0);
+  const sum = summarize(units, [person("x", ["B filialı"])]);
+  assert.deepEqual(sum.rows.map((r) => [r.id, r.filled]), [["a", 0], ["b", 1]]);
+});

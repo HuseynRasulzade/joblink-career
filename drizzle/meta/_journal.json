@@ -757,6 +757,13 @@
       "when": 1800212400000,
       "tag": "0107_branches",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "6",
+      "when": 1800298800000,
+      "tag": "0108_branch_hierarchy",
+      "breakpoints": true
     }
   ]
 }

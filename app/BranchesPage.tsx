@@ -2,17 +2,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import BranchAllocation from "./BranchAllocation";
 import BranchesExcel from "./BranchesExcel";
+import BranchLinkForm, { blankLink, type LinkDraft } from "./BranchLinkForm";
 import { RULE_LABEL } from "@/lib/branches";
 
 type Notify = (message: string) => void;
 type Branch = { id: string; name: string; code: string; city: string; active: boolean };
-type Link = { employeeId: string; branchId: string; role: string; sharePct: number; bonusEligible: boolean; from: string; to: string; name: string; position: string; department: string };
+type Link = { employeeId: string; branchId: string; role: string; sharePct: number; bonusEligible: boolean; from: string; to: string; name: string; position: string; department: string; section?: string };
 type Rule = { branchId: string; kind: "fixed" | "salary_percent"; value: number; active: boolean };
 type Sale = { branchId: string; target: number; sales: number; reached: boolean };
-type Data = { month: string; locked: boolean; mode: "equal" | "sales"; branches: Branch[]; rules: Rule[]; sales: Sale[]; links: Link[]; employees: { id: string; name: string; position: string; department: string }[] };
-type Tab = "branches" | "people" | "sales" | "allocation";
+type Data = { month: string; locked: boolean; mode: "equal" | "sales"; branches: Branch[]; rules: Rule[]; sales: Sale[]; links: Link[]; employees: { id: string; name: string; position: string; department: string }[]; units: { branch: string; department: string; section: string; position: string; planned: number }[] };
+type Tab = "branches" | "structure" | "people" | "sales" | "allocation";
 
-const AZN = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 const shift = (month: string, by: number) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1 + by, 1)).toISOString().slice(0, 7);
 
@@ -55,6 +55,7 @@ export default function BranchesPage({ notify }: { notify: Notify }) {
   }
   const tabs: { id: Tab; label: string }[] = [
     { id: "branches", label: "Filiallar" },
+    { id: "structure", label: "Struktur" },
     { id: "people", label: "İşçilər" },
     { id: "sales", label: "Satış və bonus" },
     { id: "allocation", label: "Maaş bölgüsü" },
@@ -70,6 +71,7 @@ export default function BranchesPage({ notify }: { notify: Notify }) {
         </div>
       </div>
       {tab === "branches" && <BranchList data={data} busy={busy} run={run} />}
+      {tab === "structure" && <BranchStructure data={data} />}
       {tab === "people" && <PeopleLinks data={data} busy={busy} run={run} />}
       {tab === "sales" && <SalesAndRules data={data} month={month} setMonth={setMonth} busy={busy} run={run} />}
       {tab === "allocation" && <BranchAllocation initialMonth={month} notify={notify} version={version} onMode={() => setVersion((n) => n + 1)} />}
@@ -81,103 +83,131 @@ type Run = (action: () => Promise<unknown>, done: string) => Promise<void>;
 
 function BranchList({ data, busy, run }: { data: Data; busy: boolean; run: Run }) {
   const [form, setForm] = useState<{ id: string; name: string; code: string; city: string; active: boolean } | null>(null);
+  const rows = (name: string) => data.units.filter((u) => u.branch.trim().toLocaleLowerCase("az") === name.trim().toLocaleLowerCase("az"));
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <p className="muted" style={{ margin: 0 }}>Şirkətin filialları. Bir işçi bir neçə filialda işləyə bilər («İşçilər» sekməsində); onun maaşı filiallar arasında bölünür.</p>
+      <p className="panel" style={{ margin: 0 }}>
+        <b>Filiallar Ştat cədvəlindən yaranır.</b> <span className="muted">Ştat sətrində «Filial» sahəsini yazın: filial burada özü görünür. Hər filialın altında departamentlər, onların şöbələri və vəzifələri var («Struktur» sekməsi). Burada yalnız filialın kodu, şəhəri, aktivliyi və bonus qaydası yazılır.</span>{" "}
+        <button type="button" className="secondary" onClick={() => { window.location.hash = "hr-employees"; }}>Ştat cədvəlinə keç ↗</button>
+      </p>
       <div className="admin-table-wrap" style={{ overflowX: "auto" }}>
         <table className="admin-table">
-          <thead><tr><th>Filial</th><th>Kod</th><th>Şəhər</th><th>İşçi</th><th>Bonus qaydası</th><th /></tr></thead>
+          <thead><tr><th>Filial</th><th>Kod</th><th>Şəhər</th><th>Departament</th><th>Ştat</th><th>İşçi</th><th>Bonus qaydası</th><th /></tr></thead>
           <tbody>
             {data.branches.map((b) => {
               const rule = data.rules.find((r) => r.branchId === b.id);
+              const units = rows(b.name);
               return (
                 <tr key={b.id} className={b.active ? undefined : "muted"}>
                   <td><b>{b.name}</b>{b.active ? "" : <small> (passiv)</small>}</td>
                   <td>{b.code || "—"}</td>
                   <td>{b.city || "—"}</td>
+                  <td>{new Set(units.map((u) => u.department)).size || "—"}</td>
+                  <td>{units.reduce((t, u) => t + u.planned, 0) || "—"}</td>
                   <td>{new Set(data.links.filter((l) => l.branchId === b.id).map((l) => l.employeeId)).size}</td>
                   <td>{rule ? `${RULE_LABEL[rule.kind]}: ${rule.value}${rule.kind === "fixed" ? " AZN" : "%"}${rule.active ? "" : " (söndürülüb)"}` : "—"}</td>
                   <td>
                     <div className="admin-actions">
                       <button type="button" className="secondary" onClick={() => setForm({ ...b })}>Düzəlt</button>
+                      <button type="button" className="secondary" disabled={busy} onClick={() => { const name = window.prompt("Filialın yeni adı (ştat cədvəlinin bütün sətirlərində dəyişir):", b.name); if (name && name.trim() && name.trim() !== b.name) void run(() => call("company/branches/rename", { id: b.id, name: name.trim() }), "Filialın adı dəyişdi."); }}>Adı dəyiş</button>
                       <button type="button" className="secondary" disabled={busy} onClick={() => { if (window.confirm(`“${b.name}” filialı silinsin?`)) void run(() => call("company/branches/delete", { id: b.id }), "Filial silindi."); }}>Sil</button>
                     </div>
                   </td>
                 </tr>
               );
             })}
-            {!data.branches.length && <tr><td colSpan={6}><p className="admin-empty">Hələ filial yoxdur. «+ Filial» ilə əlavə edin və ya Excel-dən yükləyin.</p></td></tr>}
+            {!data.branches.length && <tr><td colSpan={8}><p className="admin-empty">Hələ filial yoxdur. Ştat cədvəlində bir sətrə «Filial» yazın.</p></td></tr>}
           </tbody>
         </table>
       </div>
-      {form ? (
+      {form && (
         <div className="panel">
-          <b>{form.id ? "Filialı düzəlt" : "Yeni filial"}</b>
+          <b>{form.name}</b>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10, margin: "10px 0" }}>
-            <label style={{ display: "grid", gap: 2 }}>Ad<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
             <label style={{ display: "grid", gap: 2 }}>Kod<input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></label>
             <label style={{ display: "grid", gap: 2 }}>Şəhər<input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></label>
             <label style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Aktiv</label>
           </div>
           <div className="admin-actions" style={{ justifyContent: "flex-start" }}>
-            <button type="button" className="primary" disabled={busy || !form.name.trim()} onClick={() => void run(async () => { await call("company/branches/save", form); setForm(null); }, "Filial saxlanıldı.")}>Saxla</button>
+            <button type="button" className="primary" disabled={busy} onClick={() => void run(async () => { await call("company/branches/save", form); setForm(null); }, "Filial saxlanıldı.")}>Saxla</button>
             <button type="button" className="secondary" onClick={() => setForm(null)}>Bağla</button>
           </div>
         </div>
-      ) : (
-        <div className="admin-actions" style={{ justifyContent: "flex-start" }}><button type="button" className="primary" onClick={() => setForm({ id: "", name: "", code: "", city: "", active: true })}>+ Filial</button></div>
       )}
+    </div>
+  );
+}
+
+// Branch → department → section → position, from the staff table, with the people linked to each branch under the department and position.
+function BranchStructure({ data }: { data: Data }) {
+  const same = (a: string, b: string) => a.trim().toLocaleLowerCase("az") === b.trim().toLocaleLowerCase("az");
+  const names = [...new Set([...data.branches.map((b) => b.name), ...data.units.map((u) => u.branch)])].filter((n) => n || data.units.some((u) => !u.branch));
+  const uniq = (list: string[]) => [...new Set(list)].sort((a, b) => a.localeCompare(b, "az"));
+  if (!data.units.length) return <p className="admin-empty">Ştat cədvəli boşdur. Struktur ştat cədvəlindən qurulur: əvvəl orada filial, departament, şöbə və vəzifəni yazın.</p>;
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <p className="muted" style={{ margin: 0 }}>Hər filialın altında onun departamentləri, onların şöbələri, sonra vəzifələr. Sayı: planlaşdırılan ştat / filiala bağlı işçi.</p>
+      {uniq(names).map((branch) => {
+        const rows = data.units.filter((u) => same(u.branch, branch));
+        if (!rows.length) return null;
+        const b = data.branches.find((x) => same(x.name, branch));
+        const linked = data.links.filter((l) => b && l.branchId === b.id);
+        return (
+          <div key={branch || "none"} className="panel">
+            <b>{branch || "Filialsız (şirkət üzrə)"}</b> <small className="muted">{rows.reduce((t, r) => t + r.planned, 0)} ştat{b ? ` · ${new Set(linked.map((l) => l.employeeId)).size} işçi` : ""}</small>
+            {uniq(rows.map((r) => r.department)).map((department) => {
+              const inDept = rows.filter((r) => same(r.department, department));
+              return (
+                <div key={department} style={{ marginLeft: 16, marginTop: 8 }}>
+                  <b>▸ {department || "Departamentsiz"}</b> <small className="muted">{inDept.reduce((t, r) => t + r.planned, 0)} ştat · {linked.filter((l) => same(l.department || "", department)).length} işçi</small>
+                  {uniq(inDept.map((r) => r.section)).map((section) => {
+                    const inSection = inDept.filter((r) => same(r.section, section));
+                    return (
+                      <div key={section || "none"} style={{ marginLeft: 16, marginTop: 4 }}>
+                        {section ? <b>▹ {section}</b> : <small className="muted">şöbəsiz</small>}
+                        <ul style={{ margin: "2px 0 0", paddingLeft: 22 }}>
+                          {inSection.map((r, i) => {
+                            const people = linked.filter((l) => same(l.department || "", department) && same(l.section || "", section) && (!l.role || same(l.role, r.position)));
+                            return <li key={i}>{r.position || "vəzifəsiz"} <small className="muted">{r.planned} ştat{people.length ? ` · ${people.map((p) => p.name).join(", ")}` : ""}</small></li>;
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function PeopleLinks({ data, busy, run }: { data: Data; busy: boolean; run: Run }) {
   const [only, setOnly] = useState("");
-  const [draft, setDraft] = useState({ employeeId: "", branchId: "", role: "", sharePct: "", bonusEligible: true, from: "", to: "" });
+  const [draft, setDraft] = useState<LinkDraft>(blankLink());
   const list = data.links.filter((l) => !only || l.branchId === only);
   const branchName = (id: string) => data.branches.find((b) => b.id === id)?.name || "—";
   const byEmployee = new Map<string, Link[]>();
   for (const l of list) byEmployee.set(l.employeeId, [...(byEmployee.get(l.employeeId) || []), l]);
-  const edit = (l: Link) => setDraft({ employeeId: l.employeeId, branchId: l.branchId, role: l.role, sharePct: l.sharePct ? String(l.sharePct) : "", bonusEligible: l.bonusEligible, from: l.from, to: l.to });
+  const edit = (l: Link) => setDraft({ employeeId: l.employeeId, branchId: l.branchId, department: l.department || "", section: l.section || "", role: l.role, sharePct: l.sharePct ? String(l.sharePct) : "", bonusEligible: l.bonusEligible, from: l.from, to: l.to });
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <p className="muted" style={{ margin: 0 }}>Hər sətir bir işçinin bir filialdakı işidir. Eyni işçini bir neçə filiala bağlaya bilərsiniz (məs. A filialında baş mühasib, B filialında mühasib). Pay % boşdursa maaş «Maaş bölgüsü» rejiminə görə bölünür; yazılıbsa həmin faizlə.</p>
-      <div className="panel">
-        <b>İşçini filiala bağla</b>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10, margin: "10px 0" }}>
-          <label style={{ display: "grid", gap: 2 }}>İşçi
-            <select value={draft.employeeId} onChange={(e) => setDraft({ ...draft, employeeId: e.target.value })}>
-              <option value="">Seçin</option>
-              {data.employees.map((p) => <option key={p.id} value={p.id}>{p.name}{p.position ? ` — ${p.position}` : ""}</option>)}
-            </select>
-          </label>
-          <label style={{ display: "grid", gap: 2 }}>Filial
-            <select value={draft.branchId} onChange={(e) => setDraft({ ...draft, branchId: e.target.value })}>
-              <option value="">Seçin</option>
-              {data.branches.filter((b) => b.active).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </label>
-          <label style={{ display: "grid", gap: 2 }}>Vəzifə bu filialda<input value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })} placeholder="məs. Baş mühasib" /></label>
-          <label style={{ display: "grid", gap: 2 }}>Pay % (istəyə görə)<input inputMode="decimal" value={draft.sharePct} onChange={(e) => setDraft({ ...draft, sharePct: e.target.value })} placeholder="boş = rejimə görə" /></label>
-          <label style={{ display: "grid", gap: 2 }}>Başlama<input type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} /></label>
-          <label style={{ display: "grid", gap: 2 }}>Bitmə<input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></label>
-          <label style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={draft.bonusEligible} onChange={(e) => setDraft({ ...draft, bonusEligible: e.target.checked })} /> Filial bonusu alır</label>
-        </div>
-        <div className="admin-actions" style={{ justifyContent: "flex-start" }}>
-          <button type="button" className="primary" disabled={busy || !draft.employeeId || !draft.branchId} onClick={() => void run(async () => { await call("company/branches/link", { ...draft, sharePct: draft.sharePct === "" ? 0 : Number(draft.sharePct.replace(",", ".")) }); setDraft({ ...draft, role: "", sharePct: "", from: "", to: "" }); }, "Bağlantı saxlanıldı.")}>Saxla</button>
-        </div>
-      </div>
+      <p className="muted" style={{ margin: 0 }}>Hər sətir bir işçinin bir filialdakı işidir: filial, onun departamenti, şöbəsi və vəzifəsi (hamısı ştat cədvəlindən seçilir). Eyni işçini bir neçə filiala bağlaya bilərsiniz. Pay % boşdursa maaş «Maaş bölgüsü» rejiminə görə bölünür; yazılıbsa həmin faizlə. Bağlantını işçi kartından da edə bilərsiniz.</p>
+      <BranchLinkForm draft={draft} setDraft={setDraft} branches={data.branches} units={data.units} employees={data.employees} busy={busy} onSave={() => void run(async () => { await call("company/branches/link", { ...draft, sharePct: draft.sharePct === "" ? 0 : Number(draft.sharePct.replace(",", ".")) }); setDraft({ ...blankLink(draft.employeeId), branchId: draft.branchId }); }, "Bağlantı saxlanıldı.")} />
       <div className="admin-actions" style={{ justifyContent: "flex-start", alignItems: "center" }}>
         <label>Filial üzrə süz <select value={only} onChange={(e) => setOnly(e.target.value)} style={{ marginLeft: 6 }}><option value="">Hamısı</option>{data.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
       </div>
       <div className="admin-table-wrap" style={{ overflowX: "auto" }}>
         <table className="admin-table">
-          <thead><tr><th>İşçi</th><th>Filial</th><th>Vəzifə (filialda)</th><th>Pay</th><th>Bonus</th><th>Müddət</th><th /></tr></thead>
+          <thead><tr><th>İşçi</th><th>Filial</th><th>Departament › Şöbə</th><th>Vəzifə (filialda)</th><th>Pay</th><th>Bonus</th><th>Müddət</th><th /></tr></thead>
           <tbody>
             {[...byEmployee.values()].flatMap((rows) => rows.map((l, i) => (
               <tr key={`${l.employeeId}|${l.branchId}`}>
                 <td>{i === 0 ? <><b>{l.name}</b><br /><small className="muted">{l.position}{rows.length > 1 ? ` · ${rows.length} filialda` : ""}</small></> : ""}</td>
                 <td>{branchName(l.branchId)}</td>
+                <td>{[l.department, l.section].filter(Boolean).join(" › ") || "—"}</td>
                 <td>{l.role || "—"}</td>
                 <td>{l.sharePct ? `${l.sharePct}%` : <small className="muted">rejimə görə</small>}</td>
                 <td>{l.bonusEligible ? "alır" : "almır"}</td>
@@ -190,7 +220,7 @@ function PeopleLinks({ data, busy, run }: { data: Data; busy: boolean; run: Run 
                 </td>
               </tr>
             )))}
-            {!list.length && <tr><td colSpan={7}><p className="admin-empty">Hələ bağlantı yoxdur.</p></td></tr>}
+            {!list.length && <tr><td colSpan={8}><p className="admin-empty">Hələ bağlantı yoxdur.</p></td></tr>}
           </tbody>
         </table>
       </div>

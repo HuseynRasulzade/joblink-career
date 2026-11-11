@@ -15,12 +15,12 @@ test("the sample file reads without a problem and carries branches, links, sales
   assert.equal(r.mode, "equal");
 });
 test("an exported workbook reads back the same", () => {
-  const sheets = branchWorkbook({ mode: "sales", branches: [{ name: "X", code: "", city: "", active: false }], links: [{ fin: "F1", name: "N", branch: "X", role: "R", sharePct: 40, bonusEligible: false, from: "2026-11-01", to: "" }], sales: [{ month: "2026-11", branch: "X", target: 10, sales: 12, kind: "fixed", value: 5, active: false }] });
+  const sheets = branchWorkbook({ mode: "sales", branches: [{ name: "X", code: "", city: "", active: false }], links: [{ fin: "F1", name: "N", branch: "X", role: "R", sharePct: 40, bonusEligible: false, from: "2026-11-01", to: "", department: "D", section: "S" }], sales: [{ month: "2026-11", branch: "X", target: 10, sales: 12, kind: "fixed", value: 5, active: false }] });
   const r = parseBranchSheets(rowsOf(sheets));
   assert.deepEqual(r.issues, []);
   assert.equal(r.mode, "sales");
   assert.equal(r.branches[0].active, false);
-  assert.deepEqual([r.links[0].sharePct, r.links[0].bonusEligible, r.links[0].from], [40, false, "2026-11-01"]);
+  assert.deepEqual([r.links[0].sharePct, r.links[0].bonusEligible, r.links[0].from, r.links[0].department, r.links[0].section], [40, false, "2026-11-01", "D", "S"]);
   assert.deepEqual([r.sales[0].target, r.sales[0].sales, r.sales[0].active], [10, 12, false]);
 });
 test("bad lines are named; a file of another kind is refused", () => {
