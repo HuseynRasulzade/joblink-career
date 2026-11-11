@@ -522,7 +522,9 @@ type StaffInput = { branch?: string; department: string; section: string; positi
 async function ensureBranch(db: D1Database, companyId: string, raw: string): Promise<string> {
   const name = String(raw || "").trim().slice(0, 120);
   if (!name) return "";
-  const found = await db.prepare("SELECT name FROM branches WHERE company_id=? AND lower(name)=lower(?)").bind(companyId, name).first<{ name: string }>().catch(() => null);
+  // Compared here, not in SQL: its lower() knows no Azerbaijani İ and ı.
+  const all = (await db.prepare("SELECT name FROM branches WHERE company_id=?").bind(companyId).all<{ name: string }>().catch(() => ({ results: [] as { name: string }[] }))).results;
+  const found = all.find((b) => b.name.trim().toLocaleLowerCase("az") === name.toLocaleLowerCase("az"));
   if (found) return found.name;
   await db.prepare("INSERT INTO branches(id,company_id,name,code,city,active,created) VALUES(?,?,?,'','',1,?)").bind(crypto.randomUUID(), companyId, name, new Date().toISOString()).run();
   return name;
@@ -12207,7 +12209,8 @@ async function route(request: Request) {
     if (!name) throw new HttpError(400, "Yeni adı yazın.");
     const current = await db.prepare("SELECT name FROM branches WHERE id=? AND company_id=?").bind(branchId, id).first<{ name: string }>();
     if (!current) throw new HttpError(404, "Filial tapılmadı.");
-    if (await db.prepare("SELECT 1 AS x FROM branches WHERE company_id=? AND lower(name)=lower(?) AND id<>?").bind(id, name, branchId).first()) throw new HttpError(409, "Bu adda filial artıq var.");
+    const taken = (await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results;
+    if (taken.some((x) => x.id !== branchId && x.name.trim().toLocaleLowerCase("az") === name.toLocaleLowerCase("az"))) throw new HttpError(409, "Bu adda filial artıq var.");
     await db.batch([
       db.prepare("UPDATE branches SET name=? WHERE id=? AND company_id=?").bind(name, branchId, id),
       db.prepare("UPDATE staff_units SET branch=? WHERE company_id=? AND lower(branch)=lower(?)").bind(name, id, current.name),
