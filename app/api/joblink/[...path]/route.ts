@@ -14343,8 +14343,33 @@ async function route(request: Request) {
     const before = (await db.prepare("SELECT COUNT(*) AS n FROM branches WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0;
     const canonical = await ensureBranch(db, id, name);
     const after = (await db.prepare("SELECT COUNT(*) AS n FROM branches WHERE company_id=?").bind(id).first<{ n: number }>())?.n || 0;
+    const row = (await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results.find((x) => x.name === canonical);
+    // The code and the city may be written when the branch is made.
+    if (after > before && row) await db.prepare("UPDATE branches SET code=?,city=? WHERE id=? AND company_id=?").bind(str(b.code, 40).trim(), str(b.city, 120).trim(), row.id, id).run();
     if (after > before) await companyAudit(db, id, userId, "branch", canonical, "yaradıldı (struktur)");
-    return ok({ ok: true, name: canonical, existing: after === before });
+    return ok({ ok: true, id: row?.id || "", name: canonical, existing: after === before });
+  }
+  // A department moves to another branch (or to none): its staff table rows follow it, and so does the choice made when it was created.
+  if (request.method === "POST" && path === "company/structure/department/move") {
+    requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const department = str(b.department, 120).trim();
+    const fromName = str(b.from, 120).trim();
+    const toName = str(b.to, 120).trim();
+    if (!department) throw new HttpError(400, "Departamenti seçin.");
+    const az = (v: string) => v.trim().toLocaleLowerCase("az");
+    const all = (await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results;
+    const from = fromName ? all.find((x) => az(x.name) === az(fromName)) : undefined;
+    const to = toName ? all.find((x) => az(x.name) === az(toName)) : undefined;
+    if (toName && !to) throw new HttpError(409, `“${toName}” filialı yoxdur. Əvvəlcə filialı yaradın.`);
+    const units = (await db.prepare("SELECT id,branch,department FROM staff_units WHERE company_id=?").bind(id).all<{ id: string; branch: string; department: string }>()).results.filter((u) => az(u.department) === az(department) && az(u.branch) === az(fromName));
+    const now = new Date().toISOString();
+    const statements: D1PreparedStatement[] = units.map((u) => db.prepare("UPDATE staff_units SET branch=?,updated=? WHERE id=? AND company_id=?").bind(to?.name || "", now, u.id, id));
+    if (from) statements.push(db.prepare("DELETE FROM branch_departments WHERE company_id=? AND branch_id=? AND department=?").bind(id, from.id, department));
+    if (to) statements.push(db.prepare("INSERT OR IGNORE INTO branch_departments(company_id,branch_id,department) VALUES(?,?,?)").bind(id, to.id, department));
+    for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
+    await companyAudit(db, id, userId, "structure-moved", department, `${fromName || "filialsız"} → ${toName || "filialsız"} (${units.length} ştat sətri)`);
+    return ok({ ok: true, moved: units.length });
   }
   if (request.method === "POST" && path === "company/structure/add") {
     requirePermission("salaries", "Strukturu yalnız HR, direktor və hesab sahibi dəyişə bilər.");
@@ -14390,6 +14415,18 @@ async function route(request: Request) {
     const b = await jsonBody(request);
     const department = str(b.department, 120);
     const section = str(b.section, 120);
+    // A line of a branch: only the department's place in that branch goes (the name stays for the other branches and the company).
+    const lineBranch = str(b.branch, 120).trim();
+    if (lineBranch && !section) {
+      const all = (await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results;
+      const found = all.find((x) => x.name.trim().toLocaleLowerCase("az") === lineBranch.toLocaleLowerCase("az"));
+      if (!found) throw new HttpError(404, "Filial tapılmadı.");
+      const rows = (await db.prepare("SELECT branch,department FROM staff_units WHERE company_id=?").bind(id).all<{ branch: string; department: string }>()).results.filter((u) => u.department.trim().toLocaleLowerCase("az") === department.trim().toLocaleLowerCase("az") && u.branch.trim().toLocaleLowerCase("az") === found.name.trim().toLocaleLowerCase("az"));
+      if (rows.length) throw new HttpError(409, `“${department}” departamenti ${found.name} filialında ştat cədvəlinin ${rows.length} sətrində istifadə olunur. Əvvəl həmin sətirləri silin və ya başqa filiala keçirin.`);
+      await db.prepare("DELETE FROM branch_departments WHERE company_id=? AND branch_id=? AND department=?").bind(id, found.id, department).run();
+      await companyAudit(db, id, userId, "structure-removed", department, `filial: ${found.name}`);
+      return ok({ ok: true });
+    }
     await structureDb(() => deleteStructure(db, id, department, section));
     if (!section) await db.prepare("DELETE FROM branch_departments WHERE company_id=? AND department=?").bind(id, department).run().catch(() => {});
     await companyAudit(db, id, userId, "structure-removed", department, section || "departament");

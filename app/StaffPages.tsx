@@ -2606,18 +2606,272 @@ function DepartmentSections({ department, notify, onClose, onChanged }: { depart
   );
 }
 
+type BranchInfo = { id: string; name: string; code: string; city: string; active: boolean };
+type StructureLine = { branch: string; department: string; sections: string[]; positions: string[]; units: number; people: number; catalog: boolean };
+
+// The branches of the company: made here (a name, a code, a city), edited here, taken from here everywhere else.
+function BranchesModal({ notify, onClose, onChanged }: { notify: Notify; onClose: () => void; onChanged: () => void }) {
+  const [rows, setRows] = useState<BranchInfo[] | null>(null);
+  const [draft, setDraft] = useState({ name: "", code: "", city: "" });
+  const [busy, setBusy] = useState(false);
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  });
+  const load = useCallback(() => {
+    request<{ branches: BranchInfo[] }>("company/branches")
+      .then((r) => setRows(r.branches))
+      .catch((error) => notifyRef.current((error as Error).message));
+  }, []);
+  useEffect(load, [load]);
+  const patch = (id: string, change: Partial<BranchInfo>) => setRows((list) => (list || []).map((b) => (b.id === id ? { ...b, ...change } : b)));
+  async function run(action: () => Promise<unknown>, done: string) {
+    setBusy(true);
+    try {
+      await action();
+      notify(done);
+      load();
+      onChanged();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const original = useRef<Record<string, string>>({});
+  useEffect(() => {
+    if (rows) for (const b of rows) if (!(b.id in original.current)) original.current[b.id] = b.name;
+  }, [rows]);
+  return (
+    <Modal title="Filiallar" onClose={onClose}>
+      <p className="muted">Filial burada yaradılır. Yaradılan filial departament yaradanda, ştat cədvəlində, işçi kartında, vakansiyada və əmrlərdə siyahıdan seçilir.</p>
+      <h4>Yeni filial</h4>
+      <div className="form-grid">
+        <Field label="Filialın adı *">
+          <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="məs. Bakı mərkəz filialı" />
+        </Field>
+        <Field label="Kod">
+          <input value={draft.code} onChange={(e) => setDraft({ ...draft, code: e.target.value })} placeholder="məs. BM" />
+        </Field>
+        <Field label="Şəhər">
+          <input value={draft.city} onChange={(e) => setDraft({ ...draft, city: e.target.value })} placeholder="məs. Bakı" />
+        </Field>
+      </div>
+      <div className="admin-actions">
+        <button
+          type="button"
+          className="primary"
+          disabled={busy || draft.name.trim().length < 2}
+          onClick={() =>
+            void run(async () => {
+              const r = await request<{ existing: boolean }>("company/structure/branch/add", { name: draft.name, code: draft.code, city: draft.city });
+              if (r.existing) throw new Error("Bu adda filial artıq var.");
+              setDraft({ name: "", code: "", city: "" });
+            }, "Filial yaradıldı.")
+          }
+        >
+          <Plus size={14} /> Filial yarat
+        </button>
+      </div>
+      <h4>Mövcud filiallar {rows ? `(${rows.length})` : ""}</h4>
+      {!rows && <p className="muted">Yüklənir…</p>}
+      {rows && !rows.length && <p className="admin-empty">Hələ filial yoxdur. Yuxarıdan ilk filialı yaradın.</p>}
+      {!!rows?.length && (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Ad</th>
+                <th>Kod</th>
+                <th>Şəhər</th>
+                <th>Aktiv</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((b) => (
+                <tr key={b.id}>
+                  <td>
+                    <input value={b.name} onChange={(e) => patch(b.id, { name: e.target.value })} aria-label="Filialın adı" />
+                  </td>
+                  <td>
+                    <input value={b.code} onChange={(e) => patch(b.id, { code: e.target.value })} aria-label="Kod" style={{ width: 90 }} />
+                  </td>
+                  <td>
+                    <input value={b.city} onChange={(e) => patch(b.id, { city: e.target.value })} aria-label="Şəhər" />
+                  </td>
+                  <td>
+                    <input type="checkbox" checked={b.active} onChange={(e) => patch(b.id, { active: e.target.checked })} aria-label="Aktiv" />
+                  </td>
+                  <td className="admin-actions">
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy || b.name.trim().length < 2}
+                      onClick={() =>
+                        void run(async () => {
+                          if (original.current[b.id] && original.current[b.id] !== b.name.trim()) {
+                            await request("company/branches/rename", { id: b.id, name: b.name });
+                            original.current[b.id] = b.name.trim();
+                          }
+                          await request("company/branches/save", { id: b.id, code: b.code, city: b.city, active: b.active });
+                        }, "Filial saxlanıldı.")
+                      }
+                    >
+                      Saxla
+                    </button>
+                    <button type="button" aria-label={`${b.name} filialını sil`} disabled={busy} onClick={() => window.confirm(`“${b.name}” filialı silinsin?`) && void run(() => request("company/branches/delete", { id: b.id }), "Filial silindi.")}>
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <small className="skill-picker-help">Adı dəyişəndə həmin filialın ştat sətirləri də yeni adla görünür. Ştat sətri və ya işçi bağlı olan filialı silmək olmur: əvvəl onları başqa filiala keçirin və ya filialı passiv edin.</small>
+    </Modal>
+  );
+}
+
+// Make a department (for a branch or for the company itself) and, if wished, its sections at once.
+function DepartmentAddModal({ notify, branches, defaultBranch, onClose, onDone, onNewBranch }: { notify: Notify; branches: BranchInfo[]; defaultBranch: string; onClose: () => void; onDone: (department: string) => void; onNewBranch: () => void }) {
+  const [name, setName] = useState("");
+  const [branch, setBranch] = useState(defaultBranch);
+  const [sections, setSections] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try {
+      const r = await request<{ department: string }>("company/structure/add", { department: name.trim(), branch });
+      const list = sections.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean);
+      if (list.length) await request("company/structure/add-many", { department: r.department, sections: list });
+      notify(`Departament əlavə edildi${list.length ? ` (${list.length} şöbə ilə)` : ""}.`);
+      onDone(r.department);
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title="Yeni departament" onClose={onClose}>
+      <div className="form-grid">
+        <Field label="Departamentin adı *">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="məs. Satış" />
+        </Field>
+        <Field label="Filial">
+          <select value={branch} onChange={(e) => setBranch(e.target.value)}>
+            <option value="">Filialsız (şirkətin özü)</option>
+            {branches.filter((b) => b.active).map((b) => (
+              <option key={b.id} value={b.name}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          <small className="skill-picker-help">
+            Filial siyahıda yoxdursa,{" "}
+            <button type="button" className="text-button" onClick={onNewBranch}>
+              əvvəlcə filialı yaradın
+            </button>
+            .
+          </small>
+        </Field>
+        <Field label="Şöbələr (istəyə görə: hər sətrə bir şöbə)">
+          <textarea rows={4} value={sections} onChange={(e) => setSections(e.target.value)} placeholder={"Daxili satış\nXarici satış"} />
+        </Field>
+      </div>
+      <div className="admin-actions">
+        <button type="button" className="primary" disabled={busy || name.trim().length < 2} onClick={() => void save()}>
+          <Plus size={14} /> Departament yarat
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// Change a department that already exists (made before, or just now): its name and the branch it belongs to.
+function DepartmentEditModal({ notify, line, branches, onClose, onDone, onSections }: { notify: Notify; line: StructureLine; branches: BranchInfo[]; onClose: () => void; onDone: () => void; onSections: () => void }) {
+  const [name, setName] = useState(line.department);
+  const [branch, setBranch] = useState(line.branch);
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try {
+      let current = line.department;
+      if (name.trim() && name.trim() !== line.department) {
+        const r = await request<{ name: string }>("company/structure/rename", { department: line.department, to: name.trim() });
+        current = r.name || name.trim();
+      }
+      if (branch !== line.branch) await request("company/structure/department/move", { department: current, from: line.branch, to: branch });
+      notify("Departament yeniləndi.");
+      onDone();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const changed = (name.trim() && name.trim() !== line.department) || branch !== line.branch;
+  return (
+    <Modal title={`Departamentə düzəliş: ${line.department}`} onClose={onClose}>
+      <div className="form-grid">
+        <Field label="Departamentin adı">
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Filial">
+          <select value={branch} onChange={(e) => setBranch(e.target.value)}>
+            <option value="">Filialsız (şirkətin özü)</option>
+            {branches.filter((b) => b.active || b.name === line.branch).map((b) => (
+              <option key={b.id} value={b.name}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      <p className="muted">
+        Ad dəyişəndə ştat sətirləri, işçi kartları və vakansiyalar da yeni adla görünür. Filialı dəyişəndə bu departamentin həmin filialdakı ştat sətirləri yeni filiala keçir (işçilərin filial bağlantısı dəyişmir; onu işçi kartında və ya «Kadr hadisəsi» ilə dəyişin).
+      </p>
+      <div className="staff-edit-summary">
+        <div>
+          <b>Şöbələr ({line.sections.length}):</b> {line.sections.length ? line.sections.join(", ") : <span className="muted">yoxdur</span>}
+        </div>
+        <div>
+          <b>Vəzifələr ({line.positions.length}):</b> {line.positions.length ? line.positions.join(", ") : <span className="muted">yoxdur</span>}
+        </div>
+        <div>
+          <b>Ştat sətri:</b> {line.units} · <b>İşçi:</b> {line.people}
+        </div>
+      </div>
+      <div className="admin-actions">
+        <button type="button" className="primary" disabled={busy || !changed} onClick={() => void save()}>
+          Yadda saxla
+        </button>
+        <button type="button" className="secondary" onClick={onSections}>
+          Şöbələri idarə et
+        </button>
+        <button type="button" className="secondary" onClick={() => { window.location.hash = "hr-employees"; }}>
+          Vəzifələr: ştat cədvəlində ↗
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onChanged: () => void; onImport: () => void }) {
   const [data, setData] = useState<StructureData | null>(null);
-  const [department, setDepartment] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  // Branch → department → section → position, read from the staff table rows (the branch names come from there too).
+  // Branch → department → section → position, read from the staff table rows and from the choices made when a department was created.
   const [units, setUnits] = useState<{ branch: string; department: string; section: string; position: string }[]>([]);
   const [people, setPeople] = useState<{ branch: string; department: string }[]>([]);
-  // The branches (created here) and the departments chosen for a branch.
-  const [branchList, setBranchList] = useState<{ id: string; name: string }[]>([]);
+  const [branchList, setBranchList] = useState<BranchInfo[]>([]);
   const [branchDepartments, setBranchDepartments] = useState<{ branch: string; department: string }[]>([]);
-  const [newBranch, setNewBranch] = useState("");
-  const [departmentBranch, setDepartmentBranch] = useState("");
+  const [modal, setModal] = useState<null | { kind: "branches" } | { kind: "add"; branch: string } | { kind: "edit"; line: StructureLine }>(null);
+  const [branchFilter, setBranchFilter] = useState("__all");
+  const [query, setQuery] = useState("");
+  const [collapsed, setCollapsed] = useState<string[]>([]);
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -2626,136 +2880,88 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
     request<StructureData>("company/structure")
       .then(setData)
       .catch((error) => notifyRef.current((error as Error).message));
-    request<{ units: { branch: string; department: string; section: string; position: string }[]; branches?: { id: string; name: string }[]; departments?: { branch: string; department: string }[] }>("company/staff/structure")
+    request<{ units: { branch: string; department: string; section: string; position: string }[]; departments?: { branch: string; department: string }[] }>("company/staff/structure")
       .then((r) => {
         setUnits(r.units || []);
-        setBranchList(r.branches || []);
         setBranchDepartments(r.departments || []);
       })
       .catch(() => setUnits([]));
-    request<{ branches: { id: string; name: string }[]; links: { branchId: string; department?: string }[] }>("company/branches")
-      .then((r) => setPeople(r.links.map((l) => ({ branch: r.branches.find((b) => b.id === l.branchId)?.name || "", department: l.department || "" }))))
-      .catch(() => setPeople([]));
+    request<{ branches: BranchInfo[]; links: { branchId: string; department?: string }[] }>("company/branches")
+      .then((r) => {
+        setBranchList(r.branches);
+        setPeople(r.links.map((l) => ({ branch: r.branches.find((b) => b.id === l.branchId)?.name || "", department: l.department || "" })));
+      })
+      .catch(() => {
+        setBranchList([]);
+        setPeople([]);
+      });
   }, []);
   useEffect(load, [load]);
-  async function add() {
-    const name = department.trim();
-    if (name.length < 2) return;
-    try {
-      const result = await request<{ department: string }>("company/structure/add", { department: name, branch: departmentBranch });
-      notify("Departament əlavə edildi (varsa mövcud ad saxlanıldı).");
-      setDepartment("");
-      load();
-      onChanged();
-      setOpen(result.department);
-    } catch (error) {
-      notify((error as Error).message);
-    }
-  }
-  async function addBranch() {
-    const name = newBranch.trim();
-    if (name.length < 2) return;
-    try {
-      const r = await request<{ name: string; existing: boolean }>("company/structure/branch/add", { name });
-      notify(r.existing ? "Bu filial artıq var." : "Filial yaradıldı: indi departament yaradanda seçmək olar.");
-      setNewBranch("");
-      setDepartmentBranch(r.name);
-      load();
-      onChanged();
-    } catch (error) {
-      notify((error as Error).message);
-    }
-  }
-  function dropBranch(branch: { id: string; name: string }) {
-    if (!window.confirm(`“${branch.name}” filialı silinsin?`)) return;
-    void request("company/branches/delete", { id: branch.id })
-      .then(() => {
-        notify("Filial silindi.");
-        load();
-        onChanged();
-      })
-      .catch((error) => notify((error as Error).message));
-  }
-  function rename(name: string) {
-    const to = window.prompt(`“${name}” departamentinin yeni adı:`, name);
-    if (to && to.trim() && to.trim() !== name)
-      void request("company/structure/rename", { department: name, to })
-        .then(() => {
-          notify("Ad dəyişdirildi: ştat sətirləri, işçilər və vakansiyalar da yeni adla görünür.");
-          load();
-          onChanged();
-        })
-        .catch((error) => notify((error as Error).message));
-  }
-  function drop(name: string) {
-    if (!window.confirm(`“${name}” departamenti və şöbələri silinsin?`)) return;
-    void request("company/structure/delete", { department: name })
+  const changed = () => {
+    load();
+    onChanged();
+  };
+  function drop(line: StructureLine) {
+    const where = line.branch ? `${line.branch} filialından` : "strukturdan";
+    if (!window.confirm(`“${line.department}” departamenti ${where} silinsin?`)) return;
+    void request("company/structure/delete", { department: line.department, branch: line.branch })
       .then(() => {
         notify("Silindi.");
-        load();
-        onChanged();
+        changed();
       })
       .catch((error) => notify((error as Error).message));
   }
   if (!data) return null;
-  const hasBranches = units.some((u) => u.branch) || branchList.length > 0;
   const az = (v: string) => v.toLocaleLowerCase("az").trim();
-  // Branch → department → sections and positions; the branch names come only from the staff table rows.
-  type Line = { branch: string; department: string; sections: string[]; positions: string[]; units: number; people: number; catalog: boolean };
-  const groups: { branch: string; lines: Line[] }[] = (() => {
-    const names = [...new Set([...units.map((u) => u.branch), ...branchList.map((b) => b.name)].filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
-    const uniq = (list: string[]) => [...new Set(list.filter(Boolean))];
+  const uniq = (list: string[]) => [...new Set(list.filter(Boolean))];
+  // The groups: every branch (also one with nothing in it yet), then the company itself.
+  const groups: { branch: string; lines: StructureLine[] }[] = (() => {
+    const names = uniq([...units.map((u) => u.branch), ...branchList.map((b) => b.name)]).sort((a, b) => a.localeCompare(b, "az"));
     const out = names.map((branch) => {
       const mine = units.filter((u) => u.branch === branch);
-      const lines: Line[] = uniq([...mine.map((u) => u.department), ...branchDepartments.filter((x) => x.branch === branch).map((x) => x.department)]).map((department) => {
+      const lines: StructureLine[] = uniq([...mine.map((u) => u.department), ...branchDepartments.filter((x) => x.branch === branch).map((x) => x.department)]).map((department) => {
         const rows = mine.filter((u) => u.department === department);
         return { branch, department, sections: uniq(rows.map((u) => u.section)), positions: uniq(rows.map((u) => u.position)), units: rows.length, people: people.filter((x) => x.branch === branch && az(x.department) === az(department)).length, catalog: false };
       });
       return { branch, lines };
     });
     const own = units.filter((u) => !u.branch);
-    const lines: Line[] = data.departments.map((d) => ({ branch: "", department: d.name, sections: d.sections.map((s) => s.name), positions: uniq(own.filter((u) => az(u.department) === az(d.name)).map((u) => u.position)), units: names.length ? own.filter((u) => az(u.department) === az(d.name)).length : d.units, people: d.people, catalog: true }));
+    // A department of the company's list shows under «Filialsız» unless it has been given to a branch only.
+    const lines: StructureLine[] = data.departments
+      .filter((d) => own.some((u) => az(u.department) === az(d.name)) || (!units.some((u) => az(u.department) === az(d.name)) && !branchDepartments.some((x) => az(x.department) === az(d.name))))
+      .map((d) => ({ branch: "", department: d.name, sections: d.sections.map((s) => s.name), positions: uniq(own.filter((u) => az(u.department) === az(d.name)).map((u) => u.position)), units: names.length ? own.filter((u) => az(u.department) === az(d.name)).length : d.units, people: d.people, catalog: true }));
     return [...out, { branch: "", lines }];
   })();
+  const needle = az(query);
+  const visible = groups
+    .filter((g) => branchFilter === "__all" || (branchFilter === "__none" ? !g.branch : g.branch === branchFilter))
+    .map((g) => ({ ...g, lines: g.lines.filter((l) => !needle || az(`${g.branch} ${l.department} ${l.sections.join(" ")} ${l.positions.join(" ")}`).includes(needle)) }));
+  const allLines = groups.flatMap((g) => g.lines);
+  const hasBranches = branchList.length > 0 || units.some((u) => u.branch);
+  const stats = [
+    { label: "Filial", value: branchList.length },
+    { label: "Departament", value: uniq(allLines.map((l) => az(l.department))).length },
+    { label: "Şöbə", value: uniq(allLines.flatMap((l) => l.sections.map((x) => `${az(l.department)}|${az(x)}`))).length },
+    { label: "Ştat sətri", value: allLines.reduce((t, l) => t + l.units, 0) },
+    { label: "İşçi", value: data.departments.reduce((t, d) => t + d.people, 0) },
+  ];
+  const clip = (list: string[], max: number) => (list.length > max ? `${list.slice(0, max).join(", ")} +${list.length - max}` : list.join(", "));
   return (
     <div className="structure-panel">
-      <div className="panel" style={{ display: "grid", gap: 8, marginBottom: 12 }}>
-        <b>Filiallar</b>
-        <div className="admin-actions staff-toolbar">
-          <input className="search-input" placeholder="Yeni filialın adı" value={newBranch} onChange={(e) => setNewBranch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void addBranch()} />
-          <button type="button" className="primary" disabled={newBranch.trim().length < 2} onClick={() => void addBranch()}>
-            <Plus size={14} /> Filial
-          </button>
-        </div>
-        {branchList.length ? (
-          <div className="admin-actions" style={{ flexWrap: "wrap", justifyContent: "flex-start" }}>
-            {branchList.map((b) => (
-              <span key={b.id} className="chip-button" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-                {b.name}
-                <button type="button" aria-label={`${b.name} filialını sil`} onClick={() => dropBranch(b)} style={{ border: 0, background: "transparent", cursor: "pointer" }}>
-                  <Trash2 size={12} />
-                </button>
-              </span>
-            ))}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 12 }}>
+        {stats.map((s) => (
+          <div key={s.label} className="panel" style={{ margin: 0, textAlign: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 700 }}>{s.value}</div>
+            <small className="muted">{s.label}</small>
           </div>
-        ) : (
-          <small className="muted">Hələ filial yoxdur. Filialın adı burada yazılır; sonra departament yaradanda siyahıdan seçilir, ştat cədvəlində və işçi kartında da bu siyahıdan götürülür.</small>
-        )}
+        ))}
       </div>
       <div className="admin-actions staff-toolbar">
-        {branchList.length > 0 && (
-          <select value={departmentBranch} onChange={(e) => setDepartmentBranch(e.target.value)} aria-label="Departamentin filialı">
-            <option value="">Filialsız (şirkətin özü)</option>
-            {branchList.map((b) => (
-              <option key={b.id} value={b.name}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        )}
-        <input className="search-input" placeholder="Yeni departamentin adı" value={department} onChange={(e) => setDepartment(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void add()} />
-        <button type="button" className="primary" disabled={department.trim().length < 2} onClick={() => void add()}>
+        <button type="button" className="primary" onClick={() => setModal({ kind: "add", branch: branchFilter !== "__all" && branchFilter !== "__none" ? branchFilter : "" })}>
           <Plus size={14} /> Departament
+        </button>
+        <button type="button" className="secondary" onClick={() => setModal({ kind: "branches" })}>
+          Filiallar ({branchList.length})
         </button>
         <button type="button" className="secondary" onClick={onImport}>
           <FileSpreadsheet size={14} /> Excel-dən əlavə et
@@ -2764,10 +2970,23 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
           <Download size={14} /> XLSX
         </a>
       </div>
+      <div className="admin-actions staff-toolbar">
+        <input className="search-input" placeholder="Axtar: filial, departament, şöbə və ya vəzifə" value={query} onChange={(e) => setQuery(e.target.value)} />
+        {hasBranches && (
+          <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} aria-label="Filial süzgəci">
+            <option value="__all">Bütün filiallar</option>
+            <option value="__none">Filialsız</option>
+            {branchList.map((b) => (
+              <option key={b.id} value={b.name}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
       <p className="muted">
-        Departament yaradandan sonra “Şöbələr” düyməsi ilə onun şöbələrini əlavə edin: tək-tək, siyahı ilə, tövsiyə olunanlardan və ya Excel-dən. Eyni ad iki dəfə yaradılmır. İstifadədə olan departament və ya şöbəni silmək olmaz; adını dəyişsəniz ştat sətirləri, işçilər və vakansiyalar da yeni adla görünür.
+        Sıra: filial → departament → şöbə → vəzifə. Eyni filialın departamentləri bir qrupda göstərilir; qrupun başlığına basıb onu bağlaya bilərsiniz. Hər sətirdə «Düzəliş et» ilə ad və filial dəyişir, «Şöbələr» ilə şöbələr idarə olunur, vəzifələr isə ştat cədvəlində yazılır.
       </p>
-      {hasBranches && <p className="muted">Sıra: filial → departament → şöbə → vəzifə; eyni filialın məlumatları bir qrupda göstərilir. Filialı yuxarıdakı «Filiallar» siyahısında yaradırsınız, departament yaradanda onu seçirsiniz.</p>}
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
@@ -2782,48 +3001,68 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
             </tr>
           </thead>
           <tbody>
-            {groups.map((g) => (
-              <Fragment key={g.branch || "—"}>
-                {(g.branch || hasBranches) && (g.lines.length > 0 || !!g.branch) && (
-                  <tr className="staff-branch">
-                    <td colSpan={7}>
-                      <b>{g.branch ? `Filial: ${g.branch}` : "Filialsız (şirkətin özü)"}</b>{" "}
-                      <small className="muted">{g.lines.length} departament · {g.lines.reduce((t, x) => t + x.units, 0)} ştat sətri · {g.lines.reduce((t, x) => t + x.people, 0)} işçi</small>
-                    </td>
-                  </tr>
-                )}
-                {g.lines.map((d) => (
-                  <tr key={`${g.branch}|${d.department}`}>
-                    <td>{g.branch || <span className="muted">—</span>}</td>
-                    <td>
-                      <b>{d.department}</b>
-                    </td>
-                    <td>
-                      <span className="structure-names">{d.sections.length ? d.sections.join(", ") : <span className="muted">Şöbə yoxdur</span>}</span>
-                      <small className="muted"> {d.sections.length ? `(${d.sections.length})` : ""}</small>
-                    </td>
-                    <td>{d.positions.length ? d.positions.join(", ") : <span className="muted">—</span>}</td>
-                    <td>{d.units}</td>
-                    <td>{d.people}</td>
-                    <td className="admin-actions">
-                      <button type="button" className="secondary" onClick={() => setOpen(d.department)}>
-                        Şöbələr
-                      </button>
-                      <button type="button" onClick={() => rename(d.department)}>
-                        Adını dəyiş
-                      </button>
-                      <button type="button" aria-label="Sil" onClick={() => drop(d.department)}>
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </Fragment>
-            ))}
-            {!data.departments.length && !units.length && (
+            {visible.map((g) => {
+              const key = g.branch || "—";
+              const shut = collapsed.includes(key);
+              return (
+                <Fragment key={key}>
+                  {(g.branch || hasBranches) && (g.lines.length > 0 || !!g.branch) && (
+                    <tr className="staff-branch" onClick={() => setCollapsed(shut ? collapsed.filter((x) => x !== key) : [...collapsed, key])} style={{ cursor: "pointer" }}>
+                      <td colSpan={7}>
+                        <b>
+                          {shut ? "▸" : "▾"} {g.branch ? `Filial: ${g.branch}` : "Filialsız (şirkətin özü)"}
+                        </b>{" "}
+                        <small className="muted">
+                          {g.lines.length} departament · {g.lines.reduce((t, x) => t + x.units, 0)} ştat sətri · {g.lines.reduce((t, x) => t + x.people, 0)} işçi
+                          {g.branch && branchList.find((b) => b.name === g.branch && !b.active) ? " · passiv" : ""}
+                        </small>
+                      </td>
+                    </tr>
+                  )}
+                  {!shut && g.branch && !g.lines.length && (
+                    <tr>
+                      <td colSpan={7}>
+                        <span className="muted">Bu filialda hələ departament yoxdur. </span>
+                        <button type="button" className="text-button" onClick={() => setModal({ kind: "add", branch: g.branch })}>
+                          Departament əlavə et
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                  {!shut &&
+                    g.lines.map((d) => (
+                      <tr key={`${g.branch}|${d.department}`}>
+                        <td>{g.branch || <span className="muted">—</span>}</td>
+                        <td>
+                          <b>{d.department}</b>
+                        </td>
+                        <td title={d.sections.join(", ")}>
+                          <span className="structure-names">{d.sections.length ? clip(d.sections, 4) : <span className="muted">Şöbə yoxdur</span>}</span>
+                          <small className="muted"> {d.sections.length ? `(${d.sections.length})` : ""}</small>
+                        </td>
+                        <td title={d.positions.join(", ")}>{d.positions.length ? clip(d.positions, 4) : <span className="muted">—</span>}</td>
+                        <td>{d.units}</td>
+                        <td>{d.people}</td>
+                        <td className="admin-actions">
+                          <button type="button" className="secondary" onClick={() => setModal({ kind: "edit", line: d })}>
+                            Düzəliş et
+                          </button>
+                          <button type="button" className="secondary" onClick={() => setOpen(d.department)}>
+                            Şöbələr
+                          </button>
+                          <button type="button" aria-label="Sil" onClick={() => drop(d)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </Fragment>
+              );
+            })}
+            {!allLines.length && !branchList.length && (
               <tr>
                 <td colSpan={7}>
-                  <p className="admin-empty">Hələ departament yoxdur. Yuxarıdan əlavə edin və ya Excel faylı yükləyin.</p>
+                  <p className="admin-empty">Hələ struktur yoxdur. «Filiallar» ilə filial, «Departament» ilə departament əlavə edin və ya Excel faylı yükləyin.</p>
                 </td>
               </tr>
             )}
@@ -2835,7 +3074,38 @@ function StructurePanel({ notify, onChanged, onImport }: { notify: Notify; onCha
           Departamentə bağlanmamış şöbə adları: {data.looseSections.map((s) => s.name).join(", ")}. Bunlar ştat sətri və ya işçi kartında istifadə olunanda departamentə bağlanır.
         </p>
       )}
-      {open && <DepartmentSections department={open} notify={notify} onClose={() => setOpen(null)} onChanged={() => { load(); onChanged(); }} />}
+      {open && <DepartmentSections department={open} notify={notify} onClose={() => setOpen(null)} onChanged={changed} />}
+      {modal?.kind === "branches" && <BranchesModal notify={notify} onClose={() => setModal(null)} onChanged={changed} />}
+      {modal?.kind === "add" && (
+        <DepartmentAddModal
+          notify={notify}
+          branches={branchList}
+          defaultBranch={modal.branch}
+          onClose={() => setModal(null)}
+          onNewBranch={() => setModal({ kind: "branches" })}
+          onDone={() => {
+            setModal(null);
+            changed();
+          }}
+        />
+      )}
+      {modal?.kind === "edit" && (
+        <DepartmentEditModal
+          notify={notify}
+          line={modal.line}
+          branches={branchList}
+          onClose={() => setModal(null)}
+          onSections={() => {
+            const department = modal.line.department;
+            setModal(null);
+            setOpen(department);
+          }}
+          onDone={() => {
+            setModal(null);
+            changed();
+          }}
+        />
+      )}
     </div>
   );
 }
