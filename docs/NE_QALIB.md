@@ -145,3 +145,10 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Maaşın filiallara bölünməsi ay ərzində keçiddə:** məsələn ayda 20 iş günü var, işçi 15 gün A filialında, 5 gün B filialında işləyib: maaş (gross, xalis, işəgötürən xərci) 75% / 25% bölünür. Gün sayı istehsalat təqviminə görə (bayram və istirahət günləri çıxılır). Əl ilə pay % yazılıbsa o üstün olur. Maaş artımı ay ortasında olarsa, mövcud qaydada aylıq maaş iş günlərinə görə orta götürülür.
 - **Excel:** hesablama iş kitabının «İşçi-filial» vərəqində Başlama/Bitmə tarixləri və yeni «Filialda iş günü» sütunu var; «Pay (hesablanan)» formulu bu günlərə görə bölür (LibreOffice-də platforma ilə eyni nəticə verir). Maaş dəyişikliyi sütunları («Yeni maaş» + «Dəyişmə tarixi») əvvəlki kimi əmr kimi yüklənir.
 - **Hələ yoxdur:** Excel faylı ilə vəzifə/departament/şöbə/filial dəyişikliyi (yalnız maaş dəyişikliyi Excel-dən yüklənir); bonus filial dəyişəndə günə görə bölünmür (satış limitinə çatan filialın bonusu həmin filialda işlədiyi dövrə yox, aylıq maaşın payına görə hesablanır).
+
+## 14. AI-nin CV və vakansiya tərəfləri (2026-11-12)
+
+- **İki ayrı tərəf:** «CV» (namizədin CV ilə işi: oxuma, analiz, yenidən yazma, uyğunluq, karyera məsləhəti, AI köməkçi) və «Vakansiya» (işəgötürənin işi: vakansiya layihəsi, namizəd sıralaması, test və sənəd oxuma, vəzifə adı uyğunlaşdırma). Hər AI çağırışı öz tərəfinə yazılır.
+- **Ayrı limit və xərc:** Admin → AI limiti bölməsində hər tərəf üçün ayrıca aylıq dollar limiti və cari xərc var. Biri dolanda yalnız o tərəfin AI-si dayanır (qaydalarla hesablanmış nəticə göstərilir), digəri işləyir. Ümumi limit əvvəlki kimi qalır və hər ikisinə şamil olur.
+- **Ayrı model (istəyə görə):** Cloudflare dəyişənləri `OPENAI_MODEL_CV` və `OPENAI_MODEL_VACANCY`; boşdursa `OPENAI_MODEL` (ya da `gpt-5.2`). Məsələn CV oxuma üçün ucuz, vakansiya üçün güclü model qoymaq olar.
+- **Ayrı açar/provayder hələ yoxdur:** hər iki tərəf eyni `OPENAI_API_KEY` ilə işləyir; ayrı faktura lazımdırsa ayrı açar əlavə etmək lazımdır.

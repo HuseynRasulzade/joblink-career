@@ -6,6 +6,23 @@ import { estimateCost } from "./ai-cost.ts";
 export const AI_BUDGET_KEY = "ai_budget";
 export const AI_HEALTH_KEY = "ai_health";
 
+// The AI is used for two separate things and each has its own limit, its own spend and, if wished, its own model:
+// «cv» = what a candidate does with a CV (reading, analysis, rewriting, matching, career advice),
+// «vacancy» = what an employer does with vacancies (drafting a vacancy, ranking candidates, tests, document checks).
+export type AiArea = "cv" | "vacancy" | "other";
+export const AI_AREAS = ["cv", "vacancy"] as const;
+export const AI_AREA_LABEL: Record<AiArea, string> = { cv: "CV (namizəd tərəfi)", vacancy: "Vakansiya (işəgötürən tərəfi)", other: "Digər" };
+export const AI_AREA_BUDGET_KEY: Record<"cv" | "vacancy", string> = { cv: "ai_budget_cv", vacancy: "ai_budget_vacancy" };
+const CV_FEATURES = new Set(["cv-parse", "cv-visual", "cv-audit", "cv-analysis", "cv-rewrite", "cv-fix", "profile-summary", "fit-review", "career-advice", "rank-jobs", "assistant", "auto-apply"]);
+const VACANCY_FEATURES = new Set(["vacancy-draft", "hr-rank5", "test-parse", "doc-check", "job-title-map"]);
+// A feature name may carry a language and a version after a colon (“cv-analysis:az:4”).
+export function aiAreaOf(feature: string): AiArea {
+  const name = String(feature || "").split(":")[0];
+  if (CV_FEATURES.has(name) || name.startsWith("cv-")) return "cv";
+  if (VACANCY_FEATURES.has(name) || name.startsWith("vacancy-")) return "vacancy";
+  return "other";
+}
+
 export type BudgetLevel = "off" | "ok" | "warn" | "over";
 export function budgetState(monthlyUsd: number, spentUsd: number) {
   const limit = monthlyUsd > 0 ? monthlyUsd : 0;
@@ -68,6 +85,27 @@ export async function readAiHealth(db: Db): Promise<AiHealth> {
   return value && typeof value.state === "string" ? (value as AiHealth) : { state: "ok", code: "", at: "" };
 }
 export const writeAiHealth = (db: Db, health: AiHealth) => writeSetting(db, AI_HEALTH_KEY, health);
+
+export async function readAreaBudget(db: Db, area: "cv" | "vacancy"): Promise<number> {
+  const value = await readSetting(db, AI_AREA_BUDGET_KEY[area]);
+  const usd = Number(value?.monthlyUsd);
+  return Number.isFinite(usd) && usd > 0 ? Math.min(100000, usd) : 0;
+}
+export const writeAreaBudget = (db: Db, area: "cv" | "vacancy", monthlyUsd: number) =>
+  writeSetting(db, AI_AREA_BUDGET_KEY[area], { monthlyUsd: Math.max(0, Math.min(100000, Math.round(monthlyUsd * 100) / 100)) });
+
+// Estimated spend since the start of the month for each area, from the usage counters.
+export async function monthSpendByArea(db: Db, now = new Date()): Promise<Record<AiArea, number>> {
+  const start = `${now.toISOString().slice(0, 7)}-01`;
+  const rows = await db
+    .prepare("SELECT feature,provider,SUM(chars_in) AS chars_in,SUM(chars_out) AS chars_out FROM ai_usage WHERE day>=? GROUP BY feature,provider")
+    .bind(start)
+    .all<{ feature: string; provider: string; chars_in: number; chars_out: number }>()
+    .catch(() => ({ results: [] as { feature: string; provider: string; chars_in: number; chars_out: number }[] }));
+  const out: Record<AiArea, number> = { cv: 0, vacancy: 0, other: 0 };
+  for (const r of rows.results) out[aiAreaOf(r.feature)] += estimateCost(r.provider, Number(r.chars_in) || 0, Number(r.chars_out) || 0);
+  return out;
+}
 
 // Estimated spend since the start of the month, from the usage counters.
 export async function monthSpendUsd(db: Db, now = new Date()) {

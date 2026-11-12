@@ -8,11 +8,15 @@ import {
 } from "./model";
 import { MAX_CV_TEXT_CHARS } from "./cv-limits";
 import {
+  AI_AREA_LABEL,
   BUDGET_EXCEEDED_MESSAGE,
+  aiAreaOf,
   classifyAiFailure,
   friendlyAiMessage,
+  monthSpendByArea,
   monthSpendUsd,
   readAiBudget,
+  readAreaBudget,
   readAiHealth,
   writeAiHealth,
   type AiFailure,
@@ -32,6 +36,9 @@ export function runtime() {
     FILES: R2Bucket;
     OPENAI_API_KEY?: string;
     OPENAI_MODEL?: string;
+    // Optional: a model of its own for each area (CV / vacancy); empty = OPENAI_MODEL.
+    OPENAI_MODEL_CV?: string;
+    OPENAI_MODEL_VACANCY?: string;
     AI_PROVIDER?: string;
     DEEPSEEK_API_KEY?: string;
     DEEPSEEK_MODEL?: string;
@@ -401,15 +408,19 @@ export async function recordAiUsage(entry: {
   }
 }
 // The monthly AI limit is checked at most once a minute.
-let budgetCheck: { at: number; over: boolean } | null = null;
-async function assertAiBudget() {
+let budgetCheck: { at: number; over: boolean; areas: { cv: boolean; vacancy: boolean } } | null = null;
+async function assertAiBudget(feature = "") {
   if (!budgetCheck || Date.now() - budgetCheck.at > 60_000) {
     const db = await store();
     const limit = await readAiBudget(db).catch(() => 0);
     const over = limit > 0 && (await monthSpendUsd(db).catch(() => 0)) >= limit;
-    budgetCheck = { at: Date.now(), over };
+    // The CV side and the vacancy side each have a limit of their own.
+    const [cvLimit, vacancyLimit, spent] = await Promise.all([readAreaBudget(db, "cv").catch(() => 0), readAreaBudget(db, "vacancy").catch(() => 0), monthSpendByArea(db).catch(() => ({ cv: 0, vacancy: 0, other: 0 }))]);
+    budgetCheck = { at: Date.now(), over, areas: { cv: cvLimit > 0 && spent.cv >= cvLimit, vacancy: vacancyLimit > 0 && spent.vacancy >= vacancyLimit } };
   }
   if (budgetCheck.over) throw new HttpError(402, BUDGET_EXCEEDED_MESSAGE);
+  const area = aiAreaOf(feature);
+  if ((area === "cv" || area === "vacancy") && budgetCheck.areas[area]) throw new HttpError(402, `${AI_AREA_LABEL[area]} üçün AI-nin aylıq xərc limiti dolub. Qaydalarla hesablanmış nəticə göstərilir; limiti administrator dəyişə bilər.`);
 }
 // Whether the provider answers, kept for the admin; written only when it changes
 // (and at most once an hour while it stays broken).
@@ -456,7 +467,7 @@ export async function aiText(
       : "openai";
   if (provider === "openai" && !settings.OPENAI_API_KEY)
     return aiTextRaw(instructions, input, json, limits);
-  await assertAiBudget();
+  await assertAiBudget(limits.feature || "");
   const base = {
     feature: limits.feature || "other",
     provider,
@@ -531,7 +542,7 @@ async function aiTextRaw(
       Authorization: `Bearer ${settings.OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: settings.OPENAI_MODEL || "gpt-5.2",
+      model: ((aiAreaOf(limits.feature || "") === "cv" ? settings.OPENAI_MODEL_CV : aiAreaOf(limits.feature || "") === "vacancy" ? settings.OPENAI_MODEL_VACANCY : "") || settings.OPENAI_MODEL || "gpt-5.2"),
       instructions,
       // JSON mode requires the word "json" in the input itself.
       input:

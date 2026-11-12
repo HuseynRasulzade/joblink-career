@@ -45,3 +45,25 @@ test("budget and health are stored, and spend counts only this month", async () 
   const spent = await monthSpendUsd(db, now);
   assert.ok(spent > 0 && spent < 2, `spent ${spent}`);
 });
+
+import { aiAreaOf, monthSpendByArea, readAreaBudget, writeAreaBudget } from "../lib/ai-guard.ts";
+test("the AI is split into a CV side and a vacancy side", () => {
+  for (const f of ["cv-parse", "cv-analysis:az:4", "cv-rewrite:az:4", "profile-summary:az", "fit-review:az:4", "rank-jobs:3", "career-advice", "assistant"]) assert.equal(aiAreaOf(f), "cv", f);
+  for (const f of ["vacancy-draft", "hr-rank5:az:4", "test-parse", "doc-check", "job-title-map"]) assert.equal(aiAreaOf(f), "vacancy", f);
+  assert.equal(aiAreaOf("something-else"), "other");
+  assert.equal(aiAreaOf(""), "other");
+});
+test("each side has its own limit and its own spend", async () => {
+  const db = memoryD1(schema.join(";"));
+  assert.equal(await readAreaBudget(db, "cv"), 0);
+  await writeAreaBudget(db, "cv", 30);
+  await writeAreaBudget(db, "vacancy", 70);
+  assert.equal(await readAreaBudget(db, "cv"), 30);
+  assert.equal(await readAreaBudget(db, "vacancy"), 70);
+  const day = new Date().toISOString().slice(0, 10);
+  await db.prepare("INSERT INTO ai_usage(day,feature,provider,user_id,calls,chars_in,chars_out,errors) VALUES(?,?,?,?,?,?,?,?)").bind(day, "cv-analysis:az:4", "openai", "u1", 3, 40000, 8000, 0).run();
+  await db.prepare("INSERT INTO ai_usage(day,feature,provider,user_id,calls,chars_in,chars_out,errors) VALUES(?,?,?,?,?,?,?,?)").bind(day, "vacancy-draft", "openai", "u2", 1, 4000, 4000, 0).run();
+  const spend = await monthSpendByArea(db);
+  assert.ok(spend.cv > spend.vacancy && spend.vacancy > 0);
+  assert.equal(spend.other, 0);
+});

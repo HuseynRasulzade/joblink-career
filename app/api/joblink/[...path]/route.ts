@@ -215,9 +215,12 @@ import {
   ADMIN_HEALTH_TEXT,
   budgetState,
   monthSpendUsd,
+  monthSpendByArea,
   readAiBudget,
+  readAreaBudget,
   readAiHealth,
   writeAiBudget,
+  writeAreaBudget,
 } from "@/lib/ai-guard";
 import {
   feedbackCsv,
@@ -4713,17 +4716,30 @@ async function route(request: Request) {
     if (path === "admin/ai-budget") {
       if (request.method === "POST") {
         const body = await jsonBody(request);
-        const usd = Number(String(body.monthlyUsd ?? "").replace(",", "."));
-        if (!Number.isFinite(usd) || usd < 0 || usd > 100000)
-          throw new HttpError(400, "Məbləği 0 ilə 100000 dollar arasında yazın (0 = limit yoxdur).");
-        await writeAiBudget(db, usd);
-        await db
-          .prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
-          .bind(crypto.randomUUID(), id, "ai-budget-set", "settings", "ai-budget", JSON.stringify({ monthlyUsd: usd }), new Date().toISOString())
-          .run();
+        const audit = (entity: string, details: unknown) =>
+          db
+            .prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
+            .bind(crypto.randomUUID(), id, "ai-budget-set", "settings", entity, JSON.stringify(details), new Date().toISOString())
+            .run();
+        const money = (value: unknown) => {
+          const usd = Number(String(value ?? "").replace(",", "."));
+          if (!Number.isFinite(usd) || usd < 0 || usd > 100000) throw new HttpError(400, "Məbləği 0 ilə 100000 dollar arasında yazın (0 = limit yoxdur).");
+          return usd;
+        };
+        // The limit of one area (CV side or vacancy side): {area, areaUsd}; otherwise the overall limit: {monthlyUsd}.
+        if (body.area === "cv" || body.area === "vacancy") {
+          const usd = money(body.areaUsd);
+          await writeAreaBudget(db, body.area, usd);
+          await audit(`ai-budget-${body.area}`, { area: body.area, monthlyUsd: usd });
+        } else {
+          const usd = money(body.monthlyUsd);
+          await writeAiBudget(db, usd);
+          await audit("ai-budget", { monthlyUsd: usd });
+        }
       }
-      const [limit, spent, health] = await Promise.all([readAiBudget(db), monthSpendUsd(db), readAiHealth(db)]);
+      const [limit, spent, health, cvLimit, vacancyLimit, byArea] = await Promise.all([readAiBudget(db), monthSpendUsd(db), readAiHealth(db), readAreaBudget(db, "cv"), readAreaBudget(db, "vacancy"), monthSpendByArea(db)]);
       return ok({
+        areas: { cv: budgetState(cvLimit, byArea.cv), vacancy: budgetState(vacancyLimit, byArea.vacancy), other: Math.round(byArea.other * 100) / 100 },
         budget: budgetState(limit, spent),
         health: { ...health, text: health.state === "ok" ? "" : ADMIN_HEALTH_TEXT[health.state] },
       });
