@@ -1,4 +1,5 @@
 import { cleanCvText, layoutPdfText, rtfToText } from "./cv-text";
+import { loadUnpdf } from "./load-unpdf";
 import {
   formatCvFileLimit,
   MAX_CV_FILE_BYTES,
@@ -58,7 +59,7 @@ export async function readCv(file: File, options: ReadCvOptions = {}) {
   let text = "";
   let ocrUsed = false;
   if (ext === "pdf") {
-    const { extractTextItems, getDocumentProxy } = await import("unpdf");
+    const { extractTextItems, getDocumentProxy } = await loadUnpdf();
     const pdf = await getDocumentProxy(new Uint8Array(bytes));
     try {
       if (pdf.numPages > MAX_CV_PAGES)

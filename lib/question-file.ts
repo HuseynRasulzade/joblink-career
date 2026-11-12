@@ -1,4 +1,5 @@
 import { unzipSync, strFromU8 } from "fflate";
+import { loadUnpdf } from "./load-unpdf";
 import { parseQuestionRows, parseQuestionText, type ImportResult } from "./question-import";
 import { layoutPdfText, rtfToText } from "./cv-text";
 
@@ -59,7 +60,7 @@ export async function readQuestionFile(file: File): Promise<ImportResult> {
       const mammoth = await import("mammoth");
       text = (await mammoth.extractRawText({ arrayBuffer: bytes.buffer as ArrayBuffer })).value;
     } else if (ext === "pdf") {
-      const { extractTextItems, getDocumentProxy } = await import("unpdf");
+      const { extractTextItems, getDocumentProxy } = await loadUnpdf();
       const pdf = await getDocumentProxy(bytes);
       try {
         const extracted = await extractTextItems(pdf);
