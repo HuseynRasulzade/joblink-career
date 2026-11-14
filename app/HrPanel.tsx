@@ -29,7 +29,7 @@ import {
 import { Empty, Field, JobForm, Modal } from "./components";
 import { CertificationBadges } from "./CertificationPickers";
 import ConversationList, { type ConversationSummary } from "./ConversationList";
-import PipelineBoard, { type ApplicantAi, type ApplicantFit } from "./PipelineBoard";
+import type { ApplicantAi, ApplicantFit } from "./PipelineBoard";
 import ApplicantsTable from "./ApplicantsTable";
 import CandidateDrawer from "./CandidateDrawer";
 import TalentTable from "./TalentTable";
@@ -169,7 +169,7 @@ export default function HrPanel({
     items: Record<string, { score: number; aiScore?: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }>;
   } | null>(null);
   const [aiRanking, setAiRanking] = useState(false);
-  const [applicantsView, setApplicantsView] = useState<"board" | "list">("board");
+  const [applicantsView, setApplicantsView] = useState<"board" | "list">("list");
   const [offers, setOffers] = useState<Record<string, Offer>>({});
   const [testResults, setTestResults] = useState<Record<string, { state: string; percent: number | null }>>({});
   const [offerFor, setOfferFor] = useState<Application | null>(null);
@@ -1185,56 +1185,6 @@ export default function HrPanel({
             )
           ) : (
             <>
-              <div className="view-toggle" role="radiogroup" aria-label="Görünüş">
-                {(["board", "list"] as const).map((view) => (
-                  <button
-                    key={view}
-                    type="button"
-                    role="radio"
-                    aria-checked={applicantsView === view}
-                    className={applicantsView === view ? "selected" : ""}
-                    onClick={() => setApplicantsView(view)}
-                  >
-                    {view === "board" ? "Pipeline" : "Siyahı"}
-                  </button>
-                ))}
-              </div>
-              {applicantsView === "board" && (
-                <PipelineBoard
-                  fits={fitsOnce()}
-                  ai={aisOnce()}
-                  applications={applications.filter((a) => a.jobId === selectedJob?.id)}
-                  stages={selectedJob?.stages}
-                  disabled={demo}
-                  onMove={moveApplication}
-                  onOpenProfile={(a) => setCandidate(a.profile)}
-                  onMessage={(a) =>
-                    a.candidateId &&
-                    onMessage({ candidateId: a.candidateId, jobId: a.jobId, name: a.profile.name, jobTitle: selectedJob?.title })
-                  }
-                  onHistory={showHistory}
-                  offers={offers}
-                  testResults={testResults}
-                  onOffer={setOfferFor}
-                  onAssignTest={setTestFor}
-                  onSchedule={setInterviewFor}
-                  onInvite={(application) => inviteToInterview(application)}
-                  onBulk={(ids, action) => {
-                    if (action === "interview") setInvitePeople(ids.map((i) => ({ applicationId: i, name: applications.find((x) => x.id === i)?.profile.name || "" })));
-                    else setBulk({ ids, action });
-                  }}
-                  onWithdrawOffer={async (offer) => {
-                    if (!window.confirm("Təklif geri götürülsün?")) return;
-                    try {
-                      await api("offers/withdraw", { id: offer.id });
-                      await refresh();
-                      notify("Təklif geri götürüldü.");
-                    } catch (e) {
-                      notify((e as Error).message);
-                    }
-                  }}
-                />
-              )}
               {applicantsView === "list" && applications.some((a) => a.jobId === selectedJob?.id) && (
                 <ApplicantsTable
                   rows={applications.filter((a) => a.jobId === selectedJob?.id && a.profile.name.toLocaleLowerCase("az").includes(query.toLocaleLowerCase("az")))}
