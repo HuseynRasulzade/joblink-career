@@ -67,3 +67,15 @@ test("each side has its own limit and its own spend", async () => {
   assert.ok(spend.cv > spend.vacancy && spend.vacancy > 0);
   assert.equal(spend.other, 0);
 });
+
+import { summarizeAiUsage } from "../lib/ai-cost.ts";
+test("answers served from memory are counted apart: no calls, no cost, a share of all requests", () => {
+  const row = (feature, provider, calls, ci = 4000, co = 1000) => ({ day: "2026-11-14", feature, provider, user_id: "u1", calls, chars_in: ci, chars_out: co, errors: 0 });
+  const s = summarizeAiUsage([row("hr-rank5:az", "openai", 10, 4000000, 1000000), row("saved:hr-rank", "cache", 30, 0, 0)]);
+  assert.equal(s.total.calls, 10);
+  assert.equal(s.saved.calls, 30);
+  assert.equal(s.saved.share, 75);
+  assert.equal(s.saved.byFeature[0].feature, "hr-rank");
+  assert.ok(s.total.cost > 0);
+  assert.equal(s.byProvider.some((p) => p.provider === "cache"), false);
+});

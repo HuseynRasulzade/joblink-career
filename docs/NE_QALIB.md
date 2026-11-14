@@ -152,3 +152,12 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Ayrı limit və xərc:** Admin → AI limiti bölməsində hər tərəf üçün ayrıca aylıq dollar limiti və cari xərc var. Biri dolanda yalnız o tərəfin AI-si dayanır (qaydalarla hesablanmış nəticə göstərilir), digəri işləyir. Ümumi limit əvvəlki kimi qalır və hər ikisinə şamil olur.
 - **Ayrı model (istəyə görə):** Cloudflare dəyişənləri `OPENAI_MODEL_CV` və `OPENAI_MODEL_VACANCY`; boşdursa `OPENAI_MODEL` (ya da `gpt-5.2`). Məsələn CV oxuma üçün ucuz, vakansiya üçün güclü model qoymaq olar.
 - **Ayrı açar/provayder hələ yoxdur:** hər iki tərəf eyni `OPENAI_API_KEY` ilə işləyir; ayrı faktura lazımdırsa ayrı açar əlavə etmək lazımdır.
+
+## 15. AI bir dəfə baxır, nəticə yaddaşda qalır (2026-11-14)
+
+- **HR namizəd sıralaması:** hər namizədin balını AI hesablayır (əvvəlki ilk 40 limiti götürülüb, hovuz 300 namizədədək). Nəticə (bal, güclü/zəif tərəflər, tövsiyə) daimi saxlanır (400 gün istifadə olunmayana qədər), 30 günlük silinmə yoxdur. Uzun siyahı 96-96 hissələrlə hesablanır; hər hissə saxlanır, səhifə qalanını özü istəyir.
+- **AI yenidən yalnız məzmun dəyişəndə baxır:** vakansiyanın tələbləri, bacarıqları, sertifikatları, minimum ili, vəzifə adı, kateqoriya, maaş və təsviri; namizədin təcrübəsi, təhsili, bacarığı, sertifikatı; yeni cüt; və ya qayda/prompt versiyası (bu halda köhnə nəticə dərhal silinmir, baxılanda yenilənir). Boşluq, böyük-kiçik hərf, durğu işarəsi, son tarix, ünvan, telefon və təcrübə ilinin gündəlik artımı (yarım il addımla) dəyişiklik sayılmır.
+- **Namizəd tərəfi:** vakansiya uyğunluğu (`rank-jobs`) əvvəl də saxlanırdı, indi onun hash-i də eyni normallaşdırmadan keçir. CV analizi, uyğunluq rəyi, profil xülasəsi və CV yenidən yazma da «CV dəyişənə qədər» saxlanır.
+- **Sayğac:** Admin → AI istifadəsi bölməsində «Yaddaşdan verilib» sətri: AI-yə getməyən sorğu sayı və bütün sorğuların neçə faizi.
+- **Bir dəfəlik təsir:** hash qaydası dəyişdiyi üçün bu yenilənmədən əvvəl saxlanmış nəticələr bir dəfə yenidən hesablanacaq; bundan sonra təkrar olmayacaq.
+- **Hələ ayrıca analiz olunur:** namizədin öz uyğunluq balı (`rank-jobs`) ilə işəgötürənin gördüyü bal ayrı AI çağırışlarıdır (ayrı prompt, ayrı saxlama). Birləşdirmək ayrıca qərardır.

@@ -210,6 +210,7 @@ import { mailConfigured, mailerOf, sendMail } from "@/lib/mail";
 import { greetingFor } from "@/lib/mail-copy";
 import { checkDestination } from "@/lib/trip-places";
 import { siteUrl } from "@/lib/seo";
+import { stableHash } from "@/lib/ai-hash";
 import { aiLanguage, aiLanguageName } from "@/lib/ai-language";
 import {
   ADMIN_HEALTH_TEXT,
@@ -19500,9 +19501,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         };
       })
       .sort((a, b) => b.rule.score - a.rule.score);
-    // With the AI on, every candidate is sent (the best 40 by the rules if there
-    // are more), so a profile the rules underrate still gets the AI's judgement.
-    ranked.splice(40);
+    // With the AI on, EVERY candidate gets the AI's judgement (so a profile the rules underrate is not missed). The judgement
+    // is kept until the candidate or the vacancy really changes, so the AI looks at each pair once.
     if (!ranked.length) return ok({ ratings: [] });
     // The admin decides whether employers get the AI rating or only the rule-based score.
     if ((await readMatching(db)).employer !== "ai")
@@ -19543,30 +19543,21 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     }));
     const lang = aiLanguage(b.language);
     const english = lang === "en";
-    // Each candidate's AI evaluation is kept while neither the profile nor the
-    // vacancy changes, so opening the list again costs nothing.
-    const sha = async (text: string) =>
-      Buffer.from(
-        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)),
-      ).toString("hex");
-    const vacancyHash = await sha(
-      JSON.stringify([
-        job.title,
-        job.category,
-        job.minYears,
-        job.minSalary,
-        job.maxSalary,
-        job.skills,
-        job.certifications,
-        job.requirements,
-        job.description,
-      ]),
-    );
+    // Each candidate's AI evaluation is kept while neither the profile nor the vacancy changes in meaning, so opening the
+    // list again costs nothing. Spaces, capitals, punctuation and the daily growth of the years do not count as a change.
+    const vacancyHash = await stableHash([
+      job.title,
+      job.category,
+      job.minYears,
+      job.minSalary,
+      job.maxSalary,
+      job.skills,
+      job.certifications,
+      job.requirements,
+      job.description,
+    ]);
     const itemKeys = await Promise.all(
-      anonymousAll.map(
-        async (item) =>
-          `hr-rank8:${lang}:${MATCH_VERSION}:${vacancyHash}:${await sha(JSON.stringify(item))}`,
-      ),
+      anonymousAll.map(async (item) => `hr-rank8:${lang}:${MATCH_VERSION}:${vacancyHash}:${await stableHash(item)}`),
     );
     // The reader sees one candidate per card, so a sentence that compares with
     // another candidate ("C1") is dropped.
@@ -19586,7 +19577,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     try {
       const hits = await db
         .prepare(
-          `SELECT key,value FROM ai_cache WHERE key IN (${itemKeys.map(() => "?").join(",")}) AND created>=datetime('now','-30 days')`,
+          `SELECT key,value FROM ai_cache WHERE key IN (${itemKeys.map(() => "?").join(",")}) AND created>=datetime('now','-400 days')`,
         )
         .bind(...itemKeys)
         .all<{ key: string; value: string }>();
@@ -19595,9 +19586,20 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     } catch {
       // Cache table not migrated yet.
     }
-    const missing = anonymousAll
+    const missingAll = anonymousAll
       .map((_, index) => index)
       .filter((index) => !stored.has(index));
+    // The part that came from memory is counted (the admin sees what the memory saves).
+    if (stored.size)
+      await db
+        .prepare("INSERT INTO ai_usage(day,feature,provider,user_id,calls,chars_in,chars_out,errors) VALUES(?,?,?,?,?,0,0,0) ON CONFLICT(day,feature,provider,user_id) DO UPDATE SET calls=calls+excluded.calls")
+        .bind(new Date().toISOString().slice(0, 10), "saved:hr-rank", "cache", id, stored.size)
+        .run()
+        .catch(() => undefined);
+    // A long list is judged in waves (96 new candidates per request); what is done stays saved, and the page asks again for the rest.
+    const WAVE = 96;
+    const missing = missingAll.slice(0, WAVE);
+    const pending = missingAll.length - missing.length;
     const vacancyPayload = {
         title: job.title,
         category: job.category,
@@ -19706,7 +19708,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .map((item, position) => ({ ...item, rank: position + 1 }));
     if (!ratings.length)
       throw new HttpError(502, "AI namizədləri qiymətləndirə bilmədi.");
-    return ok({ ratings });
+    return ok({ ratings, pending, total: anonymousAll.length, fromMemory: anonymousAll.length - missingAll.length });
   }
   // An employer's verdict on an AI evaluation: right or wrong, and what it should have been.
   if (request.method === "GET" && path === "hr/ai-feedback") {

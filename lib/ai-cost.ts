@@ -12,20 +12,29 @@ export function estimateCost(provider: string, charsIn: number, charsOut: number
 
 export type AiUsageRow = { day: string; feature: string; provider: string; user_id: string; calls: number; chars_in: number; chars_out: number; errors: number };
 // Totals per feature, per day and per person, with the estimated cost of each.
-export function summarizeAiUsage(rows: AiUsageRow[], names: Map<string, string> = new Map()) {
+export function summarizeAiUsage(allRows: AiUsageRow[], names: Map<string, string> = new Map()) {
+  // Rows of the provider «cache» are answers served from memory: no call to the AI, no cost.
+  const rows = allRows.filter((r) => r.provider !== "cache");
+  const savedRows = allRows.filter((r) => r.provider === "cache");
   const sum = (list: AiUsageRow[]) => ({
     calls: list.reduce((n, r) => n + r.calls, 0),
     errors: list.reduce((n, r) => n + r.errors, 0),
     tokens: list.reduce((n, r) => n + tokensOf(r.chars_in) + tokensOf(r.chars_out), 0),
     cost: Math.round(list.reduce((n, r) => n + estimateCost(r.provider, r.chars_in, r.chars_out), 0) * 100) / 100,
   });
-  const group = (key: (r: AiUsageRow) => string) => {
+  const group = (key: (r: AiUsageRow) => string, source: AiUsageRow[] = rows) => {
     const map = new Map<string, AiUsageRow[]>();
-    for (const r of rows) map.set(key(r), [...(map.get(key(r)) || []), r]);
+    for (const r of source) map.set(key(r), [...(map.get(key(r)) || []), r]);
     return map;
   };
   return {
     total: sum(rows),
+    // Served from memory instead of the AI, per kind of judgement, and what share of all requests that is.
+    saved: {
+      calls: savedRows.reduce((n, r) => n + r.calls, 0),
+      share: rows.reduce((n, r) => n + r.calls, 0) + savedRows.reduce((n, r) => n + r.calls, 0) ? Math.round((savedRows.reduce((n, r) => n + r.calls, 0) / (rows.reduce((n, r) => n + r.calls, 0) + savedRows.reduce((n, r) => n + r.calls, 0))) * 100) : 0,
+      byFeature: [...group((r) => r.feature, savedRows)].map(([feature, list]) => ({ feature: feature.replace(/^saved:/, ""), calls: list.reduce((n, r) => n + r.calls, 0) })).sort((a, b) => b.calls - a.calls),
+    },
     byFeature: [...group((r) => r.feature)].map(([feature, list]) => ({ feature, ...sum(list) })).sort((a, b) => b.cost - a.cost || b.calls - a.calls),
     byProvider: [...group((r) => r.provider)].map(([provider, list]) => ({ provider, ...sum(list) })),
     byDay: [...group((r) => r.day)].map(([day, list]) => ({ day, ...sum(list) })).sort((a, b) => (a.day < b.day ? 1 : -1)),

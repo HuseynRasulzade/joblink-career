@@ -1,3 +1,4 @@
+import { hashable } from "./ai-hash.ts";
 // Which fit score each audience uses is an admin choice. "rules" is the fast,
 // free rule-based percentage; "ai" is the AI rating (the rule score stays as the fallback).
 export type MatchingMode = "rules" | "ai";
@@ -45,7 +46,8 @@ export function normalizeMatching(value: unknown): MatchingSettings {
 // sees (CV facts and vacancy content), so a changed phone number does not re-run it
 // but a new skill, role or vacancy requirement does.
 export async function ratingHash(input: unknown, version: string) {
-  const bytes = new TextEncoder().encode(`${version}\n${JSON.stringify(input)}`);
+  // Spaces, capitals, punctuation and the daily growth of the years of experience do not count as a change.
+  const bytes = new TextEncoder().encode(`${version}\n${JSON.stringify(hashable(input))}`);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }

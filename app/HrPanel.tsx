@@ -408,14 +408,15 @@ export default function HrPanel({
     if (!selectedJob || demo) return;
     setAiRanking(true);
     try {
-      const data = await api("hr/rank-candidates", { jobId: selectedJob.id, language });
-      setAiRatings({
-        jobId: selectedJob.id,
-        items: Object.fromEntries(
-          (data.ratings as { candidateId: string; score: number; aiScore?: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }[])
-            .map((r) => [r.candidateId, r]),
-        ),
-      });
+      type Rating = { candidateId: string; score: number; aiScore?: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string };
+      // A long list is judged in waves; every wave is saved, so the page just asks again until nothing is left.
+      let data = await api("hr/rank-candidates", { jobId: selectedJob.id, language });
+      const show = (list: Rating[]) => setAiRatings({ jobId: selectedJob.id, items: Object.fromEntries(list.map((r) => [r.candidateId, r])) });
+      show(data.ratings as Rating[]);
+      for (let round = 0; round < 12 && (data.pending as number) > 0; round++) {
+        data = await api("hr/rank-candidates", { jobId: selectedJob.id, language });
+        show(data.ratings as Rating[]);
+      }
       if (data.source === "rules") notify("AI qiymətləndirmə administrator tərəfindən söndürülüb, qaydalarla hesablanmış bal göstərilir.");
       else if (!silent) notify("AI namizədləri qiymətləndirdi.");
       setAiDown("");

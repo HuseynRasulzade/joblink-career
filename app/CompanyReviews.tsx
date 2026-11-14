@@ -119,8 +119,8 @@ export function AdminReviews({ notify }: { notify: (m: string) => void }) {
 }
 
 type UsageRow = { calls: number; errors: number; tokens: number; cost: number };
-type AiUsage = { days: number; total: UsageRow; byFeature: (UsageRow & { feature: string })[]; byProvider: (UsageRow & { provider: string })[]; byDay: (UsageRow & { day: string })[]; byUser: (UsageRow & { user: string })[] };
-const FEATURE_LABEL: Record<string, string> = { "cv-parse": "CV oxuma", "cv-audit": "CV yoxlama mərhələsi", "cv-visual": "Vizual CV analizi", assistant: "AI köməkçi", "vacancy-draft": "Vakansiya qaralaması", "job-title-map": "Vəzifə adının tapılması", "doc-check": "Sənəd yoxlaması", "test-parse": "Test faylının oxunması", other: "Digər" };
+type AiUsage = { days: number; total: UsageRow; saved?: { calls: number; share: number; byFeature: { feature: string; calls: number }[] }; byFeature: (UsageRow & { feature: string })[]; byProvider: (UsageRow & { provider: string })[]; byDay: (UsageRow & { day: string })[]; byUser: (UsageRow & { user: string })[] };
+const FEATURE_LABEL: Record<string, string> = { "cv-parse": "CV oxuma", "hr-rank": "HR namizəd sıralaması", "cv-analysis": "CV analizi", "fit-review": "Uyğunluq rəyi", "profile-summary": "Profil xülasəsi", "cv-rewrite": "CV yenidən yazma", "cv-audit": "CV yoxlama mərhələsi", "cv-visual": "Vizual CV analizi", assistant: "AI köməkçi", "vacancy-draft": "Vakansiya qaralaması", "job-title-map": "Vəzifə adının tapılması", "doc-check": "Sənəd yoxlaması", "test-parse": "Test faylının oxunması", other: "Digər" };
 // AI calls, tokens and an estimated cost: by feature, provider, day and person.
 export function AdminAiUsage({ notify }: { notify: (m: string) => void }) {
   const [days, setDays] = useState(30);
@@ -140,6 +140,12 @@ export function AdminAiUsage({ notify }: { notify: (m: string) => void }) {
         <div className="kpi"><small>Təxmini xərc</small><strong>${data.total.cost.toFixed(2)}</strong><span>qiymətlər təxminidir</span></div>
       </div>
       <h3>Funksiya üzrə</h3>
+      {!!data.saved && (
+        <p className="muted fine-print">
+          Yaddaşdan verilib (AI-yə getməyib, xərc yoxdur): <b>{data.saved.calls}</b> sorğu, bütün sorğuların <b>{data.saved.share}%</b>-i.
+          {data.saved.byFeature.length ? ` ${data.saved.byFeature.map((f) => `${FEATURE_LABEL[f.feature] || f.feature}: ${f.calls}`).join(", ")}.` : ""}
+        </p>
+      )}
       {table(["Funksiya", "Sorğu", "Xəta", "Token", "Xərc"], data.byFeature.map((f) => [FEATURE_LABEL[f.feature] || f.feature, ...line(f)]))}
       <h3>Provayder üzrə</h3>
       {table(["Provayder", "Sorğu", "Xəta", "Token", "Xərc"], data.byProvider.map((f) => [f.provider, ...line(f)]))}

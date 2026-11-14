@@ -7,6 +7,7 @@ import {
   type Job,
 } from "./model";
 import { MAX_CV_TEXT_CHARS } from "./cv-limits";
+import { hashable } from "./ai-hash";
 import {
   AI_AREA_LABEL,
   BUDGET_EXCEEDED_MESSAGE,
@@ -585,6 +586,19 @@ async function aiTextRaw(
 // never replayed. The cache is an optimization: without the table every call
 // simply goes to the model.
 const AI_CACHE_DAYS = 30;
+// These judgements are kept until their input changes (the key holds the meaning of the input and the version of the rules), not for 30 days.
+// A row nobody has asked for in a year is still cleaned up.
+const PERSISTENT_AI_KINDS = ["cv-analysis", "profile-summary", "cv-rewrite", "fit-review", "hr-rank-item"];
+const PERSISTENT_AI_DAYS = 400;
+const parseJsonOr = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+};
+const isPersistentKind = (kind: string) => PERSISTENT_AI_KINDS.includes(kind.split(":")[0]);
+const NOT_PERSISTENT_SQL = PERSISTENT_AI_KINDS.map((k) => `kind NOT LIKE '${k}%'`).join(" AND ");
 export async function cachedAiText(
   kind: string,
   userId: string,
@@ -602,10 +616,12 @@ export async function cachedAiText(
     settings.AI_PROVIDER !== "openai" && settings.DEEPSEEK_API_KEY
       ? `deepseek:${settings.DEEPSEEK_MODEL || "deepseek-chat"}`
       : `openai:${settings.OPENAI_MODEL || "gpt-5.2"}`;
+  const persistent = isPersistentKind(kind);
+  // A kept judgement is found again when only spaces, capitals or punctuation of the input differ.
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(
-      [kind, model, userId, instructions, input].join("\u0000"),
+      [kind, model, userId, instructions, persistent ? JSON.stringify(hashable(parseJsonOr(input))) : input].join("\u0000"),
     ),
   );
   const key = `${kind}:${Buffer.from(digest).toString("hex")}`;
@@ -616,9 +632,13 @@ export async function cachedAiText(
       .prepare(
         "SELECT value FROM ai_cache WHERE key=? AND created>=datetime('now',?)",
       )
-      .bind(key, `-${AI_CACHE_DAYS} days`)
+      .bind(key, `-${persistent ? PERSISTENT_AI_DAYS : AI_CACHE_DAYS} days`)
       .first<{ value: string }>();
-    if (hit) return { text: hit.value, cached: true, save: noop };
+    if (hit) {
+      // Counted, so the admin sees how much the memory saves.
+      await recordAiUsage({ feature: `saved:${kind.split(":")[0]}`, provider: "cache", user: userId, charsIn: 0, charsOut: 0, error: false });
+      return { text: hit.value, cached: true, save: noop };
+    }
   } catch {
     // Cache table not migrated yet.
   }
@@ -637,8 +657,11 @@ export async function cachedAiText(
           )
           .bind(key, userId, kind, text),
         db
-          .prepare("DELETE FROM ai_cache WHERE created<datetime('now',?)")
+          .prepare(`DELETE FROM ai_cache WHERE created<datetime('now',?) AND ${NOT_PERSISTENT_SQL}`)
           .bind(`-${AI_CACHE_DAYS} days`),
+        db
+          .prepare("DELETE FROM ai_cache WHERE created<datetime('now',?)")
+          .bind(`-${PERSISTENT_AI_DAYS} days`),
       ]);
     } catch {
       // Cache table not migrated yet.
