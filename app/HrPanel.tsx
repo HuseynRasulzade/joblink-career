@@ -30,6 +30,7 @@ import { Empty, Field, JobForm, Modal } from "./components";
 import { CertificationBadges } from "./CertificationPickers";
 import ConversationList, { type ConversationSummary } from "./ConversationList";
 import PipelineBoard, { type ApplicantAi, type ApplicantFit } from "./PipelineBoard";
+import ApplicantsTable from "./ApplicantsTable";
 import { AssignTestModal } from "./AssessmentsPage";
 import JobDrawer from "./JobDrawer";
 import { takeFocus } from "./focus";
@@ -1258,79 +1259,55 @@ export default function HrPanel({
                   }}
                 />
               )}
-              {applicantsView === "list" && applications
-                .filter(
-                  (a) =>
-                    a.jobId === selectedJob?.id &&
-                    a.profile.name
-                      .toLocaleLowerCase("az")
-                      .includes(query.toLocaleLowerCase("az")),
-                )
-                .map((a) => (
-                  <article className={`candidate-card ${a.id === focusApp ? "row-focus" : ""}`} key={a.id} ref={a.id === focusApp ? (el) => el?.scrollIntoView({ block: "center" }) : undefined}>
-                    <div className="avatar">{a.profile.name[0]}</div>
-                    <div className="candidate-info">
-                      <h3>{a.profile.name}</h3>
-                      <p>{a.profile.title}</p>
-                      {(() => {
-                        const fit = fitsOnce()[a.id];
-                        const ai = aisOnce()[a.id];
-                        if (!fit) return null;
-                        return (
-                          <>
-                            <span className="match-score">
-                              {fit.bandLabel} · {fit.score}%{ai ? ` · AI ${ai.score}%` : ""}
-                            </span>
-                            <small className="fit-reasons">
-                              {fit.strengths.slice(0, 2).join("; ")}
-                              {fit.risks.length > 0 && ` · Risk: ${fit.risks.slice(0, 2).join("; ")}`}
-                              {ai && ` · AI: ${ai.strengths ? `✓ ${ai.strengths} ` : ""}${ai.gaps ? `△ ${ai.gaps}` : ""}`}
-                            </small>
-                          </>
-                        );
-                      })()}
-                      {!demo && ["Göndərildi", "Baxışda", "Müsahibə"].includes(a.status) && (
-                        <label className="compare-check">
-                          <input type="checkbox" checked={pick.includes(`a:${a.id}`)} onChange={(e) => togglePick(`a:${a.id}`, e.target.checked)} />{" "}
-                          Dəvət üçün seç
-                        </label>
-                      )}
-                      {!demo && ["Göndərildi", "Baxışda"].includes(a.status) && (
-                        <button className="primary" onClick={() => void inviteToInterview(a)}>
-                          Müsahibəyə dəvət et
-                        </button>
-                      )}
-                      {a.status === "Müsahibə" && <small className="muted">Müsahibələr bölməsindədir</small>}
-                      <button type="button" className="text-button" onClick={() => setDetailApp(a)}>Ətraflı ›</button>
-                    </div>
-                    <Field label="Müraciət statusu">
-                      <select
-                        aria-label={`${a.profile.name} status`}
-                        value={a.status}
-                        disabled={demo || a.status === WITHDRAWN_STATUS}
-                        onChange={async (e) => {
-                          try {
-                            await api("application-status", {
-                              id: a.id,
-                              status: e.target.value,
-                            });
-                            await refresh();
-                            notify("Status yeniləndi.");
-                          } catch (e) {
-                            notify((e as Error).message);
-                          }
-                        }}
-                      >
-                        {(a.status === WITHDRAWN_STATUS
-                          ? [WITHDRAWN_STATUS]
-                          : APPLICATION_STATUSES
-                        ).map((s) => (
-                          <option key={s}>{s}</option>
-                        ))}
-                      </select>
-                    </Field>
-                  </article>
-                ))}
+              {applicantsView === "list" && applications.some((a) => a.jobId === selectedJob?.id) && (
+                <ApplicantsTable
+                  rows={applications.filter((a) => a.jobId === selectedJob?.id && a.profile.name.toLocaleLowerCase("az").includes(query.toLocaleLowerCase("az")))}
+                  fits={fitsOnce()}
+                  ai={aisOnce()}
+                  statuses={APPLICATION_STATUSES}
+                  withdrawn={WITHDRAWN_STATUS}
+                  disabled={demo}
+                  focusId={focusApp}
+                  picked={pick.filter((k) => k.startsWith("a:")).map((k) => k.slice(2))}
+                  onPick={(ids, on) => setPick((list) => (on ? [...new Set([...list, ...ids.map((x) => `a:${x}`)])] : list.filter((k) => !ids.some((x) => k === `a:${x}`))))}
+                  onOpen={setDetailApp}
+                  onStatus={async (a, status) => {
+                    try {
+                      await api("application-status", { id: a.id, status });
+                      await refresh();
+                      notify("Status yeniləndi.");
+                    } catch (e) {
+                      notify((e as Error).message);
+                    }
+                  }}
+                  actions={[
+                    { label: "Ətraflı bax", run: (a) => setDetailApp(a) },
+                    { label: "Profilə bax", run: (a) => setCandidate(a.profile) },
+                    { label: "Mesaj yaz", show: (a) => !demo && !!a.candidateId, run: (a) => a.candidateId && onMessage({ candidateId: a.candidateId, jobId: a.jobId, name: a.profile.name, jobTitle: selectedJob?.title }) },
+                    { label: "Müsahibəyə dəvət et", show: (a) => !demo && ["Göndərildi", "Baxışda"].includes(a.status), run: (a) => void inviteToInterview(a) },
+                    { label: "Müsahibə təyin et", show: (a) => !demo && !["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(a.status), run: (a) => setInterviewFor(a) },
+                    { label: "Test göndər", show: (a) => !demo && !["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(a.status), run: (a) => setTestFor(a) },
+                    { label: "İş təklifi et", show: (a) => !demo && a.status === "Müsahibə" && offers[a.id]?.status !== "sent", run: (a) => setOfferFor(a) },
+                    {
+                      label: "Təklifi geri götür",
+                      danger: true,
+                      show: (a) => !demo && offers[a.id]?.status === "sent",
+                      run: async (a) => {
+                        if (!window.confirm("Təklif geri götürülsün?")) return;
+                        try {
+                          await api("offers/withdraw", { id: offers[a.id].id });
+                          await refresh();
+                          notify("Təklif geri götürüldü.");
+                        } catch (e) {
+                          notify((e as Error).message);
+                        }
+                      },
+                    },
+                    { label: "Tarixçə", run: (a) => void showHistory(a) },
+                    { label: "Bazaya əlavə et", show: () => !demo, run: (a) => setBulk({ ids: [a.id], action: "pool" }) },
+                  ]}
+                />
+              )}
               {!applications.some((a) => a.jobId === selectedJob?.id) && (
                 <Empty
                   title="Hələ müraciət yoxdur"
