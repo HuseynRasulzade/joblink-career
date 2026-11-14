@@ -32,7 +32,7 @@ export const FUNCTIONS: FunctionDef[] = [
   { id: "training", group: "hr", label: "təlim və inkişaf", strong: re("telim (?:kecir|plan|proqram)|learning (?:and|&) development|\\bl&d\\b|обучен\\w* персонал"), weak: re("telim|training|learning") },
   { id: "comp_ben", group: "hr", label: "kompensasiya və müavinətlər", strong: re("compensation|benefits? (?:admin|program)|\\bc&b\\b|maas siyaset|grading"), weak: re("benefit|muavinet") },
   // ---- IT ----
-  { id: "backend", group: "it", label: "backend proqramlaşdırma", strong: re("backend|back-end|\\bapi\\b|microservice|mikroservis|\\.net|asp\\.net|spring|django|laravel|node\\.?js|server terefi"), weak: re("\\bjava\\b|python|\\bphp\\b|c#|\\bsql\\b|database|verilenler bazasi") },
+  { id: "backend", group: "it", label: "backend proqramlaşdırma", strong: re("backend|back-end|microservice|mikroservis|\\.net|asp\\.net|spring|django|laravel|node\\.?js|server terefi"), weak: re("\\bapi\\b|\\bjava\\b|python|\\bphp\\b|c#|\\bsql\\b|database|verilenler bazasi") },
   { id: "frontend", group: "it", label: "frontend proqramlaşdırma", strong: re("frontend|front-end|\\breact\\b|\\bvue\\b|angular|typescript|\\bui developer"), weak: re("javascript|\\bcss\\b|\\bhtml\\b") },
   { id: "mobile", group: "it", label: "mobil proqram", strong: re("android|\\bios\\b|flutter|react native|swift|kotlin|mobil (?:proqram|tetbiq|app)"), weak: re("mobile") },
   { id: "devops", group: "it", label: "DevOps və infrastruktur", strong: re("devops|ci/cd|docker|kubernetes|\\bk8s\\b|terraform|sysadmin|sistem administrator|infrastruktur"), weak: re("\\baws\\b|azure|\\bgcp\\b|linux") },
@@ -122,7 +122,14 @@ const recency = (role: FunctionRole, now: Date) => {
 export function functionFit(vacancy: { title: string; category?: string; text: string }, roles: FunctionRole[], now = new Date()): FunctionFit | null {
   // The title counts twice: it names the job.
   const wantedStrength = functionStrength(`${vacancy.title}. ${vacancy.title}. ${vacancy.text}`);
-  const wanted = [...wantedStrength.entries()].filter(([, s]) => s >= 2).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const inTitle = functionStrength(vacancy.title);
+  const inText = functionStrength(vacancy.text);
+  // A function names the vacancy's work when its title says so, or when the text is clear about it (a passing mention of an API or
+  // SQL in the requirements of a business analyst does not make the job a developer's job).
+  const wanted = [...wantedStrength.entries()]
+    .filter(([id, s]) => s >= 2 && ((inTitle.get(id) || 0) >= 1 || (inText.get(id) || 0) >= 3))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
   if (!wanted.length) return null;
   // What the person has done, role by role (the role's title counts twice), recent work first.
   const have = new Map<string, number>();

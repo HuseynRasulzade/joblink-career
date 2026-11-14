@@ -82,3 +82,15 @@ test("in the score, the bookkeeper stays clearly below the person who prepared r
   assert.ok(!reporter.caps.includes("function-mismatch"));
   assert.ok(bookkeeper.fit.parts.some((p) => p.key === "function"));
 });
+
+test("a passing mention of an API or SQL does not turn a business analyst vacancy into a developer vacancy", () => {
+  const analyst = { title: "Biznes Analitik / Business Analyst (Internet Banking)", category: "İT", text: "Biznes tələblərin toplanması. API sənədləşməsi, SQL sorğuları, database strukturunun anlanması. İstifadəçi hekayələri və prosesin modelləşdirilməsi." };
+  const fit = functionFit(analyst, [role("Maliyyə analitiki", "Mühasibat uçotu, maliyyə hesabatlarının hazırlanması.")]);
+  assert.ok(fit === null || fit.wanted.every((w) => w.id !== "backend"), JSON.stringify(fit?.wanted));
+});
+test("a developer vacancy is still recognised by its title", () => {
+  const dev = { title: "Backend Developer", category: "İT", text: "Node.js, REST API, SQL." };
+  const fit = functionFit(dev, [role("Mühasib", "Mühasibat uçotu.")]);
+  assert.equal(fit.wanted[0].id, "backend");
+  assert.equal(fit.gap.id, "backend");
+});

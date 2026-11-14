@@ -347,8 +347,8 @@ export default function HrPanel({
           .includes(query.toLocaleLowerCase("az")),
     )
     .sort((a, b) => {
-      // AI scores (when requested for this vacancy) refine the rule-based order.
-      const ai = aiRatings?.jobId === selectedJob?.id ? aiRatings.items : null;
+      // «Uyğun namizədlər» is judged by the platform's code only: the order never uses the AI scores.
+      const ai = null as null | Record<string, { score: number; rank?: number }>;
       return (
         (ai?.[b.id]?.score ?? b.ranking?.score ?? 0) - (ai?.[a.id]?.score ?? a.ranking?.score ?? 0) ||
         (ai?.[a.id]?.rank ?? 99) - (ai?.[b.id]?.rank ?? 99)
@@ -1107,14 +1107,14 @@ export default function HrPanel({
               </button>
             ))}
           </div>
-          {aiEnabled && !demo && selectedJob && (
+          {aiEnabled && !demo && selectedJob && tab === "Müraciət edənlər" && (
             <div className="hr-ai-rank">
               <button className="secondary" disabled={aiRanking} onClick={() => rankWithAi()}>
                 <Sparkles size={15} /> {aiRanking ? "AI analiz edir…" : aiRatings?.jobId === selectedJob.id ? "AI analizini yenilə" : "AI analizi hesabla"}
               </button>
               {aiDown && <small className="muted">{aiDown}</small>}
               <small>
-                Namizədlər platformanın öz qaydaları ilə (iş, bacarıq, sertifikat, səviyyə və işin növünə görə) qiymətləndirilir. «AI analizi hesabla» düyməsi namizədləri anonim şəkildə (ad və əlaqə məlumatı olmadan) AI ilə də analiz edir; nəticə saxlanır, dəyişməyən namizədlər təkrar analiz olunmur.
+                Müraciət edənlər platformanın öz qaydaları ilə qiymətləndirilir. «AI analizi hesabla» düyməsi onları anonim şəkildə (ad və əlaqə məlumatı olmadan) AI ilə də analiz edir; nəticə saxlanır, dəyişməyənlər təkrar analiz olunmur.
               </small>
             </div>
           )}
@@ -1155,19 +1155,10 @@ export default function HrPanel({
                     </div>
                     {!!c.ranking?.fit && (
                       <small className="fit-reasons">
-                        {aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id] ? (
-                          <>
-                            <b>AI:</b> {aiRatings.items[c.id].strengths && `✓ ${aiRatings.items[c.id].strengths} `}
-                            {aiRatings.items[c.id].gaps && `△ ${aiRatings.items[c.id].gaps}`}
-                          </>
-                        ) : (
-                          <>
-                            {c.ranking.fit.fieldChange && "Sahə dəyişir. "}
-                            {c.ranking.fit.strengths.slice(0, 2).join("; ")}
-                            {!!(c.ranking.fit.risks?.length || c.ranking.fit.gaps.length) &&
-                              ` · Risk: ${[...(c.ranking.fit.risks || []), ...c.ranking.fit.gaps].slice(0, 3).join("; ")}`}
-                          </>
-                        )}
+                        {c.ranking.fit.fieldChange && "Sahə dəyişir. "}
+                        {c.ranking.fit.strengths.slice(0, 2).join("; ")}
+                        {!!(c.ranking.fit.risks?.length || c.ranking.fit.gaps.length) &&
+                          ` · Risk: ${[...(c.ranking.fit.risks || []), ...c.ranking.fit.gaps].slice(0, 3).join("; ")}`}
                       </small>
                     )}
                     {!demo && (
@@ -1179,13 +1170,7 @@ export default function HrPanel({
                   </div>
                   <div className="candidate-actions">
                     <span className="match-score">
-                      {aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]
-                        ? `${BAND_LABELS[bandFor(aiRatings.items[c.id].score)]} · ${aiRatings.items[c.id].score}% AI`
-                        : aiRanking
-                          ? "AI qiymətləndirir…"
-                          : c.ranking?.fit
-                          ? `${c.ranking.fit.bandLabel} · ${c.ranking.score}%`
-                          : `${c.ranking?.score}% uyğun`}
+                      {c.ranking?.fit ? `${c.ranking.fit.bandLabel} · ${c.ranking.score}%` : `${c.ranking?.score}% uyğun`}
                     </span>
                     {!demo && selectedJob && (
                       <button className="primary" onClick={() => setInvitePeople([{ candidateId: c.id, name: c.profile.name }])}>
