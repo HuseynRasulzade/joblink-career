@@ -1050,6 +1050,7 @@ export default function HrPanel({
             </div>
             <SlidersHorizontal size={18} />
           </div>
+          <div className="sticky-filters">
           <div className="hr-filters">
             <Field label="Vakansiya">
               <select
@@ -1134,6 +1135,7 @@ export default function HrPanel({
                 {t}
               </button>
             ))}
+          </div>
           </div>
           {aiEnabled && !demo && selectedJob && tab === "Müraciət edənlər" && (
             <div className="hr-ai-rank">

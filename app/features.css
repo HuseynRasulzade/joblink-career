@@ -6710,3 +6710,26 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
 .pcal-legend i.own { outline: 2px solid #2e9a73; outline-offset: -2px; }
 .pcal-editor { display: grid; gap: 8px; max-width: 420px; margin-top: 12px; padding: 12px; border: 1px solid #dbe6e1; border-radius: 10px; background: #fafcfb; }
 .pcal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+
+/* Filters stay in place while the list below them scrolls */
+.sticky-filters,
+.jobs-toolbar,
+.iv-filters,
+.approval-filter,
+.staff-toolbar,
+.admin-toolbar,
+.support-filters,
+.report-filters {
+  position: sticky;
+  top: 46px;
+  z-index: 6;
+  background: var(--surface, #fff);
+  padding-top: 8px;
+  padding-bottom: 8px;
+  box-shadow: 0 6px 8px -8px rgba(20, 50, 40, 0.25);
+}
+.sticky-filters .hr-filters { grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 8px; }
+.sticky-filters .tabs { margin-bottom: 0; }
+@media (max-height: 720px), (max-width: 900px) {
+  .sticky-filters, .jobs-toolbar, .iv-filters, .approval-filter, .staff-toolbar, .admin-toolbar, .support-filters, .report-filters { position: static; box-shadow: none; }
+}
