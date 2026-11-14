@@ -13,6 +13,7 @@ import {
   type FitPart,
 } from "./career.ts";
 import { candidateLevel, dutyFit, levelFit, titleLevel } from "./role-level.ts";
+import { functionFit, functionLabel, type FunctionFit } from "./role-function.ts";
 import {
   normalizeSkillKey,
   normalizeSkills,
@@ -1039,6 +1040,7 @@ type FitInput = {
   hasEvidence: boolean;
   heldCerts: number;
   fieldCerts: number;
+  fn: FunctionFit | null;
 };
 // Five readable parts of the fit: what the person did, the field, skills,
 // credentials and experience. Each carries a one-line reason.
@@ -1066,6 +1068,18 @@ function fitParts(f: FitInput): FitPart[] {
             ? "Vəzifə səviyyəsi vakansiyadan fərqlidir, gündəlik işlər uyğun gəlmir"
             : "Gördüyü işlər vakansiyanın vəzifələri ilə az üst-üstə düşür",
   });
+  // What kind of work was done inside the field, against the vacancy's main work.
+  if (f.fn) {
+    const wantedMain = f.fn.wanted[0];
+    parts.push({
+      key: "function",
+      label: "İşin növü",
+      level: partLevel(f.fn.score),
+      note: f.fn.gap
+        ? `Vakansiyanın əsas işi “${f.fn.gap.label}”dır; namizəd ${f.fn.gap.best ? `əsasən “${f.fn.gap.best.label}” ilə məşğul olub` : "bu işlə məşğul olduğunu göstərmir"}`
+        : `Vakansiyanın əsas işi (“${wantedMain ? wantedMain.label : functionLabel("")}”) üzrə təcrübəsi var`,
+    });
+  }
   parts.push({
     key: "field",
     label: "Sahəyə uyğunluq",
@@ -1164,8 +1178,20 @@ export function match(p: Profile, j: Job) {
     `${j.description || ""} ${j.requirements || ""}`,
     `${p.summary || ""} ${roles.map((r) => r.text).join(" ")}`,
   );
+  // What KIND of work is done inside the field (keeping the books is not preparing the reports that come after them).
+  const fn = functionFit(
+    { title: j.title, category: j.category, text: `${j.requirements || ""}. ${j.description || ""}. ${(j.skills || []).join(". ")}` },
+    [
+      ...roles.map((r) => ({ title: r.title, text: factualText(r.text), end: r.end, current: r.current })),
+      // What the person states about themselves (skills, summary, the CV text) counts too, but less than work actually done.
+      { title: p.title, text: factualText(`${(p.skills || []).join(". ")}. ${p.summary || ""}. ${(p.cvText || "").slice(0, 6000)}`), end: "", current: true, weight: roles.length ? 0.6 : 1 },
+    ],
+  );
   const roleScore =
-    role * levelFactor * (dutyMatch === null ? 1 : 0.8 + 0.2 * dutyMatch);
+    role *
+    levelFactor *
+    (dutyMatch === null ? 1 : 0.8 + 0.2 * dutyMatch) *
+    (fn ? 0.6 + 0.4 * fn.score : 1);
   const relatedHistory = relevance.some((r) => r >= 0.7);
   const experienceText = factualText(
     roles.map((r) => `${r.title}. ${r.text}`).join(". "),
@@ -1367,6 +1393,11 @@ export function match(p: Profile, j: Job) {
     score = Math.min(score, 44);
     caps.push("underqualified-level");
   }
+  // The same field, but not the main work of the vacancy: a ceiling, and a note for the recruiter.
+  if (fn?.gap && role >= 0.7) {
+    score = Math.min(score, fn.score < 0.3 ? 62 : 74);
+    caps.push("function-mismatch");
+  }
   if (j.minYears && relevantYears < j.minYears * 0.5) {
     // No related experience at all for a role that requires it is a weaker
     // fit than some experience that falls short.
@@ -1390,6 +1421,7 @@ export function match(p: Profile, j: Job) {
     hasEvidence,
     heldCerts: certifications.length,
     fieldCerts: fieldCerts.length,
+    fn,
   });
   // The score measures how much of the vacancy is covered, not how good the
   // person is, so it never reaches certainty, and a strong band needs the
@@ -1428,6 +1460,10 @@ export function match(p: Profile, j: Job) {
     );
     if (wishedPay > offerTop * 1.3) ceiling.push(84);
   }
+  if (fn?.gap && role >= 0.7)
+    risks.push(
+      `Eyni sahədə işləyib, amma vakansiyanın əsas işi “${fn.gap.label}” üzrə təcrübəsi görünmür${fn.gap.best ? `: əsasən “${fn.gap.best.label}” ilə məşğul olub` : ""}`,
+    );
   if (j.minYears && relevantYears < j.minYears)
     risks.push(`Uyğun təcrübə tələbdən azdır (${relevantYears} il, tələb ${j.minYears} il)`);
   score = Math.min(score, ...ceiling);
@@ -1476,6 +1512,7 @@ export function match(p: Profile, j: Job) {
       vacancy: jobLevel,
     },
     dutyFit: dutyMatch,
+    functionFit: fn,
     caps,
   };
 }

@@ -161,3 +161,9 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Sayğac:** Admin → AI istifadəsi bölməsində «Yaddaşdan verilib» sətri: AI-yə getməyən sorğu sayı və bütün sorğuların neçə faizi.
 - **Bir dəfəlik təsir:** hash qaydası dəyişdiyi üçün bu yenilənmədən əvvəl saxlanmış nəticələr bir dəfə yenidən hesablanacaq; bundan sonra təkrar olmayacaq.
 - **Hələ ayrıca analiz olunur:** namizədin öz uyğunluq balı (`rank-jobs`) ilə işəgötürənin gördüyü bal ayrı AI çağırışlarıdır (ayrı prompt, ayrı saxlama). Birləşdirmək ayrıca qərardır.
+
+## 16. Namizəd qiymətləndirməsi kodla, AI düymə ilə (2026-11-14)
+
+- **«Uyğun namizədlər» artıq yalnız platformanın öz qaydaları ilə qiymətləndirilir.** AI səhifə açılanda özü işləmir. Vakansiyanın üstündəki **«AI analizi hesabla»** düyməsi (AI açıqdırsa) namizədləri anonim şəkildə AI ilə analiz edir; nəticə saxlanır, dəyişməyənlər təkrar analiz olunmur. AI kodu silinməyib.
+- **Yeni qayda: «işin növü» (`lib/role-function.ts`).** Eyni sahədə işləmək kifayət deyil: mühasibat uçotu aparmaq ilə maliyyə hesabatı hazırlamaq eyni iş deyil (hesabat uçotdan sonra gəlir). Sistem hər CV-dən və vakansiyadan hansı işin gördüyünü çıxarır (uçot, əmək haqqı, hesabat, vergi, audit, büdcə, xəzinə, maliyyə analizi, kredit; İT: backend, frontend, mobil, DevOps, data, test, dəstək; satış, marketinq, hüquq, satınalma, anbar, logistika, kadr, zəng mərkəzi) və yaxın işlərə qismən bal verir (məsələn uçot → hesabat 0.5). Vakansiyanın əsas işi namizədin gördüyü işlə üst-üstə düşmürsə: bal ən çox 74 (az üst-üstə düşəndə 62), səbəb işəgötürənə yazılır («Eyni sahədə işləyib, amma vakansiyanın əsas işi “…” üzrə təcrübəsi görünmür: əsasən “…” ilə məşğul olub») və yeni «İşin növü» hissəsi görünür.
+- **Hədləri:** bu qayda AI-nin dəqiqliyinə bərabər deyil. Yalnız yuxarıdakı sahələrdə yazılmış söz nümunələri ilə işləyir; tanımadığı sahədə köhnə qaydalar qalır. AI ilə uyğunluq faizi hələ ölçülməyib.

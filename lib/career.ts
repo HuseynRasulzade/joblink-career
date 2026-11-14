@@ -79,7 +79,7 @@ export const BAND_LABELS: Record<FitBand, string> = {
 export const bandFor = (score: number): FitBand => (score >= 80 ? "strong" : score >= 60 ? "good" : score >= 40 ? "partial" : "weak");
 
 export type PartLevel = "strong" | "good" | "partial" | "weak" | "none";
-export type FitPart = { key: "work" | "field" | "skills" | "certs" | "experience"; label: string; level: PartLevel; note: string };
+export type FitPart = { key: "work" | "function" | "field" | "skills" | "certs" | "experience"; label: string; level: PartLevel; note: string };
 export const partLevel = (ratio: number): PartLevel => (ratio >= 0.8 ? "strong" : ratio >= 0.55 ? "good" : ratio >= 0.3 ? "partial" : "weak");
 
 // Certification categories that belong to each profession family. A credential

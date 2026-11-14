@@ -35,10 +35,11 @@ const worker = (title, description, start = "2019-01") => ({
   experiences: [{ id: "1", title, company: "X", employmentType: "", start, end: "", current: true, description }],
 });
 
-test("the result carries a band, five parts and reasons", () => {
+test("the result carries a band, its parts and reasons", () => {
   const r = match(worker("Mühasib", "Hesabatların hazırlanması, debitor və kreditor uçotu, Microsoft Excel"), job);
   assert.ok(["strong", "good", "partial", "weak"].includes(r.fit.band));
-  assert.equal(r.fit.parts.length, 5);
+  // Five parts always; a sixth («İşin növü») when the vacancy names the kind of work.
+  assert.ok(r.fit.parts.length === 5 || r.fit.parts.length === 6);
   assert.equal(r.fit.fieldChange, false);
   assert.ok(r.fit.parts.every((x) => x.note));
 });

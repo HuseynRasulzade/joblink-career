@@ -394,16 +394,8 @@ export default function HrPanel({
       notify((e as Error).message);
     }
   }
-  // The AI evaluates the candidates of a vacancy as soon as its list opens;
-  // results are kept per candidate, so reopening costs nothing.
-  const autoRanked = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    // Only on the candidates page: opening the overview must not cost an AI call.
-    if (page !== "hr-candidates" || !aiEnabled || demo || !selectedJob || autoRanked.current.has(selectedJob.id)) return;
-    autoRanked.current.add(selectedJob.id);
-    void rankWithAi(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, aiEnabled, demo, selectedJob?.id]);
+  // The candidates are judged by the platform's own code (rules). The AI analysis is only calculated when the employer asks for it
+  // with the button; the result is kept, so the candidates that did not change are not analysed again.
   async function rankWithAi(silent = false) {
     if (!selectedJob || demo) return;
     setAiRanking(true);
@@ -1118,11 +1110,11 @@ export default function HrPanel({
           {aiEnabled && !demo && selectedJob && (
             <div className="hr-ai-rank">
               <button className="secondary" disabled={aiRanking} onClick={() => rankWithAi()}>
-                <Sparkles size={15} /> {aiRanking ? "AI qiymətləndirir…" : "AI-ni yenilə"}
+                <Sparkles size={15} /> {aiRanking ? "AI analiz edir…" : aiRatings?.jobId === selectedJob.id ? "AI analizini yenilə" : "AI analizi hesabla"}
               </button>
               {aiDown && <small className="muted">{aiDown}</small>}
               <small>
-                Namizədlər vakansiya açılanda AI tərəfindən avtomatik, anonim şəkildə (ad və əlaqə məlumatı olmadan) iş, bacarıq, sertifikat və səviyyəyə görə qiymətləndirilir. Profil dəyişməyibsə, nəticə təkrar hesablanmır. Yekun qərar sizindir.
+                Namizədlər platformanın öz qaydaları ilə (iş, bacarıq, sertifikat, səviyyə və işin növünə görə) qiymətləndirilir. «AI analizi hesabla» düyməsi namizədləri anonim şəkildə (ad və əlaqə məlumatı olmadan) AI ilə də analiz edir; nəticə saxlanır, dəyişməyən namizədlər təkrar analiz olunmur.
               </small>
             </div>
           )}
