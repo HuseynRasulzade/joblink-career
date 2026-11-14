@@ -379,7 +379,7 @@ import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
 import { pickSigners, sameName } from "@/lib/order-signers";
 import { DOC_KINDS, normalizeDocType } from "@/lib/employee-docs";
 import { ORDER_KINDS, signedOrderNotice } from "@/lib/orders";
-import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
+import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, knownReligiousYears, setPlatformCalendar, platformCalendar, PLATFORM_KINDS, type PlatformDay, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
 import { addSections, addStructure, canonicalOrg, deletePosition, deleteStructure, loadPositions, renamePosition, loadStaffHistory, loadStructure, orgNameList, renameStructure, type OrgKind } from "@/lib/staff-db";
@@ -1544,6 +1544,21 @@ try {
 } catch {
   // Warming up is only an optimisation.
 }
+// The platform's own calendar changes (set by the admin) are kept in app_settings and read at most once a minute per instance.
+const PLATFORM_CALENDAR_KEY = "platform-calendar";
+let platformCalendarLoaded = 0;
+async function loadPlatformCalendar(db: D1Database, force = false) {
+  if (!force && Date.now() - platformCalendarLoaded < 60_000) return;
+  const row = await db.prepare("SELECT value FROM app_settings WHERE key=?").bind(PLATFORM_CALENDAR_KEY).first<{ value: string }>().catch(() => null);
+  let list: PlatformDay[] = [];
+  try {
+    list = row ? (JSON.parse(row.value) as PlatformDay[]) : [];
+  } catch {
+    list = [];
+  }
+  setPlatformCalendar(list.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.day) && (PLATFORM_KINDS as readonly string[]).includes(d.kind)));
+  platformCalendarLoaded = Date.now();
+}
 async function route(request: Request) {
   const requestUrl = new URL(request.url);
   const path = requestUrl.pathname.split("/api/joblink/")[1];
@@ -1558,6 +1573,7 @@ async function route(request: Request) {
     readCustomCertifications(db),
     readCustomJobTitles(db),
     optionalIdentity(request),
+    loadPlatformCalendar(db),
   ]);
   const customSkillLabels = customSkills.map((skill) => skill.label);
   setCustomCertifications(customCerts);
@@ -4724,6 +4740,45 @@ async function route(request: Request) {
         .run();
       return ok({ removed: removed.meta?.changes || 0 });
     }
+    // The production calendar of the platform: what the admin changes here applies to every company
+    // (new year's religious holidays, a working Saturday, a cancelled or an added holiday).
+    if (path === "admin/production-calendar") {
+      const year = Number(str(requestUrl.searchParams.get("year"), 4) || new Date().getFullYear());
+      if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new HttpError(400, "İli düzgün seçin.");
+      if (request.method === "POST") {
+        const body = await jsonBody(request);
+        const store = async (list: PlatformDay[]) => {
+          list.sort((x, y) => x.day.localeCompare(y.day));
+          await db
+            .prepare("INSERT INTO app_settings(key,value,updated) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated=excluded.updated")
+            .bind(PLATFORM_CALENDAR_KEY, JSON.stringify(list), new Date().toISOString())
+            .run();
+          await loadPlatformCalendar(db, true);
+          await db
+            .prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
+            .bind(crypto.randomUUID(), id, "production-calendar", "settings", PLATFORM_CALENDAR_KEY, JSON.stringify({ days: list.length }), new Date().toISOString())
+            .run();
+        };
+        await loadPlatformCalendar(db, true);
+        const list = [...platformCalendar()];
+        const days: { day: string; kind: string; label: string }[] = Array.isArray(body.days) ? body.days : [{ day: body.day, kind: body.kind, label: body.label }];
+        if (days.length > 400) throw new HttpError(400, "Bir dəfəyə ən çox 400 gün.");
+        const next = new Map(list.map((d) => [d.day, d]));
+        for (const d of days) {
+          const day = str(d.day, 10);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`))) throw new HttpError(400, "Tarixi düzgün yazın.");
+          const kind = str(d.kind, 10);
+          if (!kind) next.delete(day);
+          else {
+            if (!(PLATFORM_KINDS as readonly string[]).includes(kind)) throw new HttpError(400, "Növ düzgün deyil.");
+            next.set(day, { day, kind: kind as PlatformDay["kind"], label: str(d.label, 100) });
+          }
+        }
+        await store([...next.values()]);
+      } else await loadPlatformCalendar(db, true);
+      const mine = platformCalendar().filter((d) => d.day.startsWith(`${year}-`));
+      return ok({ year, days: mine, months: yearCalendar(year, []), builtinYears: RELIGIOUS_YEARS, knownYears: knownReligiousYears() });
+    }
     // AI spending limit and whether the provider is answering.
     if (path === "admin/ai-budget") {
       if (request.method === "POST") {
@@ -7761,7 +7816,7 @@ async function route(request: Request) {
   };
   if (request.method === "GET" && path === "company/attendance") {
     requirePermission("salaries", "Davamiyyəti yalnız HR, direktor və hesab sahibi görə bilər.");
-    return ok({ ...(await attendanceData()), codes: ATTENDANCE_CODES, years: RELIGIOUS_YEARS });
+    return ok({ ...(await attendanceData()), codes: ATTENDANCE_CODES, years: knownReligiousYears() });
   }
   // Marks the days from..to of an employee with a code (or clears them), counting annual leave without holidays.
   const markAttendance = async (employeeId: string, from: string, to: string, code: string, note: string) => {
@@ -7801,7 +7856,7 @@ async function route(request: Request) {
       .prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ? ORDER BY day")
       .bind(id, `${year}-01-01`, `${year}-12-31`)
       .all<CalendarOverride>();
-    return ok({ year, overrides: overrides.results, months: yearCalendar(year, overrides.results), religiousYears: RELIGIOUS_YEARS, hoursPerDay: HOURS_PER_DAY });
+    return ok({ year, overrides: overrides.results, months: yearCalendar(year, overrides.results), religiousYears: knownReligiousYears(), hoursPerDay: HOURS_PER_DAY });
   }
   if (request.method === "POST" && path === "company/attendance/set") {
     requirePermission("salaries", "Davamiyyəti yalnız HR, direktor və hesab sahibi dəyişə bilər.");

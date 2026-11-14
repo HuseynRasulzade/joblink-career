@@ -191,6 +191,7 @@ const adminNav = [
   { id: "admin-education", label: "Təhsil kataloqu", icon: Award },
   { id: "admin-catalog-check", label: "Kataloq yoxlaması", icon: ListChecks },
   { id: "admin-matching", label: "Uyğunluq balı", icon: Sparkles },
+  { id: "admin-calendar", label: "İstehsalat təqvimi", icon: CalendarDays },
   { id: "admin-support", label: "Sorğular və mesajlar", icon: Inbox },
   { id: "admin-reviews", label: "Şirkət rəyləri", icon: UserCheck },
   { id: "admin-ai-usage", label: "AI istifadə və xərc", icon: Sparkles },

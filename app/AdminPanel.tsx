@@ -34,6 +34,7 @@ import AdminJobTitles from "./AdminJobTitles";
 import { AdminTwoFactorBanner, AiHealthBanner } from "./AdminAiBudget";
 import AdminEducation from "./AdminEducation";
 import AdminMatching from "./AdminMatching";
+import AdminProductionCalendar from "./AdminProductionCalendar";
 import type { JobTitleDefinition } from "@/lib/job-title-catalog";
 
 type AdminData = {
@@ -497,6 +498,7 @@ export default function AdminPanel({
                     page === "admin-certifications" ? "Sertifikatlar kataloqu" :
                     page === "admin-job-titles" ? "Vəzifələr kataloqu" :
                     page === "admin-matching" ? "Uyğunluq balı" :
+                    page === "admin-calendar" ? "İstehsalat təqvimi" :
                     page === "admin-education" ? "Təhsil kataloqu" :
                     page === "admin-relations" ? "İzləmə və bloklar" :
                   page === "admin-system" ? "Sistem və audit" : "Platforma icmalı"}
@@ -756,6 +758,7 @@ export default function AdminPanel({
 
       {page === "admin-education" && <AdminEducation api={api} notify={notify} language={language} />}
       {page === "admin-matching" && <AdminMatching api={api} notify={notify} />}
+      {page === "admin-calendar" && <AdminProductionCalendar api={api} notify={notify} />}
 
       {page === "admin-relations" && (
         <>

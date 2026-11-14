@@ -28,7 +28,19 @@ const RELIGIOUS: Record<number, [string, string][]> = {
     ["05-28", "Qurban bayramı"],
   ],
 };
+// Changes the platform's admin makes for everyone (a new year's religious holidays, a working Saturday the Cabinet declared,
+// a holiday that was cancelled). Kinds: holiday (a holiday that follows the transfer rule), off (a plain day off),
+// work (a working day), short (a shortened working day). The server loads them before it answers.
+export type PlatformDay = { day: string; kind: "holiday" | "off" | "work" | "short"; label: string };
+let PLATFORM: PlatformDay[] = [];
+export const setPlatformCalendar = (list: PlatformDay[]) => {
+  PLATFORM = list;
+};
+export const platformCalendar = () => PLATFORM;
+export const PLATFORM_KINDS = ["holiday", "off", "work", "short"] as const;
 export const RELIGIOUS_YEARS = Object.keys(RELIGIOUS).map(Number);
+// The years whose religious holidays are known: the built-in ones and the ones the admin has entered.
+export const knownReligiousYears = () => [...new Set([...RELIGIOUS_YEARS, ...PLATFORM.filter((d) => d.kind === "holiday").map((d) => Number(d.day.slice(0, 4)))])].sort();
 
 export const HOURS_PER_DAY = 8; // a five-day, 40-hour week
 
@@ -44,6 +56,11 @@ export function daysOff(year: number): Map<string, DayOff> {
   for (const [md, label] of FIXED) entries.push({ date: `${year}-${md}`, label });
   for (let day = 20; day <= 24; day++) entries.push({ date: `${year}-03-${day}`, label: "Novruz bayramı" });
   for (const [md, label] of RELIGIOUS[year] || []) entries.push({ date: `${year}-${md}`, label });
+  const mine = PLATFORM.filter((d) => d.day.startsWith(`${year}-`));
+  // A working day set by the admin cancels the holiday of that date.
+  const worked = new Set(mine.filter((d) => d.kind === "work").map((d) => d.day));
+  for (const d of mine) if (d.kind === "holiday") entries.push({ date: d.day, label: d.label || "Bayram günü" });
+  for (let i = entries.length - 1; i >= 0; i--) if (worked.has(entries[i].date)) entries.splice(i, 1);
   entries.sort((a, b) => a.date.localeCompare(b.date));
   const off = new Map<string, DayOff>();
   const holidayDates = new Set(entries.map((e) => e.date));
@@ -60,12 +77,13 @@ export function daysOff(year: number): Map<string, DayOff> {
     for (let guard = 0; guard < 30; guard++) {
       cursor = new Date(cursor.getTime() + 86_400_000);
       const date = iso(cursor);
-      if (!isWeekend(date) && !holidayDates.has(date) && !off.has(date)) {
+      if (!isWeekend(date) && !holidayDates.has(date) && !off.has(date) && !worked.has(date)) {
         off.set(date, { date, label: `${entry.label} (iş günü köçürülüb)`, kind: "transfer" });
         break;
       }
     }
   }
+  for (const d of mine) if (d.kind === "off") off.set(d.day, { date: d.day, label: d.label || "Qeyri-iş günü", kind: "holiday" });
   return off;
 }
 
@@ -84,6 +102,7 @@ export function monthDays(year: number, month: number, overrides: CalendarOverri
   const off = daysOff(year);
   const nextYearOff = month === 12 ? daysOff(year + 1) : off;
   const own = new Map(overrides.map((o) => [o.day, o]));
+  const platform = new Map(PLATFORM.map((d) => [d.day, d]));
   const last = utc(year, month + 1, 0).getUTCDate();
   const days: CalendarDay[] = [];
   for (let day = 1; day <= last; day++) {
@@ -93,10 +112,17 @@ export function monthDays(year: number, month: number, overrides: CalendarOverri
     const custom = own.get(date);
     let state: CalendarDay["off"] = holiday ? holiday.kind : weekday === 0 || weekday === 6 ? "weekend" : "";
     let label = holiday?.label || "";
+    const set = platform.get(date);
+    // A weekend the Cabinet declared a working day.
+    if (!holiday && state === "weekend" && set?.kind === "work") {
+      state = "";
+      label = set.label || "İş günü (Nazirlər Kabinetinin qərarı)";
+    }
     // The working day right before a holiday (also one that falls on a weekend) is shortened by an hour.
     const next = new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
     const nextOff = (next.startsWith(`${year}-`) ? off : nextYearOff).get(next);
-    let short = state === "" && !!nextOff;
+    let short = state === "" && (!!nextOff || set?.kind === "short");
+    if (state === "" && set?.kind === "short" && !label) label = set.label || "Qısaldılmış iş günü";
     if (custom?.kind === "off") {
       state = "company";
       label = custom.label || "Şirkətin qeyri-iş günü";
