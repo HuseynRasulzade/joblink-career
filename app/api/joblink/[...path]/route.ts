@@ -2777,6 +2777,8 @@ async function route(request: Request) {
           CASE WHEN ?='company' THEN t.candidate_id ELSE t.company_id END AS other_id,
           COALESCE(other.name,'İstifadəçi') AS other_name,
           COALESCE(json_extract(j.data,'$.title'),'') AS job_title,
+          COALESCE(j.status,'') AS job_status,
+          EXISTS(SELECT 1 FROM applications ap WHERE ap.job_id=t.job_id AND ap.candidate_id=t.candidate_id AND t.job_id<>'') AS applied,
           CASE WHEN ?='company' THEN t.company_archived ELSE t.candidate_archived END AS archived,
           CASE WHEN ?='company' THEN t.assignee_id ELSE '' END AS assignee_id,
           CASE WHEN ?='company' THEN COALESCE((SELECT name FROM accounts WHERE id=t.assignee_id),'') ELSE '' END AS assignee_name,
@@ -2915,7 +2917,8 @@ async function route(request: Request) {
     if (!text) throw new HttpError(400, "Mesajı yazın.");
     let companyId = "",
       candidateId = "",
-      jobId = "";
+      jobId = "",
+      inviteTitle = "";
     if (accountRole === "company") {
       candidateId = str(body.candidateId, 100);
       jobId = str(body.jobId, 100);
@@ -2948,6 +2951,14 @@ async function route(request: Request) {
           .first())
       )
         jobId = "";
+      // An invitation to apply needs an open vacancy of this company.
+      if (body.invite === true) {
+        const open = jobId
+          ? await db.prepare("SELECT json_extract(data,'$.title') AS title FROM jobs WHERE id=? AND owner=? AND status='published'").bind(jobId, id).first<{ title: string }>()
+          : null;
+        if (!open) throw new HttpError(409, "Müraciət dəvəti üçün açıq (yayımlanmış) vakansiya seçilməlidir.");
+        inviteTitle = String(open.title || "");
+      }
       companyId = id;
     } else if (accountRole === "candidate") {
       const application = await db
@@ -3019,7 +3030,7 @@ async function route(request: Request) {
       recipientId: accountRole === "company" ? candidateId : companyId,
       senderName: await senderLabel(db, accountRole, id, userId),
       unreadBefore,
-      preview: text,
+      preview: inviteTitle ? `Vakansiyaya müraciət dəvəti (${inviteTitle}): ${text}` : text,
     });
     return ok({ ok: true, threadId: thread.id }, 201);
   }

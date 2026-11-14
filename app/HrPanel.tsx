@@ -142,7 +142,7 @@ export default function HrPanel({
   language: "az" | "en" | "ru";
   signedIn: boolean;
   onPublished: () => void;
-  onMessage: (target: { candidateId: string; jobId?: string; name: string; jobTitle?: string }) => void;
+  onMessage: (target: { candidateId: string; jobId?: string; name: string; jobTitle?: string; invite?: boolean }) => void;
   canPublish?: boolean;
   mode?: "recruit" | "ops";
 }) {
@@ -1161,20 +1161,14 @@ export default function HrPanel({
                           ` · Risk: ${[...(c.ranking.fit.risks || []), ...c.ranking.fit.gaps].slice(0, 3).join("; ")}`}
                       </small>
                     )}
-                    {!demo && (
-                      <label className="compare-check">
-                        <input type="checkbox" checked={pick.includes(`c:${c.id}`)} onChange={(e) => togglePick(`c:${c.id}`, e.target.checked)} />{" "}
-                        Dəvət üçün seç
-                      </label>
-                    )}
                   </div>
                   <div className="candidate-actions">
                     <span className="match-score">
                       {c.ranking?.fit ? `${c.ranking.fit.bandLabel} · ${c.ranking.score}%` : `${c.ranking?.score}% uyğun`}
                     </span>
                     {!demo && selectedJob && (
-                      <button className="primary" onClick={() => setInvitePeople([{ candidateId: c.id, name: c.profile.name }])}>
-                        Müsahibəyə dəvət et
+                      <button className="primary" title="Namizədə mesaj yazın və bu vakansiyaya müraciət etməsini xahiş edin" onClick={() => onMessage({ candidateId: c.id, jobId: selectedJob.id, name: c.profile.name, jobTitle: selectedJob.title, invite: true })}>
+                        Mesaj yaz
                       </button>
                     )}
                     <button type="button" className="text-button" onClick={() => setDetailTalent(c)}>Ətraflı ›</button>
@@ -1418,8 +1412,8 @@ export default function HrPanel({
                       </button>
                     )}
               {!demo && selectedJob && (
-                <button className="primary" onClick={() => { setDetailTalent(null); setInvitePeople([{ candidateId: c.id, name: c.profile.name }]); }}>
-                  Müsahibəyə dəvət et
+                <button className="primary" onClick={() => { setDetailTalent(null); onMessage({ candidateId: c.id, jobId: selectedJob.id, name: c.profile.name, jobTitle: selectedJob.title, invite: true }); }}>
+                  Mesaj yaz
                 </button>
               )}
             </div>

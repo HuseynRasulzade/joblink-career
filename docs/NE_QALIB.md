@@ -169,3 +169,11 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Hədləri:** bu qayda AI-nin dəqiqliyinə bərabər deyil. Yalnız yuxarıdakı sahələrdə yazılmış söz nümunələri ilə işləyir; tanımadığı sahədə köhnə qaydalar qalır. AI ilə uyğunluq faizi hələ ölçülməyib.
 
 - **Düzəliş (2026-11-14):** «Uyğun namizədlər» bölməsində AI düyməsi və AI balı **yoxdur**: bölmə yalnız kodla qiymətləndirilir, sıralama da yalnız kod balına görədir. «AI analizi hesabla» düyməsi yalnız «Müraciət edənlər» bölməsində qalır. «İşin növü» qaydasında vakansiyanın işi başlıqda adlanmayıbsa mətndə aydın (3+ bal) olmalıdır: biznes analitikin tələblərindəki bir API/SQL qeydi onu developer vakansiyası etmir.
+
+## 17. «Uyğun namizədlər»: mesaj və müraciət dəvəti (2026-11-14)
+
+- Kartlarda «Müsahibəyə dəvət et» yerinə **«Mesaj yaz»** düyməsi var (kartda və «Ətraflı» pəncərəsində). O, Mesajlar bölməsini açır; mətn hazırdır («təcrübəniz “vakansiya” üzrə tələblərə uyğun görünür, zəhmət olmasa müraciət edin…»), işəgötürən dəyişə bilər.
+- Mesaj **həmin vakansiyaya bağlı** söhbət kimi göndərilir və açıq (yayımlanmış) vakansiya tələb olunur; namizədə «Vakansiyaya müraciət dəvəti» bildirişi gedir.
+- **Namizəd tərəfi:** söhbətin üstündə «Şirkət sizi “…” vakansiyasına müraciətə dəvət edib» və **«Vakansiyaya bax və müraciət et»** düyməsi (vakansiyanın öz səhifəsini açır); müraciət edibsə «müraciət etmisiniz ✓»; vakansiya bağlanıbsa bu yazılır.
+- **İşəgötürən tərəfi:** söhbətin üstündə «Namizəd müraciət edib ✓» və ya «hələ müraciət etməyib» görünür.
+- Bu bölmədə toplu «Dəvət üçün seç» işarəsi götürüldü (müsahibə dəvəti «Müraciət edənlər» bölməsində qalır).

@@ -16,6 +16,8 @@ type Thread = {
   assignee_name?: string;
   unread: number;
   updated: string;
+  applied?: number; // the candidate has applied to the vacancy of this conversation
+  job_status?: string;
 };
 type Message = {
   id: string;
@@ -57,7 +59,11 @@ export type MessageTarget = {
   jobId?: string;
   name: string;
   jobTitle?: string;
+  // The message asks the candidate to apply to the vacancy (the text is prepared, the employer can change it).
+  invite?: boolean;
 };
+const inviteText = (target: MessageTarget) =>
+  `Salam, ${target.name.split(" ")[0] || ""}. Profilinizlə tanış olduq: təcrübəniz${target.jobTitle ? ` “${target.jobTitle}”` : ""} vakansiyasının tələblərinə uyğun görünür. Zəhmət olmasa bu vakansiyaya müraciət edin, ərizənizi dərhal nəzərdən keçirək. Suallarınız olsa, bu söhbətdə yaza bilərsiniz.`;
 const t = (text: string) => translate(text, siteLanguage());
 const time = (value: string) => formatDate(value, siteLanguage(), { year: false, time: true });
 
@@ -165,11 +171,15 @@ export default function MessagesPage({
           (!target.candidateId || thread.other_id === target.candidateId) &&
           (target.jobId ? thread.job_id === target.jobId : !thread.job_id),
       );
-      if (existing) void open(existing.id);
-      else {
+      if (existing) {
+        void open(existing.id).then(() => {
+          if (target.invite) setText((old) => old.trim() || inviteText(target));
+        });
+      } else {
         setActive("");
         setMessages([]);
         setPending(target);
+        if (target.invite) setText(inviteText(target));
       }
       onTargetHandled();
     });
@@ -287,6 +297,7 @@ export default function MessagesPage({
           candidateId: pending.candidateId,
           applicationId: pending.applicationId,
           jobId: pending.jobId,
+          invite: pending.invite === true,
         });
         setText("");
         await open(data.threadId);
@@ -432,6 +443,35 @@ export default function MessagesPage({
                 </select>
               )}
             </div>
+            {pending?.invite && !current && (
+              <div className="info-bar" role="status">
+                <span>
+                  Bu mesaj{pending.jobTitle ? ` “${pending.jobTitle}”` : ""} vakansiyasına <b>müraciət dəvəti</b> kimi göndərilir: namizəd mesajda vakansiyaya keçid və «Müraciət et» düyməsini görəcək. Mətni dəyişə bilərsiniz.
+                </span>
+              </div>
+            )}
+            {current?.job_id && current.job_title && (
+              <div className="info-bar" role="status">
+                {role === "candidate" ? (
+                  current.job_status !== "published" ? (
+                    <span>“{current.job_title}” vakansiyası artıq açıq deyil.</span>
+                  ) : current.applied ? (
+                    <span>“{current.job_title}” vakansiyasına müraciət etmisiniz ✓</span>
+                  ) : (
+                    <>
+                      <span>Şirkət sizi “{current.job_title}” vakansiyasına müraciətə dəvət edib.</span>
+                      <a className="primary" href={`/?job=${encodeURIComponent(current.job_id)}`}>
+                        Vakansiyaya bax və müraciət et
+                      </a>
+                    </>
+                  )
+                ) : current.applied ? (
+                  <span>✓ Namizəd “{current.job_title}” vakansiyasına müraciət edib</span>
+                ) : (
+                  <span>Namizəd “{current.job_title}” vakansiyasına hələ müraciət etməyib</span>
+                )}
+              </div>
+            )}
             <div
               className="chat-messages"
               aria-live="polite"
