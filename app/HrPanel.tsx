@@ -1351,35 +1351,7 @@ export default function HrPanel({
                       />{" "}
                       Müqayisə et
                     </label>
-                    {aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id] && (
-                      <div className={`hr-ai-note ${aiRatings.items[c.id].recommendation}`}>
-                        <b>
-                          AI: {aiRatings.items[c.id].recommendation === "interview" ? "Müsahibəyə dəvət et" : aiRatings.items[c.id].recommendation === "reject" ? "Uyğun deyil" : "Nəzərə al"}
-                        </b>
-                        {aiRatings.items[c.id].strengths && <p>✓ {aiRatings.items[c.id].strengths}</p>}
-                        {aiRatings.items[c.id].gaps && <p>△ {aiRatings.items[c.id].gaps}</p>}
-                        {!demo && selectedJob && (
-                          <AiFeedback
-                            api={api}
-                            kind="rank"
-                            jobId={selectedJob.id}
-                            candidateId={c.id}
-                            aiScore={aiRatings.items[c.id].aiScore ?? aiRatings.items[c.id].score}
-                            ruleScore={aiRatings.items[c.id].ruleScore}
-                            aiRecommendation={aiRatings.items[c.id].recommendation}
-                          />
-                        )}
-                      </div>
-                    )}
-                    {!demo && selectedJob && (
-                      <FitReviewPanel api={api} jobId={selectedJob.id} candidateId={c.id} language={language} audience="employer" />
-                    )}
-                    {aiEnabled && !demo && !aiRanking && !(aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]) && (
-                      <small className="fit-reasons">
-                        <b>AI yoxlamayıb:</b> bal yalnız qaydalarla hesablanıb, nəticəni özünüz yoxlayın.
-                      </small>
-                    )}
-                    {!!c.ranking?.fit && !(aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id]) && (
+                    {!!c.ranking?.fit && (
                       <small className="fit-reasons">
                         {c.ranking.fit.fieldChange && "Sahə dəyişir. "}
                         {c.ranking.fit.strengths.slice(0, 2).join("; ")}
