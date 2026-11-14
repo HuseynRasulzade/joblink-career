@@ -1153,6 +1153,23 @@ export default function HrPanel({
                         </span>
                       ))}
                     </div>
+                    {!!c.ranking?.fit && (
+                      <small className="fit-reasons">
+                        {aiRatings?.jobId === selectedJob?.id && aiRatings.items[c.id] ? (
+                          <>
+                            <b>AI:</b> {aiRatings.items[c.id].strengths && `✓ ${aiRatings.items[c.id].strengths} `}
+                            {aiRatings.items[c.id].gaps && `△ ${aiRatings.items[c.id].gaps}`}
+                          </>
+                        ) : (
+                          <>
+                            {c.ranking.fit.fieldChange && "Sahə dəyişir. "}
+                            {c.ranking.fit.strengths.slice(0, 2).join("; ")}
+                            {!!(c.ranking.fit.risks?.length || c.ranking.fit.gaps.length) &&
+                              ` · Risk: ${[...(c.ranking.fit.risks || []), ...c.ranking.fit.gaps].slice(0, 3).join("; ")}`}
+                          </>
+                        )}
+                      </small>
+                    )}
                     {!demo && (
                       <label className="compare-check">
                         <input type="checkbox" checked={pick.includes(`c:${c.id}`)} onChange={(e) => togglePick(`c:${c.id}`, e.target.checked)} />{" "}
