@@ -32,6 +32,7 @@ import ConversationList, { type ConversationSummary } from "./ConversationList";
 import PipelineBoard, { type ApplicantAi, type ApplicantFit } from "./PipelineBoard";
 import ApplicantsTable from "./ApplicantsTable";
 import CandidateDrawer from "./CandidateDrawer";
+import TalentTable from "./TalentTable";
 import { AssignTestModal } from "./AssessmentsPage";
 import JobDrawer from "./JobDrawer";
 import { takeFocus } from "./focus";
@@ -1165,43 +1166,17 @@ export default function HrPanel({
           </div>
           {tab === "Uyğun namizədlər" ? (
             results.length ? (
-              results.map((c) => (
-                <article className="candidate-card" key={c.id}>
-                  <div className="avatar">{c.profile.name[0]}</div>
-                  <div className="candidate-info">
-                    <h3>{c.profile.name}</h3>
-                    <p>
-                      {c.profile.title} · {years(c.profile)} il təcrübə
-                    </p>
-                    <div className="skill-tags">
-                      {c.ranking?.matched.map((s) => (
-                        <span className="matched" key={s}>
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                    {!!c.ranking?.fit && (
-                      <small className="fit-reasons">
-                        {c.ranking.fit.fieldChange && "Sahə dəyişir. "}
-                        {c.ranking.fit.strengths.slice(0, 2).join("; ")}
-                        {!!(c.ranking.fit.risks?.length || c.ranking.fit.gaps.length) &&
-                          ` · Risk: ${[...(c.ranking.fit.risks || []), ...c.ranking.fit.gaps].slice(0, 3).join("; ")}`}
-                      </small>
-                    )}
-                  </div>
-                  <div className="candidate-actions">
-                    <span className="match-score">
-                      {c.ranking?.fit ? `${c.ranking.fit.bandLabel} · ${c.ranking.score}%` : `${c.ranking?.score}% uyğun`}
-                    </span>
-                    {!demo && selectedJob && (
-                      <button className="primary" title="Namizədə mesaj yazın və bu vakansiyaya müraciət etməsini xahiş edin" onClick={() => onMessage({ candidateId: c.id, jobId: selectedJob.id, name: c.profile.name, jobTitle: selectedJob.title, invite: true })}>
-                        Mesaj yaz
-                      </button>
-                    )}
-                    <button type="button" className="text-button" onClick={() => setDetailTalent(c)}>Ətraflı ›</button>
-                  </div>
-                </article>
-              ))
+              <TalentTable
+                rows={results as any}
+                years={years}
+                onOpen={(c) => setDetailTalent(c as any)}
+                actions={(c) => [
+                  { label: "Ətraflı bax", run: () => setDetailTalent(c as any) },
+                  { label: "Profilə bax", run: () => setCandidate(c.profile) },
+                  ...(!demo && selectedJob ? [{ label: "Mesaj yaz (müraciətə dəvət)", run: () => onMessage({ candidateId: c.id, jobId: selectedJob.id, name: c.profile.name, jobTitle: selectedJob.title, invite: true }) }] : []),
+                  ...(!demo ? [{ label: "Bazaya əlavə et", run: () => setSaveTalent({ candidateId: c.id, name: c.profile.name }) }] : []),
+                ]}
+              />
             ) : (
               <Empty
                 title="Bu filtrlərə uyğun namizəd yoxdur"

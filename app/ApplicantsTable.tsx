@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, ChevronsUpDown, MoreVertical } from "lucide-rea
 import type { Application } from "@/lib/model";
 import { formatDate } from "@/lib/dates";
 import { siteLanguage } from "./i18n";
+import RowMenu from "./RowMenu";
 import type { ApplicantAi, ApplicantFit } from "./PipelineBoard";
 
 export type RowAction = { label: string; icon?: ReactNode; run: (application: Application) => void; show?: (application: Application) => boolean; danger?: boolean };
@@ -50,22 +51,8 @@ export default function ApplicantsTable({
   actions: RowAction[];
 }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "fit", dir: -1 });
-  const [menu, setMenu] = useState("");
   const [open, setOpen] = useState<string[]>([]);
   const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!menu) return;
-    const close = (event: Event) => {
-      if (!(event.target as HTMLElement)?.closest?.(".apt-menu, .apt-more")) setMenu("");
-    };
-    const key = (event: KeyboardEvent) => event.key === "Escape" && setMenu("");
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", key);
-    };
-  }, [menu]);
   const scoreOf = (a: Application) => ai[a.id]?.score ?? fits[a.id]?.score ?? 0;
   const sorted = useMemo(() => {
     const value = (a: Application): string | number =>
@@ -150,28 +137,7 @@ export default function ApplicantsTable({
                     )}
                   </td>
                   <td className="apt-actions">
-                    <button type="button" className="apt-more" aria-label={`${a.profile.name} — əməliyyatlar`} aria-haspopup="menu" aria-expanded={menu === a.id} onClick={() => setMenu(menu === a.id ? "" : a.id)}>
-                      <MoreVertical size={17} />
-                    </button>
-                    {menu === a.id && (
-                      <div className="apt-menu" role="menu">
-                        {available.map((x) => (
-                          <button
-                            key={x.label}
-                            type="button"
-                            role="menuitem"
-                            className={x.danger ? "danger" : ""}
-                            onClick={() => {
-                              setMenu("");
-                              x.run(a);
-                            }}
-                          >
-                            {x.icon}
-                            {x.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    <RowMenu label={`${a.profile.name} — əməliyyatlar`} items={available.map((x) => ({ label: x.label, icon: x.icon, danger: x.danger, run: () => x.run(a) }))} />
                   </td>
                 </tr>
                 {expanded && fit && (
