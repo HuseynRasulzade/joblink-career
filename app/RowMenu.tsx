@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { MoreVertical } from "lucide-react";
 
 export type RowMenuItem = { label: string; icon?: ReactNode; run: () => void; danger?: boolean };
@@ -40,7 +41,7 @@ export default function RowMenu({ label, items }: { label: string; items: RowMen
       <button ref={button} type="button" className="apt-more" aria-label={label} aria-haspopup="menu" aria-expanded={!!at} onClick={toggle}>
         <MoreVertical size={17} />
       </button>
-      {at && (
+      {at && createPortal(
         <div className="row-menu" role="menu" style={{ top: at.top, left: at.left }}>
           {items.map((x) => (
             <button
@@ -57,7 +58,8 @@ export default function RowMenu({ label, items }: { label: string; items: RowMen
               {x.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
