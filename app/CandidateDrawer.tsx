@@ -10,7 +10,7 @@ import { candidateCertifications } from "@/lib/model";
 type Note = { id: string; author_id: string; author_name: string; text: string; created: string };
 type Ev = { type: string; from_value: string; to_value: string; note?: string; created: string };
 
-const LEVEL: Record<string, string> = { strong: "güclü", good: "yaxşı", partial: "qismən", weak: "zəif" };
+const LEVEL: Record<string, string> = { strong: "güclü", good: "yaxşı", partial: "qismən", weak: "zəif", none: "bilinmir" };
 const digits = (phone: string) => phone.replace(/[^\d]/g, "");
 // Azerbaijani numbers are often written without the country code; WhatsApp needs it.
 const waNumber = (phone: string) => {

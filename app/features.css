@@ -6676,3 +6676,4 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
 .cand-notes li { padding: 8px 10px; border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a; }
 .cand-notes p { margin: 0; white-space: pre-wrap; }
 .cand-extra { display: flex; flex-wrap: wrap; gap: 8px; }
+.cand-parts .cand-chip { justify-self: start; }
