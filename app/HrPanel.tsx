@@ -31,6 +31,7 @@ import { CertificationBadges } from "./CertificationPickers";
 import ConversationList, { type ConversationSummary } from "./ConversationList";
 import PipelineBoard, { type ApplicantAi, type ApplicantFit } from "./PipelineBoard";
 import ApplicantsTable from "./ApplicantsTable";
+import CandidateDrawer from "./CandidateDrawer";
 import { AssignTestModal } from "./AssessmentsPage";
 import JobDrawer from "./JobDrawer";
 import { takeFocus } from "./focus";
@@ -1355,8 +1356,7 @@ export default function HrPanel({
         return (
           <Modal title={c.profile.name} onClose={() => setDetailTalent(null)} className="side-drawer">
             <div className="candidate-detail">
-              <p className="muted">{c.profile.title} · {years(c.profile)} il təcrübə</p>
-              {!!c.ranking?.matched.length && <div className="skill-tags">{c.ranking.matched.map((sk) => <span className="matched" key={sk}>{sk}</span>)}</div>}
+              <CandidateDrawer profile={c.profile} candidateId={c.id} job={selectedJob} api={api} notify={notify} canNote={!demo} onFullProfile={() => setCandidate(c.profile)}>
                     <CertificationBadges items={candidateCertifications(c.profile)} limit={4} />
                     <label className="compare-check">
                       <input
@@ -1432,6 +1432,7 @@ export default function HrPanel({
                         Blokla
                       </button>
                     )}
+              </CandidateDrawer>
               {!demo && selectedJob && (
                 <button className="primary" onClick={() => { setDetailTalent(null); onMessage({ candidateId: c.id, jobId: selectedJob.id, name: c.profile.name, jobTitle: selectedJob.title, invite: true }); }}>
                   Mesaj yaz
@@ -1446,7 +1447,7 @@ export default function HrPanel({
         return (
           <Modal title={a.profile.name} onClose={() => setDetailApp(null)} className="side-drawer">
             <div className="candidate-detail">
-              <p className="muted">{a.profile.title} · müraciət statusu: {a.status}</p>
+              <CandidateDrawer profile={a.profile} candidateId={a.candidateId} application={a} job={selectedJob} api={api} notify={notify} canNote={!demo} onFullProfile={() => setCandidate(a.profile)}>
                       <CertificationBadges items={candidateCertifications(a.profile)} limit={4} />
                       <label className="compare-check">
                         <input
@@ -1480,6 +1481,7 @@ export default function HrPanel({
                           Mesaj yaz
                         </button>
                       )}
+              </CandidateDrawer>
             </div>
           </Modal>
         );

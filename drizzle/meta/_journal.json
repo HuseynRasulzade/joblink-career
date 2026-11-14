@@ -771,6 +771,13 @@
       "when": 1800385200000,
       "tag": "0109_branch_departments",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "6",
+      "when": 1800471600000,
+      "tag": "0110_candidate_notes",
+      "breakpoints": true
     }
   ]
 }

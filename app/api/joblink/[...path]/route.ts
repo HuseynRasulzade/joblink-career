@@ -6294,6 +6294,9 @@ async function route(request: Request) {
     "hr/talent",
     "hr/talent/save",
     "hr/talent/remove",
+    "hr/candidate-notes",
+    "hr/candidate-notes/save",
+    "hr/candidate-notes/delete",
     "hr/applications/bulk",
     "hr/job-duplicate",
     "hr/job-templates",
@@ -22589,6 +22592,35 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       false,
     );
     await companyAudit(db, id, userId, "talent-saved", candidateId);
+    return ok({ ok: true });
+  }
+  // Internal notes of the company about a candidate: seen only by the company's team, never by the candidate.
+  if (request.method === "GET" && path === "hr/candidate-notes") {
+    const candidateId = str(requestUrl.searchParams.get("candidateId"), 100);
+    const rows = await db
+      .prepare("SELECT id,author_id,author_name,text,created FROM candidate_notes WHERE company_id=? AND candidate_id=? ORDER BY created DESC LIMIT 100")
+      .bind(id, candidateId)
+      .all();
+    return ok({ notes: rows.results });
+  }
+  if (request.method === "POST" && path === "hr/candidate-notes/save") {
+    const b = await jsonBody(request);
+    const candidateId = str(b.candidateId, 100);
+    const text = str(b.text, 2000).trim();
+    if (!candidateId || !text) throw new HttpError(400, "Qeyd boş ola bilməz.");
+    const known = await db.prepare("SELECT 1 AS x FROM accounts WHERE id=? AND role='candidate'").bind(candidateId).first();
+    if (!known) throw new HttpError(404, "Namizəd tapılmadı.");
+    const noteId = crypto.randomUUID();
+    await db
+      .prepare("INSERT INTO candidate_notes(id,company_id,candidate_id,author_id,author_name,text,created) VALUES(?,?,?,?,?,?,?)")
+      .bind(noteId, id, candidateId, userId, await requesterName(), text, new Date().toISOString())
+      .run();
+    await companyAudit(db, id, userId, "candidate-note", candidateId);
+    return ok({ ok: true, id: noteId });
+  }
+  if (request.method === "POST" && path === "hr/candidate-notes/delete") {
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM candidate_notes WHERE id=? AND company_id=?").bind(str(b.id, 100), id).run();
     return ok({ ok: true });
   }
   if (request.method === "POST" && path === "hr/talent/remove") {

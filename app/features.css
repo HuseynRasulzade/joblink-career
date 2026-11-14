@@ -6650,3 +6650,29 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
   .apt-date, .apt thead th.apt-date { display: none; }
   .apt-fit { min-width: 130px; }
 }
+
+/* Candidate "Ətraflı" drawer */
+.cand-drawer { display: grid; gap: 14px; }
+.cand-head .cand-meta { display: flex; gap: 8px; align-items: center; margin: 4px 0 0; }
+.cand-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--surface-2, #eef2f7); font-size: 12px; font-weight: 600; }
+.cand-chip.strong { background: #dcfce7; color: #166534; }
+.cand-block { border-top: 1px solid var(--line, #e5e7eb); padding-top: 12px; }
+.cand-block h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #64748b); }
+.cand-contact, .cand-list, .cand-parts, .cand-notes, .cand-timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cand-contact li { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cand-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.cand-actions a, .cand-actions button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--line, #d1d5db); border-radius: 8px; background: #fff; color: inherit; text-decoration: none; cursor: pointer; }
+.cand-shortcuts { display: flex; gap: 8px; flex-wrap: wrap; }
+.cand-cvtext { white-space: pre-wrap; max-height: 260px; overflow: auto; background: var(--surface-2, #f8fafc); padding: 10px; border-radius: 8px; font-size: 12px; }
+.cand-parts li, .cand-list li, .cand-timeline li, .cand-notes li { display: grid; gap: 2px; }
+.cand-parts small, .cand-list small, .cand-timeline small, .cand-notes small { display: block; color: var(--muted, #64748b); }
+.cand-parts .lvl-weak .cand-chip { background: #fee2e2; color: #991b1b; }
+.cand-parts .lvl-partial .cand-chip { background: #fef3c7; color: #92400e; }
+.cand-warn { color: #b45309; font-weight: 600; }
+.skill-pill { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #f1f5f9; }
+.skill-pill.missing { background: #fee2e2; }
+.cand-note-form { display: grid; gap: 8px; margin-bottom: 10px; }
+.cand-note-form textarea { min-height: 70px; resize: vertical; }
+.cand-notes li { padding: 8px 10px; border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a; }
+.cand-notes p { margin: 0; white-space: pre-wrap; }
+.cand-extra { display: flex; flex-wrap: wrap; gap: 8px; }
