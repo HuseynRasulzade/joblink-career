@@ -33,6 +33,11 @@ function columnOf(app: Application, columns: Column[]) {
   return columns.find((c) => c.status === app.status)?.key || "";
 }
 
+// What the board shows about the fit of each applicant: the platform's own score with its reasons, and the AI analysis when it was asked for.
+export type ApplicantFit = { score: number; band: string; bandLabel: string; strengths: string[]; risks: string[] };
+export type ApplicantAi = { score: number; strengths: string; gaps: string; recommendation: string };
+const AI_WORD: Record<string, string> = { interview: "Müsahibəyə dəvət et", consider: "Nəzərə al", reject: "Uyğun deyil" };
+
 const TEST_STATE: Record<string, string> = { passed: "keçdi", failed: "keçmədi", pending: "yoxlanır", assigned: "göndərilib", started: "davam edir" };
 
 export default function PipelineBoard({
@@ -51,6 +56,8 @@ export default function PipelineBoard({
   onInvite,
   onBulk,
   testResults = {},
+  fits = {},
+  ai = {},
 }: {
   applications: Application[];
   stages: string[] | undefined;
@@ -67,6 +74,8 @@ export default function PipelineBoard({
   onInvite?: (application: Application) => void;
   onBulk?: (ids: string[], action: "status" | "message" | "pool" | "test" | "interview") => void;
   testResults?: Record<string, { state: string; percent: number | null }>;
+  fits?: Record<string, ApplicantFit>;
+  ai?: Record<string, ApplicantAi>;
 }) {
   const lastStage = (stages || [])[(stages || []).length - 1] || "";
   // Offers follow the last selection stage.
@@ -75,6 +84,10 @@ export default function PipelineBoard({
   const columns = pipelineColumns(stages);
   const [dragging, setDragging] = useState<string>("");
   const [selected, setSelected] = useState<string[]>([]);
+  // A stage with nobody in it folds into a narrow strip (click to open it), so the board shows the people, not empty columns.
+  const [opened, setOpened] = useState<string[]>([]);
+  const [showAll, setShowAll] = useState(false);
+  const scoreOf = (app: Application) => ai[app.id]?.score ?? fits[app.id]?.score ?? 0;
   const toggle = (appId: string) => setSelected((list) => (list.includes(appId) ? list.filter((x) => x !== appId) : [...list, appId]));
   const withdrawn = applications.filter((a) => a.status === WITHDRAWN_STATUS);
   return (
@@ -92,13 +105,25 @@ export default function PipelineBoard({
           </div>
         </div>
       )}
+      {columns.some((c) => !applications.some((a) => a.status !== WITHDRAWN_STATUS && columnOf(a, columns) === c.key)) && (
+        <div className="pipeline-tools">
+          <button type="button" className="text-button" onClick={() => { setShowAll((v) => !v); setOpened([]); }}>
+            {showAll ? t("Boş sütunları yığışdır") : t("Bütün sütunları göstər")}
+          </button>
+        </div>
+      )}
       <div className="pipeline-board">
         {columns.map((column) => {
-          const cards = applications.filter((a) => a.status !== WITHDRAWN_STATUS && columnOf(a, columns) === column.key);
+          const cards = applications
+            .filter((a) => a.status !== WITHDRAWN_STATUS && columnOf(a, columns) === column.key)
+            .sort((a, b) => scoreOf(b) - scoreOf(a));
+          const folded = cards.length === 0 && !showAll && !opened.includes(column.key) && !dragging;
           return (
             <section
               key={column.key}
-              className={`pipeline-column ${dragging ? "drop-ready" : ""}`}
+              className={`pipeline-column ${dragging ? "drop-ready" : ""} ${folded ? "folded" : ""}`}
+              onClick={folded ? () => setOpened((list) => [...list, column.key]) : undefined}
+              title={folded ? `${t(column.title)}: ${t("boşdur, açmaq üçün basın")}` : undefined}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
@@ -111,6 +136,7 @@ export default function PipelineBoard({
                 <strong>{t(column.title)}</strong>
                 <span>{cards.length}</span>
               </header>
+              {!folded && cards.length === 0 && <small className="muted">{t("Burada hələ namizəd yoxdur")}</small>}
               {cards.map((app) => (
                 <article
                   key={app.id}
@@ -130,6 +156,32 @@ export default function PipelineBoard({
                   <strong>{app.profile.name}</strong>
                   <small>{app.profile.title}</small>
                   <small>{formatDate(app.created, siteLanguage(), { year: false })}{app.auto ? " · AI" : ""}</small>
+                  {fits[app.id] && (
+                    <div className="pipeline-fit">
+                      <span className={`pipeline-score band-${fits[app.id].band}`} title={t("Platformanın qaydalarına görə uyğunluq")}>
+                        {fits[app.id].bandLabel} · {fits[app.id].score}%
+                      </span>
+                      {ai[app.id] && (
+                        <span className={`pipeline-score ai ${ai[app.id].recommendation}`} title={t("AI analizi")}>
+                          AI {ai[app.id].score}% · {t(AI_WORD[ai[app.id].recommendation] || "Nəzərə al")}
+                        </span>
+                      )}
+                      {(fits[app.id].strengths.length > 0 || fits[app.id].risks.length > 0 || ai[app.id]) && (
+                        <details>
+                          <summary>{t("Uyğunluğun səbəbləri")}</summary>
+                          {fits[app.id].strengths.slice(0, 3).map((x) => <p key={x} className="fit-yes">✓ {x}</p>)}
+                          {fits[app.id].risks.slice(0, 3).map((x) => <p key={x} className="fit-risk">△ {x}</p>)}
+                          {ai[app.id] && (
+                            <div className="fit-ai">
+                              <b>AI:</b>
+                              {ai[app.id].strengths && <p className="fit-yes">✓ {ai[app.id].strengths}</p>}
+                              {ai[app.id].gaps && <p className="fit-risk">△ {ai[app.id].gaps}</p>}
+                            </div>
+                          )}
+                        </details>
+                      )}
+                    </div>
+                  )}
                   <select
                     aria-label={`${app.profile.name} — ${t("mərhələ")}`}
                     value={column.key}

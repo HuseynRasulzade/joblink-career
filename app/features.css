@@ -6421,3 +6421,68 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
 .iv-job b { font-size: 15px; color: #14281f; }
 .iv-facts { display: flex; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 6px; }
 .iv-facts span { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #3f574b; background: #f0f5f2; padding: 3px 9px; border-radius: 999px; max-width: 100%; overflow-wrap: anywhere; }
+
+/* ---- Pipeline: folded empty stages, fit and reasons on the cards ---- */
+.pipeline-board {
+  grid-auto-columns: minmax(220px, 1fr);
+}
+.pipeline-column.folded {
+  min-width: 44px;
+  max-width: 44px;
+  min-height: 140px;
+  padding: 8px 4px;
+  justify-items: center;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.pipeline-column.folded header {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.pipeline-column.folded header strong {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.pipeline-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+.pipeline-fit {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0;
+}
+.pipeline-score {
+  display: inline-block;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e7f2ec;
+  color: #1f6b53;
+  font-size: 11px;
+  font-weight: 700;
+}
+.pipeline-score.band-good { background: #eef4e2; color: #55702a; }
+.pipeline-score.band-partial { background: #fdf1d9; color: #946200; }
+.pipeline-score.band-weak { background: #fbe6e2; color: #a63d2f; }
+.pipeline-score.ai { background: #e9eefc; color: #3347a8; }
+.pipeline-score.ai.reject { background: #fbe6e2; color: #a63d2f; }
+.pipeline-fit details {
+  font-size: 11px;
+  color: #4b6760;
+}
+.pipeline-fit summary {
+  cursor: pointer;
+  color: #1f6b53;
+}
+.pipeline-fit details p {
+  margin: 3px 0 0;
+  line-height: 1.35;
+}
+.pipeline-fit .fit-yes { color: #2f6b4f; }
+.pipeline-fit .fit-risk { color: #94601a; }
+.pipeline-fit .fit-ai { margin-top: 4px; padding-top: 4px; border-top: 1px dashed #d5e7df; }

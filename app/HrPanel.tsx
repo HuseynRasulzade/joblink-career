@@ -29,7 +29,7 @@ import {
 import { Empty, Field, JobForm, Modal } from "./components";
 import { CertificationBadges } from "./CertificationPickers";
 import ConversationList, { type ConversationSummary } from "./ConversationList";
-import PipelineBoard from "./PipelineBoard";
+import PipelineBoard, { type ApplicantAi, type ApplicantFit } from "./PipelineBoard";
 import { AssignTestModal } from "./AssessmentsPage";
 import JobDrawer from "./JobDrawer";
 import { takeFocus } from "./focus";
@@ -312,6 +312,31 @@ export default function HrPanel({
         },
       ]
     : data.applications;
+  // What the platform's own rules say about each applicant of the open vacancy (score, strengths, risks), and the AI analysis when it was asked for.
+  const applicantFits = () => {
+    const out: Record<string, ApplicantFit> = {};
+    if (!selectedJob) return out;
+    for (const a of applications) {
+      if (a.jobId !== selectedJob.id || a.status === WITHDRAWN_STATUS) continue;
+      const r = match(a.profile, selectedJob);
+      out[a.id] = { score: r.score, band: r.fit.band, bandLabel: r.fit.bandLabel, strengths: r.fit.strengths, risks: [...(r.fit.risks || []), ...r.fit.gaps] };
+    }
+    return out;
+  };
+  const applicantAi = () => {
+    const out: Record<string, ApplicantAi> = {};
+    if (!selectedJob || aiRatings?.jobId !== selectedJob.id) return out;
+    for (const a of applications) {
+      const rating = a.candidateId ? aiRatings.items[a.candidateId] : undefined;
+      if (rating && a.jobId === selectedJob.id) out[a.id] = { score: rating.score, strengths: rating.strengths, gaps: rating.gaps, recommendation: rating.recommendation };
+    }
+    return out;
+  };
+  // Worked out once per render, however many cards ask.
+  let fitCache: Record<string, ApplicantFit> | null = null;
+  let aiCache: Record<string, ApplicantAi> | null = null;
+  const fitsOnce = () => (fitCache ||= applicantFits());
+  const aisOnce = () => (aiCache ||= applicantAi());
   // Same name and school on several profiles: probably one person with duplicate accounts.
   const duplicateKey = (profile: Profile) =>
     `${profile.name.trim().toLocaleLowerCase("az")}|${(profile.education[0]?.school || "").trim().toLocaleLowerCase("az")}`;
@@ -1199,6 +1224,8 @@ export default function HrPanel({
               </div>
               {applicantsView === "board" && (
                 <PipelineBoard
+                  fits={fitsOnce()}
+                  ai={aisOnce()}
                   applications={applications.filter((a) => a.jobId === selectedJob?.id)}
                   stages={selectedJob?.stages}
                   disabled={demo}
@@ -1245,6 +1272,23 @@ export default function HrPanel({
                     <div className="candidate-info">
                       <h3>{a.profile.name}</h3>
                       <p>{a.profile.title}</p>
+                      {(() => {
+                        const fit = fitsOnce()[a.id];
+                        const ai = aisOnce()[a.id];
+                        if (!fit) return null;
+                        return (
+                          <>
+                            <span className="match-score">
+                              {fit.bandLabel} · {fit.score}%{ai ? ` · AI ${ai.score}%` : ""}
+                            </span>
+                            <small className="fit-reasons">
+                              {fit.strengths.slice(0, 2).join("; ")}
+                              {fit.risks.length > 0 && ` · Risk: ${fit.risks.slice(0, 2).join("; ")}`}
+                              {ai && ` · AI: ${ai.strengths ? `✓ ${ai.strengths} ` : ""}${ai.gaps ? `△ ${ai.gaps}` : ""}`}
+                            </small>
+                          </>
+                        );
+                      })()}
                       {!demo && ["Göndərildi", "Baxışda", "Müsahibə"].includes(a.status) && (
                         <label className="compare-check">
                           <input type="checkbox" checked={pick.includes(`a:${a.id}`)} onChange={(e) => togglePick(`a:${a.id}`, e.target.checked)} />{" "}
