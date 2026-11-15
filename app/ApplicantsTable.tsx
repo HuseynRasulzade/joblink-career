@@ -108,7 +108,7 @@ export default function ApplicantsTable({
                       <span className="apt-avatar">{a.profile.name[0]}</span>
                       <span>
                         <b>{a.profile.name}</b>
-                        <small>{a.profile.title || "—"}</small>
+                        <small>{a.profile.title || "—"}{a.profile.code && <> · <span className="person-code">{a.profile.code}</span></>}</small>
                       </span>
                     </button>
                   </td>

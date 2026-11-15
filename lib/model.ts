@@ -163,6 +163,8 @@ export type Profile = {
   certifications?: CandidateCertification[];
   // People who can vouch for the candidate; shown only to employers the candidate applied to.
   references?: Reference[];
+  // The personal code of the account (set by the server for employers): tells two people with the same name apart.
+  code?: string;
   // Set by the server for employers: experience ids and certification ids
   // whose documents were checked and confirmed.
   verified?: { experience: string[]; certification: string[] };

@@ -114,6 +114,12 @@ export default function CandidateDrawer({
         <p className="muted">
           {profile.title || "Vəzifə göstərilməyib"} · {profile.city || "—"} · {years(profile)} il təcrübə
         </p>
+        {profile.code && (
+          <p className="cand-meta">
+            <span className="cand-chip">Kod: {profile.code}</span>
+            <button type="button" className="text-button" onClick={() => copy(profile.code!, "Kod")}>Kopyala</button>
+          </p>
+        )}
         {application && (
           <p className="cand-meta">
             <span className="cand-chip">{application.status}</span>

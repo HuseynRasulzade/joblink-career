@@ -6743,3 +6743,6 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
 .ai-steps { display: grid; gap: 8px; margin: 8px 0; }
 .ai-steps > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .apt-ai.lite { background: #e8eefc; color: #3347a8; }
+.person-code { font-family: ui-monospace, monospace; font-size: 11px; color: #4f635d; background: #eef3f0; padding: 1px 6px; border-radius: 6px; }
+.code-line { display: flex; align-items: center; gap: 12px; }
+.code-line b { font-family: ui-monospace, monospace; font-size: 18px; letter-spacing: .04em; }

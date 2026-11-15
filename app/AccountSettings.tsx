@@ -63,6 +63,7 @@ export default function AccountSettings({
   return (
     <Modal title="Hesab təhlükəsizliyi" onClose={onClose} className="account-settings">
       {error && <div className="notice error">{error}</div>}
+      <PersonalCode api={api} notify={notify} />
       <SecurityPanel api={api} notify={notify} />
       <EmailPrefsPanel api={api} notify={notify} />
       <form className="account-settings-section" onSubmit={changePassword}>
@@ -248,6 +249,25 @@ function EmailPrefsPanel({ api, notify }: { api: (path: string, body?: unknown) 
           <input type="checkbox" checked={!data.emailOff.includes(c.id)} onChange={(e) => toggle(c.id, e.target.checked)} /> {c.label}
         </label>
       ))}
+    </section>
+  );
+}
+
+// The personal code of the account: the same everywhere, so people with the same name are told apart by it.
+function PersonalCode({ api, notify }: { api: (path: string, body?: unknown) => Promise<unknown>; notify: (s: string) => void }) {
+  const [code, setCode] = useState("");
+  useEffect(() => {
+    (api("account/code") as Promise<{ code: string }>).then((d) => setCode(d.code)).catch(() => undefined);
+  }, [api]);
+  if (!code) return null;
+  return (
+    <section className="account-settings-section personal-code">
+      <h3>Şəxsi kodunuz</h3>
+      <p className="muted">Bu kod yalnız sizə məxsusdur və dəyişmir. Eyni adlı adamlar bu kodla fərqləndirilir; şirkət və ya dəstək sizi bu kodla tapa bilər.</p>
+      <div className="code-line">
+        <b>{code}</b>
+        <button type="button" className="secondary" onClick={() => navigator.clipboard?.writeText(code).then(() => notify("Kod kopyalandı.")).catch(() => notify(code))}>Kopyala</button>
+      </div>
     </section>
   );
 }

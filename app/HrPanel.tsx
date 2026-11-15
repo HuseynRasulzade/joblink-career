@@ -377,7 +377,7 @@ export default function HrPanel({
             skill,
             [c.profile.title, c.profile.summary, ...c.profile.skills, ...c.profile.experiences.map((e) => e.description)].join(" "),
           )) &&
-        [c.profile.name, c.profile.title, ...c.profile.skills]
+        [c.profile.name, c.profile.code || "", c.profile.title, ...c.profile.skills]
           .join(" ")
           .toLocaleLowerCase("az")
           .includes(query.toLocaleLowerCase("az")),
@@ -1251,7 +1251,7 @@ export default function HrPanel({
             <>
               {applicantsView === "list" && applications.some((a) => a.jobId === selectedJob?.id) && (
                 <ApplicantsTable
-                  rows={applications.filter((a) => a.jobId === selectedJob?.id && a.profile.name.toLocaleLowerCase("az").includes(query.toLocaleLowerCase("az")))}
+                  rows={applications.filter((a) => a.jobId === selectedJob?.id && (a.profile.name.toLocaleLowerCase("az").includes(query.toLocaleLowerCase("az")) || (a.profile.code || "").toLocaleLowerCase("az").includes(query.toLocaleLowerCase("az").replace(/\s/g, ""))))}
                   fits={fitsOnce()}
                   ai={aisOnce()}
                   lite={Object.fromEntries(applications.filter((a) => a.jobId === selectedJob?.id && a.candidateId && lite?.jobId === selectedJob?.id && lite.items[a.candidateId] !== undefined).map((a) => [a.id, lite!.items[a.candidateId!]]))}

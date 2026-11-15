@@ -1,3 +1,4 @@
+import { generatePublicCode } from "./public-code.ts";
 import { mailConfigured, sendMail } from "./mail.ts";
 import { runtime, store, HttpError, jsonBody, str } from "./server";
 import { generateSecret, otpauthUri, verifyTotp } from "./totp";
@@ -487,8 +488,8 @@ export async function authRoute(request: Request, path: string) {
     try {
       await db.batch([
         db
-          .prepare("INSERT INTO accounts(id,name,role,created) VALUES(?,?,?,?)")
-          .bind(userId, name, role, new Date().toISOString()),
+          .prepare("INSERT INTO accounts(id,name,role,created,public_code) VALUES(?,?,?,?,?)")
+          .bind(userId, name, role, new Date().toISOString(), generatePublicCode()),
         db
           .prepare(
             "INSERT INTO password_accounts(email,user_id,password_hash,password_salt) VALUES(?,?,?,?)",

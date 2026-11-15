@@ -63,7 +63,7 @@ export default function TalentTable({
                       <span className="apt-avatar">{c.profile.name[0]}</span>
                       <span>
                         <b>{c.profile.name}</b>
-                        <small>{c.profile.title || "—"}</small>
+                        <small>{c.profile.title || "—"}{c.profile.code && <> · <span className="person-code">{c.profile.code}</span></>}</small>
                       </span>
                     </button>
                   </td>

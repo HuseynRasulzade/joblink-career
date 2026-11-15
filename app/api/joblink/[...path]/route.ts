@@ -379,6 +379,7 @@ import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
 import { pickSigners, sameName } from "@/lib/order-signers";
 import { DOC_KINDS, normalizeDocType } from "@/lib/employee-docs";
 import { ORDER_KINDS, signedOrderNotice } from "@/lib/orders";
+import { generatePublicCode, formatPublicCode, normalizePublicCode } from "@/lib/public-code";
 import { statusAfter, type ApplicationFlowEvent } from "@/lib/application-flow";
 import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, knownReligiousYears, setPlatformCalendar, platformCalendar, PLATFORM_KINDS, type PlatformDay, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
@@ -3607,6 +3608,18 @@ async function route(request: Request) {
     }
   }
   // The candidate downloads everything the platform holds about them (documents are listed, not included).
+  // The personal code of the signed-in account (an older account gets its code the first time it is asked for).
+  if (request.method === "GET" && path === "account/code") {
+    let row = await db.prepare("SELECT public_code FROM accounts WHERE id=?").bind(userId).first<{ public_code: string | null }>();
+    if (row && !row.public_code) {
+      for (let attempt = 0; attempt < 5 && !row?.public_code; attempt++) {
+        const code = generatePublicCode();
+        await db.prepare("UPDATE accounts SET public_code=? WHERE id=? AND public_code IS NULL").bind(code, userId).run().catch(() => undefined);
+        row = await db.prepare("SELECT public_code FROM accounts WHERE id=?").bind(userId).first<{ public_code: string | null }>();
+      }
+    }
+    return ok({ code: formatPublicCode(row?.public_code || "") });
+  }
   if (request.method === "GET" && path === "account/export") {
     if (accountRole !== "candidate")
       throw new HttpError(403, "Məlumat ixracı iş axtaran hesabı üçündür.");
@@ -19392,6 +19405,15 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       : {
           results: [] as { user_id: string; kind: string; item_key: string }[],
         };
+    // The personal codes of the people in the lists.
+    const codeRows = candidateIds.length
+      ? await db
+          .prepare("SELECT id,public_code FROM accounts WHERE id IN (SELECT value FROM json_each(?))")
+          .bind(JSON.stringify(candidateIds))
+          .all<{ id: string; public_code: string | null }>()
+          .catch(() => ({ results: [] as { id: string; public_code: string | null }[] }))
+      : { results: [] as { id: string; public_code: string | null }[] };
+    const codeOf = (userId: string) => formatPublicCode(codeRows.results.find((c) => c.id === userId)?.public_code || "");
     const verifiedFor = (userId: string) => ({
       experience: verifiedRows.results
         .filter((v) => v.user_id === userId && v.kind === "experience")
@@ -19432,6 +19454,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         profile: {
           ...normalizedProfileRecord(JSON.parse(r.data), customSkillLabels),
           verified: verifiedFor(String(r.candidate_id)),
+          code: codeOf(String(r.candidate_id)),
         },
         status: r.status,
         stage: (r as Row & { stage?: string }).stage || "",
@@ -19452,6 +19475,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
             // text itself is withheld from discovery.
             certifications: candidateCertifications(p),
             verified: verifiedFor(String(r.user_id)),
+            code: codeOf(String(r.user_id)),
             email: "",
             phone: "",
             links: "",
