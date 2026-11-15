@@ -285,7 +285,12 @@ export default function HrPanel({
   const [focusApp, setFocusApp] = useState("");
   const [aiDown, setAiDown] = useState("");
   const [detailTalent, setDetailTalent] = useState<(typeof results)[number] | null>(null);
-  const [detailApp, setDetailApp] = useState<Application | null>(null);
+  const [detailApp, setDetailAppRaw] = useState<Application | null>(null);
+  // Opening a new application is a view of it: the server moves it to «Baxışda» by itself.
+  const setDetailApp = (a: Application | null) => {
+    setDetailAppRaw(a);
+    if (a && !demo && a.status === "Göndərildi") api("hr/application-viewed", { id: a.id }).then(() => refresh()).catch(() => undefined);
+  };
   const [focusJob, setFocusJob] = useState("");
   useEffect(() => {
     const f = takeFocus("application", "job");

@@ -379,6 +379,7 @@ import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
 import { pickSigners, sameName } from "@/lib/order-signers";
 import { DOC_KINDS, normalizeDocType } from "@/lib/employee-docs";
 import { ORDER_KINDS, signedOrderNotice } from "@/lib/orders";
+import { statusAfter, type ApplicationFlowEvent } from "@/lib/application-flow";
 import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, knownReligiousYears, setPlatformCalendar, platformCalendar, PLATFORM_KINDS, type PlatformDay, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
@@ -2059,6 +2060,25 @@ async function route(request: Request) {
         .bind(userId)
         .first<{ name: string }>()
     )?.name || "";
+  // The application follows what happens to it (an interview falls through, a «reject» opinion, a new application is opened).
+  const syncApplicationStatus = async (applicationId: string, event: ApplicationFlowEvent, actorId: string, actorRole: string) => {
+    const app = await db
+      .prepare("SELECT a.status,a.candidate_id,j.title,j.owner FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=?")
+      .bind(applicationId)
+      .first<{ status: string; candidate_id: string; title: string; owner: string }>();
+    if (!app) return;
+    const interviews = (await db.prepare("SELECT status FROM interviews WHERE application_id=?").bind(applicationId).all<{ status: string }>()).results;
+    const pendingOffer = !!(await db.prepare("SELECT 1 AS x FROM offers WHERE application_id=? AND status='sent'").bind(applicationId).first().catch(() => null));
+    const target = statusAfter(event, app.status, {
+      activeInterviews: interviews.filter((i) => ["scheduled", "confirmed", "pending_panel", "panel_declined"].includes(i.status)).length,
+      completedInterviews: interviews.filter((i) => i.status === "completed").length,
+      pendingOffer,
+    });
+    if (!target) return;
+    await db.prepare("UPDATE applications SET status=?,stage='',updated=? WHERE id=?").bind(target, new Date().toISOString(), applicationId).run();
+    await recordApplicationEvent(db, { applicationId, actorId, actorRole, type: "status", from: app.status, to: target, note: "avtomatik" });
+    await notify(db, { userId: app.candidate_id, type: "application-status", title: `${app.title}: ${target}`, body: `Müraciətinizin statusu avtomatik yeniləndi: ${target}.`, link: "applications" }).catch(() => undefined);
+  };
   // A notification for the employee's own account, when the employee record is linked to one.
   const tellEmployee = async (employeeId: string, title: string, body: string) => {
     const row = await db.prepare("SELECT user_id FROM company_employees WHERE id=? AND company_id=?").bind(employeeId, id).first<{ user_id: string }>().catch(() => null);
@@ -6320,6 +6340,7 @@ async function route(request: Request) {
     "hr/rank-candidates",
     "hr/ai-feedback",
     "hr/application-events",
+    "hr/application-viewed",
     "offers/create",
     "offers/withdraw",
     "hr/assessments",
@@ -16917,6 +16938,7 @@ async function route(request: Request) {
       type: "interview",
       to: action === "confirm" ? "namizəd təsdiqlədi" : "namizəd imtina etdi",
     });
+    if (action !== "confirm") await syncApplicationStatus(row.application_id, "interview-declined", id, "candidate");
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "interviews/ics") {
@@ -22387,6 +22409,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         type: "interview",
         to: "ləğv edildi",
       });
+      await syncApplicationStatus(row.application_id, "interview-cancelled", userId, "company");
     } else if (action === "complete" || action === "no_show") {
       if (!isActive || row.status === "pending_panel" || row.status === "panel_declined") throw new HttpError(409, "İştirakçıların təsdiqi tamamlanmayıb və ya müsahibə aktiv deyil.");
       if (Date.parse(row.scheduled_at) > Date.now() + 15 * 60000)
@@ -22402,6 +22425,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         type: "interview",
         to: action === "complete" ? "keçirildi" : "namizəd gəlmədi",
       });
+      if (action === "no_show") await syncApplicationStatus(row.application_id, "interview-no-show", userId, "company");
     } else throw new HttpError(400, "Əməliyyat yanlışdır.");
     await companyAudit(
       db,
@@ -22454,6 +22478,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       type: "interview",
       to: `rəy: ${fb.rating}/5`,
     });
+    if (fb.decision === "reject") await syncApplicationStatus(row.application_id, "feedback-reject", userId, "company");
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "hr/interviews/ics") {
@@ -23189,6 +23214,15 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       throw new HttpError(403, "Şablonu yalnız yaradan və ya HR silə bilər.");
     await db.prepare("DELETE FROM job_templates WHERE id=?").bind(row.id).run();
     await companyAudit(db, id, userId, "template-deleted", row.name);
+    return ok({ ok: true });
+  }
+  // The employer opened a new application: it moves from «Göndərildi» to «Baxışda» by itself.
+  if (request.method === "POST" && path === "hr/application-viewed") {
+    const b = await jsonBody(request);
+    const applicationId = str(b.id, 100);
+    const own = await db.prepare("SELECT 1 FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND j.owner=?").bind(applicationId, id).first();
+    if (!own) throw new HttpError(404, "Müraciət tapılmadı.");
+    await syncApplicationStatus(applicationId, "viewed", userId, "company");
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "hr/application-events") {
