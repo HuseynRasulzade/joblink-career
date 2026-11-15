@@ -1168,8 +1168,9 @@ export default function HrPanel({
               {(() => {
                 const mine = applications.filter((a) => a.jobId === selectedJob.id && a.status !== "Geri götürülüb");
                 const picked = pick.filter((k) => k.startsWith("a:")).length;
-                const littleBy = (a: Application) => (a.candidateId && lite?.jobId === selectedJob.id ? lite.items[a.candidateId] : undefined) ?? fitsOnce()[a.id]?.score ?? 0;
+                const littleBy = (a: Application) => (a.candidateId && lite?.jobId === selectedJob.id ? lite.items[a.candidateId] : undefined) ?? 0;
                 const top = (n: number) => {
+                  if (lite?.jobId !== selectedJob.id) return notify("Əvvəl «AI ilə sırala» düyməsini basın: seçim AI sıralamasına görə edilir.");
                   const best = [...mine].sort((x, y) => littleBy(y) - littleBy(x)).slice(0, Math.max(1, n));
                   setPick((list) => [...list.filter((k) => !k.startsWith("a:")), ...best.map((a) => `a:${a.id}`)]);
                 };
@@ -1431,7 +1432,7 @@ export default function HrPanel({
         return (
           <Modal title={a.profile.name} onClose={() => setDetailApp(null)} className="side-drawer">
             <div className="candidate-detail">
-              <CandidateDrawer profile={a.profile} candidateId={a.candidateId} application={a} job={selectedJob} api={api} notify={notify} canNote={!demo} onFullProfile={() => setCandidate(a.profile)}>
+              <CandidateDrawer profile={a.profile} candidateId={a.candidateId} application={a} job={null} api={api} notify={notify} canNote={!demo} onFullProfile={() => setCandidate(a.profile)}>
                       <CertificationBadges items={candidateCertifications(a.profile)} limit={4} />
                       <label className="compare-check">
                         <input

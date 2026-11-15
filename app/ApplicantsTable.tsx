@@ -56,7 +56,8 @@ export default function ApplicantsTable({
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "fit", dir: -1 });
   const [open, setOpen] = useState<string[]>([]);
   const box = useRef<HTMLDivElement>(null);
-  const scoreOf = (a: Application) => ai[a.id]?.score ?? lite[a.id] ?? fits[a.id]?.score ?? 0;
+  // Only the AI judges here: the full analysis first, then its cheap ranking; the rules play no part in this table.
+  const scoreOf = (a: Application) => ai[a.id]?.score ?? lite[a.id] ?? 0;
   const sorted = useMemo(() => {
     const value = (a: Application): string | number =>
       sort.key === "name" ? a.profile.name.toLocaleLowerCase("az") : sort.key === "date" ? a.created : sort.key === "status" ? statuses.indexOf(a.status) : scoreOf(a);
@@ -92,7 +93,6 @@ export default function ApplicantsTable({
         </thead>
         <tbody>
           {sorted.map((a) => {
-            const fit = fits[a.id];
             const rating = ai[a.id];
             const done = a.status === withdrawn;
             const expanded = open.includes(a.id);
@@ -127,42 +127,32 @@ export default function ApplicantsTable({
                     </select>
                   </td>
                   <td className="apt-fit">
-                    {fit ? (
-                      <button type="button" className="apt-score" onClick={() => setOpen((l) => (expanded ? l.filter((x) => x !== a.id) : [...l, a.id]))} aria-expanded={expanded} title="Səbəbləri göstər">
+                    {rating || lite[a.id] !== undefined ? (
+                      <button type="button" className="apt-score" onClick={() => rating && setOpen((l) => (expanded ? l.filter((x) => x !== a.id) : [...l, a.id]))} aria-expanded={expanded} title={rating ? "AI analizini göstər" : "AI sıralaması"} disabled={!rating}>
                         <span className="apt-bar" aria-hidden="true">
-                          <i className={`band-${fit.band}`} style={{ width: `${Math.min(100, fit.score)}%` }} />
+                          <i className={`band-${(rating?.score ?? lite[a.id]) >= 75 ? "strong" : (rating?.score ?? lite[a.id]) >= 55 ? "good" : (rating?.score ?? lite[a.id]) >= 35 ? "partial" : "weak"}`} style={{ width: `${Math.min(100, rating?.score ?? lite[a.id])}%` }} />
                         </span>
-                        <b>{fit.score}%</b>
-                        {lite[a.id] !== undefined && !rating && <span className="apt-ai lite">AI sıra {lite[a.id]}</span>}
-                        {rating && <span className={`apt-ai ${rating.recommendation}`}>AI {rating.score}% · {AI_WORD[rating.recommendation] || "Nəzərə al"}</span>}
+                        <b>{rating?.score ?? lite[a.id]}%</b>
+                        {rating ? <span className={`apt-ai ${rating.recommendation}`}>AI · {AI_WORD[rating.recommendation] || "Nəzərə al"}</span> : <span className="apt-ai lite">AI sıra</span>}
                       </button>
                     ) : (
-                      <span className="muted">—</span>
+                      <span className="muted">AI hələ sıralamayıb</span>
                     )}
                   </td>
                   <td className="apt-actions">
                     <RowMenu label={`${a.profile.name} — əməliyyatlar`} items={available.map((x) => ({ label: x.label, icon: x.icon, danger: x.danger, run: () => x.run(a) }))} />
                   </td>
                 </tr>
-                {expanded && fit && (
+                {expanded && rating && (
                   <tr className="apt-detail">
                     <td />
                     <td colSpan={5}>
                       <div className="apt-reasons">
-                        <b>{fit.bandLabel}</b>
-                        {fit.strengths.slice(0, 4).map((x) => (
-                          <p key={x} className="yes">✓ {x}</p>
-                        ))}
-                        {fit.risks.slice(0, 4).map((x) => (
-                          <p key={x} className="risk">△ {x}</p>
-                        ))}
-                        {rating && (
-                          <div className="apt-ai-text">
-                            <b>AI analizi:</b>
-                            {rating.strengths && <p className="yes">✓ {rating.strengths}</p>}
-                            {rating.gaps && <p className="risk">△ {rating.gaps}</p>}
-                          </div>
-                        )}
+                        <div className="apt-ai-text">
+                          <b>AI analizi:</b>
+                          {rating.strengths && <p className="yes">✓ {rating.strengths}</p>}
+                          {rating.gaps && <p className="risk">△ {rating.gaps}</p>}
+                        </div>
                       </div>
                     </td>
                   </tr>
