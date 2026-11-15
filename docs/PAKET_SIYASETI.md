@@ -1,6 +1,6 @@
 # JobMatch paket siyasəti (AI xərci və qazanc)
 
-**Status:** yalnız siyasətdir, proqramda **hələ tətbiq olunmayıb**. Təsdiq edilmiş variant: Standart şirkət paketi **239 ₼ = 5 000 tam CV analizi + 20 000 AI sıralaması** (Variant B).
+**Status:** yalnız siyasətdir, proqramda **hələ tətbiq olunmayıb**. Şirkət paketləri dörddür: Başlanğıc 49 ₼, **Standart 149 ₼** (2 800 tam analiz + 17 000 sıralama), **Peşəkar 239 ₼** (5 000 tam analiz + 20 000 sıralama) və Böyük 399 ₼.
 Tarix: 2026-11-15.
 
 ## 1. Əsas qaydalar
@@ -34,11 +34,12 @@ AI xərcinə ayrılan pay: `qiymət × (0,7975 − net qazanc hədəfi)`. Yəni 
 | Paket | Aylıq haqq | Tam CV analizi | AI sıralaması | AI xərci (ən pis) | Net qazanc (ən pis) |
 |---|---|---|---|---|---|
 | **Başlanğıc** | 49 ₼ | 650 | 4 000 | 18,9 ₼ | **20,2 ₼ (41%)** |
-| **Standart** | **239 ₼** | **5 000** | **20 000** | 130,6 ₼ | **60,0 ₼ (25%)** |
+| **Standart** | **149 ₼** | 2 800 | 17 000 | 81,0 ₼ | **37,8 ₼ (25%)** |
+| **Peşəkar** | **239 ₼** | **5 000** | **20 000** | 130,6 ₼ | **60,0 ₼ (25%)** |
 | **Böyük** | 399 ₼ | 8 200 | 49 000 | 236,1 ₼ | **82,1 ₼ (21%)** |
 
 Qeydlər:
-- Standart üçün seçim: 149 ₼ qiymətlə 5 000 tam analizi yalnız OpenAI ilə vermək marjanı 10%-ə salırdı. 239 ₼ bunu 25%-də saxlayır.
+- 149 ₼ qiymətlə 5 000 tam analizi yalnız OpenAI ilə vermək marjanı 10%-ə salırdı. Ona görə 149 ₼ paketdə 2 800 analiz verilir, 5 000 analiz isə yeni **Peşəkar (239 ₼)** paketdədir. Hər iki paket 25% net qazanc hədəfinə uyğundur.
 - Bütün şirkət paketlərində sıralama sayı tam analizin təxminən 4–6 mislidir.
 
 ## 4. Namizəd (fərdi) paketləri
