@@ -2063,10 +2063,16 @@ async function route(request: Request) {
   // The application follows what happens to it (an interview falls through, a «reject» opinion, a new application is opened).
   const syncApplicationStatus = async (applicationId: string, event: ApplicationFlowEvent, actorId: string, actorRole: string) => {
     const app = await db
-      .prepare("SELECT a.status,a.candidate_id,j.title,j.owner FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=?")
+      .prepare("SELECT a.status,a.candidate_id,j.data FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=?")
       .bind(applicationId)
-      .first<{ status: string; candidate_id: string; title: string; owner: string }>();
+      .first<{ status: string; candidate_id: string; data: string }>();
     if (!app) return;
+    let jobTitle = "";
+    try {
+      jobTitle = String(JSON.parse(app.data)?.title || "");
+    } catch {
+      jobTitle = "";
+    }
     const interviews = (await db.prepare("SELECT status FROM interviews WHERE application_id=?").bind(applicationId).all<{ status: string }>()).results;
     const pendingOffer = !!(await db.prepare("SELECT 1 AS x FROM offers WHERE application_id=? AND status='sent'").bind(applicationId).first().catch(() => null));
     const target = statusAfter(event, app.status, {
@@ -2077,7 +2083,7 @@ async function route(request: Request) {
     if (!target) return;
     await db.prepare("UPDATE applications SET status=?,stage='',updated=? WHERE id=?").bind(target, new Date().toISOString(), applicationId).run();
     await recordApplicationEvent(db, { applicationId, actorId, actorRole, type: "status", from: app.status, to: target, note: "avtomatik" });
-    await notify(db, { userId: app.candidate_id, type: "application-status", title: `${app.title}: ${target}`, body: `Müraciətinizin statusu avtomatik yeniləndi: ${target}.`, link: "applications" }).catch(() => undefined);
+    await notify(db, { userId: app.candidate_id, type: "application-status", title: `${jobTitle}: ${target}`, body: `Müraciətinizin statusu avtomatik yeniləndi: ${target}.`, link: "applications" }).catch(() => undefined);
   };
   // A notification for the employee's own account, when the employee record is linked to one.
   const tellEmployee = async (employeeId: string, title: string, body: string) => {
@@ -23222,11 +23228,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     const applicationId = str(b.id, 100);
     const own = await db.prepare("SELECT 1 FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND j.owner=?").bind(applicationId, id).first();
     if (!own) throw new HttpError(404, "Müraciət tapılmadı.");
-    try {
-      await syncApplicationStatus(applicationId, "viewed", userId, "company");
-    } catch (error) {
-      throw new HttpError(500, `DEBUG: ${(error as Error).message}`);
-    }
+    await syncApplicationStatus(applicationId, "viewed", userId, "company");
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "hr/application-events") {
