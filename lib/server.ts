@@ -1,3 +1,6 @@
+import { latestSubscription } from "./plan-service.ts";
+import { effectivePlan } from "./plans.ts";
+import { monthPeriodKey, tokenVerdict, tokensOfChars, windowKey, windowResetAt } from "./ai-tokens.ts";
 import { env } from "cloudflare:workers";
 import {
   AUTO_APPLY_FLOOR,
@@ -423,6 +426,51 @@ async function assertAiBudget(feature = "") {
   const area = aiAreaOf(feature);
   if ((area === "cv" || area === "vacancy") && budgetCheck.areas[area]) throw new HttpError(402, `${AI_AREA_LABEL[area]} üçün AI-nin aylıq xərc limiti dolub. Qaydalarla hesablanmış nəticə göstərilir; limiti administrator dəyişə bilər.`);
 }
+// The AI allowance of a candidate package: tokens that start again every 5 hours and a ceiling for the month. It counts only when the
+// package limits are switched on (BILLING_ENFORCED=1) and only for the candidate's own AI work (the CV side).
+async function assertUserTokens(user: string, feature: string) {
+  if (!user || runtime().BILLING_ENFORCED !== "1" || aiAreaOf(feature) !== "cv") return;
+  try {
+    const db = await store();
+    const account = await db.prepare("SELECT COALESCE(role,'candidate') AS role FROM accounts WHERE id=?").bind(user).first<{ role: string }>();
+    if (!account || account.role !== "candidate") return;
+    const plan = effectivePlan(await latestSubscription(db, user));
+    const now = new Date();
+    const rows = await db
+      .prepare("SELECT period,tokens FROM ai_token_usage WHERE user_id=? AND period IN (?,?)")
+      .bind(user, windowKey(now), monthPeriodKey(now))
+      .all<{ period: string; tokens: number }>();
+    const used = { window: rows.results.find((r) => r.period === windowKey(now))?.tokens || 0, month: rows.results.find((r) => r.period === monthPeriodKey(now))?.tokens || 0 };
+    const verdict = tokenVerdict({ window: plan.limits.aiTokensWindow, month: plan.limits.aiTokensMonth }, used, now);
+    if (!verdict.ok) {
+      const minutes = Math.max(1, Math.ceil((Date.parse(verdict.resetAt) - now.getTime()) / 60000));
+      throw new HttpError(
+        429,
+        verdict.reason === "window"
+          ? `Bu 5 saatlıq AI limitiniz dolub. ${Math.floor(minutes / 60)} saat ${minutes % 60} dəqiqədən sonra yenilənəcək. Qaydalara əsaslanan qiymətləndirmə davam edir.`
+          : `Bu ayki AI limitiniz dolub. Limit ayın əvvəlində yenilənir; daha çox imkan üçün paketinizi yüksəldin.`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    // The counting table may not be migrated yet: the AI then works as before.
+  }
+}
+async function addUserTokens(user: string, feature: string, chars: number) {
+  if (!user || runtime().BILLING_ENFORCED !== "1" || aiAreaOf(feature) !== "cv" || chars <= 0) return;
+  try {
+    const db = await store();
+    const now = new Date();
+    const tokens = tokensOfChars(chars);
+    await db.batch(
+      [windowKey(now), monthPeriodKey(now)].map((period) =>
+        db.prepare("INSERT INTO ai_token_usage(user_id,period,tokens) VALUES(?,?,?) ON CONFLICT(user_id,period) DO UPDATE SET tokens=tokens+excluded.tokens").bind(user, period, tokens),
+      ),
+    );
+  } catch {
+    // Counting is best-effort.
+  }
+}
 // Whether the provider answers, kept for the admin; written only when it changes
 // (and at most once an hour while it stays broken).
 let healthState: "unknown" | "ok" | AiFailure = "unknown";
@@ -469,6 +517,7 @@ export async function aiText(
   if (provider === "openai" && !settings.OPENAI_API_KEY)
     return aiTextRaw(instructions, input, json, limits);
   await assertAiBudget(limits.feature || "");
+  await assertUserTokens(limits.user || "", limits.feature || "");
   const base = {
     feature: limits.feature || "other",
     provider,
@@ -480,6 +529,7 @@ export async function aiText(
   try {
     const text = await aiTextRaw(instructions, input, json, limits);
     await recordAiUsage({ ...base, charsOut: text?.length || 0, error: false });
+    await addUserTokens(limits.user || "", limits.feature || "", base.charsIn + (text?.length || 0));
     await noteAiHealth("ok");
     return text;
   } catch (error) {

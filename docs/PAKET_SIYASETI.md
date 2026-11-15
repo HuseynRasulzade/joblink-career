@@ -1,6 +1,6 @@
 # JobMatch paket siyasəti (AI xərci və qazanc)
 
-**Status:** yalnız siyasətdir, proqramda **hələ tətbiq olunmayıb**. Şirkət paketləri dörddür: Başlanğıc 49 ₼, **Standart 149 ₼** (2 800 tam analiz + 17 000 sıralama), **Peşəkar 239 ₼** (5 000 tam analiz + 20 000 sıralama) və Böyük 399 ₼.
+**Status:** proqramda **tətbiq olunub** (şirkət paketləri və kvotalar `lib/ai-packages.ts`, namizəd token balansı `lib/ai-tokens.ts` + `lib/plans.ts`). Namizəd token limitləri yalnız `BILLING_ENFORCED=1` olanda işləyir. Şirkət paketləri dörddür: Başlanğıc 49 ₼, **Standart 149 ₼** (2 800 tam analiz + 17 000 sıralama), **Peşəkar 239 ₼** (5 000 tam analiz + 20 000 sıralama) və Böyük 399 ₼.
 Tarix: 2026-11-15.
 
 ## 1. Əsas qaydalar
@@ -65,13 +65,11 @@ Namizəd paketlərində «tam analiz» namizədin öz CV-sinin vakansiyalara uy�
 4. **Admin paneldə** hər hesabın istifadəsi, xərci və qazancı görünür (mövcud AI büdcə səhifəsinin genişlənməsi kimi).
 5. **Provayder dayansa:** zəncir yerli model → DeepSeek → qaydalar (hələ qurulmayıb).
 
-## 6. Proqramda nələr hələ yoxdur (tətbiq olunmalı)
+## 6. Proqramda necə tətbiq olunub
 
-- Aylıq kvota sayğacı (tam analiz və sıralama ayrı), kabinetdə «Qalan: N / M» və yenilənmə tarixi.
-- 5 saatlıq pəncərə və aylıq tavan (namizəd paketləri).
-- Paketin dəyişdirilməsi və ödənişlə əlaqə (mövcud abunə səhifəsində).
-- Admin hesabatı: paketlər üzrə gəlir, AI xərci, net qazanc.
-- Şirkət tərəfi üçün «AI sıralaması» və «seçilənlərin tam analizi» artıq proqramdadır, amma **kvota ilə bağlanmayıb**.
+- **Şirkət:** aylıq kvota (tam analiz və sıralama ayrı), HR səhifəsində «qalan» göstəricisi, adminin hər şirkətə paketi təyin etməsi (Admin → Şirkət AI paketləri). Mövcud şirkətlər Peşəkar kvotası ilə davam edir; yeni şirkət «Pulsuz» paketlə başlayır.
+- **Namizəd:** hər paketin 5 saatlıq token balansı və aylıq tavanı; Paketlər səhifəsində «AI limitiniz» bloku. Premium (19 ₼) yeni paket kimi əlavə olunub.
+- **Hələ yoxdur:** ödəniş ilə şirkət paketinin avtomatik alınması (hazırda admin təyin edir), admin hesabatında paketlər üzrə gəlir və net qazanc, ucuz model marşrutu və yerli model.
 
 ## 7. Açıq suallar
 

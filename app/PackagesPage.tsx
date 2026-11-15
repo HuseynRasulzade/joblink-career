@@ -10,6 +10,7 @@ type Method = { id: string; brand: string; last4: string; expMonth: number; expY
 type Usage = { used: number; limit: number };
 type PlanMe = {
   enforced: boolean;
+  aiTokens?: { window: number; month: number; windowTotal: number; monthTotal: number; windowResetAt: string; monthResetAt: string };
   provider: string;
   plans: Plan[];
   plan: string;
@@ -103,6 +104,22 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
         {data.provider === "mock" && "Ödəniş test rejimindədir, real vəsait tutulmur və real kart nömrəsi yazmamalısınız."}
       </p>
 
+      {data.aiTokens && (
+        <section className="panel ai-balance">
+          <h3>AI limitiniz</h3>
+          <p>
+            <b>5 saatlıq balans:</b> {data.aiTokens.window.toLocaleString("az-AZ")} / {data.aiTokens.windowTotal.toLocaleString("az-AZ")} token
+            <span className="muted"> · yenilənir: {new Date(data.aiTokens.windowResetAt).toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" })}</span>
+          </p>
+          <progress max={data.aiTokens.windowTotal} value={data.aiTokens.window} aria-label="5 saatlıq AI balansı" />
+          <p>
+            <b>Bu ay qalıb:</b> {data.aiTokens.month.toLocaleString("az-AZ")} / {data.aiTokens.monthTotal.toLocaleString("az-AZ")} token
+            <span className="muted"> · yenilənir: {day(data.aiTokens.monthResetAt)}</span>
+          </p>
+          <progress max={data.aiTokens.monthTotal} value={data.aiTokens.month} aria-label="Aylıq AI balansı" />
+          <small className="muted">Təxminən 3 800 token bir tam CV analizidir. Yaddaşdan gələn (dəyişməyən CV) nəticə token çəkmir.</small>
+        </section>
+      )}
       <section className="panel">
         <h3>Cari paket: {current.name}</h3>
         {sub ? (

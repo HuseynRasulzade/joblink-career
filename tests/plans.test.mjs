@@ -5,12 +5,13 @@ import { FREE_PLAN, PLANS, addPeriod, dueForRenewal, effectivePlan, planById } f
 import { cardBrand, cardLabel, luhn, mockProvider, parseCard, providerFor } from "../lib/payments.ts";
 
 test("the catalog matches the agreed packages", () => {
-  assert.deepEqual(PLANS.map((p) => [p.id, p.priceAzn]), [["free", 0], ["basic", 3], ["plus-5", 5], ["plus-7", 7], ["plus-10", 10]]);
-  assert.deepEqual(PLANS.map((p) => p.limits.aiApplyPerDay), [0, 0, 5, 5, 20]);
-  assert.deepEqual(PLANS.map((p) => p.limits.cvAnalysesPerDay), [0, 0, 1, 5, 20]);
-  assert.deepEqual(PLANS.map((p) => p.limits.cvFixesPerDay), [0, 0, 1, 5, 10]);
-  assert.equal(PLANS.find((p) => p.id === "basic").limits.aiAccess, false);
-  assert.ok(PLANS.filter((p) => p.id.startsWith("plus")).every((p) => p.limits.aiAccess));
+  assert.deepEqual(PLANS.map((p) => [p.id, p.priceAzn]), [["free", 0], ["basic", 3], ["plus-5", 5], ["plus-7", 7], ["plus-10", 10], ["premium", 19]]);
+  assert.deepEqual(PLANS.map((p) => p.limits.aiApplyPerDay), [0, 0, 5, 5, 20, 30]);
+  assert.deepEqual(PLANS.map((p) => p.limits.cvAnalysesPerDay), [1, 2, 1, 5, 20, 30]);
+  assert.deepEqual(PLANS.map((p) => p.limits.cvFixesPerDay), [0, 1, 1, 5, 10, 15]);
+  // The small packages now carry a little AI too (a token balance of their own), so every package has AI access.
+  assert.ok(PLANS.every((p) => p.limits.aiAccess));
+  assert.ok(PLANS.filter((p) => p.id.startsWith("plus") || p.id === "premium").every((p) => p.limits.aiAccess));
   assert.equal(planById("nope"), null);
 });
 

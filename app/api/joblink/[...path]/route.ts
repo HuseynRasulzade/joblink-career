@@ -379,6 +379,7 @@ import { parseEmployeeRows, parseStaffRows } from "@/lib/staff-import";
 import { pickSigners, sameName } from "@/lib/order-signers";
 import { DOC_KINDS, normalizeDocType } from "@/lib/employee-docs";
 import { ORDER_KINDS, signedOrderNotice } from "@/lib/orders";
+import { monthPeriodKey, tokensLeft, windowKey, windowResetAt, monthStartNext } from "@/lib/ai-tokens";
 import { generatePublicCode, formatPublicCode, normalizePublicCode } from "@/lib/public-code";
 import { COMPANY_AI_PACKAGES, packageById, monthKey, quotaLeft, worstCaseNetShare } from "@/lib/ai-packages";
 import { completePastInterviews } from "@/lib/interview-auto";
@@ -17381,7 +17382,26 @@ async function route(request: Request) {
       )
       .bind(id)
       .all();
+    // The AI allowance: tokens left in this 5-hour balance and in the month.
+    const nowAt = new Date();
+    const tokenRows = await db
+      .prepare("SELECT period,tokens FROM ai_token_usage WHERE user_id=? AND period IN (?,?)")
+      .bind(id, windowKey(nowAt), monthPeriodKey(nowAt))
+      .all<{ period: string; tokens: number }>()
+      .catch(() => ({ results: [] as { period: string; tokens: number }[] }));
+    const tokensUsed = {
+      window: tokenRows.results.find((r) => r.period === windowKey(nowAt))?.tokens || 0,
+      month: tokenRows.results.find((r) => r.period === monthPeriodKey(nowAt))?.tokens || 0,
+    };
+    const tokenLimits = { window: plan.limits.aiTokensWindow, month: plan.limits.aiTokensMonth };
     return ok({
+      aiTokens: {
+        ...tokensLeft(tokenLimits, tokensUsed),
+        windowTotal: tokenLimits.window,
+        monthTotal: tokenLimits.month,
+        windowResetAt: windowResetAt(nowAt),
+        monthResetAt: monthStartNext(nowAt),
+      },
       enforced: billingEnforced,
       provider: paymentProvider?.name || "",
       plans: PLANS,
