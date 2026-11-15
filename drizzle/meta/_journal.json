@@ -785,6 +785,13 @@
       "when": 1800558000000,
       "tag": "0111_public_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "6",
+      "when": 1800644400000,
+      "tag": "0112_company_ai_plans",
+      "breakpoints": true
     }
   ]
 }

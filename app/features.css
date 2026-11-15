@@ -6749,3 +6749,4 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
 .code-find { display: grid; gap: 6px; margin-bottom: 10px; }
 .code-find input { width: 100%; }
 .code-find .error-text { color: #a63d2f; }
+.ai-quota { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; padding: 8px 12px; border-radius: 10px; background: #eef5f2; font-size: 13px; }

@@ -172,6 +172,13 @@ export default function HrPanel({
   // Step 1 (cheap): the AI's number for every applicant of the chosen vacancy. Step 2: the full analysis of the picked ones only.
   const [lite, setLite] = useState<{ jobId: string; items: Record<string, number> } | null>(null);
   const [liteBusy, setLiteBusy] = useState(false);
+  // The employer's AI package and what is left of it this month.
+  const [aiPlan, setAiPlan] = useState<{ name: string; fullLeft: number; fullTotal: number; rankLeft: number; rankTotal: number } | null>(null);
+  const loadAiPlan = () =>
+    api("company/ai-plan")
+      .then((d: { current: { name: string; fullPerMonth: number; rankPerMonth: number }; left: { full: number; rank: number } }) =>
+        setAiPlan({ name: d.current.name, fullLeft: d.left.full, fullTotal: d.current.fullPerMonth, rankLeft: d.left.rank, rankTotal: d.current.rankPerMonth }))
+      .catch(() => undefined);
   const [applicantsView, setApplicantsView] = useState<"board" | "list">("list");
   const [offers, setOffers] = useState<Record<string, Offer>>({});
   const [testResults, setTestResults] = useState<Record<string, { state: string; percent: number | null }>>({});
@@ -432,6 +439,10 @@ export default function HrPanel({
   }
   // The candidates are judged by the platform's own code (rules). The AI analysis is only calculated when the employer asks for it
   // with the button; the result is kept, so the candidates that did not change are not analysed again.
+  useEffect(() => {
+    if (!demo && tab === "Müraciət edənlər") void loadAiPlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, demo]);
   async function rankLite() {
     if (!selectedJob || demo) return;
     setLiteBusy(true);
@@ -441,7 +452,9 @@ export default function HrPanel({
       for (const r of data.ratings as { candidateId: string; liteScore: number | null }[]) if (r.liteScore !== null) items[r.candidateId] = r.liteScore;
       setLite({ jobId: selectedJob.id, items });
       if (data.source === "rules") notify("AI qiymətləndirmə administrator tərəfindən söndürülüb, qaydalarla hesablanmış bal göstərilir.");
+      else if (data.quotaCut) notify("Aylıq AI sıralama kvotası bitdi: qalan namizədlər qaydalarla qiymətləndirilir. Daha yüksək paket seçə bilərsiniz.");
       else notify("AI bütün müraciət edənləri sıraladı. İndi dərin analiz üçün namizədləri seçin.");
+      void loadAiPlan();
     } catch (e) {
       notify((e as Error).message);
     } finally {
@@ -470,7 +483,9 @@ export default function HrPanel({
         show(data.ratings as Rating[]);
       }
       if (data.source === "rules") notify("AI qiymətləndirmə administrator tərəfindən söndürülüb, qaydalarla hesablanmış bal göstərilir.");
+      else if (data.quotaCut) notify("Aylıq tam analiz kvotası bitdi: qalan namizədlər üçün AI analizi aparılmadı. Daha yüksək paket seçə bilərsiniz.");
       else if (!silent) notify(`AI seçilmiş ${ids.length} namizədi tam analiz etdi.`);
+      void loadAiPlan();
       setAiDown("");
     } catch (e) {
       if (silent) setAiDown((e as Error).message);
@@ -1181,6 +1196,14 @@ export default function HrPanel({
                 };
                 return (
                   <div className="ai-steps">
+                    {aiPlan && (
+                      <div className="ai-quota">
+                        <b>Paketiniz: {aiPlan.name}</b>
+                        <span>tam analiz: <b>{aiPlan.fullLeft}</b> / {aiPlan.fullTotal}</span>
+                        <span>AI sıralaması: <b>{aiPlan.rankLeft}</b> / {aiPlan.rankTotal}</span>
+                        <small className="muted">(bu ay qalan)</small>
+                      </div>
+                    )}
                     <div>
                       <b>1.</b>
                       <button className="secondary" disabled={liteBusy || !mine.length} onClick={() => void rankLite()}>

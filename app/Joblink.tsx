@@ -192,6 +192,7 @@ const adminNav = [
   { id: "admin-catalog-check", label: "Kataloq yoxlaması", icon: ListChecks },
   { id: "admin-matching", label: "Uyğunluq balı", icon: Sparkles },
   { id: "admin-calendar", label: "İstehsalat təqvimi", icon: CalendarDays },
+  { id: "admin-company-ai", label: "İşəgötürən AI paketləri", icon: CreditCard },
   { id: "admin-support", label: "Sorğular və mesajlar", icon: Inbox },
   { id: "admin-reviews", label: "Şirkət rəyləri", icon: UserCheck },
   { id: "admin-ai-usage", label: "AI istifadə və xərc", icon: Sparkles },

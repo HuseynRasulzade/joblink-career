@@ -380,6 +380,7 @@ import { pickSigners, sameName } from "@/lib/order-signers";
 import { DOC_KINDS, normalizeDocType } from "@/lib/employee-docs";
 import { ORDER_KINDS, signedOrderNotice } from "@/lib/orders";
 import { generatePublicCode, formatPublicCode, normalizePublicCode } from "@/lib/public-code";
+import { COMPANY_AI_PACKAGES, packageById, monthKey, quotaLeft, worstCaseNetShare } from "@/lib/ai-packages";
 import { completePastInterviews } from "@/lib/interview-auto";
 import { statusAfter, type ApplicationFlowEvent } from "@/lib/application-flow";
 import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, knownReligiousYears, setPlatformCalendar, platformCalendar, PLATFORM_KINDS, type PlatformDay, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
@@ -2062,6 +2063,29 @@ async function route(request: Request) {
         .bind(userId)
         .first<{ name: string }>()
     )?.name || "";
+  // The employer's AI package and what is left of it this month (full analyses and cheap rankings).
+  const aiQuota = async () => {
+    const plan = await db.prepare("SELECT plan_id FROM company_ai_plans WHERE company_id=?").bind(id).first<{ plan_id: string }>().catch(() => null);
+    const pkg = packageById(plan?.plan_id || "free");
+    const row = await db
+      .prepare("SELECT full_used,rank_used FROM company_ai_usage WHERE company_id=? AND month=?")
+      .bind(id, monthKey())
+      .first<{ full_used: number; rank_used: number }>()
+      .catch(() => null);
+    const used = { full: row?.full_used || 0, rank: row?.rank_used || 0 };
+    return { pkg, used, left: quotaLeft(pkg, used) };
+  };
+  const chargeAi = async (kind: "full" | "rank", count: number) => {
+    if (count <= 0) return;
+    await db
+      .prepare(
+        `INSERT INTO company_ai_usage(company_id,month,full_used,rank_used) VALUES(?,?,?,?)
+         ON CONFLICT(company_id,month) DO UPDATE SET full_used=full_used+excluded.full_used,rank_used=rank_used+excluded.rank_used`,
+      )
+      .bind(id, monthKey(), kind === "full" ? count : 0, kind === "rank" ? count : 0)
+      .run()
+      .catch(() => undefined);
+  };
   // The application follows what happens to it (an interview falls through, a «reject» opinion, a new application is opened).
   const syncApplicationStatus = async (applicationId: string, event: ApplicationFlowEvent, actorId: string, actorRole: string) => {
     const app = await db
@@ -4805,6 +4829,39 @@ async function route(request: Request) {
         )
         .run();
       return ok({ removed: removed.meta?.changes || 0 });
+    }
+    // The employers' AI packages: which package each company has and how much of it was used this month.
+    if (path === "admin/company-ai-plans") {
+      if (request.method === "POST") {
+        const body = await jsonBody(request);
+        const companyId = str(body.companyId, 100);
+        const planId = str(body.planId, 20);
+        if (!COMPANY_AI_PACKAGES.some((p) => p.id === planId)) throw new HttpError(400, "Paket düzgün deyil.");
+        const company = await db.prepare("SELECT id FROM accounts WHERE id=? AND role='company'").bind(companyId).first();
+        if (!company) throw new HttpError(404, "Şirkət tapılmadı.");
+        const at = new Date().toISOString();
+        await db
+          .prepare("INSERT INTO company_ai_plans(company_id,plan_id,started,updated) VALUES(?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET plan_id=excluded.plan_id,updated=excluded.updated")
+          .bind(companyId, planId, at, at)
+          .run();
+        await db
+          .prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), id, "company-ai-plan", "company", companyId, JSON.stringify({ planId }), at)
+          .run();
+      }
+      const rows = await db
+        .prepare(
+          `SELECT a.id,a.name,a.created,COALESCE(p.plan_id,'free') AS plan_id,COALESCE(u.full_used,0) AS full_used,COALESCE(u.rank_used,0) AS rank_used
+           FROM accounts a LEFT JOIN company_ai_plans p ON p.company_id=a.id LEFT JOIN company_ai_usage u ON u.company_id=a.id AND u.month=?
+           WHERE a.role='company' ORDER BY a.created DESC LIMIT 300`,
+        )
+        .bind(monthKey())
+        .all<{ id: string; name: string; created: string; plan_id: string; full_used: number; rank_used: number }>();
+      return ok({
+        month: monthKey(),
+        packages: COMPANY_AI_PACKAGES.map((p) => ({ ...p, worstNetShare: Math.round(worstCaseNetShare(p) * 1000) / 1000 })),
+        companies: rows.results,
+      });
     }
     // The production calendar of the platform: what the admin changes here applies to every company
     // (new year's religious holidays, a working Saturday, a cancelled or an added holiday).
@@ -19693,7 +19750,12 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       } catch {
         // Cache table not migrated yet.
       }
-      const todo = compact.map((_, index) => index).filter((index) => !liteStored.has(index)).slice(0, 200);
+      const quota = await aiQuota();
+      const needed = compact.map((_, index) => index).filter((index) => !liteStored.has(index));
+      if (needed.length && quota.left.rank === 0)
+        throw new HttpError(402, `Bu ayın AI sıralama kvotası bitib (${quota.pkg.name} paketi: ${quota.pkg.rankPerMonth} sıralama). Daha yüksək paketə keçin və ya gələn ayı gözləyin; qaydalarla sıralama pulsuz davam edir.`);
+      const todo = needed.slice(0, Math.min(200, quota.left.rank));
+      await chargeAi("rank", todo.length);
       const liteChunks: number[][] = [];
       for (let at = 0; at < todo.length; at += 40) liteChunks.push(todo.slice(at, at + 40));
       const liteInstructions =
@@ -19734,6 +19796,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       }
       return ok({
         mode: "lite",
+        quotaCut: needed.length > todo.length,
+        quota: { plan: quota.pkg.name, rankLeft: Math.max(0, quota.left.rank - todo.length), fullLeft: quota.left.full },
         total: compact.length,
         fromMemory: compact.length - todo.length,
         ratings: ranked
@@ -19829,8 +19893,15 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         .catch(() => undefined);
     // A long list is judged in waves (96 new candidates per request); what is done stays saved, and the page asks again for the rest.
     const WAVE = 96;
-    const missing = missingAll.slice(0, WAVE);
-    const pending = missingAll.length - missing.length;
+    const quota = await aiQuota();
+    if (missingAll.length && quota.left.full === 0)
+      throw new HttpError(402, `Bu ayın tam analiz kvotası bitib (${quota.pkg.name} paketi: ${quota.pkg.fullPerMonth} analiz). Daha yüksək paketə keçin və ya gələn ayı gözləyin; qaydalarla qiymətləndirmə pulsuz davam edir.`);
+    const allowedNow = Math.min(WAVE, quota.left.full);
+    const missing = missingAll.slice(0, allowedNow);
+    // What the package does not cover is not asked for again and again: the page stops at the quota.
+    const quotaCut = missingAll.length > missing.length && missing.length === quota.left.full;
+    const pending = quotaCut ? 0 : missingAll.length - missing.length;
+    await chargeAi("full", missing.length);
     const vacancyPayload = {
         title: job.title,
         category: job.category,
@@ -19939,7 +20010,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .map((item, position) => ({ ...item, rank: position + 1 }));
     if (!ratings.length)
       throw new HttpError(502, "AI namizədləri qiymətləndirə bilmədi.");
-    return ok({ ratings, pending, total: anonymousAll.length, rankedTotal, topPercent: share, fromMemory: anonymousAll.length - missingAll.length });
+    return ok({ ratings, pending, quotaCut, quota: { plan: quota.pkg.name, fullLeft: Math.max(0, quota.left.full - missing.length), rankLeft: quota.left.rank }, total: anonymousAll.length, rankedTotal, topPercent: share, fromMemory: anonymousAll.length - missingAll.length });
   }
   // An employer's verdict on an AI evaluation: right or wrong, and what it should have been.
   if (request.method === "GET" && path === "hr/ai-feedback") {
@@ -23298,6 +23369,17 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     if (!own) throw new HttpError(404, "Müraciət tapılmadı.");
     await syncApplicationStatus(applicationId, "viewed", userId, "company");
     return ok({ ok: true });
+  }
+  // The employer's AI package, what is left of it this month and the packages one can move to.
+  if (request.method === "GET" && path === "company/ai-plan") {
+    const quota = await aiQuota();
+    return ok({
+      current: quota.pkg,
+      used: quota.used,
+      left: quota.left,
+      month: monthKey(),
+      packages: COMPANY_AI_PACKAGES,
+    });
   }
   if (request.method === "GET" && path === "hr/application-events") {
     const applicationId = str(requestUrl.searchParams.get("id"), 100);
