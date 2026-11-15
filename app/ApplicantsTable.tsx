@@ -27,6 +27,7 @@ export default function ApplicantsTable({
   rows,
   fits,
   ai,
+  lite = {},
   statuses,
   withdrawn,
   disabled,
@@ -40,6 +41,8 @@ export default function ApplicantsTable({
   rows: Application[];
   fits: Record<string, ApplicantFit>;
   ai: Record<string, ApplicantAi>;
+  // The cheap AI ranking of the first step: a number per application.
+  lite?: Record<string, number>;
   statuses: string[];
   withdrawn: string;
   disabled: boolean;
@@ -53,7 +56,7 @@ export default function ApplicantsTable({
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "fit", dir: -1 });
   const [open, setOpen] = useState<string[]>([]);
   const box = useRef<HTMLDivElement>(null);
-  const scoreOf = (a: Application) => ai[a.id]?.score ?? fits[a.id]?.score ?? 0;
+  const scoreOf = (a: Application) => ai[a.id]?.score ?? lite[a.id] ?? fits[a.id]?.score ?? 0;
   const sorted = useMemo(() => {
     const value = (a: Application): string | number =>
       sort.key === "name" ? a.profile.name.toLocaleLowerCase("az") : sort.key === "date" ? a.created : sort.key === "status" ? statuses.indexOf(a.status) : scoreOf(a);
@@ -63,7 +66,7 @@ export default function ApplicantsTable({
       return (x < y ? -1 : x > y ? 1 : 0) * sort.dir;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, sort, fits, ai, statuses]);
+  }, [rows, sort, fits, ai, lite, statuses]);
   const ids = sorted.filter((a) => a.status !== withdrawn).map((a) => a.id);
   const allPicked = ids.length > 0 && ids.every((id) => picked.includes(id));
   const head = (key: SortKey, label: string) => (
@@ -130,6 +133,7 @@ export default function ApplicantsTable({
                           <i className={`band-${fit.band}`} style={{ width: `${Math.min(100, fit.score)}%` }} />
                         </span>
                         <b>{fit.score}%</b>
+                        {lite[a.id] !== undefined && !rating && <span className="apt-ai lite">AI sıra {lite[a.id]}</span>}
                         {rating && <span className={`apt-ai ${rating.recommendation}`}>AI {rating.score}% · {AI_WORD[rating.recommendation] || "Nəzərə al"}</span>}
                       </button>
                     ) : (

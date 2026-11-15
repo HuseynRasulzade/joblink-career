@@ -169,8 +169,9 @@ export default function HrPanel({
     items: Record<string, { score: number; aiScore?: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }>;
   } | null>(null);
   const [aiRanking, setAiRanking] = useState(false);
-  // The share of the applicants (the best by the platform's own rules) that the AI analyses.
-  const [aiShare, setAiShare] = useState(20);
+  // Step 1 (cheap): the AI's number for every applicant of the chosen vacancy. Step 2: the full analysis of the picked ones only.
+  const [lite, setLite] = useState<{ jobId: string; items: Record<string, number> } | null>(null);
+  const [liteBusy, setLiteBusy] = useState(false);
   const [applicantsView, setApplicantsView] = useState<"board" | "list">("list");
   const [offers, setOffers] = useState<Record<string, Offer>>({});
   const [testResults, setTestResults] = useState<Record<string, { state: string; percent: number | null }>>({});
@@ -426,25 +427,47 @@ export default function HrPanel({
   }
   // The candidates are judged by the platform's own code (rules). The AI analysis is only calculated when the employer asks for it
   // with the button; the result is kept, so the candidates that did not change are not analysed again.
+  async function rankLite() {
+    if (!selectedJob || demo) return;
+    setLiteBusy(true);
+    try {
+      const data = await api("hr/rank-candidates", { jobId: selectedJob.id, language, applicantsOnly: true, mode: "lite" });
+      const items: Record<string, number> = {};
+      for (const r of data.ratings as { candidateId: string; liteScore: number | null }[]) if (r.liteScore !== null) items[r.candidateId] = r.liteScore;
+      setLite({ jobId: selectedJob.id, items });
+      if (data.source === "rules") notify("AI qiymətləndirmə administrator tərəfindən söndürülüb, qaydalarla hesablanmış bal göstərilir.");
+      else notify("AI bütün müraciət edənləri sıraladı. İndi dərin analiz üçün namizədləri seçin.");
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setLiteBusy(false);
+    }
+  }
+  // The full analysis: only the applicants that were picked in the table.
   async function rankWithAi(silent = false) {
     if (!selectedJob || demo) return;
+    const ids = pick
+      .filter((k) => k.startsWith("a:"))
+      .map((k) => applications.find((a) => a.id === k.slice(2))?.candidateId)
+      .filter((x): x is string => !!x);
+    if (!ids.length) return notify("Əvvəl cədvəldə dərin analiz üçün namizədləri seçin.");
     setAiRanking(true);
     try {
       type Rating = { candidateId: string; score: number; aiScore?: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string };
       // A long list is judged in waves; every wave is saved, so the page just asks again until nothing is left.
-      const ask = () => api("hr/rank-candidates", { jobId: selectedJob.id, language, applicantsOnly: true, topPercent: aiShare });
+      const ask = () => api("hr/rank-candidates", { jobId: selectedJob.id, language, applicantsOnly: true, candidateIds: ids });
       let data = await ask();
-      const show = (list: Rating[]) => setAiRatings({ jobId: selectedJob.id, items: Object.fromEntries(list.map((r) => [r.candidateId, r])) });
+      const show = (list: Rating[]) =>
+        setAiRatings((prev) => ({ jobId: selectedJob.id, items: { ...(prev?.jobId === selectedJob.id ? prev.items : {}), ...Object.fromEntries(list.map((r) => [r.candidateId, r])) } }));
       show(data.ratings as Rating[]);
       for (let round = 0; round < 12 && (data.pending as number) > 0; round++) {
         data = await ask();
         show(data.ratings as Rating[]);
       }
       if (data.source === "rules") notify("AI qiymətləndirmə administrator tərəfindən söndürülüb, qaydalarla hesablanmış bal göstərilir.");
-      else if (!silent) notify("AI namizədləri qiymətləndirdi.");
+      else if (!silent) notify(`AI seçilmiş ${ids.length} namizədi tam analiz etdi.`);
       setAiDown("");
     } catch (e) {
-      // An automatic check that fails stays quiet (a note under the button); a click by the person gets the message.
       if (silent) setAiDown((e as Error).message);
       else notify((e as Error).message);
     } finally {
@@ -1143,26 +1166,41 @@ export default function HrPanel({
           {aiEnabled && !demo && selectedJob && tab === "Müraciət edənlər" && (
             <div className="hr-ai-rank">
               {(() => {
-                const total = applications.filter((a) => a.jobId === selectedJob.id && a.status !== "Geri götürülüb").length;
-                const count = Math.max(total ? 1 : 0, Math.ceil((total * aiShare) / 100));
+                const mine = applications.filter((a) => a.jobId === selectedJob.id && a.status !== "Geri götürülüb");
+                const picked = pick.filter((k) => k.startsWith("a:")).length;
+                const littleBy = (a: Application) => (a.candidateId && lite?.jobId === selectedJob.id ? lite.items[a.candidateId] : undefined) ?? fitsOnce()[a.id]?.score ?? 0;
+                const top = (n: number) => {
+                  const best = [...mine].sort((x, y) => littleBy(y) - littleBy(x)).slice(0, Math.max(1, n));
+                  setPick((list) => [...list.filter((k) => !k.startsWith("a:")), ...best.map((a) => `a:${a.id}`)]);
+                };
                 return (
-                  <>
-                    <label className="ai-share">
-                      AI yalnız ən yaxşı
-                      <select value={aiShare} disabled={aiRanking} onChange={(e) => setAiShare(Number(e.target.value))} aria-label="AI analiz payı">
-                        {[10, 20, 30, 50, 100].map((v) => <option key={v} value={v}>{v === 100 ? "hamısını" : `${v}%-i`}</option>)}
-                      </select>
-                      analiz etsin
-                    </label>
-                    <button className="secondary" disabled={aiRanking || !total} onClick={() => rankWithAi()}>
-                      <Sparkles size={15} /> {aiRanking ? "AI analiz edir…" : aiRatings?.jobId === selectedJob.id ? `AI analizini yenilə (${count} nəfər)` : `AI analizi hesabla (${count} nəfər)`}
-                    </button>
-                  </>
+                  <div className="ai-steps">
+                    <div>
+                      <b>1.</b>
+                      <button className="secondary" disabled={liteBusy || !mine.length} onClick={() => void rankLite()}>
+                        <Sparkles size={15} /> {liteBusy ? "AI sıralayır…" : lite?.jobId === selectedJob.id ? "AI sıralamasını yenilə" : "AI ilə sırala (ucuz)"}
+                      </button>
+                      <small className="muted">AI hər namizədə yalnız bir bal verir (az token), cədvəl bu sıraya düzülür.</small>
+                    </div>
+                    <div>
+                      <b>2.</b> Seç:
+                      {[3, 5, 10].map((n) => <button key={n} type="button" className="text-button" disabled={!mine.length} onClick={() => top(n)}>ən yaxşı {n}</button>)}
+                      <button type="button" className="text-button" disabled={!mine.length} onClick={() => top(Math.ceil(mine.length * 0.2))}>ən yaxşı 20%</button>
+                      <small className="muted">və ya cədvəldə özünüz işarələyin ({picked} seçilib).</small>
+                    </div>
+                    <div>
+                      <b>3.</b>
+                      <button className="primary" disabled={aiRanking || !picked} onClick={() => rankWithAi()}>
+                        <Sparkles size={15} /> {aiRanking ? "AI analiz edir…" : `Seçilənləri AI ilə tam analiz et (${picked})`}
+                      </button>
+                      <small className="muted">Ətraflı güclü və zəif tərəflər yalnız seçilənlər üçün hesablanır.</small>
+                    </div>
+                  </div>
                 );
               })()}
               {aiDown && <small className="muted">{aiDown}</small>}
               <small>
-                Namizədləri əvvəl platformanın öz qaydaları (bacarıq, təcrübə, vəzifə səviyyəsi, iş funksiyası) pulsuz sıralayır. Siz faiz seçirsiniz, AI yalnız bu sıralamanın ən yaxşı hissəsini anonim şəkildə (ad və əlaqə məlumatı olmadan) analiz edir; qalanları qaydalarla qiymətləndirilmiş qalır. Nəticə saxlanır, dəyişməyən namizəd təkrar analiz olunmur, faizi artırsanız yalnız yeni əlavə olunanlar hesablanır.
+                Namizədləri əvvəl platformanın öz qaydaları pulsuz qiymətləndirir. AI mərhələ-mərhələ işləyir: əvvəl hamını ucuz sıralayır, siz seçirsiniz, sonra yalnız seçilənlər tam analiz olunur. Nəticələr yadda saxlanır, dəyişməyən namizəd təkrar analiz olunmur. AI-yə ad və əlaqə məlumatı göndərilmir.
               </small>
             </div>
           )}
@@ -1210,6 +1248,7 @@ export default function HrPanel({
                   rows={applications.filter((a) => a.jobId === selectedJob?.id && a.profile.name.toLocaleLowerCase("az").includes(query.toLocaleLowerCase("az")))}
                   fits={fitsOnce()}
                   ai={aisOnce()}
+                  lite={Object.fromEntries(applications.filter((a) => a.jobId === selectedJob?.id && a.candidateId && lite?.jobId === selectedJob?.id && lite.items[a.candidateId] !== undefined).map((a) => [a.id, lite!.items[a.candidateId!]]))}
                   statuses={APPLICATION_STATUSES}
                   withdrawn={WITHDRAWN_STATUS}
                   disabled={demo}

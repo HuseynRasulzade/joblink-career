@@ -14,7 +14,7 @@ export const AI_AREAS = ["cv", "vacancy"] as const;
 export const AI_AREA_LABEL: Record<AiArea, string> = { cv: "CV (namizəd tərəfi)", vacancy: "Vakansiya (işəgötürən tərəfi)", other: "Digər" };
 export const AI_AREA_BUDGET_KEY: Record<"cv" | "vacancy", string> = { cv: "ai_budget_cv", vacancy: "ai_budget_vacancy" };
 const CV_FEATURES = new Set(["cv-parse", "cv-visual", "cv-audit", "cv-analysis", "cv-rewrite", "cv-fix", "profile-summary", "fit-review", "career-advice", "rank-jobs", "assistant", "auto-apply"]);
-const VACANCY_FEATURES = new Set(["vacancy-draft", "hr-rank5", "test-parse", "doc-check", "job-title-map"]);
+const VACANCY_FEATURES = new Set(["vacancy-draft", "hr-rank5", "hr-lite1", "test-parse", "doc-check", "job-title-map"]);
 // A feature name may carry a language and a version after a colon (“cv-analysis:az:4”).
 export function aiAreaOf(feature: string): AiArea {
   const name = String(feature || "").split(":")[0];

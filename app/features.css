@@ -6740,3 +6740,6 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
 @media (max-width: 1250px) { .sticky-filters .hr-filters { grid-template-columns: repeat(3, 1fr); } }
 .ai-share { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; margin-right: 10px; }
 .ai-share select { width: auto; padding: 6px 10px; }
+.ai-steps { display: grid; gap: 8px; margin: 8px 0; }
+.ai-steps > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.apt-ai.lite { background: #e8eefc; color: #3347a8; }

@@ -19588,11 +19588,88 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           recommendation: recommendationForScore(c.rule.score),
         })),
       });
-    // The rules have ranked everybody for free; the AI looks only at the best share the employer chose (10–100%), so it is not
-    // spent on the candidates the rules already put at the bottom. What was judged before stays saved and costs nothing again.
+    // Step 1, cheap: the AI only puts a number on every applicant (a few tokens each, no explanation), so the employer sees an
+    // AI ranking of the whole list for very little. Every number is kept until the candidate or the vacancy changes.
+    if (b.mode === "lite") {
+      const lang = aiLanguage(b.language);
+      const vHash = await stableHash([job.title, job.category, job.minYears, job.skills, job.requirements, job.description]);
+      const compact = ranked.map((c) => ({
+        title: c.profile.title,
+        relevantYears: c.rule.relevantYears,
+        totalYears: c.rule.experience,
+        skills: c.profile.skills.slice(0, 12),
+        provenSkills: c.rule.skillEvidence.filter((x) => x.level === "experience" || x.level === "certified").map((x) => x.skill).slice(0, 8),
+        missingSkills: c.rule.missing.slice(0, 6),
+        lastRoles: c.profile.experiences.slice(0, 2).map((e) => ({ title: e.title, duties: e.description.slice(0, 160) })),
+        knownRisks: c.rule.fit.risks.slice(0, 2),
+      }));
+      const liteKeys = await Promise.all(compact.map(async (item) => `hr-lite1:${lang}:${MATCH_VERSION}:${vHash}:${await stableHash(item)}`));
+      const liteStored = new Map<number, number>();
+      try {
+        const hits = await db
+          .prepare(`SELECT key,value FROM ai_cache WHERE key IN (${liteKeys.map(() => "?").join(",")}) AND created>=datetime('now','-400 days')`)
+          .bind(...liteKeys)
+          .all<{ key: string; value: string }>();
+        for (const hit of hits.results) liteStored.set(liteKeys.indexOf(hit.key), Number(JSON.parse(hit.value).score) || 0);
+      } catch {
+        // Cache table not migrated yet.
+      }
+      const todo = compact.map((_, index) => index).filter((index) => !liteStored.has(index)).slice(0, 200);
+      const liteChunks: number[][] = [];
+      for (let at = 0; at < todo.length; at += 40) liteChunks.push(todo.slice(at, at + 40));
+      const liteInstructions =
+        "You screen anonymous candidates for one vacancy. For each candidate give ONE number 0-100: how much of the vacancy's real MAIN work the person has actually done (the kind of work, not only the field: keeping the books is not business analysis, preparing reports is not bookkeeping), then skills proven by real work, then years and level. No explanations. Reply with JSON only: {\"scores\":[{\"ref\":\"C1\",\"score\":73}]}.";
+      const liteResults = await Promise.allSettled(
+        liteChunks.map(async (indices) => {
+          const ai = await cachedAiText(
+            `hr-lite1:${lang}:${MATCH_VERSION}`,
+            id,
+            liteInstructions,
+            JSON.stringify({
+              vacancy: { title: job.title, category: job.category, minYears: job.minYears, skills: job.skills, requirements: job.requirements.slice(0, 500), description: job.description.slice(0, 400) },
+              candidates: indices.map((index, n) => ({ ref: `C${n + 1}`, ...compact[index] })),
+            }),
+            true,
+            { maxOutputTokens: 900, timeoutMs: 60000 },
+          );
+          if (!ai.text) throw new HttpError(503, "AI bağlantısı hazır deyil.");
+          const parsed = parseAiObject(ai.text);
+          for (const item of Array.isArray(parsed?.scores) ? parsed.scores : []) {
+            const position = Number(String((item as { ref?: unknown })?.ref || "").replace(/\D/g, "")) - 1;
+            const index = indices[position];
+            if (index === undefined) continue;
+            const score = Math.max(0, Math.min(100, Math.round(Number((item as { score?: unknown }).score) || 0)));
+            liteStored.set(index, score);
+            await db
+              .prepare("INSERT OR REPLACE INTO ai_cache(key,user_id,kind,value,created) VALUES(?,?,?,?,datetime('now'))")
+              .bind(liteKeys[index], id, "hr-rank-lite", JSON.stringify({ score }))
+              .run()
+              .catch(() => undefined);
+          }
+          await ai.save();
+        }),
+      );
+      if (todo.length && !liteStored.size) {
+        const failure = liteResults.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+        throw failure?.reason instanceof Error ? failure.reason : new HttpError(503, "AI bağlantısı hazır deyil.");
+      }
+      return ok({
+        mode: "lite",
+        total: compact.length,
+        fromMemory: compact.length - todo.length,
+        ratings: ranked
+          .map((c, index) => ({ candidateId: c.id, ruleScore: c.rule.score, liteScore: liteStored.get(index) ?? null }))
+          .sort((x, y) => (y.liteScore ?? y.ruleScore) - (x.liteScore ?? x.ruleScore)),
+      });
+    }
+    // Step 2, full: only the applicants the employer picked (after seeing the ranking) are analysed in depth. What was judged
+    // before stays saved and costs nothing again. Without a list, the old share option (10–100% of the rules' ranking) applies.
     const rankedTotal = ranked.length;
     const share = Math.max(5, Math.min(100, Math.round(Number(b.topPercent) || 100)));
-    if (share < 100) ranked = ranked.slice(0, Math.max(1, Math.ceil((rankedTotal * share) / 100)));
+    if (Array.isArray(b.candidateIds) && b.candidateIds.length) {
+      const wanted = new Set((b.candidateIds as unknown[]).slice(0, 100).map((x) => str(x, 100)));
+      ranked = ranked.filter((c) => wanted.has(c.id));
+    } else if (share < 100) ranked = ranked.slice(0, Math.max(1, Math.ceil((rankedTotal * share) / 100)));
     const anonymousAll = ranked.map((c) => ({
       currentTitle: c.profile.title,
       relevantYears: c.rule.relevantYears,
