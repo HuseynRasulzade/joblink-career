@@ -23222,7 +23222,11 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     const applicationId = str(b.id, 100);
     const own = await db.prepare("SELECT 1 FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND j.owner=?").bind(applicationId, id).first();
     if (!own) throw new HttpError(404, "Müraciət tapılmadı.");
-    await syncApplicationStatus(applicationId, "viewed", userId, "company");
+    try {
+      await syncApplicationStatus(applicationId, "viewed", userId, "company");
+    } catch (error) {
+      throw new HttpError(500, `DEBUG: ${(error as Error).message}`);
+    }
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "hr/application-events") {
