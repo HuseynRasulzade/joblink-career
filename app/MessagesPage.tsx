@@ -115,6 +115,9 @@ export default function MessagesPage({
   const [threads, setThreads] = useState<Thread[]>([]);
   const [active, setActive] = useState<string>("");
   const [pending, setPending] = useState<MessageTarget | null>(null);
+  const [codeInput, setCodeInput] = useState("");
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeError, setCodeError] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -160,11 +163,9 @@ export default function MessagesPage({
     const timer = window.setInterval(() => void loadThreads(), 30000);
     return () => window.clearInterval(timer);
   }, []);
-  useEffect(() => {
-    if (!target) return;
-    // Starting from a candidate card or an application: reuse an existing
-    // conversation for the same vacancy, otherwise prepare a new one.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+  // Starting from a candidate card, an application or a personal code: reuse an existing conversation for the same vacancy,
+  // otherwise prepare a new one.
+  function startTarget(target: MessageTarget, handled = true) {
     void loadThreads().then((list) => {
       const existing = list.find(
         (thread) =>
@@ -181,10 +182,31 @@ export default function MessagesPage({
         setPending(target);
         if (target.invite) setText(inviteText(target));
       }
-      onTargetHandled();
+      if (handled) onTargetHandled();
     });
+  }
+  useEffect(() => {
+    if (!target) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    startTarget(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
+  // Find a person by the personal code and write to them.
+  async function findByCode() {
+    const code = codeInput.trim();
+    if (!code) return;
+    setCodeBusy(true);
+    setCodeError("");
+    try {
+      const found = await request<{ candidateId: string; name: string; title: string }>(`messages/find-by-code?code=${encodeURIComponent(code)}`);
+      setCodeInput("");
+      startTarget({ candidateId: found.candidateId, name: found.name }, false);
+    } catch (e) {
+      setCodeError((e as Error).message);
+    } finally {
+      setCodeBusy(false);
+    }
+  }
   useEffect(() => {
     if (stick.current) end.current?.scrollIntoView({ block: "end" });
   }, [messages]);
@@ -324,6 +346,13 @@ export default function MessagesPage({
             <option value="none">{t("Təyin olunmayanlar")}</option>
             {team.map((m) => <option key={m.id} value={m.id}>{m.name || t("Hesab sahibi")}</option>)}
           </select>
+        )}
+        {role === "company" && (
+          <form className="code-find" onSubmit={(e) => { e.preventDefault(); void findByCode(); }}>
+            <input value={codeInput} onChange={(e) => setCodeInput(e.target.value)} placeholder={t("Namizəd kodu ilə yaz: JM-XXXXX-XXXXX")} aria-label={t("Namizəd kodu")} />
+            <button type="submit" className="secondary" disabled={codeBusy || !codeInput.trim()}>{codeBusy ? "…" : t("Tap və yaz")}</button>
+            {codeError && <small className="error-text">{codeError}</small>}
+          </form>
         )}
         <button type="button" className="text-button" aria-pressed={showArchived} onClick={() => setShowArchived(!showArchived)}>
           {showArchived ? t("Gələn qutusuna qayıt") : `${t("Arxiv")} (${threads.filter((x) => x.archived).length})`}

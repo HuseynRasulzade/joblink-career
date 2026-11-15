@@ -2954,6 +2954,32 @@ async function route(request: Request) {
       .all();
     return ok({ results: rows.results });
   }
+  // An employer finds a candidate by the personal code and writes to them (same rule as every first message: the candidate applied
+  // to a vacancy of this company or keeps the profile open to offers; otherwise the answer is the same as for an unknown code).
+  if (request.method === "GET" && path === "messages/find-by-code") {
+    if (accountRole !== "company") throw new HttpError(403, "Bu əməliyyat mövcud deyil.");
+    const code = normalizePublicCode(str(requestUrl.searchParams.get("code"), 40));
+    const notFound = new HttpError(404, "Bu kodla yazıla bilən namizəd tapılmadı. Namizəd müraciət etməyibsə və profili təkliflərə açıq deyilsə, ona yazmaq olmaz.");
+    if (!code) throw notFound;
+    const person = await db
+      .prepare("SELECT a.id,a.name,COALESCE(p.data,'{}') AS data,p.active FROM accounts a LEFT JOIN profiles p ON p.user_id=a.id WHERE a.public_code=? AND COALESCE(a.role,'candidate')='candidate' AND COALESCE(a.status,'active')='active'")
+      .bind(code)
+      .first<{ id: string; name: string; data: string; active: string | number | null }>();
+    if (!person) throw notFound;
+    const applied = await db
+      .prepare("SELECT 1 AS x FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.candidate_id=? AND j.owner=? LIMIT 1")
+      .bind(person.id, id)
+      .first();
+    if (!applied && String(person.active) !== "1") throw notFound;
+    if (await blockedBetween(db, id, person.id)) throw notFound;
+    let title = "";
+    try {
+      title = String(JSON.parse(person.data)?.title || "");
+    } catch {
+      title = "";
+    }
+    return ok({ candidateId: person.id, name: person.name, title, code: formatPublicCode(code) });
+  }
   if (request.method === "POST" && path === "messages/start") {
     const body = await jsonBody(request);
     const text = str(body.body, 4000);
@@ -22456,6 +22482,12 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         to: action === "complete" ? "keçirildi" : "namizəd gəlmədi",
       });
       if (action === "no_show") await syncApplicationStatus(row.application_id, "interview-no-show", userId, "company");
+      // A held interview waits for the opinion: the owner and the person who set it up are reminded.
+      if (action === "complete") {
+        const who = new Set([id, row.created_by].filter((x): x is string => !!x));
+        for (const target of who)
+          await notify(db, { userId: target, type: "interview", title: `Müsahibə keçirildi: rəy yazın`, body: `${row.candidate || "Namizəd"} · ${row.job_title}. Qiymət və qərar yazılana qədər müraciət “Müsahibə” mərhələsində qalır.`, link: "hr-interviews" }).catch(() => undefined);
+      }
     } else throw new HttpError(400, "Əməliyyat yanlışdır.");
     await companyAudit(
       db,
@@ -22509,6 +22541,13 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       to: `rəy: ${fb.rating}/5`,
     });
     if (fb.decision === "reject") await syncApplicationStatus(row.application_id, "feedback-reject", userId, "company");
+    // «Advance»: the next step is the offer; the owner and the one who set the interview up are told to prepare it.
+    if (fb.decision === "advance") {
+      await recordApplicationEvent(db, { applicationId: row.application_id, actorId: userId, actorRole: "company", type: "interview", to: "irəli çəkildi (təklif mərhələsi)" });
+      const creator = (await db.prepare("SELECT created_by FROM interviews WHERE id=?").bind(row.id).first<{ created_by: string }>().catch(() => null))?.created_by;
+      for (const target of new Set([id, creator].filter((x): x is string => !!x)))
+        await notify(db, { userId: target, type: "interview", title: "Namizəd irəli çəkildi: təklif hazırlayın", body: "Müsahibənin nəticəsi müsbətdir. Namizədə iş təklifi göndərin (Müraciət edənlər → ⋮ → İş təklifi et).", link: "hr-candidates" }).catch(() => undefined);
+    }
     return ok({ ok: true });
   }
   if (request.method === "GET" && path === "hr/interviews/ics") {
