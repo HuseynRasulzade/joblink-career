@@ -380,6 +380,7 @@ import { pickSigners, sameName } from "@/lib/order-signers";
 import { DOC_KINDS, normalizeDocType } from "@/lib/employee-docs";
 import { ORDER_KINDS, signedOrderNotice } from "@/lib/orders";
 import { generatePublicCode, formatPublicCode, normalizePublicCode } from "@/lib/public-code";
+import { completePastInterviews } from "@/lib/interview-auto";
 import { statusAfter, type ApplicationFlowEvent } from "@/lib/application-flow";
 import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, knownReligiousYears, setPlatformCalendar, platformCalendar, PLATFORM_KINDS, type PlatformDay, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
@@ -22069,6 +22070,8 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     return interviewId;
   };
   if (request.method === "GET" && path === "hr/interviews") {
+    // Interviews whose time is over close by themselves (and the opinion is asked for).
+    await completePastInterviews(db, id).catch(() => undefined);
     const jobIds = await interviewScope();
     const rows = await db
       .prepare(
@@ -22467,7 +22470,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       });
       await syncApplicationStatus(row.application_id, "interview-cancelled", userId, "company");
     } else if (action === "complete" || action === "no_show") {
-      if (!isActive || row.status === "pending_panel" || row.status === "panel_declined") throw new HttpError(409, "İştirakçıların təsdiqi tamamlanmayıb və ya müsahibə aktiv deyil.");
+      // An interview closed by itself can still be marked «did not come» until its opinion is written.
+      const reopened = action === "no_show" && row.status === "completed" && !(row as { rating?: number | null }).rating;
+      if ((!isActive && !reopened) || row.status === "pending_panel" || row.status === "panel_declined") throw new HttpError(409, "İştirakçıların təsdiqi tamamlanmayıb və ya müsahibə aktiv deyil.");
       if (Date.parse(row.scheduled_at) > Date.now() + 15 * 60000)
         throw new HttpError(409, "Müsahibə vaxtı hələ çatmayıb.");
       await db

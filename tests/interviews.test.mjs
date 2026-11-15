@@ -35,7 +35,7 @@ test("duration is clamped between 15 and 240 minutes", () => {
 });
 test("feedback needs a rating from 1 to 5", () => {
   assert.deepEqual(sanitizeFeedback({ rating: 4, feedback: " Yaxşı ", decision: "advance" }), { rating: 4, feedback: "Yaxşı", decision: "advance" });
-  assert.equal(sanitizeFeedback({ rating: 4, decision: "weird" }).decision, "hold");
+  assert.equal(sanitizeFeedback({ rating: 3, decision: "weird" }).decision, "hold", "an unknown choice follows the grade");
   for (const bad of [0, 6, "x", undefined]) assert.ok("error" in sanitizeFeedback({ rating: bad }));
 });
 test("the calendar file has UTC times, the right length and escaped text", () => {
@@ -68,4 +68,16 @@ test("sanitizeGuideQuestions numbers, bullets and blanks are cleaned", async () 
   assert.deepEqual(sanitizeGuideQuestions("1. Özünüzü təqdim edin\n\n- Niyə bizi seçdiniz?\n  * Maaş gözləntiniz?\n"), ["Özünüzü təqdim edin", "Niyə bizi seçdiniz?", "Maaş gözləntiniz?"]);
   assert.equal(sanitizeGuideQuestions(Array.from({ length: 40 }, (_, i) => `Sual ${i}`)).length, 30);
   assert.deepEqual(sanitizeGuideQuestions(null), []);
+});
+
+test("without an explicit choice the recommendation follows the grade", async () => {
+  const { sanitizeFeedback } = await import("../lib/interviews.ts");
+  assert.equal(sanitizeFeedback({ rating: 5 }).decision, "advance");
+  assert.equal(sanitizeFeedback({ rating: 4, decision: "auto" }).decision, "advance");
+  assert.equal(sanitizeFeedback({ rating: 3 }).decision, "hold");
+  assert.equal(sanitizeFeedback({ rating: 2 }).decision, "reject");
+  assert.equal(sanitizeFeedback({ rating: 1, decision: "auto" }).decision, "reject");
+  // An explicit choice always wins over the grade.
+  assert.equal(sanitizeFeedback({ rating: 5, decision: "hold" }).decision, "hold");
+  assert.equal(sanitizeFeedback({ rating: 1, decision: "advance" }).decision, "advance");
 });

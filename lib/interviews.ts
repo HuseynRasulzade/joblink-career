@@ -77,7 +77,8 @@ export function sanitizeFeedback(input: unknown): { rating: number; feedback: st
   const rating = Math.round(Number(v.rating));
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) return { error: "Qiymətləndirmə 1-dən 5-ə qədər olmalıdır." };
   const feedback = text(v.feedback, 1500);
-  const decision: FeedbackDecision = v.decision === "advance" || v.decision === "reject" ? v.decision : "hold";
+  // Without an explicit choice the recommendation follows the grade: 4–5 moves on, 3 waits, 1–2 is not a fit.
+  const decision: FeedbackDecision = v.decision === "advance" || v.decision === "reject" || v.decision === "hold" ? v.decision : rating >= 4 ? "advance" : rating <= 2 ? "reject" : "hold";
   return { rating, feedback, decision };
 }
 

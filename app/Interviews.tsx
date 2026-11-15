@@ -430,7 +430,7 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
   const [testFor, setTestFor] = useState<Application | null>(null);
   const [openGuide, setOpenGuide] = useState("");
   const [feedbackFor, setFeedbackFor] = useState<string | null>(null);
-  const [fb, setFb] = useState({ rating: 4, decision: "hold", feedback: "" });
+  const [fb, setFb] = useState({ rating: 4, decision: "auto", feedback: "" });
   const [mine, setMine] = useState<MyRequest[]>([]);
   const [people, setPeople] = useState<{ userId: string; name: string; role: string }[]>([]);
   useEffect(() => {
@@ -556,6 +556,7 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
                 <Field label="Qiymət (1–5)"><select value={fb.rating} onChange={(e) => setFb({ ...fb, rating: Number(e.target.value) })}>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}</select></Field>
                 <Field label="Tövsiyə">
                   <select value={fb.decision} onChange={(e) => setFb({ ...fb, decision: e.target.value })}>
+                    <option value="auto">Avtomatik (qiymətə görə)</option>
                     <option value="advance">Növbəti mərhələyə keçsin</option>
                     <option value="hold">Qərar sonra</option>
                     <option value="reject">Uyğun deyil</option>
@@ -563,7 +564,7 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
                 </Field>
               </div>
               <Field label="Rəy (daxilidir, namizəd görmür)"><textarea rows={3} value={fb.feedback} onChange={(e) => setFb({ ...fb, feedback: e.target.value })} /></Field>
-              <p className="muted fine-print">Rəy tövsiyədir, statusu avtomatik dəyişmir. Qərarı Namizədlər bölməsində özünüz verirsiniz.</p>
+              <p className="muted fine-print">Qərar qiymətə görə avtomatik seçilir (4–5 irəli, 3 sonra, 1–2 uyğun deyil); istəsəniz özünüz dəyişin. «Uyğun deyil» olanda müraciətin statusu avtomatik «Uyğun deyil» olur, «irəli» olanda təklif hazırlamaq xatırladılır.</p>
               <button className="primary" onClick={() => sendFeedback(i.id)}>Rəyi saxla</button>
             </div>
           )}
@@ -574,7 +575,8 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
           {isActive(i.status) && !isPast && <button className="secondary" onClick={() => { const reason = window.prompt("Ləğv səbəbi (namizədə göndəriləcək, istəyə bağlı):"); if (reason !== null) void act({ id: i.id, action: "cancel", reason }, "Müsahibə ləğv edildi, namizədə bildiriş göndərildi."); }}>Ləğv et</button>}
           {isActive(i.status) && isPast && i.status !== "pending_panel" && i.status !== "panel_declined" && <button className="primary" onClick={() => act({ id: i.id, action: "complete" }, "Müsahibə keçirilmiş kimi qeyd edildi.")}><Check size={14} /> Keçirildi</button>}
           {isActive(i.status) && isPast && i.status !== "pending_panel" && i.status !== "panel_declined" && <button className="secondary" onClick={() => act({ id: i.id, action: "no_show" }, "Namizəd gəlmədi kimi qeyd edildi.")}><X size={14} /> Gəlmədi</button>}
-          {i.status === "completed" && <button className={i.rating ? "secondary" : "primary"} onClick={() => { setFeedbackFor(feedbackFor === i.id ? null : i.id); setFb({ rating: i.rating || 4, decision: i.decision || "hold", feedback: i.feedback || "" }); }}>{i.rating ? "Rəyi dəyiş" : "Rəy yaz"}</button>}
+          {i.status === "completed" && !i.rating && <button className="secondary" onClick={() => act({ id: i.id, action: "no_show" }, "Namizəd gəlmədi kimi qeyd edildi.")}>Namizəd gəlmədi</button>}
+          {i.status === "completed" && <button className={i.rating ? "secondary" : "primary"} onClick={() => { setFeedbackFor(feedbackFor === i.id ? null : i.id); setFb({ rating: i.rating || 4, decision: i.decision || "auto", feedback: i.feedback || "" }); }}>{i.rating ? "Rəyi dəyiş" : "Rəy yaz"}</button>}
           {i.application_id && <button className="secondary" onClick={() => setTestFor(stub({ application_id: i.application_id as string, job_id: jobId, candidate: i.candidate || "" }))}><ClipboardCheck size={14} /> Test göndər</button>}
           <button className="secondary" onClick={() => setOpenGuide(openGuide === `i:${i.id}` ? "" : `i:${i.id}`)}>Suallar</button>
           <a className="secondary" href={`/api/joblink/hr/interviews/ics?id=${encodeURIComponent(i.id)}`}><CalendarPlus size={14} /> Təqvim</a>
