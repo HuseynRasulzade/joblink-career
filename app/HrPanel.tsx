@@ -169,6 +169,8 @@ export default function HrPanel({
     items: Record<string, { score: number; aiScore?: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string }>;
   } | null>(null);
   const [aiRanking, setAiRanking] = useState(false);
+  // The share of the applicants (the best by the platform's own rules) that the AI analyses.
+  const [aiShare, setAiShare] = useState(20);
   const [applicantsView, setApplicantsView] = useState<"board" | "list">("list");
   const [offers, setOffers] = useState<Record<string, Offer>>({});
   const [testResults, setTestResults] = useState<Record<string, { state: string; percent: number | null }>>({});
@@ -430,11 +432,12 @@ export default function HrPanel({
     try {
       type Rating = { candidateId: string; score: number; aiScore?: number; rank?: number; ruleScore: number; strengths: string; gaps: string; recommendation: string };
       // A long list is judged in waves; every wave is saved, so the page just asks again until nothing is left.
-      let data = await api("hr/rank-candidates", { jobId: selectedJob.id, language });
+      const ask = () => api("hr/rank-candidates", { jobId: selectedJob.id, language, applicantsOnly: true, topPercent: aiShare });
+      let data = await ask();
       const show = (list: Rating[]) => setAiRatings({ jobId: selectedJob.id, items: Object.fromEntries(list.map((r) => [r.candidateId, r])) });
       show(data.ratings as Rating[]);
       for (let round = 0; round < 12 && (data.pending as number) > 0; round++) {
-        data = await api("hr/rank-candidates", { jobId: selectedJob.id, language });
+        data = await ask();
         show(data.ratings as Rating[]);
       }
       if (data.source === "rules") notify("AI qiymətləndirmə administrator tərəfindən söndürülüb, qaydalarla hesablanmış bal göstərilir.");
@@ -1139,12 +1142,27 @@ export default function HrPanel({
           </div>
           {aiEnabled && !demo && selectedJob && tab === "Müraciət edənlər" && (
             <div className="hr-ai-rank">
-              <button className="secondary" disabled={aiRanking} onClick={() => rankWithAi()}>
-                <Sparkles size={15} /> {aiRanking ? "AI analiz edir…" : aiRatings?.jobId === selectedJob.id ? "AI analizini yenilə" : "AI analizi hesabla"}
-              </button>
+              {(() => {
+                const total = applications.filter((a) => a.jobId === selectedJob.id && a.status !== "Geri götürülüb").length;
+                const count = Math.max(total ? 1 : 0, Math.ceil((total * aiShare) / 100));
+                return (
+                  <>
+                    <label className="ai-share">
+                      AI yalnız ən yaxşı
+                      <select value={aiShare} disabled={aiRanking} onChange={(e) => setAiShare(Number(e.target.value))} aria-label="AI analiz payı">
+                        {[10, 20, 30, 50, 100].map((v) => <option key={v} value={v}>{v === 100 ? "hamısını" : `${v}%-i`}</option>)}
+                      </select>
+                      analiz etsin
+                    </label>
+                    <button className="secondary" disabled={aiRanking || !total} onClick={() => rankWithAi()}>
+                      <Sparkles size={15} /> {aiRanking ? "AI analiz edir…" : aiRatings?.jobId === selectedJob.id ? `AI analizini yenilə (${count} nəfər)` : `AI analizi hesabla (${count} nəfər)`}
+                    </button>
+                  </>
+                );
+              })()}
               {aiDown && <small className="muted">{aiDown}</small>}
               <small>
-                Müraciət edənlər platformanın öz qaydaları ilə qiymətləndirilir. «AI analizi hesabla» düyməsi onları anonim şəkildə (ad və əlaqə məlumatı olmadan) AI ilə də analiz edir; nəticə saxlanır, dəyişməyənlər təkrar analiz olunmur.
+                Namizədləri əvvəl platformanın öz qaydaları (bacarıq, təcrübə, vəzifə səviyyəsi, iş funksiyası) pulsuz sıralayır. Siz faiz seçirsiniz, AI yalnız bu sıralamanın ən yaxşı hissəsini anonim şəkildə (ad və əlaqə məlumatı olmadan) analiz edir; qalanları qaydalarla qiymətləndirilmiş qalır. Nəticə saxlanır, dəyişməyən namizəd təkrar analiz olunmur, faizi artırsanız yalnız yeni əlavə olunanlar hesablanır.
               </small>
             </div>
           )}

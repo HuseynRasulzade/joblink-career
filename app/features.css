@@ -6738,3 +6738,5 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
 .sticky-filters .hr-filters .followed-filter { margin: 0 0 10px; font-size: 12px; }
 .sticky-filters .hr-filters .field > span, .sticky-filters .hr-filters label > span { font-size: 12px; }
 @media (max-width: 1250px) { .sticky-filters .hr-filters { grid-template-columns: repeat(3, 1fr); } }
+.ai-share { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; margin-right: 10px; }
+.ai-share select { width: auto; padding: 6px 10px; }

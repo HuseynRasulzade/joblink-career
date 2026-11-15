@@ -19556,7 +19556,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .all<{ user_id: string; data: string; applied: number }>();
     // Rule-based pre-selection, then a blind AI review of the best 20:
     // names, contacts, age and photos are never sent to the model.
-    const ranked = pool.results
+    let ranked = pool.results
       .map((row) => {
         const profile = normalizedProfileRecord(
           JSON.parse(row.data),
@@ -19569,6 +19569,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           rule: match(profile, job),
         };
       })
+      .filter((c) => !b.applicantsOnly || c.applied)
       .sort((a, b) => b.rule.score - a.rule.score);
     // With the AI on, EVERY candidate gets the AI's judgement (so a profile the rules underrate is not missed). The judgement
     // is kept until the candidate or the vacancy really changes, so the AI looks at each pair once.
@@ -19587,6 +19588,11 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           recommendation: recommendationForScore(c.rule.score),
         })),
       });
+    // The rules have ranked everybody for free; the AI looks only at the best share the employer chose (10–100%), so it is not
+    // spent on the candidates the rules already put at the bottom. What was judged before stays saved and costs nothing again.
+    const rankedTotal = ranked.length;
+    const share = Math.max(5, Math.min(100, Math.round(Number(b.topPercent) || 100)));
+    if (share < 100) ranked = ranked.slice(0, Math.max(1, Math.ceil((rankedTotal * share) / 100)));
     const anonymousAll = ranked.map((c) => ({
       currentTitle: c.profile.title,
       relevantYears: c.rule.relevantYears,
@@ -19777,7 +19783,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       .map((item, position) => ({ ...item, rank: position + 1 }));
     if (!ratings.length)
       throw new HttpError(502, "AI namizədləri qiymətləndirə bilmədi.");
-    return ok({ ratings, pending, total: anonymousAll.length, fromMemory: anonymousAll.length - missingAll.length });
+    return ok({ ratings, pending, total: anonymousAll.length, rankedTotal, topPercent: share, fromMemory: anonymousAll.length - missingAll.length });
   }
   // An employer's verdict on an AI evaluation: right or wrong, and what it should have been.
   if (request.method === "GET" && path === "hr/ai-feedback") {
