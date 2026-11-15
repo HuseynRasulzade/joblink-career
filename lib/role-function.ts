@@ -39,6 +39,8 @@ export const FUNCTIONS: FunctionDef[] = [
   { id: "data", group: "it", label: "data və analitika", strong: re("data scien|machine learning|\\betl\\b|power bi|tableau|data analyst|data engineer|verilenler analiz|\\bbi developer"), weak: re("\\bdata\\b|analytics|analitika") },
   { id: "qa", group: "it", label: "test və keyfiyyət", strong: re("\\bqa\\b|quality assurance|test muhendis|selenium|avtomat test|manual test"), weak: re("testing|test ssenari") },
   { id: "it_support", group: "it", label: "IT dəstək", strong: re("help ?desk|it destek|texniki destek|technical support|sistem desteyi"), weak: re("destek") },
+  // ---- Analysis of the business and of the product (a business analyst writes requirements; he does not keep the books) ----
+  { id: "business_analysis", group: "analysis", label: "biznes analiz (tələblərin toplanması və yazılması)", strong: re("biznes analit|biznes analiz|business analy|biznes teleb|business requirement|teleblerin (?:toplan|analiz|yazil|koordinasiya)|requirements? (?:gather|analys|elicit|document|specif)|texniki tapsiriq|\\btz\\b|user stor|use case|\\bbrd\\b|\\bfrd\\b|\\bsrs\\b|\\bbpmn\\b|\\buat\\b|test case|proses (?:modelles|analiz|xerite)|бизнес-?аналит|сбор требован|требовани\\w* к"), weak: re("teleb|requirement|inteqrasiya|integration|servis analiz|\\bapi\\b|request|response") },
   // ---- Sales and marketing ----
   { id: "sales_b2b", group: "sales", label: "korporativ satış", strong: re("\\bb2b\\b|biznes inkisaf|business development|korporativ satis|musteri axtar|key account|b2b продаж"), weak: re("satis|\\bsales\\b|продаж") },
   { id: "retail", group: "sales", label: "pərakəndə satış", strong: re("perakende|retail|merchandis|magaza|satici|кассир|розничн"), weak: re("kassir|\\bcashier") },
@@ -70,6 +72,8 @@ const NEIGHBOURS: Record<string, number> = {
   "audit>bookkeeping": 0.45, "bookkeeping>audit": 0.3,
   "treasury>bookkeeping": 0.35, "bookkeeping>treasury": 0.35,
   "credit>fin_analysis": 0.5, "fin_analysis>credit": 0.5,
+  // Business analysis borders on data work, testing and financial analysis, but never on keeping the books.
+  "data>business_analysis": 0.45, "business_analysis>data": 0.4, "qa>business_analysis": 0.3, "business_analysis>qa": 0.3, "fin_analysis>business_analysis": 0.35, "business_analysis>fin_analysis": 0.35,
   "recruiting>hr_admin": 0.35, "hr_admin>recruiting": 0.35, "hr_admin>comp_ben": 0.5, "comp_ben>hr_admin": 0.5, "training>recruiting": 0.2, "recruiting>training": 0.2,
   "backend>devops": 0.35, "devops>backend": 0.35, "frontend>backend": 0.3, "backend>frontend": 0.3, "mobile>frontend": 0.45, "frontend>mobile": 0.45, "data>backend": 0.35, "backend>data": 0.35, "it_support>devops": 0.35, "devops>it_support": 0.4, "qa>backend": 0.2,
   "sales_b2b>account_mgmt": 0.6, "account_mgmt>sales_b2b": 0.55, "retail>sales_b2b": 0.5, "sales_b2b>retail": 0.5, "marketing>sales_b2b": 0.3, "sales_b2b>marketing": 0.3, "account_mgmt>call_center": 0.5, "call_center>account_mgmt": 0.5,
@@ -83,8 +87,10 @@ export function functionRelation(have: string, wanted: string): number {
   if (have === wanted) return 1;
   const a = byId.get(have);
   const b = byId.get(wanted);
-  if (!a || !b || a.group !== b.group) return 0;
-  return NEIGHBOURS[`${have}>${wanted}`] ?? 0.15;
+  if (!a || !b) return 0;
+  const near = NEIGHBOURS[`${have}>${wanted}`];
+  if (near !== undefined) return near;
+  return a.group === b.group ? 0.15 : 0;
 }
 
 const countHits = (pattern: RegExp, text: string, cap = 3) => {

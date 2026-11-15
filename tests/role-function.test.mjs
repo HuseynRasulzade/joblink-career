@@ -94,3 +94,16 @@ test("a developer vacancy is still recognised by its title", () => {
   assert.equal(fit.wanted[0].id, "backend");
   assert.equal(fit.gap.id, "backend");
 });
+
+test("a bookkeeper is not a business analyst: requirements work is another kind of work", () => {
+  const analyst = { id: "j", owner: "c", company: "T", city: "Bakı", mode: "Ofisdə", type: "Tam ştat", title: "Biznes Analitik / Business Analyst", category: "Maliyyə, bankçılıq və sığorta", minYears: 2, maxYears: 0, minSalary: 0, maxSalary: 0, skills: ["Microsoft Excel", "Maliyyə analizi"], status: "published",
+    requirements: "İnternet banking üzrə biznes tələblərinin toplanması və analizi, servis və API analizi, request/response, tələblərin yazılması, test case-lərin hazırlanması.", description: "Tələblərin koordinasiyası, texniki tapşırıq, UAT." };
+  const bookkeeper = { ...blankProfile, city: "Bakı", title: "Mühasib operator", skills: ["Microsoft Excel", "Maliyyə hesabatlılığı"],
+    experiences: [{ id: "1", title: "Mühasib operator", company: "X", start: "2024-06", end: "", current: true, description: "Sənədlərin yoxlanması, kontragent üzləşmələri, 1C-ə daxil etmələr, ƏDV/e-qaimə nəzarəti, debitor-kreditor uçotu." }] };
+  const r = match(bookkeeper, analyst);
+  assert.ok(r.score <= 40, `unrelated function stays low: ${r.score}`);
+  assert.equal(r.functionFit.gap.id, "business_analysis");
+  const real = { ...bookkeeper, title: "Biznes analitik",
+    experiences: [{ id: "1", title: "Biznes analitik", company: "Bank", start: "2021-01", end: "", current: true, description: "İnternet banking üçün biznes tələblərinin toplanması, texniki tapşırıq yazılması, API analizi, test case hazırlanması, UAT." }] };
+  assert.ok(match(real, analyst).score > r.score + 20, "a real business analyst scores clearly higher");
+});

@@ -13,7 +13,7 @@ import {
   type FitPart,
 } from "./career.ts";
 import { candidateLevel, dutyFit, levelFit, titleLevel } from "./role-level.ts";
-import { functionFit, functionLabel, type FunctionFit } from "./role-function.ts";
+import { functionFit, functionLabel, functionRelation, type FunctionFit } from "./role-function.ts";
 import {
   normalizeSkillKey,
   normalizeSkills,
@@ -1395,7 +1395,9 @@ export function match(p: Profile, j: Job) {
   }
   // The same field, but not the main work of the vacancy: a ceiling, and a note for the recruiter.
   if (fn?.gap && role >= 0.7) {
-    score = Math.min(score, fn.score < 0.3 ? 62 : 74);
+    // Nothing of the vacancy's main work, not even a neighbouring kind of it, is a much weaker fit than a neighbour.
+    const related = fn.gap.best ? functionRelation(fn.gap.best.id, fn.gap.id) : 0;
+    score = Math.min(score, fn.score < 0.3 ? (related === 0 ? 40 : related < 0.3 ? 55 : 62) : 74);
     caps.push("function-mismatch");
   }
   if (j.minYears && relevantYears < j.minYears * 0.5) {
