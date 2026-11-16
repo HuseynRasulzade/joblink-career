@@ -308,6 +308,8 @@ import {
   canonicalMajor,
   setCustomMajors,
 } from "@/lib/major-catalog";
+import { checkoutFor } from "@/lib/payments";
+import { latestSubscription } from "@/lib/plan-service";
 import { PLANS, addPeriod, azn as aznCents, planById } from "@/lib/plans";
 import { cardLabel, parseCard, providerFor } from "@/lib/payments";
 import { buildServiceContract } from "@/lib/contracts";
@@ -6428,6 +6430,10 @@ async function route(request: Request) {
     "verifications/doc",
     "plan/me",
     "plan/subscribe",
+    "plan/checkout",
+    "plan/checkout/status",
+    "pay/sandbox",
+    "pay/sandbox/decide",
     "plan/cancel",
     "plan/auto-renew",
     "plan/methods/add",
@@ -17704,6 +17710,105 @@ async function route(request: Request) {
       { ok: true, plan: plan.id, activeUntil: periodEnd, contractId },
       201,
     );
+  }
+  // ---- Payment on the bank's own page (hosted checkout) ----
+  // The package is bought on the bank's page: an order is made here, the buyer is sent to the bank, and the package starts only when the
+  // bank's answer is «paid». The card never touches this site. Until the real bank is set up, the test bank (a page of ours) is used.
+  const payOrder = async (orderId: string) =>
+    db
+      .prepare("SELECT id,account_id,plan_id,amount_cents,status,provider,auto_renew FROM payment_orders WHERE id=?")
+      .bind(orderId)
+      .first<{ id: string; account_id: string; plan_id: string; amount_cents: number; status: string; provider: string; auto_renew: number }>();
+  // Starts the package of a paid order (a new package replaces the running one at once) and writes the payment and the contract.
+  const activatePaidOrder = async (order: { id: string; account_id: string; plan_id: string; amount_cents: number; provider: string; auto_renew: number }, providerRef: string) => {
+    const plan = planById(order.plan_id);
+    if (!plan) return;
+    const now = new Date();
+    const at = now.toISOString();
+    const periodEnd = addPeriod(now);
+    const subId = crypto.randomUUID();
+    const current = await latestSubscription(db, order.account_id);
+    const active = current && current.status !== "expired" && Date.parse(current.periodEnd) > now.getTime() ? current : null;
+    const account = await db
+      .prepare("SELECT a.name,p.email FROM accounts a LEFT JOIN password_accounts p ON p.user_id=a.id WHERE a.id=?")
+      .bind(order.account_id)
+      .first<{ name: string; email: string | null }>();
+    const settings = runtime();
+    const contract = buildServiceContract({
+      id: subId,
+      date: at.slice(0, 10),
+      party: { kind: "candidate", name: account?.name || "", email: account?.email || "" },
+      plan,
+      operator: { name: settings.PLATFORM_LEGAL_NAME || "", voen: settings.PLATFORM_VOEN || "", address: settings.PLATFORM_ADDRESS || "", email: settings.PLATFORM_EMAIL || settings.ADMIN_EMAIL || "" },
+      autoRenew: order.auto_renew === 1,
+      periodStart: at.slice(0, 10),
+      periodEnd: periodEnd.slice(0, 10),
+    });
+    await db.batch([
+      ...(active ? [db.prepare("UPDATE subscriptions SET status='expired',auto_renew=0,period_end=?,updated=? WHERE id=?").bind(at, at, active.id)] : []),
+      db
+        .prepare("INSERT INTO subscriptions(id,account_id,plan_id,status,period_start,period_end,auto_renew,method_id,created,updated) VALUES(?,?,?,'active',?,?,?,?,?,?)")
+        .bind(subId, order.account_id, plan.id, at, periodEnd, 0, "", at, at),
+      db
+        .prepare("INSERT INTO plan_payments(id,account_id,subscription_id,plan_id,amount_cents,currency,status,method_label,provider,provider_ref,period_start,period_end,error,created) VALUES(?,?,?,?,?,'AZN','paid',?,?,?,?,?,'',?)")
+        .bind(crypto.randomUUID(), order.account_id, subId, plan.id, order.amount_cents, "Bank səhifəsi", order.provider, providerRef, at, periodEnd, at),
+      db
+        .prepare("INSERT INTO contracts(id,account_id,subscription_id,plan_id,number,title,body,created) VALUES(?,?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), order.account_id, subId, plan.id, contract.number, contract.title, contract.text, at),
+      db.prepare("UPDATE payment_orders SET status='paid',provider_ref=?,updated=? WHERE id=?").bind(providerRef, at, order.id),
+    ]);
+    await notify(db, { userId: order.account_id, type: "plan", title: `${plan.name} paketi aktivdir`, body: `${aznCents(order.amount_cents)} ödənildi. Müqavilə № ${contract.number}.`, link: "packages" });
+  };
+  // Step 1: the buyer chose a package; an order is made and the address of the bank's page is returned.
+  if (request.method === "POST" && path === "plan/checkout") {
+    const b = await jsonBody(request);
+    const plan = planById(str(b.planId, 30));
+    if (!plan || plan.priceAzn <= 0) throw new HttpError(400, "Ödənişli paket seçin.");
+    const current = await syncSubscription(db, id, paymentProvider);
+    if (current && current.status === "active" && current.planId === plan.id && Date.parse(current.periodEnd) > Date.now()) throw new HttpError(409, "Bu paket artıq aktivdir.");
+    const bank = checkoutFor(runtime().PAYMENT_PROVIDER);
+    const orderId = crypto.randomUUID();
+    const origin = new URL(request.url).origin;
+    const started = bank.createCheckout({ orderId, amountCents: plan.priceAzn * 100, currency: "AZN", description: `JobMatch ${plan.name}`, origin, returnUrl: `${origin}/?payment=${orderId}#packages` });
+    if ("error" in started) throw new HttpError(503, started.error);
+    const at = new Date().toISOString();
+    await db
+      .prepare("INSERT INTO payment_orders(id,account_id,plan_id,amount_cents,currency,status,provider,provider_ref,auto_renew,created,updated) VALUES(?,?,?,?,'AZN','created',?,?,?,?,?)")
+      .bind(orderId, id, plan.id, plan.priceAzn * 100, bank.name, started.providerRef, b.autoRenew === true ? 1 : 0, at, at)
+      .run();
+    return ok({ orderId, url: started.url, bank: bank.name }, 201);
+  }
+  // The test bank's page: it shows what is being paid and lets the buyer accept or decline.
+  if (request.method === "GET" && path === "pay/sandbox") {
+    const order = await payOrder(str(requestUrl.searchParams.get("order"), 100));
+    if (!order || order.account_id !== id || order.provider !== "sandbox") throw new HttpError(404, "Sifariş tapılmadı.");
+    const plan = planById(order.plan_id);
+    const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
+    const page = `<!doctype html><html lang="az"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sınaq bankı</title>
+<style>body{font-family:system-ui,sans-serif;background:#f3f6f4;margin:0;display:grid;place-items:center;min-height:100vh}main{background:#fff;border:1px solid #dbe6e1;border-radius:14px;padding:28px;max-width:420px;width:calc(100% - 32px)}h1{font-size:20px;margin:0 0 6px}p{color:#4f635d}.amount{font-size:30px;font-weight:700;margin:12px 0}.note{background:#fff6e0;border:1px solid #f1d99a;border-radius:8px;padding:10px;font-size:13px}button{width:100%;padding:12px;border-radius:9px;border:0;font-size:15px;cursor:pointer;margin-top:10px}.ok{background:#1f6b53;color:#fff}.no{background:#eef3f0}</style></head><body><main>
+<h1>Sınaq bank səhifəsi</h1><p>JobMatch · ${esc(plan?.name || "Paket")}</p><div class="amount">${esc(aznCents(order.amount_cents))}</div>
+<p class="note">Bu real bank deyil: heç bir vəsait tutulmur. Real bankla (ABB) müqavilə bağlananda bu səhifə bankın öz ödəniş səhifəsi ilə əvəz olunacaq.</p>
+<form method="post" action="/api/joblink/pay/sandbox/decide"><input type="hidden" name="order" value="${esc(order.id)}">
+<button class="ok" name="result" value="paid">Ödənişi təsdiqlə</button><button class="no" name="result" value="declined">Bank ödənişi rədd etsin</button><button class="no" name="result" value="cancelled">Ləğv et və geri qayıt</button></form></main></body></html>`;
+    return new Response(page, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+  }
+  // The test bank's answer: the package starts only on «paid»; then the buyer goes back to the site.
+  if (request.method === "POST" && path === "pay/sandbox/decide") {
+    const form = await request.formData();
+    const order = await payOrder(String(form.get("order") || "").slice(0, 100));
+    if (!order || order.account_id !== id || order.provider !== "sandbox") throw new HttpError(404, "Sifariş tapılmadı.");
+    const result = String(form.get("result") || "");
+    if (order.status === "created") {
+      if (result === "paid") await activatePaidOrder(order, `sandbox_${order.id.slice(0, 8)}`);
+      else await db.prepare("UPDATE payment_orders SET status=?,updated=? WHERE id=?").bind(result === "declined" ? "declined" : "cancelled", new Date().toISOString(), order.id).run();
+    }
+    return new Response(null, { status: 303, headers: { Location: `/?payment=${encodeURIComponent(order.id)}#packages` } });
+  }
+  // The result of an order, shown when the buyer is back from the bank.
+  if (request.method === "GET" && path === "plan/checkout/status") {
+    const order = await payOrder(str(requestUrl.searchParams.get("order"), 100));
+    if (!order || order.account_id !== id) throw new HttpError(404, "Sifariş tapılmadı.");
+    return ok({ status: order.status, plan: order.plan_id });
   }
   if (request.method === "POST" && path === "plan/cancel") {
     const sub = await syncSubscription(db, id, paymentProvider);

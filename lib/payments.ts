@@ -56,6 +56,35 @@ export const mockProvider: PaymentProvider = {
     return { ok: true, providerRef: `mock_ch_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`, error: "" };
   },
 };
+// The hosted checkout: the buyer is sent to the BANK's page, types the card there, and comes back. The card number never reaches
+// this server (nor the browser code of the site). Every bank has its own way of signing the request and of telling the result,
+// so a bank is one adapter with these two methods; the rest of the flow (orders, return page, activation of the package) is common.
+export type CheckoutInput = { orderId: string; amountCents: number; currency: string; description: string; origin: string; returnUrl: string };
+export type HostedCheckout = {
+  name: string;
+  // The page the buyer is sent to; null with a reason when the bank is not set up yet.
+  createCheckout(input: CheckoutInput): { url: string; providerRef: string } | { error: string };
+  // What the bank says when it calls back (a bank answers in its own format).
+  verifyCallback(params: Record<string, string>): { orderId: string; paid: boolean; providerRef: string; error: string };
+};
+// The test bank: a page of our own that shows the amount and lets you accept or decline, so the whole flow can be used and tested
+// without a contract. It charges nothing.
+export const sandboxCheckout: HostedCheckout = {
+  name: "sandbox",
+  createCheckout: ({ orderId, origin }) => ({ url: `${origin}/api/joblink/pay/sandbox?order=${encodeURIComponent(orderId)}`, providerRef: `sandbox_${orderId.slice(0, 8)}` }),
+  verifyCallback: () => ({ orderId: "", paid: false, providerRef: "", error: "Sınaq bankı geri çağırış göndərmir." }),
+};
+// ABB (International Bank of Azerbaijan) e-commerce. The bank gives the merchant its terminal data and signing keys and a
+// document for the request; until they are entered (ABB_MERCHANT_ID, ABB_TERMINAL_ID, ABB_SECRET_KEY, ABB_GATEWAY_URL) the
+// adapter says so instead of sending anything. The request format is added here when the contract and the document exist.
+export const abbCheckout: HostedCheckout = {
+  name: "abb",
+  createCheckout: () => ({ error: "ABB ödəniş parametrləri hələ daxil edilməyib. Bankla müqavilə bağlandıqdan sonra (merchant, terminal, açar, ünvan) qoşulacaq." }),
+  verifyCallback: () => ({ orderId: "", paid: false, providerRef: "", error: "ABB parametrləri daxil edilməyib." }),
+};
+export function checkoutFor(name: string | undefined): HostedCheckout {
+  return name === "abb" ? abbCheckout : sandboxCheckout;
+}
 export function providerFor(name: string | undefined): PaymentProvider | null {
   return !name || name === "mock" ? mockProvider : null;
 }

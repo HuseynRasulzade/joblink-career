@@ -76,6 +76,29 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
     call<PlanMe>("plan/me").then(setData).catch((error) => notify((error as Error).message));
   }, [notify]);
   useEffect(load, [load]);
+  // Back from the bank's page: say how the payment ended.
+  useEffect(() => {
+    const order = new URLSearchParams(window.location.search).get("payment");
+    if (!order) return;
+    call<{ status: string }>(`plan/checkout/status?order=${encodeURIComponent(order)}`)
+      .then((r) => {
+        notify(r.status === "paid" ? "Ödəniş qəbul olundu, paketiniz aktivdir." : r.status === "declined" ? "Bank ödənişi qəbul etmədi. Paket aktivləşmədi." : r.status === "cancelled" ? "Ödəniş ləğv edildi." : "Ödənişin nəticəsi gözlənilir.");
+        load();
+      })
+      .catch(() => undefined);
+    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+  }, [notify, load]);
+  // The package is paid on the bank's own page: the card is typed there, not on this site.
+  async function payAtBank(plan: Plan) {
+    setBusy(true);
+    try {
+      const r = await call<{ url: string }>("plan/checkout", { planId: plan.id, autoRenew: false });
+      window.location.assign(r.url);
+    } catch (error) {
+      notify((error as Error).message);
+      setBusy(false);
+    }
+  }
 
   async function run(action: () => Promise<unknown>, done: string) {
     setBusy(true);
@@ -174,7 +197,10 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
               ) : p.priceAzn === 0 ? (
                 sub ? <button className="secondary" disabled={busy} onClick={() => run(() => call("plan/subscribe", { planId: p.id }), "Cari müddət bitəndən sonra paketsiz rejimə keçəcəksiniz.")}>Paketsiz rejimə keç</button> : null
               ) : (
-                <button className="primary" disabled={busy} onClick={() => { setChoosing(p); setMethodId(defaultMethod?.id || ""); setAutoRenew(true); }}>Seç</button>
+                <div className="plan-actions">
+                  <button className="primary" disabled={busy} onClick={() => void payAtBank(p)}>Bank səhifəsində ödə</button>
+                  <button className="secondary" disabled={busy} onClick={() => { setChoosing(p); setMethodId(defaultMethod?.id || ""); setAutoRenew(true); }}>Saxlanmış kartla</button>
+                </div>
               )}
             </article>
           );
