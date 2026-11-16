@@ -1,7 +1,7 @@
 import { traceDb } from "./d1-trace.ts";
 import { latestSubscription } from "./plan-service.ts";
 import { effectivePlan } from "./plans.ts";
-import { monthPeriodKey, tokenVerdict, tokensOfChars, windowKey, windowResetAt } from "./ai-tokens.ts";
+import { monthPeriodKey, tokenVerdict, tokensOfChars, windowKey } from "./ai-tokens.ts";
 import { env } from "cloudflare:workers";
 import {
   AUTO_APPLY_FLOOR,

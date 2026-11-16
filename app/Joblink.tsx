@@ -1,4 +1,5 @@
 "use client";
+import type { Loose } from "@/lib/loose";
 import { formatDate } from "@/lib/dates";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -834,7 +835,7 @@ export default function Joblink() {
             body: JSON.stringify(body),
           },
     );
-    let b: any;
+    let b: Loose;
     try {
       b = await r.json();
     } catch {
@@ -1343,7 +1344,7 @@ export default function Joblink() {
     return (
       <div className="jobs">
         {list.length ? (
-          list.map((j, i) => (
+          list.map((j) => (
             <article className="job-card" key={j.id}>
               <div className="job-top">
                 <button

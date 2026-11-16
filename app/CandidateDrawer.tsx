@@ -1,4 +1,5 @@
 "use client";
+import type { Loose } from "@/lib/loose";
 import { useEffect, useState, type ReactNode } from "react";
 import { match, years, type Application, type Job, type Profile } from "@/lib/model";
 import { formatDate } from "@/lib/dates";
@@ -38,7 +39,7 @@ export default function CandidateDrawer({
   candidateId?: string;
   application?: Application;
   job?: Job | null;
-  api: (path: string, body?: unknown) => Promise<any>;
+  api: (path: string, body?: unknown) => Promise<Loose>;
   notify: (message: string) => void;
   canNote: boolean;
   onFullProfile: () => void;

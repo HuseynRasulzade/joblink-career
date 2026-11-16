@@ -70,7 +70,7 @@ export type StatementRow = { line: number; date: string; iban: string; card: str
 
 const fold = (v: string) => v.toLocaleLowerCase("az").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").replace(/ə/g, "e").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g").replace(/[^a-z0-9]+/g, " ").trim();
 const numberOf = (text: string) => {
-  const t = text.replace(/\s/g, "").replace(/[^\d,.\-]/g, "");
+  const t = text.replace(/\s/g, "").replace(/[^\d,.-]/g, "");
   if (!t) return NaN;
   // 1.234,56 and 1,234.56 and 1234,56 are all read.
   const comma = t.lastIndexOf(",");

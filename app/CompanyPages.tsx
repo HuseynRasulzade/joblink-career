@@ -1062,32 +1062,7 @@ function RequestApprovals({
   );
   const [replies, setReplies] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<string[]>([]);
-  const [notes, setNotes] = useState<Record<string, string>>({});
   const [show, setShow] = useState<"all" | "mine" | "open" | "closed">("all");
-  async function decide(
-    item: ApprovalRequest,
-    decision: "approve" | "reject" | "info",
-  ) {
-    try {
-      await request("company/requests/decide", {
-        id: item.id,
-        decision,
-        note: notes[item.id] || "",
-      });
-      notify(
-        decision === "approve"
-          ? "Təsdiqləndi."
-          : decision === "reject"
-            ? "Rədd edildi."
-            : "Sual göndərənə göndərildi.",
-      );
-      load();
-      loadStats();
-      onChange();
-    } catch (error) {
-      notify((error as Error).message);
-    }
-  }
   async function respond(item: ApprovalRequest) {
     try {
       await request("company/requests/respond", {

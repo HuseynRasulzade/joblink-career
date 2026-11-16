@@ -129,7 +129,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <button type="button" className="secondary" onClick={() => setView("sheet")}>← Əmək haqqı cədvəli</button>
           <b>Bank və ödəniş sənədləri</b>
         </div>
-        <PayrollBank month={month} notify={notify} onClose={() => setView("sheet")} onChanged={load} />
+        <PayrollBank month={month} notify={notify} onChanged={load} />
       </div>
     );
   if (!sheet) return <p className="muted">Yüklənir…</p>;

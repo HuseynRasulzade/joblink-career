@@ -1,3 +1,4 @@
+import type { Loose } from "./loose.ts";
 import { normalizeEmploymentType, type Profile } from "./model.ts";
 import { normalizeSkills, SKILL_CATALOG_LABELS } from "./skill-catalog.ts";
 import { skillsInText } from "./cv-skills.ts";
@@ -125,7 +126,7 @@ export type CvParserMetadata = {
   fieldConfidence: Profile["cvFieldConfidence"];
 };
 
-export function profileFieldsFromUniversalCv(parsed: any): {
+export function profileFieldsFromUniversalCv(parsed: Loose): {
   fields: Partial<Profile>;
   metadata: CvParserMetadata;
 } {
@@ -139,21 +140,21 @@ export function profileFieldsFromUniversalCv(parsed: any): {
       : [];
   // Duties, projects and certificates name skills the skills section left out.
   const evidenceText = [
-    ...employment.flatMap((item: any) => [
+    ...employment.flatMap((item: Loose) => [
       ...list(item?.responsibilities, 60),
       ...list(item?.achievements, 40),
       ...list(item?.technologies, 40),
       ...list(item?.skills_used, 40),
     ]),
     ...(Array.isArray(parsed?.projects) ? parsed.projects : []).flatMap(
-      (item: any) => [
+      (item: Loose) => [
         text(item?.name, 200),
         text(item?.description, 1000),
         ...list(item?.technologies, 30),
       ],
     ),
     ...(Array.isArray(parsed?.certifications) ? parsed.certifications : []).map(
-      (item: any) => text(item?.certificate_name, 200),
+      (item: Loose) => text(item?.certificate_name, 200),
     ),
     text(parsed?.professional_summary, 2000),
   ].join("\n");
@@ -164,7 +165,7 @@ export function profileFieldsFromUniversalCv(parsed: any): {
   const languageItems = (
     Array.isArray(parsed?.languages) ? parsed.languages : []
   )
-    .map((item: any) => {
+    .map((item: Loose) => {
       const name = text(item?.language, 100);
       const level = text(item?.raw_level, 100) || text(item?.level, 100);
       return name ? `${name}${level ? ` — ${level}` : ""}` : "";
@@ -173,7 +174,7 @@ export function profileFieldsFromUniversalCv(parsed: any): {
   const certificateItems = (
     Array.isArray(parsed?.certifications) ? parsed.certifications : []
   )
-    .map((item: any) => {
+    .map((item: Loose) => {
       const name = text(item?.certificate_name, 200);
       if (!name) return "";
       return [
@@ -193,7 +194,7 @@ export function profileFieldsFromUniversalCv(parsed: any): {
   ]);
   const experiences: Profile["experiences"] = employment
     .slice(0, 20)
-    .map((item: any) => {
+    .map((item: Loose) => {
       const responsibilities = list(item?.responsibilities, 40);
       const achievements = list(item?.achievements, 30);
       const sections = [
@@ -220,7 +221,7 @@ export function profileFieldsFromUniversalCv(parsed: any): {
     Array.isArray(parsed?.education) ? parsed.education : []
   )
     .slice(0, 10)
-    .map((item: any) => ({
+    .map((item: Loose) => ({
       id: crypto.randomUUID(),
       // A name from the shared list is stored in its official Azerbaijani form.
       school:
@@ -263,7 +264,7 @@ export function profileFieldsFromUniversalCv(parsed: any): {
       : []
   )
     .slice(0, 250)
-    .map((item: any) => ({
+    .map((item: Loose) => ({
       path: text(item?.path, 240),
       confidence: Math.max(0, Math.min(1, Number(item?.confidence) || 0)),
       needsReview:

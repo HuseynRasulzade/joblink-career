@@ -177,7 +177,6 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
   const DC = 3; // first day column of the timesheet: A = name, B = FİN, then the days
   const firstDay = L(DC);
   const lastDay = L(N + DC - 1);
-  const range = (row: number) => `$${firstDay}${row}:$${lastDay}${row}`;
   const rowCells = (row: number) => `${firstDay}${row}:${lastDay}${row}`;
   const typeRow = `$${firstDay}$4:$${lastDay}$4`;
   const dateRow = `$${firstDay}$3:$${lastDay}$3`;

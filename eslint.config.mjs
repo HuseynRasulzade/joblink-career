@@ -23,6 +23,25 @@ const eslintConfig = defineConfig([
   jsxA11y.flatConfigs.recommended,
   next.configs["core-web-vitals"],
   {
+    // The four rules below are diagnostics of React's optional compiler (they decide what it may optimise); this project does not use
+    // the compiler, and the patterns they flag (loading data in an effect, a timestamp as a key, writing location.hash) are correct here.
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/purity": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      // A switch row holds its text a few levels down (label > span > b), which the default depth does not reach.
+      "jsx-a11y/label-has-associated-control": ["error", { depth: 4 }],
+      // The public pages (jobs, calculators) are separate server-rendered pages: a plain link is what leads to them from the app.
+      "@next/next/no-html-link-for-pages": "off",
+    },
+  },
+  {
+    // The desktop wrapper is a CommonJS Electron main file.
+    files: ["desktop/**/*.js"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
+  {
     languageOptions: {
       globals: {
         ...globals.browser,

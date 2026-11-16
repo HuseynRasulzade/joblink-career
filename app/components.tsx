@@ -27,8 +27,6 @@ import {
   BriefcaseBusiness,
   GraduationCap,
   UserRound,
-  Languages,
-  Link as LinkIcon,
   Sparkles,
   MapPin,
   ExternalLink,
@@ -82,6 +80,8 @@ export function Modal({
   if (typeof document === "undefined") return null;
   return createPortal(
     localizeTree(
+      // The backdrop click closes the window; the keyboard closes it with Escape (the dialog's own cancel event).
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
       <dialog
         ref={ref}
         className={`modal ${className}`.trim()}
@@ -1344,7 +1344,9 @@ export function ProfileEditor({
               try {
                 await onSave(p);
                 setDirty(false);
-              } catch {}
+              } catch {
+                // The save reports its own error to the person; the form simply stays open.
+              }
             }}
           >
             {tab === "Şəxsi məlumatlar" && (

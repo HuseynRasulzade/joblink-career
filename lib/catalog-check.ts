@@ -4,7 +4,7 @@
 // anything that used the old name still resolves).
 export type ImportIssue = { line: number; label: string; reason: string };
 const clean = (value: string, max: number) => value.replace(/\s+/g, " ").trim().slice(0, max);
-const lines = (input: string) => input.replace(/^﻿/, "").split(/\r?\n/);
+const lines = (input: string) => input.replace(/^\uFEFF/, "").split(/\r?\n/);
 const aliasList = (text: string) =>
   text.split("|").map((a) => clean(a, 120)).filter(Boolean).slice(0, 15);
 

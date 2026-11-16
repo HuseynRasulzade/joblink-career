@@ -108,7 +108,7 @@ function sheetXml(sheet: XlsxSheet) {
 // One workbook with several sheets. The file readers take the first sheet, so the sheet with the data comes first.
 export function createXlsxBook(sheets: XlsxSheet[]) {
   const list = sheets.length ? sheets : [{ name: "Sheet1", headers: [], rows: [] }];
-  const names = list.map((sheet, i) => sheet.name.replace(/[\\/*?:\[\]]/g, " ").slice(0, 31) || `Sheet${i + 1}`);
+  const names = list.map((sheet, i) => sheet.name.replace(/[\\/*?:[\]]/g, " ").slice(0, 31) || `Sheet${i + 1}`);
   const files: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -138,7 +138,7 @@ ${list.map((_, i) => `  <Relationship Id="rId${i + 1}" Type="http://schemas.open
 </Relationships>`),
     "xl/styles.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <numFmts count="5"><numFmt numFmtId="164" formatCode="yyyy\-mm\-dd"/><numFmt numFmtId="168" formatCode="d"/><numFmt numFmtId="165" formatCode="#,##0.00"/><numFmt numFmtId="166" formatCode="0"/><numFmt numFmtId="167" formatCode="0.0%"/></numFmts>
+  <numFmts count="5"><numFmt numFmtId="164" formatCode="yyyy-mm-dd"/><numFmt numFmtId="168" formatCode="d"/><numFmt numFmtId="165" formatCode="#,##0.00"/><numFmt numFmtId="166" formatCode="0"/><numFmt numFmtId="167" formatCode="0.0%"/></numFmts>
   <fonts count="6"><font><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FF0F3D38"/><sz val="16"/><name val="Aptos"/></font><font><i/><color rgb="FF6B7A7D"/><sz val="10"/><name val="Aptos"/></font><font><b/><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FF0F3D38"/><sz val="10"/><name val="Aptos"/></font></fonts>
   <fills count="7"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF187C6C"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF6D6"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE9EEEE"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDDF2EC"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF9D9D5"/><bgColor indexed="64"/></patternFill></fill></fills>
   <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFC9D6D4"/></left><right style="thin"><color rgb="FFC9D6D4"/></right><top style="thin"><color rgb="FFC9D6D4"/></top><bottom style="thin"><color rgb="FFC9D6D4"/></bottom><diagonal/></border></borders>
@@ -179,5 +179,5 @@ ${list.map((_, i) => `  <Relationship Id="rId${i + 1}" Type="http://schemas.open
 }
 
 export function createXlsx(headers: string[], rows: XlsxCell[][], sheetName = "Skills") {
-  return createXlsxBook([{ name: sheetName.replace(/[\\/*?:\[\]]/g, " ").slice(0, 31) || "Skills", headers, rows }]);
+  return createXlsxBook([{ name: sheetName.replace(/[\\/*?:[\]]/g, " ").slice(0, 31) || "Skills", headers, rows }]);
 }

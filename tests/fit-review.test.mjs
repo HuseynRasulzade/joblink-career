@@ -6,7 +6,6 @@ import { fitFacts, validateFitReview, verdictForScore } from "../lib/fit-review.
 const job = sampleJobs[0];
 const rule = match(sampleProfile, job);
 const facts = fitFacts(sampleProfile, job, rule);
-const duty = sampleProfile.experiences.find((e) => e.description)?.description.split("\n")[0] || "";
 const answer = (over = {}) => ({
   headline: "Sahəyə uyğun təcrübəli namizəd",
   summary: "Namizədin təcrübəsi vakansiyanın əsas tapşırıqları ilə üst-üstə düşür və əsas bacarıqlar iş təcrübəsində göstərilib.",

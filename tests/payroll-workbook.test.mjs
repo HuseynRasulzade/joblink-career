@@ -315,7 +315,7 @@ test("every formula stays inside Excel's limits and none starts with an equals s
   assert.ok(count > 1000);
   assert.ok(longest < 8000, `a formula of ${longest} characters`);
   // sheet names are what Excel allows
-  for (const sheet of sheets) assert.ok(sheet.name.length <= 31 && !/[\\/*?:\[\]]/.test(sheet.name), sheet.name);
+  for (const sheet of sheets) assert.ok(sheet.name.length <= 31 && !/[\\/*?:[\]]/.test(sheet.name), sheet.name);
 });
 
 test("the helper sheet counts the calendar days of a stretch the way the platform does", async () => {

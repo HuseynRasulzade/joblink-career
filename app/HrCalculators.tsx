@@ -1,4 +1,5 @@
 "use client";
+import type { Loose } from "@/lib/loose";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as hr from "@/lib/hr-calc";
 import { calculateFromGross } from "@/lib/salary";
@@ -697,7 +698,7 @@ export function HrCalculators({
   notify,
 }: {
   employer?: boolean;
-  api?: (path: string, body?: unknown) => Promise<any>;
+  api?: (path: string, body?: unknown) => Promise<Loose>;
   notify?: (message: string) => void;
 }) {
   const tell = notify || ((message: string) => window.alert(message));

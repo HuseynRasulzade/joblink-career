@@ -1,10 +1,11 @@
 "use client";
+import type { Loose } from "@/lib/loose";
 import { useState } from "react";
 import type { Job } from "@/lib/model";
 import { CLOSE_REASONS } from "@/lib/job-edit";
 import { Field, JobForm, Modal } from "./components";
 
-type Api = (path: string, body?: unknown) => Promise<any>;
+type Api = (path: string, body?: unknown) => Promise<Loose>;
 type Notify = (message: string) => void;
 
 const FIELD_LABELS: Record<string, string> = {

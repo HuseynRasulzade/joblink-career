@@ -1,4 +1,5 @@
 "use client";
+import type { Loose } from "@/lib/loose";
 import { formatDate } from "@/lib/dates";
 import { SKILLS_SAMPLE, downloadCsv } from "@/lib/sample-files";
 
@@ -236,7 +237,7 @@ export default function AdminPanel({
   language,
 }: {
   page: string;
-  api: (path: string, body?: unknown) => Promise<any>;
+  api: (path: string, body?: unknown) => Promise<Loose>;
   notify: (message: string) => void;
   language: "az" | "en" | "ru";
 }) {

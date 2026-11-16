@@ -30,7 +30,7 @@ const EMPTY: Account = { id: "", label: "", bankName: "", bankCode: "", swift: "
 const azn = (v: number) => `${(v || 0).toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AZN`;
 const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "—");
 
-export default function PayrollBank({ month, notify, onClose, onChanged }: { month: string; notify: Notify; onClose: () => void; onChanged: () => void }) {
+export default function PayrollBank({ month, notify, onChanged }: { month: string; notify: Notify; onChanged: () => void }) {
   const [data, setData] = useState<Data | null>(null);
   const [form, setForm] = useState<Account | null>(null);
   const [open, setOpen] = useState("");

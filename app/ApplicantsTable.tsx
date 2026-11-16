@@ -1,11 +1,11 @@
 "use client";
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, ChevronsUpDown, MoreVertical } from "lucide-react";
+import { Fragment, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import type { Application } from "@/lib/model";
 import { formatDate } from "@/lib/dates";
 import { siteLanguage } from "./i18n";
 import RowMenu from "./RowMenu";
-import type { ApplicantAi, ApplicantFit } from "./PipelineBoard";
+import type { ApplicantAi, ApplicantFit } from "@/lib/applicant-types";
 
 export type RowAction = { label: string; group?: string; icon?: ReactNode; run: (application: Application) => void; show?: (application: Application) => boolean; danger?: boolean };
 

@@ -1,3 +1,4 @@
+import type { Loose } from "./loose.ts";
 import { splitSpacedName } from "./first-names.ts";
 import { blankProfile, type Profile } from "./model.ts";
 
@@ -295,7 +296,7 @@ function splitHeader(parts: string[]): { title: string; company: string } {
   items = items.map((x) => x.replace(/[,;]+$/u, "").trim()).filter(Boolean);
   if (!items.length) return { title: "", company: "" };
   if (items.length === 1) return hasWord(COMPANY_WORD, items[0]) && !hasWord(ROLE_WORD, items[0]) ? { title: "", company: items[0] } : { title: items[0], company: "" };
-  let title = items.find((x) => hasWord(ROLE_WORD, x) && !hasWord(COMPANY_WORD, x)) || items[0];
+  const title = items.find((x) => hasWord(ROLE_WORD, x) && !hasWord(COMPANY_WORD, x)) || items[0];
   const company = items.find((x) => x !== title) || "";
   if (!hasWord(ROLE_WORD, title) && hasWord(ROLE_WORD, company) && !hasWord(COMPANY_WORD, company)) return { title: company, company: title };
   return { title, company };
@@ -436,7 +437,7 @@ export function mergeCvFields(
   }
   for (const key of ["skills", "experiences", "education"] as const) {
     const value = extracted[key];
-    if (Array.isArray(value) && value.length) (result as any)[key] = value;
+    if (Array.isArray(value) && value.length) (result as Loose)[key] = value;
   }
   if (extracted.structuredCv && typeof extracted.structuredCv === "object")
     result.structuredCv = extracted.structuredCv;

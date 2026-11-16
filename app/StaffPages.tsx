@@ -1739,6 +1739,8 @@ export function OrgNameInput({
             <JobTitleInput label="Vəzifə (ümumi kataloqdan seçin və ya yazın)" value={draft} onChange={setDraft} />
           ) : (
             <input
+              // The field opens by the person's own click on «add», so moving the cursor into it is what they expect.
+              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
               value={draft}
               placeholder="Yeni adı yazın"

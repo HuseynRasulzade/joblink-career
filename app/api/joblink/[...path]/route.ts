@@ -1,3 +1,4 @@
+import type { Loose } from "@/lib/loose";
 import {
   store,
   optionalIdentity,
@@ -309,6 +310,7 @@ import {
   setCustomMajors,
 } from "@/lib/major-catalog";
 import { checkoutFor, paymentsOpen } from "@/lib/payments";
+import { quiet } from "@/lib/quiet";
 import { latestSubscription } from "@/lib/plan-service";
 import { PLANS, addPeriod, azn as aznCents, planById } from "@/lib/plans";
 import { cardLabel, parseCard, providerFor } from "@/lib/payments";
@@ -390,11 +392,11 @@ import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, knownReligiousYears, 
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
 import { addSections, addStructure, canonicalOrg, deletePosition, deleteStructure, loadPositions, renamePosition, loadStaffHistory, loadStructure, orgNameList, renameStructure, type OrgKind } from "@/lib/staff-db";
-import { assignPeople, bandConflicts, checkSalary, conflictMessage, normalizeRate, RATE_LABEL, salaryBand, summarize, type PlanPerson, type PlanUnit } from "@/lib/staff-plan";
+import { assignPeople, bandConflicts, checkSalary, conflictMessage, normalizeRate, salaryBand, summarize, type PlanPerson, type PlanUnit } from "@/lib/staff-plan";
 import { parseStructureRows } from "@/lib/staff-import";
 import { splitNames } from "@/lib/section-suggestions";
 import { bestCatalogMatch } from "@/lib/job-title-match";
-import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, isRequestKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
+import { OTHER_REQUEST, REQUEST_KINDS, isApplicationKind, requestKindLabel, requestProblems, requestWarnings } from "@/lib/requests";
 import { LINK_ATTEMPTS_PER_HOUR, formatLinkCode, generateLinkCode, hashLinkCode, linkExpired, linkExpiry, normalizeLinkCode, validLinkCode } from "@/lib/employee-link";
 import { resolveCatalogSkill, searchCatalog, type CatalogSkill } from "@/lib/skill-matrix";
 import { parsePhotoDataUrl } from "@/lib/photo";
@@ -435,7 +437,7 @@ import { categoryLabel as expenseCategoryLabel, integrationSetting, logIntegrati
 import { generateApiKey, hashApiKey, keyPrefix, safeWebhookUrl, type OrderRow } from "@/lib/integration";
 import { parsePlanFactSheets } from "@/lib/plan-fact-excel";
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_IDS, PAY_METHODS, budgetProblem, canMove, type ExpenseStatus } from "@/lib/hr-expenses";
-import { employeePay, freeStaffPlaces, staffFill, tenure, vacationBalance, type SalaryType } from "@/lib/payroll";
+import { employeePay, freeStaffPlaces, tenure, vacationBalance } from "@/lib/payroll";
 const DEMO_JOBS_WHEN_EMPTY = (realCount: number) =>
   realCount ? [] : sampleJobs;
 function ok(data: unknown, status = 200) {
@@ -1548,8 +1550,9 @@ try {
   match(sampleProfile, sampleJobs[0]);
   detectCertifications("ACCA, IELTS 7.0, PMP warm-up");
   canonicalJobTitle("Baş mühasib");
-} catch {
+} catch (error) {
   // Warming up is only an optimisation.
+  quiet("route-catch", error);
 }
 // The platform's own calendar changes (set by the admin) are kept in app_settings and read at most once a minute per instance.
 const PLATFORM_CALENDAR_KEY = "platform-calendar";
@@ -2094,7 +2097,7 @@ async function route(request: Request) {
       )
       .bind(id, monthKey(), kind === "full" ? count : 0, kind === "rank" ? count : 0)
       .run()
-      .catch(() => undefined);
+      .catch((error) => quiet("route-best-effort", error));
   };
   // The application follows what happens to it (an interview falls through, a «reject» opinion, a new application is opened).
   const syncApplicationStatus = async (applicationId: string, event: ApplicationFlowEvent, actorId: string, actorRole: string) => {
@@ -2119,12 +2122,12 @@ async function route(request: Request) {
     if (!target) return;
     await db.prepare("UPDATE applications SET status=?,stage='',updated=? WHERE id=?").bind(target, new Date().toISOString(), applicationId).run();
     await recordApplicationEvent(db, { applicationId, actorId, actorRole, type: "status", from: app.status, to: target, note: "avtomatik" });
-    await notify(db, { userId: app.candidate_id, type: "application-status", title: `${jobTitle}: ${target}`, body: `Müraciətinizin statusu avtomatik yeniləndi: ${target}.`, link: "applications" }).catch(() => undefined);
+    await notify(db, { userId: app.candidate_id, type: "application-status", title: `${jobTitle}: ${target}`, body: `Müraciətinizin statusu avtomatik yeniləndi: ${target}.`, link: "applications" }).catch((error) => quiet("route-best-effort", error));
   };
   // A notification for the employee's own account, when the employee record is linked to one.
   const tellEmployee = async (employeeId: string, title: string, body: string) => {
     const row = await db.prepare("SELECT user_id FROM company_employees WHERE id=? AND company_id=?").bind(employeeId, id).first<{ user_id: string }>().catch(() => null);
-    if (row?.user_id) await notify(db, { userId: row.user_id, type: "application", title, body, link: "workplace" }).catch(() => undefined);
+    if (row?.user_id) await notify(db, { userId: row.user_id, type: "application", title, body, link: "workplace" }).catch((error) => quiet("route-best-effort", error));
   };
   // A pay change is kept with its date, and the first one also keeps the earlier pay, so months already worked keep their pay.
   const salaryChange = async (employeeId: string, oldCents: number, oldType: string, newCents: number, newType: string, from: string, actor: string) => {
@@ -2155,8 +2158,9 @@ async function route(request: Request) {
         .bind(id, userId, action, target, new Date(Date.now() - 15 * 60_000).toISOString())
         .first();
       if (!recent) await companyAudit(db, id, userId, action, target, detail);
-    } catch {
+    } catch (error) {
       // Viewing is never blocked by the log.
+      quiet("route-catch", error);
     }
   };
   // Tells employees whose record is linked to an account (in the app) and, for the pay slip, those with an e-mail address.
@@ -2182,8 +2186,9 @@ async function route(request: Request) {
             send && r.email && !mutedUsers.has(r.user_id) ? sendMail(settings, { to: r.email, subject: title, text: body, greeting: greetingFor(r.name), eyebrow: "İş yerim", action: { label: "İş yerimə keç", url: `${siteUrl(settings.SITE_URL)}/#workplace` } }) : Promise.resolve(),
           ]),
         );
-    } catch {
+    } catch (error) {
       // A notice that does not go out never stops the payroll work.
+      quiet("route-catch", error);
     }
   };
   // The plan is a draft until the director approves it; after that a change to it needs the director.
@@ -2201,8 +2206,9 @@ async function route(request: Request) {
           const unit = planData.units.find((u) => u.id === unitId);
           if (unit?.section) for (const p of list) map.set(p.id, unit.section);
         }
-      } catch {
+      } catch (error) {
         // Without the staff plan the sections stay as the employees have them.
+        quiet("route-catch", error);
       }
       return map;
     })();
@@ -3675,7 +3681,7 @@ async function route(request: Request) {
     if (row && !row.public_code) {
       for (let attempt = 0; attempt < 5 && !row?.public_code; attempt++) {
         const code = generatePublicCode();
-        await db.prepare("UPDATE accounts SET public_code=? WHERE id=? AND public_code IS NULL").bind(code, userId).run().catch(() => undefined);
+        await db.prepare("UPDATE accounts SET public_code=? WHERE id=? AND public_code IS NULL").bind(code, userId).run().catch((error) => quiet("route-best-effort", error));
         row = await db.prepare("SELECT public_code FROM accounts WHERE id=?").bind(userId).first<{ public_code: string | null }>();
       }
     }
@@ -3776,7 +3782,7 @@ async function route(request: Request) {
       )
       .bind(crypto.randomUUID(), accountRole, new Date().toISOString())
       .run()
-      .catch(() => {});
+      .catch((error) => quiet("route-best-effort", error));
     return new Response(JSON.stringify(exportData, null, 2), {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
@@ -4495,7 +4501,7 @@ async function route(request: Request) {
             new Date().toISOString(),
           )
           .run()
-          .catch(() => {});
+          .catch((error) => quiet("route-best-effort", error));
       return ok({ settings });
     }
     if (request.method === "GET" && path === "admin/matching-history") {
@@ -6828,7 +6834,7 @@ async function route(request: Request) {
         to: email,
         subject: `${company?.name || "Şirkət"} sizi JobMatch-də komandaya dəvət edir`,
         text: `${company?.name || "Şirkət"} sizi "${roleLabel(role)}" rolu ilə JobMatch-dəki şirkət hesabına dəvət edir. Bu e-poçtla şirkət hesabı kimi qeydiyyatdan keçin və ya daxil olun, sonra "Komanda" bölməsində dəvəti qəbul edin.`,
-      }).catch(() => {});
+      }).catch((error) => quiet("route-best-effort", error));
     await companyAudit(
       db,
       id,
@@ -6922,7 +6928,7 @@ async function route(request: Request) {
         to: member.email,
         subject: `${company?.name || "Şirkət"} sizi JobMatch-də komandaya dəvət edir`,
         text: `${company?.name || "Şirkət"} sizi "${roleLabel(member.role)}" rolu ilə JobMatch-dəki şirkət hesabına yenidən dəvət edir. Bu e-poçtla şirkət hesabı kimi daxil olun və dəvəti qəbul edin. Dəvət ${INVITE_DAYS} gün qüvvədədir.`,
-      }).catch(() => {});
+      }).catch((error) => quiet("route-best-effort", error));
     await companyAudit(
       db,
       id,
@@ -8067,7 +8073,7 @@ async function route(request: Request) {
     ]);
     for (const e of [swap.from_employee, swap.to_employee]) {
       const u = await db.prepare("SELECT user_id FROM company_employees WHERE id=?").bind(e).first<{ user_id: string }>();
-      if (u?.user_id) await notify(db, { userId: u.user_id, type: "application", title: "Növbə dəyişdirilməsi təsdiqləndi", body: `${swap.day} tarixli növbələr dəyişdi. İş yerim → Növbəm bölməsinə baxın.`, link: "workplace" }).catch(() => undefined);
+      if (u?.user_id) await notify(db, { userId: u.user_id, type: "application", title: "Növbə dəyişdirilməsi təsdiqləndi", body: `${swap.day} tarixli növbələr dəyişdi. İş yerim → Növbəm bölməsinə baxın.`, link: "workplace" }).catch((error) => quiet("route-best-effort", error));
     }
   };
   // A light 360° round: colleagues are asked to rate a person in the open cycle; the person sees only the average and unsigned comments.
@@ -8084,7 +8090,7 @@ async function route(request: Request) {
       if (!res.meta.changes) continue;
       added++;
       const u = await db.prepare("SELECT user_id FROM company_employees WHERE id=?").bind(g).first<{ user_id: string }>();
-      if (u?.user_id) await notify(db, { userId: u.user_id, type: "application", title: `Kolleqa rəyi istənilir: ${subject.name}`, body: `${cycle.name}. İş yerim → Performans bölməsində cavab verin (rəyiniz adsız göstərilir).`, link: "workplace" }).catch(() => undefined);
+      if (u?.user_id) await notify(db, { userId: u.user_id, type: "application", title: `Kolleqa rəyi istənilir: ${subject.name}`, body: `${cycle.name}. İş yerim → Performans bölməsində cavab verin (rəyiniz adsız göstərilir).`, link: "workplace" }).catch((error) => quiet("route-best-effort", error));
     }
     return added;
   };
@@ -8282,7 +8288,7 @@ async function route(request: Request) {
   // Effects with a date that has come (a transfer or a termination that starts later) are applied when HR next looks.
   const applyDueOrderEffects = async () => {
     const due = (await db.prepare("SELECT order_id FROM order_effects WHERE company_id=? AND status='scheduled' AND effective_date<=? LIMIT 50").bind(id, new Date().toISOString().slice(0, 10)).all<{ order_id: string }>()).results;
-    for (const d of due) await applyOrderEffect(d.order_id, true).catch(() => undefined);
+    for (const d of due) await applyOrderEffect(d.order_id, true).catch((error) => quiet("route-best-effort", error));
   };
   const withEffects = async <T extends { id: string; kind: string; status?: string }>(orders: T[]) => {
     const ids = orders.map((o) => o.id).slice(0, 500);
@@ -8409,7 +8415,7 @@ async function route(request: Request) {
     if (count >= 5) throw new HttpError(409, "Cavab gözləyən 5 təklifiniz var: əvvəl onlar həll olunmalıdır.");
     const entryId = crypto.randomUUID();
     await db.prepare("INSERT INTO leave_schedule(id,company_id,employee_id,year,start_date,end_date,days,status,proposed_by,note,created) VALUES(?,?,?,?,?,?,?,'proposed','employee',?,?)").bind(entryId, employee.company_id, employee.id, Number(plan.start.slice(0, 4)), plan.start, plan.end, plan.days, str(b.note, 300), new Date().toISOString()).run();
-    await notify(db, { userId: employee.company_id, type: "employee", title: `${employee.name} məzuniyyət təklif etdi`, body: `${plan.start} – ${plan.end} (${plan.days} gün). Məzuniyyət qrafikində təsdiqləyin.`, link: "hr-people-ops" }).catch(() => undefined);
+    await notify(db, { userId: employee.company_id, type: "employee", title: `${employee.name} məzuniyyət təklif etdi`, body: `${plan.start} – ${plan.end} (${plan.days} gün). Məzuniyyət qrafikində təsdiqləyin.`, link: "hr-people-ops" }).catch((error) => quiet("route-best-effort", error));
     await companyAudit(db, employee.company_id, userId, "leave-proposed-by-employee", employee.id, `${plan.start} – ${plan.end}`);
     return ok({ ok: true, id: entryId, plan }, 201);
   }
@@ -8760,12 +8766,12 @@ async function route(request: Request) {
     const employee = await ownWorkplace(str(b.employeeId, 100));
     const res = await db.prepare("UPDATE offboarding_cases SET exit_interview=? WHERE company_id=? AND employee_id=? AND status='open'").bind(JSON.stringify(cleanExitAnswers(b.answers)), employee.company_id, employee.id).run();
     if (!res.meta.changes) throw new HttpError(404, "Çıxış prosesi açıq deyil.");
-    await notify(db, { userId: employee.company_id, type: "employee", title: `${employee.name} çıxış müsahibəsini doldurdu`, body: "Cavablar çıxış prosesi bölməsindədir.", link: "hr-people-ops" }).catch(() => undefined);
+    await notify(db, { userId: employee.company_id, type: "employee", title: `${employee.name} çıxış müsahibəsini doldurdu`, body: "Cavablar çıxış prosesi bölməsindədir.", link: "hr-people-ops" }).catch((error) => quiet("route-best-effort", error));
     return ok({ ok: true });
   }
   // ── The employee's own growth: goals and review, training, shifts, trips, announcements and surveys ──
   const tellCompany = async (companyId: string, title: string, body: string, link: string) => {
-    await notify(db, { userId: companyId, type: "employee", title, body, link }).catch(() => undefined);
+    await notify(db, { userId: companyId, type: "employee", title, body, link }).catch((error) => quiet("route-best-effort", error));
   };
   if (request.method === "GET" && path === "employee/performance") {
     const employee = await ownWorkplace(str(requestUrl.searchParams.get("employeeId"), 100));
@@ -8947,7 +8953,7 @@ async function route(request: Request) {
     const open = await db.prepare("SELECT COUNT(*) AS n FROM profile_changes WHERE employee_id=? AND status='new'").bind(employee.id).first<{ n: number }>();
     if (Number(open?.n) >= 5) throw new HttpError(409, "Cavab gözləyən 5 sorğunuz var.");
     await db.prepare("INSERT INTO profile_changes(id,company_id,employee_id,field,payload,status,created) VALUES(?,?,?,?,?,'new',?)").bind(crypto.randomUUID(), employee.company_id, employee.id, field, await sealProfile({ [field]: value } as unknown as EmployeeProfile, dataKey()), new Date().toISOString()).run();
-    await notifyCompanyRoles(db, employee.company_id, "employees", { type: "application", title: `Məlumat dəyişikliyi sorğusu: ${employee.name}`, body: PROFILE_CHANGE_FIELDS[field], link: "hr-orders" }).catch(() => undefined);
+    await notifyCompanyRoles(db, employee.company_id, "employees", { type: "application", title: `Məlumat dəyişikliyi sorğusu: ${employee.name}`, body: PROFILE_CHANGE_FIELDS[field], link: "hr-orders" }).catch((error) => quiet("route-best-effort", error));
     return ok({ ok: true }, 201);
   }
   if (request.method === "GET" && path === "employee/shift-swaps") {
@@ -8970,7 +8976,7 @@ async function route(request: Request) {
     const open = await db.prepare("SELECT 1 AS n FROM shift_swaps WHERE company_id=? AND day=? AND status IN ('asked','accepted') AND (from_employee IN (?,?) OR to_employee IN (?,?))").bind(employee.company_id, day, employee.id, other.id, employee.id, other.id).first();
     if (open) throw new HttpError(409, "Bu gün üçün açıq dəyişdirmə sorğusu var.");
     await db.prepare("INSERT INTO shift_swaps(id,company_id,day,from_employee,to_employee,note,status,created) VALUES(?,?,?,?,?,?,'asked',?)").bind(crypto.randomUUID(), employee.company_id, day, employee.id, other.id, str(b.note, 200), new Date().toISOString()).run();
-    if (other.user_id) await notify(db, { userId: other.user_id, type: "application", title: `${employee.name} növbə dəyişdirməyi xahiş edir`, body: `${day} tarixi. İş yerim → Növbəm bölməsində cavab verin.`, link: "workplace" }).catch(() => undefined);
+    if (other.user_id) await notify(db, { userId: other.user_id, type: "application", title: `${employee.name} növbə dəyişdirməyi xahiş edir`, body: `${day} tarixi. İş yerim → Növbəm bölməsində cavab verin.`, link: "workplace" }).catch((error) => quiet("route-best-effort", error));
     return ok({ ok: true }, 201);
   }
   if (request.method === "POST" && path === "employee/shift-swaps/respond") {
@@ -8981,11 +8987,11 @@ async function route(request: Request) {
     const accept = b.accept === true;
     await db.prepare("UPDATE shift_swaps SET status=? WHERE id=?").bind(accept ? "accepted" : "declined", swap.id).run();
     const asker = await db.prepare("SELECT name,user_id,profile FROM company_employees WHERE id=?").bind(swap.from_employee).first<{ name: string; user_id: string; profile: string }>();
-    if (asker?.user_id) await notify(db, { userId: asker.user_id, type: "application", title: accept ? "Kolleqa növbə dəyişdirməyə razıdır" : "Kolleqa növbə dəyişdirməkdən imtina etdi", body: `${swap.day}. ${accept ? "İndi təsdiq gözlənilir." : ""}`, link: "workplace" }).catch(() => undefined);
+    if (asker?.user_id) await notify(db, { userId: asker.user_id, type: "application", title: accept ? "Kolleqa növbə dəyişdirməyə razıdır" : "Kolleqa növbə dəyişdirməkdən imtina etdi", body: `${swap.day}. ${accept ? "İndi təsdiq gözlənilir." : ""}`, link: "workplace" }).catch((error) => quiet("route-best-effort", error));
     if (accept) {
       const managerId = parseProfile(asker?.profile || "").managerId;
       const manager = managerId ? await db.prepare("SELECT user_id FROM company_employees WHERE id=? AND company_id=? AND user_id<>''").bind(managerId, employee.company_id).first<{ user_id: string }>() : null;
-      if (manager) await notify(db, { userId: manager.user_id, type: "application", title: `Növbə dəyişdirmə təsdiqinizi gözləyir: ${asker?.name || ""}`, body: `${swap.day}. İş yerim → Komandam.`, link: "workplace" }).catch(() => undefined);
+      if (manager) await notify(db, { userId: manager.user_id, type: "application", title: `Növbə dəyişdirmə təsdiqinizi gözləyir: ${asker?.name || ""}`, body: `${swap.day}. İş yerim → Komandam.`, link: "workplace" }).catch((error) => quiet("route-best-effort", error));
       await tellCompany(employee.company_id, "Növbə dəyişdirmə sorğusu təsdiq gözləyir", `${asker?.name || ""} ↔ ${employee.name}, ${swap.day}`, "hr-growth");
     }
     return ok({ ok: true });
@@ -9066,7 +9072,7 @@ async function route(request: Request) {
     const now = new Date().toISOString();
     await db.prepare("INSERT INTO perf_reviews(id,company_id,cycle_id,employee_id,manager_score,manager_comment,reviewer_name,status,updated) VALUES(?,?,?,?,?,?,?,'manager-done',?) ON CONFLICT(cycle_id,employee_id) DO UPDATE SET manager_score=excluded.manager_score,manager_comment=excluded.manager_comment,reviewer_name=excluded.reviewer_name,status=CASE WHEN perf_reviews.status='acknowledged' THEN 'acknowledged' ELSE 'manager-done' END,updated=excluded.updated").bind(crypto.randomUUID(), manager.company_id, cycle.id, person.id, score, str(b.comment, 1000), manager.name, now).run();
     await companyAudit(db, manager.company_id, userId, "performance-reviewed-by-manager", person.id, `${person.name}: ${score}`);
-    if (person.user_id) await notify(db, { userId: person.user_id, type: "application", title: "Performans qiymətləndirməniz hazırdır", body: `Rəhbəriniz ${manager.name} qiymət yazdı. İş yerim → Performans bölməsində tanış olun.`, link: "workplace" }).catch(() => undefined);
+    if (person.user_id) await notify(db, { userId: person.user_id, type: "application", title: "Performans qiymətləndirməniz hazırdır", body: `Rəhbəriniz ${manager.name} qiymət yazdı. İş yerim → Performans bölməsində tanış olun.`, link: "workplace" }).catch((error) => quiet("route-best-effort", error));
     await tellCompany(manager.company_id, `Rəhbər qiymətləndirdi: ${person.name}`, `${manager.name}: ${score}/5`, "hr-growth");
     return ok({ ok: true });
   }
@@ -9083,7 +9089,7 @@ async function route(request: Request) {
     if (!approve && note.length < 5) throw new HttpError(400, "Rədd səbəbini yazın.");
     if (approve) await db.prepare("UPDATE trips SET manager_status='approved',manager_name=?,manager_note=? WHERE id=?").bind(manager.name, note, trip.id).run();
     else await db.prepare("UPDATE trips SET manager_status='rejected',manager_name=?,manager_note=?,status='rejected',decided_by_name=? WHERE id=?").bind(manager.name, note, manager.name, trip.id).run();
-    if (person.user_id) await notify(db, { userId: person.user_id, type: "application", title: approve ? "Rəhbəriniz ezamiyyət sorğusunu təsdiq etdi" : "Rəhbəriniz ezamiyyət sorğusunu rədd etdi", body: `${trip.destination}, ${trip.start_date} – ${trip.end_date}${note ? `. ${note}` : ""}`, link: "workplace" }).catch(() => undefined);
+    if (person.user_id) await notify(db, { userId: person.user_id, type: "application", title: approve ? "Rəhbəriniz ezamiyyət sorğusunu təsdiq etdi" : "Rəhbəriniz ezamiyyət sorğusunu rədd etdi", body: `${trip.destination}, ${trip.start_date} – ${trip.end_date}${note ? `. ${note}` : ""}`, link: "workplace" }).catch((error) => quiet("route-best-effort", error));
     if (approve) await tellCompany(manager.company_id, `Rəhbər ezamiyyəti təsdiqlədi: ${person.name}`, `${trip.destination}, ${trip.start_date} – ${trip.end_date}`, "hr-growth");
     return ok({ ok: true });
   }
@@ -9099,7 +9105,7 @@ async function route(request: Request) {
     const person = (await teamOf(manager)).find((p) => p.id === str(b.personId, 100));
     if (!person) throw new HttpError(404, "İşçi sizin komandanızda deyil.");
     await saveOneOnOne(manager.company_id, person.id, b, "manager", manager.name);
-    if (b.shared !== false && person.user_id) await notify(db, { userId: person.user_id, type: "application", title: "1:1 görüş qeydi əlavə olundu", body: "İş yerim → Performans bölməsində görüşün nəticələrinə baxın.", link: "workplace" }).catch(() => undefined);
+    if (b.shared !== false && person.user_id) await notify(db, { userId: person.user_id, type: "application", title: "1:1 görüş qeydi əlavə olundu", body: "İş yerim → Performans bölməsində görüşün nəticələrinə baxın.", link: "workplace" }).catch((error) => quiet("route-best-effort", error));
     return ok({ ok: true }, 201);
   }
   if (request.method === "GET" && path === "employee/one-on-ones") {
@@ -9120,8 +9126,8 @@ async function route(request: Request) {
     if (approve) await db.prepare("UPDATE employee_requests SET manager_status='approved',manager_name=?,manager_note=?,manager_at=?,updated=? WHERE id=?").bind(manager.name, note, now, now, row.id).run();
     else await db.prepare("UPDATE employee_requests SET manager_status='rejected',manager_name=?,manager_note=?,manager_at=?,status='rejected',decision=?,updated=? WHERE id=?").bind(manager.name, note, now, `Birbaşa rəhbər (${manager.name}) razı olmadı: ${note}`, now, row.id).run();
     await companyAudit(db, manager.company_id, userId, approve ? "manager-approved" : "manager-rejected", person.id, `${person.name}: ${row.kind}`);
-    if (person.user_id) await notify(db, { userId: person.user_id, type: "application", title: approve ? "Rəhbəriniz ərizənizi təsdiq etdi" : "Rəhbəriniz ərizənizlə razılaşmadı", body: approve ? "İndi HR əmri hazırlayır." : note, link: "workplace" }).catch(() => undefined);
-    if (approve) await notifyCompanyRoles(db, manager.company_id, "orders", { type: "application", title: `Rəhbər təsdiqlədi: ${person.name}`, body: requestKindLabel(row.kind), link: "hr-orders" }).catch(() => undefined);
+    if (person.user_id) await notify(db, { userId: person.user_id, type: "application", title: approve ? "Rəhbəriniz ərizənizi təsdiq etdi" : "Rəhbəriniz ərizənizlə razılaşmadı", body: approve ? "İndi HR əmri hazırlayır." : note, link: "workplace" }).catch((error) => quiet("route-best-effort", error));
+    if (approve) await notifyCompanyRoles(db, manager.company_id, "orders", { type: "application", title: `Rəhbər təsdiqlədi: ${person.name}`, body: requestKindLabel(row.kind), link: "hr-orders" }).catch((error) => quiet("route-best-effort", error));
     return ok({ ok: true });
   }
   // The employee marks arrival and departure; the server stamps the time (Baku time), the hours follow from it.
@@ -9206,7 +9212,7 @@ async function route(request: Request) {
     const { approver, note } = await approverOf(employee.company_id, mine?.profile || "", start);
     const manager = approver && approver.id !== employee.id ? approver : null;
     await db.prepare("UPDATE trips SET abroad=?,manager_status=? WHERE id=?").bind(b.abroad === true ? 1 : 0, manager ? "pending" : "", tripId).run();
-    if (manager) await notify(db, { userId: manager.user_id, type: "application", title: `Komandanızdan ezamiyyət sorğusu: ${employee.name}`, body: `${destination}, ${start} – ${end}${note ? ` (${note})` : ""}`, link: "workplace" }).catch(() => undefined);
+    if (manager) await notify(db, { userId: manager.user_id, type: "application", title: `Komandanızdan ezamiyyət sorğusu: ${employee.name}`, body: `${destination}, ${start} – ${end}${note ? ` (${note})` : ""}`, link: "workplace" }).catch((error) => quiet("route-best-effort", error));
     else await tellCompany(employee.company_id, `${employee.name} ezamiyyət sorğusu göndərdi`, `${destination}, ${start} – ${end}${note ? `. ${note}` : ""}`, "hr-growth");
     return ok({ ok: true }, 201);
   }
@@ -9350,8 +9356,9 @@ async function route(request: Request) {
       try {
         const mine = (JSON.parse(run.snapshot) as { rows?: { employeeId: string; result: ReturnType<typeof computePay> }[] }).rows?.find((r) => r.employeeId === employee.id);
         if (mine) mineBy.set(run.month, mine.result);
-      } catch {
+      } catch (error) {
         // A broken snapshot gives no figures for that month.
+        quiet("route-catch", error);
       }
     }
     const ordered = [...mineBy.keys()].sort();
@@ -9389,8 +9396,9 @@ async function route(request: Request) {
     let inputData = { ...EMPTY_INPUTS };
     try {
       inputData = cleanInputs(JSON.parse(inputs?.data || "{}"));
-    } catch {
+    } catch (error) {
       // No extra inputs saved for the month.
+      quiet("route-catch", error);
     }
     return ok({
       company: company?.name || "",
@@ -9432,7 +9440,7 @@ async function route(request: Request) {
       .run();
     if (!claimed.meta.changes) return miss();
     await companyAudit(db, row.company_id, userId, "employee-linked", row.id, `${row.name}: işçi profili qoşuldu`);
-    await notify(db, { userId: row.company_id, type: "employee", title: `${row.name} işçi profilini qoşdu`, body: "İşçi artıq öz profilindən ərizə göndərə bilər.", link: "hr-employees" }).catch(() => undefined);
+    await notify(db, { userId: row.company_id, type: "employee", title: `${row.name} işçi profilini qoşdu`, body: "İşçi artıq öz profilindən ərizə göndərə bilər.", link: "hr-employees" }).catch((error) => quiet("route-best-effort", error));
     return ok({ ok: true, employeeId: row.id });
   }
   if (request.method === "GET" && path === "employee/applications") {
@@ -9495,12 +9503,12 @@ async function route(request: Request) {
       const { approver, note } = await approverOf(employee.company_id, mine?.profile || "", data.from);
       if (approver && approver.id !== employee.id) {
         await db.prepare("UPDATE employee_requests SET manager_status='pending' WHERE id=?").bind(requestId).run();
-        await notify(db, { userId: approver.user_id, type: "application", title: `Komandanızdan ərizə: ${employee.name}`, body: requestKindLabel(kind), link: "workplace" }).catch(() => undefined);
+        await notify(db, { userId: approver.user_id, type: "application", title: `Komandanızdan ərizə: ${employee.name}`, body: requestKindLabel(kind), link: "workplace" }).catch((error) => quiet("route-best-effort", error));
         managerNote = note || `Ərizə əvvəlcə birbaşa rəhbərinizə (${approver.name}) göndərildi.`;
       } else if (note) managerNote = note;
     }
     const checks = await leaveChecks(employee.company_id, { id: employee.id, department: employee.department }, kind, data, requestId);
-    if (!managerNote) await notifyCompanyRoles(db, employee.company_id, "orders", { type: "application", title: `İşçi ərizəsi: ${employee.name}`, body: requestKindLabel(kind), link: "hr-orders" }).catch(() => undefined);
+    if (!managerNote) await notifyCompanyRoles(db, employee.company_id, "orders", { type: "application", title: `İşçi ərizəsi: ${employee.name}`, body: requestKindLabel(kind), link: "hr-orders" }).catch((error) => quiet("route-best-effort", error));
     return ok({ ok: true, id: requestId, warnings: [...requestWarnings(kind, data, now.slice(0, 10)), ...checks, ...(managerNote ? [managerNote] : [])] }, 201);
   }
   if (request.method === "POST" && path === "employee/applications/withdraw") {
@@ -9585,8 +9593,9 @@ async function route(request: Request) {
           const gross = new Map<string, number>();
           try {
             for (const r of (JSON.parse(run.snapshot) as { rows?: { employeeId: string; result: { gross: number } }[] }).rows || []) gross.set(r.employeeId, r.result.gross);
-          } catch {
+          } catch (error) {
             // A broken snapshot gives no history for that month.
+            quiet("route-catch", error);
           }
           out.set(run.month, gross);
         }
@@ -11228,7 +11237,7 @@ async function route(request: Request) {
       if (t?.skill_id && t.skill_level > 0) {
         const cur = await db.prepare("SELECT level FROM employee_skills WHERE company_id=? AND employee_id=? AND skill_id=?").bind(id, str(b.employeeId, 100), t.skill_id).first<{ level: number }>();
         if ((cur?.level || 0) < t.skill_level) {
-          await setSkillLevel(id, str(b.employeeId, 100), t.skill_id, t.skill_level, null).catch(() => undefined);
+          await setSkillLevel(id, str(b.employeeId, 100), t.skill_id, t.skill_level, null).catch((error) => quiet("route-best-effort", error));
           skillGranted = t.skill_id;
         }
       }
@@ -12109,8 +12118,9 @@ async function route(request: Request) {
           net += r.result.net;
           cost += r.result.employerCost;
         }
-      } catch {
+      } catch (error) {
         // A broken snapshot adds nothing for that month.
+        quiet("route-catch", error);
       }
       months.push({ month: run.month, gross: money(gross), net: money(net), employerCost: money(cost) });
     }
@@ -12600,7 +12610,6 @@ async function route(request: Request) {
     const apply = b.apply === true;
     const known = new Map((await db.prepare("SELECT id,name FROM branches WHERE company_id=?").bind(id).all<{ id: string; name: string }>()).results.map((r) => [plainFold(r.name), r.id]));
     // No branch is created here: they come from the staff table.
-    const created = new Map<string, string>();
     for (const x of parsed.branches) if (!known.has(plainFold(x.name))) issues.push({ sheet: "Filiallar", line: 0, reason: `“${x.name}” filialı yoxdur. Filial yalnız ştat cədvəlinin «Departament və şöbələr» bölməsində (Filiallar siyahısı) yaradılır.` });
     const branchIdOf = (name: string) => known.get(plainFold(name)) || "";
     const unitsByBranch = new Map<string, { department: string; section: string }[]>();
@@ -13078,8 +13087,9 @@ async function route(request: Request) {
       try {
         if (sheet.status === "approved" && sheet.schedule.payDate <= todayIso && sheet.totals.outstanding > 0 && !(await done("salary"))) await createBatch(monthRaw, "salary", auto.id, "auto", "Avtomatik");
         else if (sheet.status !== "approved" && sheet.schedule.advanceDate && sheet.schedule.advanceDate <= todayIso && !(await done("advance"))) await createBatch(monthRaw, "advance", auto.id, "auto", "Avtomatik");
-      } catch {
+      } catch (error) {
         // Nothing to prepare today (no one to pay or no account data); the list stays as it is.
+        quiet("route-catch", error);
       }
     }
     const batches = (await db.prepare(`SELECT ${batchColumns} FROM payroll_batches WHERE company_id=? AND month=? ORDER BY created DESC`).bind(id, monthRaw).all<BatchRow>()).results;
@@ -13571,8 +13581,9 @@ async function route(request: Request) {
       let current: PayInputs = { ...EMPTY_INPUTS };
       try {
         current = cleanInputs(JSON.parse(existing.get(found.id) || "{}"));
-      } catch {
+      } catch (error) {
         // Unreadable earlier data is replaced.
+        quiet("route-catch", error);
       }
       const has = (f: string) => row.present.includes(f);
       // The named lines of the calculation workbook; the totals above stay the numbers the pay is calculated from.
@@ -14048,14 +14059,15 @@ async function route(request: Request) {
       if (planned.length) await db.batch(planned.map((p) => db.prepare("UPDATE leave_schedule SET status='taken',start_date=?,end_date=?,days=?,note=CASE WHEN note='' THEN ? ELSE note END WHERE id=?").bind(from, to, vacationDaysBetween(from, to), `Əmr № ${order.number}`, p.id)));
       else await db.prepare("INSERT INTO leave_schedule(id,company_id,employee_id,year,start_date,end_date,days,status,proposed_by,note,decided_by_name,decided_at,created) VALUES(?,?,?,?,?,?,?,'taken','order',?,?,?,?)").bind(crypto.randomUUID(), id, order.employeeId, Number(from.slice(0, 4)), from, to, vacationDaysBetween(from, to), `Əmr № ${order.number}`, "", "", new Date().toISOString()).run();
     }
-    await applyOrderEffect(order.id).catch(() => undefined);
+    await applyOrderEffect(order.id).catch((error) => quiet("route-best-effort", error));
     // The employee whose order it is hears of it (in the app and by e-mail); the text carries no details.
     try {
       const person = await db.prepare("SELECT user_id FROM company_employees WHERE id=? AND company_id=?").bind(order.employeeId, id).first<{ user_id: string }>();
       if (person?.user_id)
         await notify(db, { userId: person.user_id, ...signedOrderNotice(order) });
-    } catch {
+    } catch (error) {
       // A notice that does not go out never stops the signing.
+      quiet("route-catch", error);
     }
     return marked;
   };
@@ -14276,7 +14288,7 @@ async function route(request: Request) {
     const list = rows.results.map(requestRow);
     // Clashes for the applications still open, so HR sees them before the order.
     const withChecks = await Promise.all(list.slice(0, 80).map(async (r, i) => ({ ...r, checks: r.status === "new" ? await leaveChecks(id, { id: r.employee.id, department: r.employee.department }, r.kind, r.data, r.id) : [], _i: i })));
-    return ok({ requests: [...withChecks.map(({ _i, ...rest }) => rest), ...list.slice(80)], stats });
+    return ok({ requests: [...withChecks.map((row) => { const { _i: order, ...rest } = row; void order; return rest; }), ...list.slice(80)], stats });
   }
   if (request.method === "POST" && path === "company/applications/save") {
     requirePermission("salaries", "Ərizələri yalnız əmr icazəsi olan şəxs qeyd edə bilər.");
@@ -14630,7 +14642,7 @@ async function route(request: Request) {
     const department = str(b.department, 120);
     const section = str(b.section, 120);
     const name = await structureDb(() => renameStructure(db, id, department, str(b.to, 120), section));
-    if (!section) await db.prepare("UPDATE OR IGNORE branch_departments SET department=? WHERE company_id=? AND department=?").bind(name, id, department).run().catch(() => {});
+    if (!section) await db.prepare("UPDATE OR IGNORE branch_departments SET department=? WHERE company_id=? AND department=?").bind(name, id, department).run().catch((error) => quiet("route-best-effort", error));
     await companyAudit(db, id, userId, "structure-renamed", department, `${section || department} → ${name}`);
     return ok({ ok: true, name });
   }
@@ -14652,7 +14664,7 @@ async function route(request: Request) {
       return ok({ ok: true });
     }
     await structureDb(() => deleteStructure(db, id, department, section));
-    if (!section) await db.prepare("DELETE FROM branch_departments WHERE company_id=? AND department=?").bind(id, department).run().catch(() => {});
+    if (!section) await db.prepare("DELETE FROM branch_departments WHERE company_id=? AND department=?").bind(id, department).run().catch((error) => quiet("route-best-effort", error));
     await companyAudit(db, id, userId, "structure-removed", department, section || "departament");
     return ok({ ok: true });
   }
@@ -15385,7 +15397,7 @@ async function route(request: Request) {
     await db.prepare("DELETE FROM employee_orders WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run();
     await db.prepare("DELETE FROM attendance_marks WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run();
     // A removed person no longer works in a branch (the link would otherwise block deleting the branch).
-    await db.prepare("DELETE FROM employee_branches WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run().catch(() => {});
+    await db.prepare("DELETE FROM employee_branches WHERE employee_id=? AND company_id=?").bind(str(b.id, 100), id).run().catch((error) => quiet("route-best-effort", error));
     await companyAudit(db, id, userId, "employee-removed", str(b.id, 100));
     return ok({ ok: true });
   }
@@ -17967,8 +17979,9 @@ async function route(request: Request) {
           .filter((x) => (aiScores.get(x.job.id) ?? -1) >= minScore)
           .map((x) => ({ ...x, score: aiScores.get(x.job.id)! }))
           .sort((a, b) => b.score - a.score);
-      } catch {
+      } catch (error) {
         // Fallback: keep the rule-based list.
+        quiet("route-catch", error);
       }
     }
     const applyQuota = await quota(
@@ -18225,7 +18238,7 @@ async function route(request: Request) {
       .filter((item) => item.type === "output_text")
       .map((item) => item.text)
       .join("\n");
-    let parsed: any;
+    let parsed: Loose;
     try {
       parsed = JSON.parse(
         String(output || "")
@@ -18288,7 +18301,7 @@ async function route(request: Request) {
         503,
         "AI bağlantısı aktiv deyil. İlkin doldurma funksiyasından istifadə edin.",
       );
-    let parsed: any;
+    let parsed: Loose;
     try {
       parsed = JSON.parse(
         output
@@ -18351,7 +18364,7 @@ async function route(request: Request) {
             Array.isArray(audited?.experiences) ? audited.experiences : []
           )
             .slice(0, 20)
-            .map((experience: any) => {
+            .map((experience: Loose) => {
               const firstPass = fields.experiences?.find(
                 (item) =>
                   item.title.toLocaleLowerCase("az") ===
@@ -18391,7 +18404,7 @@ async function route(request: Request) {
               };
             })
             .filter(
-              (experience: any) =>
+              (experience: Loose) =>
                 experience.title &&
                 experience.company &&
                 experience.start &&
@@ -18412,10 +18425,10 @@ async function route(request: Request) {
                 ? fields.structuredCv.work_experience
                 : [];
               fields.structuredCv.work_experience = experiences.map(
-                (experience: any) => {
+                (experience: Loose) => {
                   const detail =
                     original.find(
-                      (item: any) =>
+                      (item: Loose) =>
                         str(item?.position, 150).toLocaleLowerCase("az") ===
                           experience.title.toLocaleLowerCase("az") &&
                         str(item?.company_name, 150).toLocaleLowerCase("az") ===
@@ -18442,8 +18455,9 @@ async function route(request: Request) {
               );
             }
           }
-        } catch {
+        } catch (error) {
           // Keep the first-pass extraction if the audit response is malformed.
+          quiet("route-catch", error);
         }
       }
     }
@@ -18575,7 +18589,7 @@ async function route(request: Request) {
       if (!raw) throw new HttpError(503, "AI bağlantısı hazır deyil.");
       if (analysisQuota?.enforced && !ai.cached)
         await addUsage(db, id, "cv-analysis");
-      let parsed: any;
+      let parsed: Loose;
       try {
         parsed = JSON.parse(
           raw
@@ -18652,12 +18666,12 @@ async function route(request: Request) {
       const strengths = unique<Strength>(
         (Array.isArray(parsed?.strengths) ? parsed.strengths : [])
           .slice(0, 4)
-          .map((item: any) => ({
+          .map((item: Loose) => ({
             title: str(item?.title, 120),
             evidence: exactEvidence(item?.evidence),
             value: str(item?.value, 600),
           }))
-          .filter((item: any) => item.title && item.evidence && item.value),
+          .filter((item: Loose) => item.title && item.evidence && item.value),
         (item) => item.evidence,
       );
       const PROFILE_FIELDS = new Set([
@@ -18675,7 +18689,7 @@ async function route(request: Request) {
         "links",
         "cvText",
       ]);
-      const target = (item: any) => {
+      const target = (item: Loose) => {
         const field = PROFILE_FIELDS.has(str(item?.field, 30))
           ? str(item?.field, 30)
           : "";
@@ -18691,7 +18705,7 @@ async function route(request: Request) {
       const improvements = unique<Improvement>(
         (Array.isArray(parsed?.improvements) ? parsed.improvements : [])
           .slice(0, 8)
-          .map((item: any) => ({
+          .map((item: Loose) => ({
             ...target(item),
             title: str(item?.title, 120),
             evidence: exactEvidence(item?.evidence),
@@ -18701,25 +18715,25 @@ async function route(request: Request) {
               ? (str(item?.priority, 20) as "high" | "medium" | "low")
               : ("medium" as const),
           }))
-          .filter((item: any) => item.title && item.impact && item.action),
+          .filter((item: Loose) => item.title && item.impact && item.action),
         (item) => `${item.title}:${item.action}`,
       );
       const atsRisks = unique<AtsRisk>(
         (Array.isArray(parsed?.atsRisks) ? parsed.atsRisks : [])
           .slice(0, 6)
-          .map((item: any) => ({
+          .map((item: Loose) => ({
             ...target(item),
             issue: str(item?.issue, 160),
             evidence: exactEvidence(item?.evidence),
             fix: str(item?.fix, 700),
           }))
-          .filter((item: any) => item.issue && item.fix),
+          .filter((item: Loose) => item.issue && item.fix),
         (item) => `${item.issue}:${item.fix}`,
       );
       const roleFit = unique<RoleFit>(
         (Array.isArray(parsed?.roleFit) ? parsed.roleFit : [])
           .slice(0, 3)
-          .map((item: any) => ({
+          .map((item: Loose) => ({
             role: str(item?.role, 120),
             fit:
               item?.fit === "strong"
@@ -18729,19 +18743,19 @@ async function route(request: Request) {
             reason: str(item?.reason, 700),
             gap: str(item?.gap, 500),
           }))
-          .filter((item: any) => item.role && item.evidence && item.reason),
+          .filter((item: Loose) => item.role && item.evidence && item.reason),
         (item) => item.role,
       );
       const rewrites = unique<Rewrite>(
         (Array.isArray(parsed?.rewrites) ? parsed.rewrites : [])
           .slice(0, 6)
-          .map((item: any) => ({
+          .map((item: Loose) => ({
             ...target(item),
             original: exactEvidence(item?.original, 400),
             improved: str(item?.improved, 900),
             note: str(item?.note, 500),
           }))
-          .filter((item: any) => item.original && item.improved && item.note),
+          .filter((item: Loose) => item.original && item.improved && item.note),
         (item) => item.original,
       );
       const nextSteps = unique<string>(
@@ -18773,7 +18787,7 @@ async function route(request: Request) {
       }>(
         (Array.isArray(parsed?.issues) ? parsed.issues : [])
           .slice(0, 25)
-          .map((item: any) => ({
+          .map((item: Loose) => ({
             ...target(item),
             type: ISSUE_TYPES.has(str(item?.type, 20))
               ? str(item?.type, 20)
@@ -18787,7 +18801,7 @@ async function route(request: Request) {
             cause: str(item?.cause, 600),
             fix: str(item?.fix, 700),
           }))
-          .filter((item: any) => item.problem && item.fix),
+          .filter((item: Loose) => item.problem && item.fix),
         (item) => `${item.type}:${item.quote}:${item.problem}`,
       );
       const scoreReasons = Object.fromEntries(
@@ -19062,7 +19076,7 @@ async function route(request: Request) {
     );
     const raw = ai.text;
     if (!raw) throw new HttpError(503, "AI bağlantısı hazır deyil.");
-    let parsed: any;
+    let parsed: Loose;
     try {
       parsed = JSON.parse(
         raw
@@ -19113,7 +19127,7 @@ async function route(request: Request) {
     };
     const paths = (Array.isArray(parsed?.paths) ? parsed.paths : [])
       .slice(0, 3)
-      .map((x: any) => {
+      .map((x: Loose) => {
         const role = str(x?.role, 120);
         const reason = str(x?.reason, 600);
         return {
@@ -19300,7 +19314,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           { feature: "vacancy-draft", user: id },
         );
         if (!raw) throw new HttpError(503, "AI bağlantısı hazır deyil.");
-        let parsed: any;
+        let parsed: Loose;
         try {
           parsed = JSON.parse(
             raw
@@ -19710,7 +19724,6 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     const b = await jsonBody(request);
     const jobId = str(b.jobId, 100);
     const lang = aiLanguage(b.language);
-    const english = lang === "en";
     let job: Job | null = null;
     let profile: Profile | null = null;
     if (accountRole === "company") {
@@ -19881,8 +19894,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           .bind(...liteKeys)
           .all<{ key: string; value: string }>();
         for (const hit of hits.results) liteStored.set(liteKeys.indexOf(hit.key), Number(JSON.parse(hit.value).score) || 0);
-      } catch {
+      } catch (error) {
         // Cache table not migrated yet.
+        quiet("route-catch", error);
       }
       const quota = await aiQuota();
       const needed = compact.map((_, index) => index).filter((index) => !liteStored.has(index));
@@ -19919,7 +19933,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
               .prepare("INSERT OR REPLACE INTO ai_cache(key,user_id,kind,value,created) VALUES(?,?,?,?,datetime('now'))")
               .bind(liteKeys[index], id, "hr-rank-lite", JSON.stringify({ score }))
               .run()
-              .catch(() => undefined);
+              .catch((error) => quiet("route-best-effort", error));
           }
           await ai.save();
         }),
@@ -19971,7 +19985,6 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       knownRisks: c.rule.fit.risks,
     }));
     const lang = aiLanguage(b.language);
-    const english = lang === "en";
     // Each candidate's AI evaluation is kept while neither the profile nor the vacancy changes in meaning, so opening the
     // list again costs nothing. Spaces, capitals, punctuation and the daily growth of the years do not count as a change.
     const vacancyHash = await stableHash([
@@ -20012,8 +20025,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         .all<{ key: string; value: string }>();
       for (const hit of hits.results)
         stored.set(itemKeys.indexOf(hit.key), JSON.parse(hit.value));
-    } catch {
+    } catch (error) {
       // Cache table not migrated yet.
+      quiet("route-catch", error);
     }
     const missingAll = anonymousAll
       .map((_, index) => index)
@@ -20024,7 +20038,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
         .prepare("INSERT INTO ai_usage(day,feature,provider,user_id,calls,chars_in,chars_out,errors) VALUES(?,?,?,?,?,0,0,0) ON CONFLICT(day,feature,provider,user_id) DO UPDATE SET calls=calls+excluded.calls")
         .bind(new Date().toISOString().slice(0, 10), "saved:hr-rank", "cache", id, stored.size)
         .run()
-        .catch(() => undefined);
+        .catch((error) => quiet("route-best-effort", error));
     // A long list is judged in waves (96 new candidates per request); what is done stays saved, and the page asks again for the rest.
     const WAVE = 96;
     const quota = await aiQuota();
@@ -20102,8 +20116,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
               )
               .bind(itemKeys[index], id, "hr-rank-item", JSON.stringify(rating))
               .run();
-          } catch {
+          } catch (error) {
             // Cache table not migrated yet.
+            quiet("route-catch", error);
           }
         }
         await ai.save();
@@ -22279,7 +22294,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
   };
   if (request.method === "GET" && path === "hr/interviews") {
     // Interviews whose time is over close by themselves (and the opinion is asked for).
-    await completePastInterviews(db, id).catch(() => undefined);
+    await completePastInterviews(db, id).catch((error) => quiet("route-best-effort", error));
     const jobIds = await interviewScope();
     const rows = await db
       .prepare(
@@ -22699,7 +22714,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       if (action === "complete") {
         const who = new Set([id, row.created_by].filter((x): x is string => !!x));
         for (const target of who)
-          await notify(db, { userId: target, type: "interview", title: `Müsahibə keçirildi: rəy yazın`, body: `${row.candidate || "Namizəd"} · ${row.job_title}. Qiymət və qərar yazılana qədər müraciət “Müsahibə” mərhələsində qalır.`, link: "hr-interviews" }).catch(() => undefined);
+          await notify(db, { userId: target, type: "interview", title: `Müsahibə keçirildi: rəy yazın`, body: `${row.candidate || "Namizəd"} · ${row.job_title}. Qiymət və qərar yazılana qədər müraciət “Müsahibə” mərhələsində qalır.`, link: "hr-interviews" }).catch((error) => quiet("route-best-effort", error));
       }
     } else throw new HttpError(400, "Əməliyyat yanlışdır.");
     await companyAudit(
@@ -22759,7 +22774,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
       await recordApplicationEvent(db, { applicationId: row.application_id, actorId: userId, actorRole: "company", type: "interview", to: "irəli çəkildi (təklif mərhələsi)" });
       const creator = (await db.prepare("SELECT created_by FROM interviews WHERE id=?").bind(row.id).first<{ created_by: string }>().catch(() => null))?.created_by;
       for (const target of new Set([id, creator].filter((x): x is string => !!x)))
-        await notify(db, { userId: target, type: "interview", title: "Namizəd irəli çəkildi: təklif hazırlayın", body: "Müsahibənin nəticəsi müsbətdir. Namizədə iş təklifi göndərin (Müraciət edənlər → ⋮ → İş təklifi et).", link: "hr-candidates" }).catch(() => undefined);
+        await notify(db, { userId: target, type: "interview", title: "Namizəd irəli çəkildi: təklif hazırlayın", body: "Müsahibənin nəticəsi müsbətdir. Namizədə iş təklifi göndərin (Müraciət edənlər → ⋮ → İş təklifi et).", link: "hr-candidates" }).catch((error) => quiet("route-best-effort", error));
     }
     return ok({ ok: true });
   }
@@ -24015,8 +24030,9 @@ async function keepProfileVersion(
       )
       .bind(userId, userId)
       .run();
-  } catch {
+  } catch (error) {
     // Versions are a convenience; saving the profile must not depend on them.
+    quiet("route-catch", error);
   }
 }
 // Unexpected failures and browser errors go to one table the admin can read (no personal data is kept).
@@ -24054,8 +24070,9 @@ async function logError(
       .prepare("DELETE FROM error_log WHERE created<?")
       .bind(new Date(Date.now() - 30 * 86400000).toISOString())
       .run();
-  } catch {
+  } catch (error) {
     // Logging must never break a request.
+    quiet("route-catch", error);
   }
 }
 async function handle(request: Request) {

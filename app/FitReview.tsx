@@ -1,4 +1,5 @@
 "use client";
+import type { Loose } from "@/lib/loose";
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import type { FitReview } from "@/lib/fit-review";
@@ -23,7 +24,7 @@ export function FitReviewPanel({
   language,
   audience,
 }: {
-  api: (path: string, body?: unknown) => Promise<any>;
+  api: (path: string, body?: unknown) => Promise<Loose>;
   jobId: string;
   candidateId?: string;
   language: "az" | "en" | "ru";

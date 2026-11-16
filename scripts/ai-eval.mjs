@@ -27,7 +27,7 @@ function parse(text) {
   if (cell || row.length) { row.push(cell); rows.push(row); }
   return rows;
 }
-const [head, ...body] = parse(readFileSync(file, "utf8").replace(/^﻿/, ""));
+const [head, ...body] = parse(readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
 const rows = body.filter((r) => r.length === head.length).map((r) => {
   const o = Object.fromEntries(head.map((h, i) => [h, r[i]]));
   return { ...o, ai_score: Number(o.ai_score), rule_score: Number(o.rule_score), hr_score: o.hr_score === "" ? null : Number(o.hr_score) };

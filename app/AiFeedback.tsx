@@ -1,9 +1,10 @@
 "use client";
+import type { Loose } from "@/lib/loose";
 import { useEffect, useState } from "react";
 import { Check, ThumbsDown, ThumbsUp } from "lucide-react";
 
 type Saved = { kind: string; candidate_id: string; verdict: "right" | "wrong"; hr_decision: string; hr_score: number | null; note: string };
-type Api = (path: string, body?: unknown) => Promise<any>;
+type Api = (path: string, body?: unknown) => Promise<Loose>;
 const DECISIONS = [
   ["interview", "Müsahibəyə dəvət et"],
   ["consider", "Nəzərə al"],

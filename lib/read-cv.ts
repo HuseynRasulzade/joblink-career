@@ -1,3 +1,4 @@
+import type { Loose } from "./loose.ts";
 import { cleanCvText, layoutPdfText, rtfToText } from "./cv-text";
 import { loadUnpdf } from "./load-unpdf";
 import {
@@ -22,7 +23,7 @@ async function ocrImage(blob: Blob, name: string, consent: boolean) {
   return cleanCvText(body.text);
 }
 
-async function renderPdfPage(page: any) {
+async function renderPdfPage(page: Loose) {
   const natural = page.getViewport({ scale: 1 });
   const scale = Math.min(2, 2600 / Math.max(natural.width, natural.height));
   const viewport = page.getViewport({ scale });

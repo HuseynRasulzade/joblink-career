@@ -3,7 +3,7 @@
 import type { XlsxSheet } from "./xlsx.ts";
 import { parseDateCell } from "./staff-import.ts";
 import { parseMonthCell } from "./plan-fact-excel.ts";
-import { MODE_LABEL, normalizeMode, type AllocationMode } from "./branches.ts";
+import { MODE_LABEL, type AllocationMode } from "./branches.ts";
 
 export const BX = { guide: "Təlimat", branches: "Filiallar", links: "İşçi-filial", sales: "Satış və bonus", mode: "Bölgü" } as const;
 
@@ -13,7 +13,6 @@ const fold = (value: string) =>
     .replace(/ə/g, "e").replace(/ı/g, "i").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g")
     .replace(/[^a-z0-9%]+/g, " ")
     .trim();
-const yes = (v: string) => ["beli", "yes", "1", "true", "he", "var"].includes(fold(v));
 const no = (v: string) => ["xeyr", "no", "0", "false", "yox"].includes(fold(v));
 const num = (v: string) => {
   const n = Number(String(v ?? "").replace(/\s/g, "").replace("%", "").replace(",", "."));

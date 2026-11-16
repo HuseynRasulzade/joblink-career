@@ -95,7 +95,7 @@ export function functionRelation(have: string, wanted: string): number {
 
 const countHits = (pattern: RegExp, text: string, cap = 3) => {
   let n = 0;
-  for (const _ of text.matchAll(pattern)) if (++n >= cap) break;
+  for (const hit of text.matchAll(pattern)) if (hit && ++n >= cap) break;
   return n;
 };
 // Strength of every function in a text: a strong phrase counts 2, a weak word 1, a few repeats count, more do not.

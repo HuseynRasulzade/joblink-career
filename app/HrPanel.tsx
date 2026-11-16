@@ -1,7 +1,6 @@
 "use client";
-import { BAND_LABELS, bandFor } from "@/lib/career";
+import type { Loose } from "@/lib/loose";
 import { FitReviewPanel } from "./FitReview";
-import { AiFeedback } from "./AiFeedback";
 import { EXTERNAL_SOURCES, trackingLink } from "@/lib/sources";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -29,7 +28,7 @@ import {
 import { Empty, Field, JobForm, Modal } from "./components";
 import { CertificationBadges } from "./CertificationPickers";
 import ConversationList, { type ConversationSummary } from "./ConversationList";
-import type { ApplicantAi, ApplicantFit } from "./PipelineBoard";
+import type { ApplicantAi, ApplicantFit } from "@/lib/applicant-types";
 import ApplicantsTable from "./ApplicantsTable";
 import CandidateDrawer from "./CandidateDrawer";
 import TalentTable from "./TalentTable";
@@ -138,7 +137,7 @@ export default function HrPanel({
 }: {
   page: string;
   go: (s: string) => void;
-  api: (path: string, body?: unknown) => Promise<any>;
+  api: (path: string, body?: unknown) => Promise<Loose>;
   notify: (s: string) => void;
   aiEnabled: boolean;
   aiProvider: string;
@@ -181,7 +180,6 @@ export default function HrPanel({
       .catch(() => undefined);
   const [applicantsView, setApplicantsView] = useState<"board" | "list">("list");
   const [offers, setOffers] = useState<Record<string, Offer>>({});
-  const [testResults, setTestResults] = useState<Record<string, { state: string; percent: number | null }>>({});
   const [offerFor, setOfferFor] = useState<Application | null>(null);
   const [testFor, setTestFor] = useState<Application | null>(null);
   const [interviewFor, setInterviewFor] = useState<Application | null>(null);
@@ -201,7 +199,6 @@ export default function HrPanel({
   const [pick, setPick] = useState<string[]>([]);
   const [invitePeople, setInvitePeople] = useState<InvitePerson[] | null>(null);
   useEffect(() => setPick([]), [jobId]);
-  const togglePick = (key: string, on: boolean) => setPick((l) => (on ? [...new Set([...l, key])] : l.filter((x) => x !== key)));
   const [internalOffer, setInternalOffer] = useState<Job | null>(null);
   // Selection is finished when a candidate has passed every stage of the vacancy (the same rule as a candidate's offer).
   const selectionDone = (j: Job) => {
@@ -272,7 +269,6 @@ export default function HrPanel({
       } catch {
         setOffers({});
       }
-      api("hr/test-results").then((d) => setTestResults(d.results || {})).catch(() => setTestResults({}));
       if (!loaded && next.jobs.length) setDemo(false);
 
       setError("");
@@ -780,7 +776,7 @@ export default function HrPanel({
             </div>
             {!visibleJobs.length && <p className="admin-empty">Axtarışa uyğun vakansiya yoxdur.</p>}
             {visibleJobs.map((j) => (
-              <article className="job-card job-card-click" key={j.id} onClick={(e) => { if (!(e.target as HTMLElement).closest("button,select,a,option,input,label")) setDetailJob(j); }}>
+              <div className="job-card job-card-click" key={j.id} role="button" tabIndex={0} aria-label={j.title} onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailJob(j); }} onClick={(e) => { if (!(e.target as HTMLElement).closest("button,select,a,option,input,label")) setDetailJob(j); }}>
                 <div className="section-heading">
                   <div>
                     <button type="button" className="job-card-title" aria-label={`${j.title}: təfərrüatlara bax`} onClick={() => setDetailJob(j)}>
@@ -959,7 +955,7 @@ export default function HrPanel({
                     Müraciətlərə bax <ArrowUpRight size={14} />
                   </button>
                 </div>
-              </article>
+              </div>
             ))}
             </>
           )}
@@ -1254,11 +1250,11 @@ export default function HrPanel({
           {tab === "Uyğun namizədlər" ? (
             results.length ? (
               <TalentTable
-                rows={results as any}
+                rows={results as Loose}
                 years={years}
-                onOpen={(c) => setDetailTalent(c as any)}
+                onOpen={(c) => setDetailTalent(c as Loose)}
                 actions={(c) => [
-                  { label: "Ətraflı bax", run: () => setDetailTalent(c as any) },
+                  { label: "Ətraflı bax", run: () => setDetailTalent(c as Loose) },
                   { label: "Profilə bax", run: () => setCandidate(c.profile) },
                   ...(!demo && selectedJob ? [{ label: "Mesaj yaz (müraciətə dəvət)", run: () => onMessage({ candidateId: c.id, jobId: selectedJob.id, name: c.profile.name, jobTitle: selectedJob.title, invite: true }) }] : []),
                   ...(!demo ? [{ label: "Bazaya əlavə et", run: () => setSaveTalent({ candidateId: c.id, name: c.profile.name }) }] : []),

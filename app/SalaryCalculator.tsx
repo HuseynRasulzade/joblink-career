@@ -1,4 +1,5 @@
 "use client";
+import type { Loose } from "@/lib/loose";
 import { useMemo, useState } from "react";
 import { calculateFromGross, calculateFromNet, type Sector, type SalaryBreakdown } from "@/lib/salary";
 import { Field } from "./components";
@@ -26,7 +27,7 @@ export function SalaryCalculator({
   initial,
 }: {
   employer?: boolean;
-  api?: (path: string, body?: unknown) => Promise<any>;
+  api?: (path: string, body?: unknown) => Promise<Loose>;
   notify: (message: string) => void;
   initial?: { amount: number; from: "gross" | "net"; sector: Sector; reduction?: number };
 }) {
