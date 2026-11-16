@@ -1959,17 +1959,18 @@ async function route(request: Request) {
   if (!user) throw new HttpError(401, "Davam etmək üçün hesabınıza daxil olun.");
   const userId = user;
   let id = userId;
-  const accountRole =
+  // The account's role, its membership in a company, a suspension and lent approval rights are independent reads: they go to the
+  // database in one round trip (a batch) instead of one after another.
+  const [roleRows, membershipRows, suspendedRows, lentRows] =
     runtime().EXTERNAL_AUTH === "password"
-      ? (
-          await db
-            .prepare(
-              "SELECT COALESCE(role,'candidate') AS role FROM accounts WHERE id=?",
-            )
-            .bind(userId)
-            .first<{ role: string }>()
-        )?.role || "candidate"
-      : "candidate";
+      ? await db.batch([
+          db.prepare("SELECT COALESCE(role,'candidate') AS role FROM accounts WHERE id=?").bind(userId),
+          db.prepare("SELECT m.company_id,m.role,m.grants FROM company_members m JOIN accounts c ON c.id=m.company_id WHERE m.user_id=? AND m.status='active'").bind(userId),
+          db.prepare("SELECT 1 AS yes FROM company_members WHERE user_id=? AND status='suspended'").bind(userId),
+          db.prepare("SELECT company_id,from_user FROM approval_delegates WHERE to_user=? AND until>=?").bind(userId, new Date().toISOString().slice(0, 10)),
+        ])
+      : [null, null, null, null];
+  const accountRole = (roleRows?.results?.[0] as { role: string } | undefined)?.role || "candidate";
   let memberRole = "";
   let memberGrants: string[] = [];
   // Approval rights lent by a colleague who is away (valid until the date they set).
@@ -1977,30 +1978,9 @@ async function route(request: Request) {
   // The colleagues whose approval rights this person holds for now (named substitutes).
   const lentFrom: string[] = [];
   if (accountRole === "company") {
-    // Membership, a suspension and lent rights are independent, so they are read together.
-    const [membership, suspended, lentAll] = await Promise.all([
-      db
-        .prepare(
-          "SELECT m.company_id,m.role,m.grants FROM company_members m JOIN accounts c ON c.id=m.company_id WHERE m.user_id=? AND m.status='active'",
-        )
-        .bind(userId)
-        .first<{ company_id: string; role: string; grants: string }>()
-        .catch(() => null),
-      db
-        .prepare(
-          "SELECT 1 AS yes FROM company_members WHERE user_id=? AND status='suspended'",
-        )
-        .bind(userId)
-        .first()
-        .catch(() => null),
-      db
-        .prepare(
-          "SELECT company_id,from_user FROM approval_delegates WHERE to_user=? AND until>=?",
-        )
-        .bind(userId, new Date().toISOString().slice(0, 10))
-        .all<{ company_id: string; from_user: string }>()
-        .catch(() => ({ results: [] as { company_id: string; from_user: string }[] })),
-    ]);
+    const membership = (membershipRows?.results?.[0] as { company_id: string; role: string; grants: string } | undefined) || null;
+    const suspended = suspendedRows?.results?.[0] || null;
+    const lentAll = { results: ((lentRows?.results as { company_id: string; from_user: string }[] | undefined) || []) };
     if (membership) {
       id = membership.company_id;
       memberRole = membership.role;

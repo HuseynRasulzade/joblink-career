@@ -98,7 +98,7 @@ export default function SupportPage({
   }
   useEffect(() => {
     // Initial load only.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

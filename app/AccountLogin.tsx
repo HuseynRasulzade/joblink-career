@@ -71,7 +71,7 @@ export default function AccountLogin({
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (!params.get("job")) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setFromVacancy(true);
     if (params.get("register") === "1") setRegister(true);
   }, []);

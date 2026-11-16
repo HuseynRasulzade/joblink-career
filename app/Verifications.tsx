@@ -68,7 +68,7 @@ export function VerificationPanel({ profile, notify }: { profile: Profile; notif
   const load = useCallback(() => {
     request<{ verifications: Verification[] }>("verifications").then((d) => setList(d.verifications)).catch(() => {});
   }, []);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(load, [load]);
   const items = [
     ...profile.experiences.filter((e) => e.company && e.title).map((e) => ({ kind: "experience" as const, key: e.id, label: `${e.title} · ${e.company}`, hint: "Əmək kitabçası səhifəsi, iş yerindən arayış və ya əmək müqaviləsi" })),
@@ -130,7 +130,7 @@ export function AdminVerifications({ notify }: { notify: Notify }) {
   const load = useCallback(() => {
     request<{ verifications: Verification[] }>("admin/verifications").then((d) => setList(d.verifications)).catch((e) => notify((e as Error).message));
   }, [notify]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(load, [load]);
   async function decide(id: string, decision: "verified" | "rejected") {
     try {

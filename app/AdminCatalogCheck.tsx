@@ -136,7 +136,7 @@ export default function AdminCatalogCheck({ notify }: { notify: (message: string
           Fayl şəxsi məlumat saxlayır: təhlükəsiz yerdə saxlayın. Hər yükləmə audit jurnalına yazılır. Cloudflare D1 Time Travel əlavə olaraq son 30 günə qayıtmağa imkan verir.
         </p>
         <div className="admin-actions">
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          { }
           <a className="secondary" href="/api/joblink/admin/backup" download><Download size={15} /> Nüsxəni yüklə (JSON)</a>
         </div>
       </section>

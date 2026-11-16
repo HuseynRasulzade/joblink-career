@@ -60,7 +60,7 @@ export default function AdminJobTitles({
   }
   useEffect(() => {
     // Initial data load; the state update happens after the request resolves.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     void loadRequests();
   }, []);
   const open = requests.filter((thread) => !["done", "rejected"].includes(thread.status));

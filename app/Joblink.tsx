@@ -1188,7 +1188,7 @@ export default function Joblink() {
         setMatchingMode(b.settings.candidate),
       )
       .catch(() => setMatchingMode("rules"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [signedIn, hr, admin]);
   // Automatic AI rating: once per vacancy, repeated only when the CV or vacancy changes.
   const autoRanked = useRef("");
@@ -1289,7 +1289,7 @@ export default function Joblink() {
   }, []);
   useEffect(() => {
     if (!signedIn || !hr) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     void refreshCompany();
   }, [signedIn, hr, refreshCompany]);
   const refreshUnread = useCallback(async () => {
@@ -1306,7 +1306,7 @@ export default function Joblink() {
   useEffect(() => {
     if (!signedIn) return;
     // Unread counters for messages and support replies in the navigation.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     void refreshUnread();
     const timer = window.setInterval(() => void refreshUnread(), 60000);
     return () => window.clearInterval(timer);

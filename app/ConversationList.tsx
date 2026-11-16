@@ -42,7 +42,7 @@ export default function ConversationList({
   }
   useEffect(() => {
     // Reload when a message was sent or a conversation changed.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     void load();
   }, [type, refreshKey]);
   async function post(path: string, body: unknown) {

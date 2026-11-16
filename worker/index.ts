@@ -42,7 +42,12 @@ const worker = {
     return withSecurityHeaders(await respond(request, env, ctx));
   },
   // Daily cron: sends the weekly and monthly summaries that are due and interview reminders.
-  async scheduled(_controller: unknown, env: Env, ctx: ExecutionContext) {
+  async scheduled(controller: { cron?: string }, env: Env, ctx: ExecutionContext) {
+    // The half-hourly run only closes interviews whose time is over (and asks for their opinion); the daily run does everything.
+    if (controller?.cron === "*/30 * * * *") {
+      ctx.waitUntil(completePastInterviews(env.DB));
+      return;
+    }
     ctx.waitUntil(Promise.all([completePastInterviews(env.DB), runDigests(env.DB, mailerOf(env), env.EMAIL_FROM), runInterviewReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runTestReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runProbationReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runJobAlerts(env.DB, mailerOf(env), env.EMAIL_FROM), runPlanReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runInvoiceReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runApprovalReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runPayrollReminders(env.DB), runDeadlineReminders(env.DB), runSurveyRecurrence(env.DB), runBankDrafts(env.DB, (request) => handler.fetch(request, env, ctx)), runDueOrderEffects(env.DB, (request) => handler.fetch(request, env, ctx)), runCelebrations(env.DB, (request) => handler.fetch(request, env, ctx)), purgeOldJobViews(env.DB)]));
   },
 };

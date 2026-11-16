@@ -34,7 +34,7 @@ export default function CareerAssistant({
   useEffect(() => {
     if (!startJob) return;
     // Opening the assistant from a vacancy starts a conversation about it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setConversationId("");
     setMessages([]);
     setContextJob(startJob);

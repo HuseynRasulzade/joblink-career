@@ -20,7 +20,7 @@ export default function NotificationBell({ go }: { go: (page: string) => void })
     }
   }
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     void load();
     const timer = window.setInterval(() => void load(), 60000);
     return () => window.clearInterval(timer);

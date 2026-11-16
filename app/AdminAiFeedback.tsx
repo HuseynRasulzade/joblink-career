@@ -55,7 +55,7 @@ export default function AdminAiFeedback({ notify }: { notify: (message: string) 
         </tbody>
       </table></div>
       <div className="admin-actions">
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+        { }
         <a className="secondary" href="/api/joblink/admin/ai-feedback/export" download><Download size={15} /> Rəyləri CSV kimi yüklə</a>
         <button
           className="secondary"

@@ -2247,7 +2247,7 @@ export function CompanyProfilePage({
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [galleryCount, setGalleryCount] = useState(0);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(() => {
     if (data) setDetails(data.details);
   }, [data]);

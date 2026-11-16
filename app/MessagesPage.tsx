@@ -158,7 +158,7 @@ export default function MessagesPage({
     }
   }
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     void loadThreads();
     const timer = window.setInterval(() => void loadThreads(), 30000);
     return () => window.clearInterval(timer);
@@ -187,7 +187,7 @@ export default function MessagesPage({
   }
   useEffect(() => {
     if (!target) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     startTarget(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
@@ -213,7 +213,7 @@ export default function MessagesPage({
   useEffect(() => {
     // Debounced search across all saved messages.
     if (search.trim().length < 2) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setHits([]);
       return;
     }
