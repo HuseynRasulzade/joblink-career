@@ -709,10 +709,10 @@ export default function AdminPanel({
                 <section className="skill-section-group" key={title}>
                   <div><h3>{title}</h3><p>{note}</p></div>
                   <div className="skill-section-grid">
-                    {sections.map((section) => <button
+                    {sections.map((section, si) => <button
                       type="button"
                       className={activeSkillSection?.key === section.key ? "active" : ""}
-                      key={section.key}
+                      key={`${section.key}-${si}`}
                       onClick={() => { setSelectedSkillSection(section.key); setSkillCatalogPage(1); setQuery(""); }}
                     >
                       <span><strong>{language === "en" ? section.labelEn : section.label}</strong><small>{section.source === "esco" ? "ESCO" : "JobMatch"}</small></span>
@@ -739,7 +739,7 @@ export default function AdminPanel({
               {skillCatalogLoading && <span className="skill-catalog-loading">Yüklənir…</span>}
             </div>
             <div className="admin-table-wrap"><table className="admin-table skill-admin-table"><thead><tr><th>Bacarıq</th><th>İngilis versiyası</th><th>Kateqoriya</th><th>Sinonimlər</th><th>Mənbə</th></tr></thead><tbody>
-              {skillCatalog.skills.map((skill) => <tr key={skill.id}><td><strong>{skill.label}</strong>{skill.description && <small className="skill-description">{skill.description}</small>}</td><td>{skill.labelEn}</td><td><span className="admin-role">{skill.source === "esco" ? (skill.reuseLevel || skill.skillType || "ESCO") : skill.category}</span></td><td><div className="skill-alias-preview">{skill.aliases.slice(0,4).map((alias) => <span key={alias}>{alias}</span>)}{skill.aliases.length > 4 && <small>+{skill.aliases.length - 4}</small>}</div></td><td><span className={`skill-source ${skill.source}`}>{skill.source === "admin" ? "Admin" : skill.source === "esco" ? "ESCO" : "Sistem"}</span></td></tr>)}
+              {skillCatalog.skills.map((skill) => <tr key={skill.id}><td><strong>{skill.label}</strong>{skill.description && <small className="skill-description">{skill.description}</small>}</td><td>{skill.labelEn}</td><td><span className="admin-role">{skill.source === "esco" ? (skill.reuseLevel || skill.skillType || "ESCO") : skill.category}</span></td><td><div className="skill-alias-preview">{skill.aliases.slice(0,4).map((alias, ai) => <span key={`${alias}-${ai}`}>{alias}</span>)}{skill.aliases.length > 4 && <small>+{skill.aliases.length - 4}</small>}</div></td><td><span className={`skill-source ${skill.source}`}>{skill.source === "admin" ? "Admin" : skill.source === "esco" ? "ESCO" : "Sistem"}</span></td></tr>)}
               {!skillCatalog.skills.length && !skillCatalogLoading && <tr><td colSpan={5}><p className="admin-empty">Bu bölmədə uyğun bacarıq tapılmadı.</p></td></tr>}
             </tbody></table></div>
             {skillCatalog.pageCount > 1 && <nav className="skill-pagination" aria-label="Bacarıq səhifələri">

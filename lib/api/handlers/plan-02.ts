@@ -48,7 +48,7 @@ export async function handle_plan_02(c: Pick<RouteCtx, "activatePaidOrder" | "bi
     return new Response(page, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
   }
   if (request.method === "POST" && path === "pay/sandbox/decide") {
-    const form = await request.formData();
+    const form = await request.formData().catch(() => { throw new HttpError(400, "Sorğu forması düzgün deyil."); });
     const order = await payOrder(String(form.get("order") || "").slice(0, 100));
     if (!order || order.account_id !== id || order.provider !== "sandbox") throw new HttpError(404, "Sifariş tapılmadı.");
     const result = String(form.get("result") || "");
@@ -290,7 +290,7 @@ export async function handle_plan_02(c: Pick<RouteCtx, "activatePaidOrder" | "bi
     });
   }
   if (request.method === "POST" && path === "ocr-cv") {
-    const form = await request.formData();
+    const form = await request.formData().catch(() => { throw new HttpError(400, "Sorğu forması düzgün deyil."); });
     if (form.get("consent") !== "true")
       throw new HttpError(
         400,
@@ -329,7 +329,7 @@ export async function handle_plan_02(c: Pick<RouteCtx, "activatePaidOrder" | "bi
     return ok({ text: ocrText });
   }
   if (request.method === "POST" && path === "parse-cv-file") {
-    const form = await request.formData();
+    const form = await request.formData().catch(() => { throw new HttpError(400, "Sorğu forması düzgün deyil."); });
     if (form.get("consent") !== "true")
       throw new HttpError(
         400,

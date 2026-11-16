@@ -476,6 +476,7 @@ export async function authRoute(request: Request, path: string) {
     const name = str(body.name, 100);
     const role = body.role === "company" ? "company" : "candidate";
     if (name.length < 2) throw new HttpError(400, "Adınızı daxil edin.");
+    if (body.accept !== true) throw new HttpError(400, "Qeydiyyat üçün istifadə şərtləri və məxfilik siyasəti ilə razılaşmaq lazımdır.");
     const existing = await db
       .prepare("SELECT 1 FROM password_accounts WHERE email=?")
       .bind(email)

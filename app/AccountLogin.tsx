@@ -80,6 +80,7 @@ export default function AccountLogin({
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [role, setRole] = useState<"candidate" | "company">("candidate");
+  const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -118,6 +119,10 @@ export default function AccountLogin({
       setError("Şifrələr uyğun gəlmir.");
       return;
     }
+    if (register && !accepted) {
+      setError("Davam etmək üçün istifadə şərtləri və məxfilik siyasəti ilə razılaşın.");
+      return;
+    }
     setBusy(true);
     try {
       const response = await fetch(
@@ -125,7 +130,7 @@ export default function AccountLogin({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password, role, code, turnstile: robotToken }),
+          body: JSON.stringify({ name, email, password, role, code, turnstile: robotToken, accept: register ? accepted : undefined }),
         },
       );
       const body = (await response.json()) as {
@@ -283,6 +288,10 @@ export default function AccountLogin({
             <p className="fine-print muted">
               Şifrə ən azı 10 simvol olmalıdır.
             </p>
+            <label className="consent-check" style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13 }}>
+              <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} style={{ marginTop: 3 }} />
+              <span><a href="/terms" target="_blank" rel="noreferrer">İstifadə şərtləri</a> və <a href="/privacy" target="_blank" rel="noreferrer">Məxfilik siyasəti</a> ilə tanış oldum və razıyam.</span>
+            </label>
           </>
         )}
         {info && <div className="notice" role="status">{info}</div>}
@@ -320,6 +329,7 @@ export default function AccountLogin({
       <p className="fine-print muted">
         Sessiya bu cihazda 7 gün qorunur. Şifrəniz açıq mətn kimi saxlanmır.
       </p>
+      <p className="fine-print muted"><a href="/terms" target="_blank" rel="noreferrer">İstifadə şərtləri</a> · <a href="/privacy" target="_blank" rel="noreferrer">Məxfilik siyasəti</a></p>
     </div>,
   );
 }

@@ -101,7 +101,7 @@ export async function handle_job_status_01(c: Pick<RouteCtx, "customSkillLabels"
         413,
         `Fayl ${formatCvFileLimit()}-dan kiçik olmalıdır.`,
       );
-    const form = await request.formData();
+    const form = await request.formData().catch(() => { throw new HttpError(400, "Sorğu forması düzgün deyil."); });
     const file = form.get("file");
     if (!(file instanceof File) || file.size > MAX_CV_FILE_BYTES)
       throw new HttpError(
