@@ -1566,6 +1566,15 @@ async function loadPlatformCalendar(db: D1Database, force = false) {
   setPlatformCalendar(list.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.day) && (PLATFORM_KINDS as readonly string[]).includes(d.kind)));
   platformCalendarLoaded = Date.now();
 }
+let sharedListsAt = 0;
+let sharedListsCache: { customSkills: Awaited<ReturnType<typeof readCustomSkills>>; customCerts: Awaited<ReturnType<typeof readCustomCertifications>>; customTitles: Awaited<ReturnType<typeof readCustomJobTitles>> } | null = null;
+async function sharedLists(db: D1Database) {
+  if (sharedListsCache && Date.now() - sharedListsAt < 30_000) return sharedListsCache;
+  const [customSkills, customCerts, customTitles] = await Promise.all([readCustomSkills(db), readCustomCertifications(db), readCustomJobTitles(db)]);
+  sharedListsCache = { customSkills, customCerts, customTitles };
+  sharedListsAt = Date.now();
+  return sharedListsCache;
+}
 async function route(request: Request) {
   const requestUrl = new URL(request.url);
   const path = requestUrl.pathname.split("/api/joblink/")[1];
@@ -1575,13 +1584,11 @@ async function route(request: Request) {
   }
   const db = await store();
   // The three shared lists and the session are read together: each D1 round trip is slow.
-  const [customSkills, customCerts, customTitles, user] = await Promise.all([
-    readCustomSkills(db),
-    readCustomCertifications(db),
-    readCustomJobTitles(db),
-    optionalIdentity(request),
-    loadPlatformCalendar(db),
-  ]);
+  // The three shared lists change rarely (only the admin edits them): they are kept for half a minute in the instance, so most requests
+  // do not read them from the database again. Any admin write drops the copy at once.
+  if (request.method !== "GET" && path.startsWith("admin/")) sharedListsAt = 0;
+  const [shared, user] = await Promise.all([sharedLists(db), optionalIdentity(request), loadPlatformCalendar(db)]);
+  const { customSkills, customCerts, customTitles } = shared;
   const customSkillLabels = customSkills.map((skill) => skill.label);
   setCustomCertifications(customCerts);
   setCustomJobTitles(customTitles);
