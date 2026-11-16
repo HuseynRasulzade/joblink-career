@@ -1,3 +1,4 @@
+import { traceDb } from "./d1-trace.ts";
 import { latestSubscription } from "./plan-service.ts";
 import { effectivePlan } from "./plans.ts";
 import { monthPeriodKey, tokenVerdict, tokensOfChars, windowKey, windowResetAt } from "./ai-tokens.ts";
@@ -83,7 +84,7 @@ export function runtime() {
 export async function store() {
   const db = runtime().DB;
   if (!db) throw new Error("Məlumat bazası hazır deyil.");
-  return db;
+  return traceDb(db);
 }
 export async function optionalIdentity(request: Request) {
   if (runtime().EXTERNAL_AUTH !== "password")

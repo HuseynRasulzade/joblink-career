@@ -10,6 +10,7 @@ type Method = { id: string; brand: string; last4: string; expMonth: number; expY
 type Usage = { used: number; limit: number };
 type PlanMe = {
   enforced: boolean;
+  paymentsOpen?: boolean;
   aiTokens?: { window: number; month: number; windowTotal: number; monthTotal: number; windowResetAt: string; monthResetAt: string };
   provider: string;
   plans: Plan[];
@@ -197,10 +198,14 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
               ) : p.priceAzn === 0 ? (
                 sub ? <button className="secondary" disabled={busy} onClick={() => run(() => call("plan/subscribe", { planId: p.id }), "Cari müddət bitəndən sonra paketsiz rejimə keçəcəksiniz.")}>Paketsiz rejimə keç</button> : null
               ) : (
+                data.paymentsOpen === false ? (
+                  <span className="muted">Ödəniş tezliklə aktiv olacaq</span>
+                ) : (
                 <div className="plan-actions">
                   <button className="primary" disabled={busy} onClick={() => void payAtBank(p)}>Bank səhifəsində ödə</button>
                   <button className="secondary" disabled={busy} onClick={() => { setChoosing(p); setMethodId(defaultMethod?.id || ""); setAutoRenew(true); }}>Saxlanmış kartla</button>
                 </div>
+                )
               )}
             </article>
           );

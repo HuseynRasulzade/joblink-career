@@ -85,6 +85,10 @@ export const abbCheckout: HostedCheckout = {
 export function checkoutFor(name: string | undefined): HostedCheckout {
   return name === "abb" ? abbCheckout : sandboxCheckout;
 }
+// Payment is open only when a bank is chosen on purpose: «abb» (the real one) or «sandbox»/«mock» (a test setup).
+export const paymentsOpen = (name: string | undefined) => name === "abb" || name === "sandbox" || name === "mock";
 export function providerFor(name: string | undefined): PaymentProvider | null {
-  return !name || name === "mock" ? mockProvider : null;
+  // Without PAYMENT_PROVIDER there is no payment at all: the test provider is only for a test setup that asks for it on purpose,
+  // otherwise a paid package would be free.
+  return name === "mock" || name === "sandbox" ? mockProvider : null;
 }

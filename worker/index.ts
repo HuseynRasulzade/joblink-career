@@ -6,6 +6,7 @@ import { runSurveyRecurrence } from "../lib/survey-recurrence.ts";
 import { runBankDrafts, runCelebrations, runDueOrderEffects } from "../lib/cron-bank-drafts.ts";
 import { purgeOldJobViews, runApprovalReminders, runDigests, runInterviewReminders, runInvoiceReminders, runJobAlerts, runPlanReminders, runProbationReminders, runTestReminders, type Mailer } from "../lib/digest-job.ts";
 import { completePastInterviews } from "../lib/interview-auto.ts";
+import { runTraced, serverTiming } from "../lib/d1-trace.ts";
 import { mailerOf } from "../lib/mail.ts";
 import { cacheable, edgeCacheSeconds } from "../lib/edge-cache.ts";
 import { withSecurityHeaders } from "../lib/security-headers.ts";
@@ -79,6 +80,18 @@ async function respond(request: Request, env: Env, ctx: ExecutionContext): Promi
     return shared;
   }
 
+  // API requests are counted: the number of database queries and their time go out in the Server-Timing header, and a slow or
+  // failed request is written to the Worker log (the log is on in the Worker settings).
+  if (url.pathname.startsWith("/api/")) {
+    const started = Date.now();
+    const { result, trace } = await runTraced(() => handler.fetch(request, env, ctx));
+    const total = Date.now() - started;
+    if (total > 2500 || trace.queries > 25 || result.status >= 500)
+      console.warn(JSON.stringify({ slow: total > 2500, status: result.status, path: url.pathname.slice(0, 80), ms: total, queries: trace.queries, dbMs: trace.ms, slowest: trace.slowest }));
+    const out = new Response(result.body, result);
+    out.headers.set("Server-Timing", serverTiming(trace, total));
+    return out;
+  }
   return handler.fetch(request, env, ctx);
 }
 

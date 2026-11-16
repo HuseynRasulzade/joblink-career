@@ -308,7 +308,7 @@ import {
   canonicalMajor,
   setCustomMajors,
 } from "@/lib/major-catalog";
-import { checkoutFor } from "@/lib/payments";
+import { checkoutFor, paymentsOpen } from "@/lib/payments";
 import { latestSubscription } from "@/lib/plan-service";
 import { PLANS, addPeriod, azn as aznCents, planById } from "@/lib/plans";
 import { cardLabel, parseCard, providerFor } from "@/lib/payments";
@@ -17401,6 +17401,7 @@ async function route(request: Request) {
     };
     const tokenLimits = { window: plan.limits.aiTokensWindow, month: plan.limits.aiTokensMonth };
     return ok({
+      paymentsOpen: paymentsOpen(runtime().PAYMENT_PROVIDER),
       aiTokens: {
         ...tokensLeft(tokenLimits, tokensUsed),
         windowTotal: tokenLimits.window,
@@ -17766,6 +17767,7 @@ async function route(request: Request) {
     if (!plan || plan.priceAzn <= 0) throw new HttpError(400, "Ödənişli paket seçin.");
     const current = await syncSubscription(db, id, paymentProvider);
     if (current && current.status === "active" && current.planId === plan.id && Date.parse(current.periodEnd) > Date.now()) throw new HttpError(409, "Bu paket artıq aktivdir.");
+    if (!paymentsOpen(runtime().PAYMENT_PROVIDER)) throw new HttpError(503, "Ödəniş hələ aktiv deyil. Paketlər bank ödənişi qoşulandan sonra satılacaq.");
     const bank = checkoutFor(runtime().PAYMENT_PROVIDER);
     const orderId = crypto.randomUUID();
     const origin = new URL(request.url).origin;

@@ -61,6 +61,10 @@ test("the mock provider charges, declines the test decline card and is the only 
   const declined = mockProvider.charge({ token: bad, amountCents: 500, currency: "AZN", description: "x" });
   assert.equal(declined.ok, false);
   assert.match(declined.error, /qəbul etmədi/);
-  assert.equal(providerFor(undefined)?.name, "mock");
+  // Without an explicit setting there is no payment at all (the test provider would make a paid package free).
+  assert.equal(providerFor(undefined), null);
+  assert.equal(providerFor("")?.name ?? null, null);
+  assert.equal(providerFor("mock")?.name, "mock");
+  assert.equal(providerFor("sandbox")?.name, "mock");
   assert.equal(providerFor("stripe"), null);
 });

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkoutFor, sandboxCheckout, abbCheckout } from "../lib/payments.ts";
+import { checkoutFor, sandboxCheckout, abbCheckout, paymentsOpen } from "../lib/payments.ts";
 
 const input = { orderId: "11111111-2222-3333-4444-555555555555", amountCents: 500, currency: "AZN", description: "JobMatch Plus 5", origin: "https://example.test", returnUrl: "https://example.test/?payment=x" };
 
@@ -22,4 +22,11 @@ test("ABB says plainly that it is not set up yet and sends nothing", () => {
   assert.ok("error" in made);
   assert.match(made.error, /ABB/);
   assert.equal(abbCheckout.verifyCallback({}).paid, false);
+});
+
+test("payment is open only when a bank is chosen on purpose", () => {
+  assert.equal(paymentsOpen(undefined), false);
+  assert.equal(paymentsOpen(""), false);
+  assert.equal(paymentsOpen("stripe"), false);
+  for (const name of ["abb", "sandbox", "mock"]) assert.equal(paymentsOpen(name), true, name);
 });
