@@ -7,6 +7,7 @@ import { runBankDrafts, runCelebrations, runDueOrderEffects } from "../lib/cron-
 import { purgeOldJobViews, runApprovalReminders, runDigests, runInterviewReminders, runInvoiceReminders, runJobAlerts, runPlanReminders, runProbationReminders, runTestReminders, type Mailer } from "../lib/digest-job.ts";
 import { completePastInterviews } from "../lib/interview-auto.ts";
 import { runTraced, serverTiming } from "../lib/d1-trace.ts";
+import { recordServerError, purgeOldServerErrors } from "../lib/alerts.ts";
 import { mailerOf } from "../lib/mail.ts";
 import { cacheable, edgeCacheSeconds } from "../lib/edge-cache.ts";
 import { withSecurityHeaders } from "../lib/security-headers.ts";
@@ -48,7 +49,7 @@ const worker = {
       ctx.waitUntil(completePastInterviews(env.DB));
       return;
     }
-    ctx.waitUntil(Promise.all([completePastInterviews(env.DB), runDigests(env.DB, mailerOf(env), env.EMAIL_FROM), runInterviewReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runTestReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runProbationReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runJobAlerts(env.DB, mailerOf(env), env.EMAIL_FROM), runPlanReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runInvoiceReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runApprovalReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runPayrollReminders(env.DB), runDeadlineReminders(env.DB), runSurveyRecurrence(env.DB), runBankDrafts(env.DB, (request) => handler.fetch(request, env, ctx)), runDueOrderEffects(env.DB, (request) => handler.fetch(request, env, ctx)), runCelebrations(env.DB, (request) => handler.fetch(request, env, ctx)), purgeOldJobViews(env.DB)]));
+    ctx.waitUntil(Promise.all([completePastInterviews(env.DB), runDigests(env.DB, mailerOf(env), env.EMAIL_FROM), runInterviewReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runTestReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runProbationReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runJobAlerts(env.DB, mailerOf(env), env.EMAIL_FROM), runPlanReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runInvoiceReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runApprovalReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runPayrollReminders(env.DB), runDeadlineReminders(env.DB), runSurveyRecurrence(env.DB), runBankDrafts(env.DB, (request) => handler.fetch(request, env, ctx)), runDueOrderEffects(env.DB, (request) => handler.fetch(request, env, ctx)), runCelebrations(env.DB, (request) => handler.fetch(request, env, ctx)), purgeOldJobViews(env.DB), purgeOldServerErrors(env.DB)]));
   },
 };
 
@@ -87,12 +88,18 @@ async function respond(request: Request, env: Env, ctx: ExecutionContext): Promi
 
   // API requests are counted: the number of database queries and their time go out in the Server-Timing header, and a slow or
   // failed request is written to the Worker log (the log is on in the Worker settings).
+  if (url.pathname === "/api/csp-report" && request.method === "POST") {
+    const text = (await request.text().catch(() => "")).slice(0, 600);
+    console.warn(JSON.stringify({ csp: true, report: text }));
+    return new Response(null, { status: 204 });
+  }
   if (url.pathname.startsWith("/api/")) {
     const started = Date.now();
     const { result, trace } = await runTraced(() => handler.fetch(request, env, ctx));
     const total = Date.now() - started;
     if (total > 2500 || trace.queries > 25 || result.status >= 500)
       console.warn(JSON.stringify({ slow: total > 2500, status: result.status, path: url.pathname.slice(0, 80), ms: total, queries: trace.queries, dbMs: trace.ms, slowest: trace.slowest }));
+    if (result.status >= 500) ctx.waitUntil(recordServerError(env.DB, url.pathname, result.status));
     const out = new Response(result.body, result);
     out.headers.set("Server-Timing", serverTiming(trace, total));
     return out;

@@ -9,6 +9,8 @@ export const SECURITY_HEADERS: Record<string, string> = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()",
   "Content-Security-Policy": "frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'",
+  // The script policy runs in report-only mode first: violations are only reported to /api/csp-report (Worker log), nothing is blocked.
+  "Content-Security-Policy-Report-Only": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; frame-src 'self' https:; report-uri /api/csp-report",
   "Cross-Origin-Opener-Policy": "same-origin",
 };
 

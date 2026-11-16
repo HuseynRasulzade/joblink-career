@@ -70,6 +70,8 @@ export function runtime() {
     DEV_MAIL_LOG?: string;
     // "1" turns on package limits; without it everyone keeps full access.
     BILLING_ENFORCED?: string;
+    // "1" refuses administrator sign-in until the account has two-step sign-in set up.
+    ADMIN_2FA_REQUIRED?: string;
     PAYMENT_PROVIDER?: string;
     PLATFORM_LEGAL_NAME?: string;
     PLATFORM_VOEN?: string;

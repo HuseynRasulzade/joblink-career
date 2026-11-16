@@ -177,3 +177,13 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Namizəd tərəfi:** söhbətin üstündə «Şirkət sizi “…” vakansiyasına müraciətə dəvət edib» və **«Vakansiyaya bax və müraciət et»** düyməsi (vakansiyanın öz səhifəsini açır); müraciət edibsə «müraciət etmisiniz ✓»; vakansiya bağlanıbsa bu yazılır.
 - **İşəgötürən tərəfi:** söhbətin üstündə «Namizəd müraciət edib ✓» və ya «hələ müraciət etməyib» görünür.
 - Bu bölmədə toplu «Dəvət üçün seç» işarəsi götürüldü (müsahibə dəvəti «Müraciət edənlər» bölməsində qalır).
+
+## 18. Şəxsi kod, status axını, ödəniş, kod quruluşu (2026-11-16)
+
+- **Şəxsi kod:** hər namizəd və şirkət oxunaqlı kod alır (`lib/public-code.ts`); axtarışda kodla tapmaq olur.
+- **Status axını:** namizədin statusu əllə seçilmir, müsahibə mərhələsinə və sənədlərə bağlıdır (`lib/application-flow.ts`); server qaydaları pozan keçidi 409 ilə rədd edir. Vaxtı keçmiş müsahibələr avtomatik tamamlanır (`lib/interview-auto.ts`, 30 dəqiqəlik cron).
+- **Ödəniş:** provayder boşdursa bağlıdır; sandbox bankı yoxlanıb (rədd → pulsuz qalır, təsdiq → paket + müqavilə + ödəniş sətri). Real ABB üçün müqavilə rekvizitləri lazımdır (kodla həll olunmur). Ətraflı: `docs/PACKAGES.md`.
+- **İzləmə:** API cavablarında `Server-Timing` (sorğu sayı və vaxt); yavaş (>2,5 san, >25 sorğu) və 5xx cavablar Worker jurnalına yazılır. 10 dəqiqədə 5 və artıq 5xx olarsa bütün adminlərə «Server xətaları» bildirişi gedir (saatda ən çox bir dəfə; `lib/alerts.ts`, cədvəl `server_errors`).
+- **Təhlükəsizlik:** CSP skript siyasəti **report-only** rejimindədir (heç nə bloklanmır; pozuntular `/api/csp-report` vasitəsilə Worker jurnalına yazılır). Jurnalda real pozuntu qalmayanda bloklayan siyasətə keçirilməlidir. Admin 2FA: panel xəbərdarlıq göstərir; hamı quranda `ADMIN_2FA_REQUIRED=1` ilə məcburi edilir (əvvəl etsəniz 2FA-sız admin girişdən çıxa bilər).
+- **Kod quruluşu:** `app/api/joblink/[...path]/route.ts` 24 079 sətirdən 3 147-yə endi. Handlerlər `lib/api/handlers/<ad>-NN.ts` (78 fayl), ortaq köməkçilər `lib/api/shared.ts`, tiplər `lib/api/ctx.ts`. Yeni endpoint uyğun handler faylına əlavə edilir; `tests/route-paths.test.mjs` hər faylın çağırıldığını yoxlayır.
+- **Hələ mənim əlimdə olmayanlar:** ABB müqaviləsi/rekvizitləri, öz domen, müqavilə mətninin hüquqşünas yoxlaması, real istifadəçi pilotu, sınaq məlumatlarının (ZZ-TEST hesabları, `sirket-demo`) açılışdan əvvəl silinməsi, CI e2e üçün repo secret-ləri.

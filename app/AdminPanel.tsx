@@ -244,6 +244,13 @@ export default function AdminPanel({
   const [data, setData] = useState<AdminData>(empty);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
+  // An administrator without a second factor sees a reminder (the account can change everything on the platform).
+  const [noTwoFactor, setNoTwoFactor] = useState(false);
+  useEffect(() => {
+    let active = true;
+    api("auth/2fa-status", {}).then((r) => { if (active && r && r.enabled === false) setNoTwoFactor(true); }).catch(() => {});
+    return () => { active = false; };
+  }, [api]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [billingForm, setBillingForm] = useState<"invoice" | "payment" | "">("");
@@ -488,6 +495,11 @@ export default function AdminPanel({
 
   return localizeTree(
     <div className="admin-panel">
+      {noTwoFactor && (
+        <section className="notice warning" role="alert" style={{ marginBottom: 12, padding: "10px 14px", borderRadius: 10, background: "#fff4e5", border: "1px solid #f0b46b", color: "#7a4a05" }}>
+          <strong>İki mərhələli giriş aktiv deyil.</strong> Administrator hesabı bütün platformaya təsir edir. «Hesab ayarları → Təhlükəsizlik» bölməsində autentifikator tətbiqini qoşun.
+        </section>
+      )}
       <section className="admin-hero">
         <div>
           <span className="admin-kicker"><ShieldCheck size={15} /> JOBMATCH CONTROL CENTER</span>

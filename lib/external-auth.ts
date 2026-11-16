@@ -524,8 +524,13 @@ export async function authRoute(request: Request, path: string) {
       return response({ error: "Doğrulama kodu yanlışdır.", twoFactor: true }, [], 401);
     }
   }
+  // An administrator without a second factor is told to set it up; with ADMIN_2FA_REQUIRED=1 the login is refused until it is set up
+  // from another channel (so the switch is off until every admin has 2FA).
+  const adminWithout2fa = account.role === "admin" && !second;
+  if (adminWithout2fa && runtime().ADMIN_2FA_REQUIRED === "1")
+    throw new HttpError(403, "Administrator hesabı üçün iki mərhələli giriş məcburidir. Əvvəl onu aktiv edin.");
   return response(
-    { ok: true, role: account.role || "candidate" },
+    { ok: true, role: account.role || "candidate", ...(adminWithout2fa ? { twoFactorSetupNeeded: true } : {}) },
     [await issueSession(account.user_id, request)],
   );
 }
