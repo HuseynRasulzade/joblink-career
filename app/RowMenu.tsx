@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { MoreVertical } from "lucide-react";
 
-export type RowMenuItem = { label: string; icon?: ReactNode; run: () => void; danger?: boolean };
+export type RowMenuItem = { label: string; icon?: ReactNode; run: () => void; danger?: boolean; group?: string };
 
 // The «⋮» menu of a table row. It is drawn at a fixed place next to its button (not inside the table's own scroll box),
 // so opening it moves nothing: neither the table nor the page scrolls; it closes on scroll, click outside and Esc.
@@ -31,7 +31,7 @@ export default function RowMenu({ label, items }: { label: string; items: RowMen
   function toggle() {
     if (at) return setAt(null);
     const r = button.current!.getBoundingClientRect();
-    const height = items.length * 38 + 16;
+    const height = items.length * 38 + 16 + new Set(items.map((x) => x.group).filter(Boolean)).size * 26;
     // Opens downwards; upwards when there is no room below.
     const top = r.bottom + height > window.innerHeight ? Math.max(8, r.top - height) : r.bottom + 4;
     setAt({ top, left: Math.max(8, Math.min(r.right - 220, window.innerWidth - 228)) });
@@ -43,9 +43,10 @@ export default function RowMenu({ label, items }: { label: string; items: RowMen
       </button>
       {at && createPortal(
         <div className="row-menu" role="menu" style={{ top: at.top, left: at.left }}>
-          {items.map((x) => (
+          {items.map((x, i) => (
+            <Fragment key={x.label}>
+              {x.group && x.group !== items[i - 1]?.group && <span className="row-menu-group">{x.group}</span>}
             <button
-              key={x.label}
               type="button"
               role="menuitem"
               className={x.danger ? "danger" : ""}
@@ -57,6 +58,7 @@ export default function RowMenu({ label, items }: { label: string; items: RowMen
               {x.icon}
               {x.label}
             </button>
+            </Fragment>
           ))}
         </div>,
         document.body,

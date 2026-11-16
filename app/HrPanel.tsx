@@ -1285,24 +1285,20 @@ export default function HrPanel({
                   picked={pick.filter((k) => k.startsWith("a:")).map((k) => k.slice(2))}
                   onPick={(ids, on) => setPick((list) => (on ? [...new Set([...list, ...ids.map((x) => `a:${x}`)])] : list.filter((k) => !ids.some((x) => k === `a:${x}`))))}
                   onOpen={setDetailApp}
-                  onStatus={async (a, status) => {
-                    try {
-                      await api("application-status", { id: a.id, status });
-                      await refresh();
-                      notify("Status yeniləndi.");
-                    } catch (e) {
-                      notify((e as Error).message);
-                    }
-                  }}
                   actions={[
                     { label: "Ətraflı bax", run: (a) => setDetailApp(a) },
                     { label: "Profilə bax", run: (a) => setCandidate(a.profile) },
                     { label: "Mesaj yaz", show: (a) => !demo && !!a.candidateId, run: (a) => a.candidateId && onMessage({ candidateId: a.candidateId, jobId: a.jobId, name: a.profile.name, jobTitle: selectedJob?.title }) },
-                    { label: "Müsahibəyə dəvət et", show: (a) => !demo && ["Göndərildi", "Baxışda"].includes(a.status), run: (a) => void inviteToInterview(a) },
-                    { label: "Müsahibə təyin et", show: (a) => !demo && !["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(a.status), run: (a) => setInterviewFor(a) },
-                    { label: "Test göndər", show: (a) => !demo && !["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(a.status), run: (a) => setTestFor(a) },
-                    { label: "İş təklifi et", show: (a) => !demo && a.status === "Müsahibə" && offers[a.id]?.status !== "sent", run: (a) => setOfferFor(a) },
+                    // The status follows these actions: each one moves the application to its stage by itself.
+                    { group: "Mərhələ", label: "Baxışa götür", show: (a) => !demo && ["Göndərildi", "Uyğun deyil"].includes(a.status), run: (a) => void moveApplication(a, "Baxışda", "") },
+                    { group: "Mərhələ", label: "Müsahibəyə dəvət et", show: (a) => !demo && ["Göndərildi", "Baxışda"].includes(a.status), run: (a) => void inviteToInterview(a) },
+                    { group: "Mərhələ", label: "Müsahibə təyin et", show: (a) => !demo && !["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(a.status), run: (a) => setInterviewFor(a) },
+                    { group: "Mərhələ", label: "Test göndər", show: (a) => !demo && !["Uyğun deyil", "İşə qəbul edildi", WITHDRAWN_STATUS].includes(a.status), run: (a) => setTestFor(a) },
+                    { group: "Mərhələ", label: "İş təklifi et", show: (a) => !demo && a.status === "Müsahibə" && offers[a.id]?.status !== "sent", run: (a) => setOfferFor(a) },
+                    { group: "Mərhələ", label: "İşə qəbul et", show: (a) => !demo && ["Müsahibə", "Təklif edildi"].includes(a.status) && offers[a.id]?.status !== "sent", run: (a) => { if (window.confirm(`${a.profile.name} işə qəbul edilsin? İşçi kartı yaradılacaq.`)) void moveApplication(a, "İşə qəbul edildi", ""); } },
+                    { group: "Mərhələ", label: "Uyğun deyil (rədd et)", danger: true, show: (a) => !demo && ["Göndərildi", "Baxışda", "Müsahibə", "Təklif edildi"].includes(a.status), run: (a) => void moveApplication(a, "Uyğun deyil", "") },
                     {
+                      group: "Digər",
                       label: "Təklifi geri götür",
                       danger: true,
                       show: (a) => !demo && offers[a.id]?.status === "sent",
@@ -1317,8 +1313,8 @@ export default function HrPanel({
                         }
                       },
                     },
-                    { label: "Tarixçə", run: (a) => void showHistory(a) },
-                    { label: "Bazaya əlavə et", show: () => !demo, run: (a) => setBulk({ ids: [a.id], action: "pool" }) },
+                    { group: "Digər", label: "Tarixçə", run: (a) => void showHistory(a) },
+                    { group: "Digər", label: "Bazaya əlavə et", show: () => !demo, run: (a) => setBulk({ ids: [a.id], action: "pool" }) },
                   ]}
                 />
               )}

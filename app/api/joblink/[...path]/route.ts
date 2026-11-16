@@ -383,7 +383,7 @@ import { monthPeriodKey, tokensLeft, windowKey, windowResetAt, monthStartNext } 
 import { generatePublicCode, formatPublicCode, normalizePublicCode } from "@/lib/public-code";
 import { COMPANY_AI_PACKAGES, packageById, monthKey, quotaLeft, worstCaseNetShare } from "@/lib/ai-packages";
 import { completePastInterviews } from "@/lib/interview-auto";
-import { statusAfter, type ApplicationFlowEvent } from "@/lib/application-flow";
+import { manualStatusMove, statusAfter, type ApplicationFlowEvent } from "@/lib/application-flow";
 import { ATTENDANCE_CODES, HOURS_PER_DAY, RELIGIOUS_YEARS, knownReligiousYears, setPlatformCalendar, platformCalendar, PLATFORM_KINDS, type PlatformDay, attendanceCode, daysOff, monthDays, yearCalendar, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { HOLDER_LABEL, approveStep, editStep, normalizeFlow, returnStep, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
@@ -20102,6 +20102,9 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
     if (!row) throw new HttpError(403, "Bu müraciəti dəyişə bilməzsiniz.");
     if (row.status === WITHDRAWN_STATUS)
       throw new HttpError(409, "Namizəd bu müraciəti geri götürüb.");
+    // The statuses follow the stages and documents: an offer, an interview or a hire is reached through its own action.
+    const move = manualStatusMove(row.status, b.status);
+    if (!move.ok) throw new HttpError(409, move.message);
     const job = normalizedJobRecord(
       JSON.parse(row.job_data),
       customSkillLabels,

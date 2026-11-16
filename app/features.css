@@ -6751,3 +6751,5 @@ dialog.modal.side-drawer { margin: 0 0 0 auto; width: min(560px, 100vw); max-wid
 .code-find .error-text { color: #a63d2f; }
 .ai-quota { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; padding: 8px 12px; border-radius: 10px; background: #eef5f2; font-size: 13px; }
 .ai-balance progress { width: 100%; height: 10px; margin: 4px 0 12px; }
+.row-menu-group { display: block; padding: 8px 10px 2px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #6b7f78; }
+.apt-status { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }

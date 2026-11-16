@@ -7,7 +7,7 @@ import { siteLanguage } from "./i18n";
 import RowMenu from "./RowMenu";
 import type { ApplicantAi, ApplicantFit } from "./PipelineBoard";
 
-export type RowAction = { label: string; icon?: ReactNode; run: (application: Application) => void; show?: (application: Application) => boolean; danger?: boolean };
+export type RowAction = { label: string; group?: string; icon?: ReactNode; run: (application: Application) => void; show?: (application: Application) => boolean; danger?: boolean };
 
 // The status as a small coloured chip (the colour tells the stage at a glance).
 const STATUS_TONE: Record<string, string> = {
@@ -35,7 +35,6 @@ export default function ApplicantsTable({
   picked,
   onPick,
   onOpen,
-  onStatus,
   actions,
 }: {
   rows: Application[];
@@ -50,7 +49,6 @@ export default function ApplicantsTable({
   picked: string[];
   onPick: (ids: string[], on: boolean) => void;
   onOpen: (application: Application) => void;
-  onStatus: (application: Application, status: string) => void;
   actions: RowAction[];
 }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "fit", dir: -1 });
@@ -114,17 +112,11 @@ export default function ApplicantsTable({
                   </td>
                   <td className="apt-date">{formatDate(a.created, siteLanguage(), { year: false })}</td>
                   <td>
-                    <select
-                      className={`apt-status tone-${STATUS_TONE[a.status] || "new"}`}
-                      aria-label={`${a.profile.name} — status`}
-                      value={a.status}
-                      disabled={disabled || done}
-                      onChange={(e) => onStatus(a, e.target.value)}
-                    >
-                      {(done ? [withdrawn] : statuses).map((s) => (
-                        <option key={s}>{s}</option>
-                      ))}
-                    </select>
+                    {/* The status is read, not chosen: it follows the interview, the test, the offer and the other actions of the ⋮ menu. */}
+                    <span className={`apt-status tone-${STATUS_TONE[a.status] || "new"}`} title="Status müvafiq əməliyyatlarla (⋮ menyu) dəyişir">
+                      {a.status}
+                      {a.stage && a.status === "Müsahibə" ? ` · ${a.stage}` : ""}
+                    </span>
                   </td>
                   <td className="apt-fit">
                     {rating || lite[a.id] !== undefined ? (
@@ -140,7 +132,7 @@ export default function ApplicantsTable({
                     )}
                   </td>
                   <td className="apt-actions">
-                    <RowMenu label={`${a.profile.name} — əməliyyatlar`} items={available.map((x) => ({ label: x.label, icon: x.icon, danger: x.danger, run: () => x.run(a) }))} />
+                    <RowMenu label={`${a.profile.name} — əməliyyatlar`} items={available.map((x) => ({ label: x.label, group: x.group, icon: x.icon, danger: x.danger, run: () => x.run(a) }))} />
                   </td>
                 </tr>
                 {expanded && rating && (
