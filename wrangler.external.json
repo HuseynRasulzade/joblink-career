@@ -11,7 +11,8 @@
     "EXTERNAL_AUTH": "password",
     "CV_STORAGE": "profile_text",
     "AI_PROVIDER": "openai",
-    "ADMIN_EMAIL": "ec.alizade99@gmail.com"
+    "ADMIN_EMAIL": "ec.alizade99@gmail.com",
+    "BILLING_ENFORCED": "1"
   },
   "d1_databases": [
     {
