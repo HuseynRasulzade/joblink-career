@@ -31,6 +31,18 @@ export async function handle_application_status_01(c: Pick<RouteCtx, "customSkil
     // The statuses follow the stages and documents: an offer, an interview or a hire is reached through its own action.
     const move = manualStatusMove(row.status, b.status);
     if (!move.ok) throw new HttpError(409, move.message);
+    // Hiring straight from the interview phase needs proof that a stage took place: a held interview or a submitted test.
+    // (An accepted offer hires through its own path.)
+    if (b.status === "İşə qəbul edildi" && row.status === "Müsahibə") {
+      const held = await db
+        .prepare(
+          "SELECT (SELECT COUNT(*) FROM interviews WHERE application_id=? AND status='completed') + (SELECT COUNT(*) FROM assessment_assignments WHERE application_id=? AND status IN ('submitted','expired')) AS n",
+        )
+        .bind(row.id, row.id)
+        .first<{ n: number }>();
+      if (!held || Number(held.n) < 1)
+        throw new HttpError(409, "İşə qəbul üçün müsahibə keçirilməli (və ya test təhvil verilməli) idi. Müsahibə vaxtı gələndən sonra o avtomatik tamamlanır.");
+    }
     const job = normalizedJobRecord(
       JSON.parse(row.job_data),
       customSkillLabels,
