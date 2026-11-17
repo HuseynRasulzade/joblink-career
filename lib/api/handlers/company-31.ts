@@ -2,6 +2,7 @@
 import { HttpError, jsonBody, str } from "@/lib/server";
 import { type OrgKind, canonicalOrg, orgNameList } from "@/lib/staff-db";
 import { employeePay } from "@/lib/payroll";
+import { placeProblem } from "@/lib/staff-plan";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
 import { companyAudit } from "@/lib/api-core";
@@ -115,6 +116,16 @@ export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAc
     return ok({ items: rows.results, canApplyDirectly: canAct("approve-director"), summary: { year, baselinePlanned, baselineAt: base?.created || "", planned: Number(now?.n) || 0, requests: inYear.length, approved: inYear.filter((r) => r.status === "approved").length } });
   }
   // ---- One click: put an employee who has no place in the staff table into it (a new row for them, with their own pay as the band). ----
+  // The employee form asks before saving: is there a place in the staff table for this position?
+  if (request.method === "GET" && path === "company/staff/place-check") {
+    requirePermission("employees", "İşçi məlumatını yalnız HR, direktor və hesab sahibi idarə edə bilər.");
+    const department = str(requestUrl.searchParams.get("department"), 120).trim();
+    const position = str(requestUrl.searchParams.get("position"), 120).trim();
+    const section = str(requestUrl.searchParams.get("section"), 120).trim();
+    if (!department || !position) return ok({ problem: "" });
+    const plan = await loadPlanData(db, id);
+    return ok({ problem: placeProblem(plan.units, plan.people, { id: "", department, section, position }) });
+  }
   if (request.method === "POST" && path === "company/staff/place-person") {
     requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi dəyişə bilər.");
     const b = await jsonBody(request);

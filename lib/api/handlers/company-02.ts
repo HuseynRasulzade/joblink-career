@@ -91,6 +91,8 @@ export async function handle_company_02(c: Pick<RouteCtx, "auditView" | "dataKey
     const bandBy = new Map<string, [number, number]>();
     // The section of the staff row an employee sits in shows when the employee has none of their own.
     const sectionBy = new Map<string, string>();
+    // The row of the staff table each working employee fills (branch and level), so the list can show it and mark who has none.
+    const placeBy = new Map<string, { branch: string; level: string; position: string }>();
     {
       const planData = await loadPlanData(db, id);
       const placed = assignPeople(planData.units, planData.people);
@@ -100,6 +102,7 @@ export async function handle_company_02(c: Pick<RouteCtx, "auditView" | "dataKey
         for (const p of list) {
           if (band) bandBy.set(p.id, band);
           if (unit.section) sectionBy.set(p.id, unit.section);
+          placeBy.set(p.id, { branch: unit.branch || "", level: unit.level || "", position: unit.position });
         }
       }
     }
@@ -128,6 +131,8 @@ export async function handle_company_02(c: Pick<RouteCtx, "auditView" | "dataKey
         contractEnd: r.contract_end || "",
         workMode: r.work_mode || "",
         section: r.section || sectionBy.get(r.id) || "",
+        place: placeBy.get(r.id) || null,
+        placed: placeBy.has(r.id),
         salaryType: r.salary_type === "net" ? "net" : "gross",
         sector: r.sector === "public" ? "public" : "private",
         vacationDays: r.vacation_days ?? 21,

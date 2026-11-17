@@ -260,3 +260,9 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **E-poçtla göndəriş:** «Ştat planı sətir-sətir» hesabatı hər bazar ertəsi və ya ayın 1-i öz e-poçtunuza (mətn cədvəli kimi; qoşma yoxdur) gedir. Gündəlik cron işləyir (`lib/report-schedules.ts`).
 - **Xarici alətlər:** Hesabatlar səhifəsinin altında açar yaradılır (bir dəfə göstərilir, bazada yalnız hash saxlanır, yenilənə/ləğv edilə bilər). `GET /api/report-feed/staff-plan` (başlıq `Authorization: Bearer AÇAR`) ştat planını CSV kimi verir (şəxsi ad və maaş yoxdur): Excel «From Web», Power BI «Web».
 - Migrasiya 0118 (`report_saved`, `report_schedules`, `report_tokens`).
+
+## 29. Arxa planda hesabat, İşçilər səhifəsi (2026-11-17)
+
+- **Arxa planda hesabat:** ştat planı, işçi reyestri, dövriyyə, gözlənilən çıxışlar, dolma müddəti və əməliyyat jurnalı (5000 sətir) hesabatlarında «Arxa planda hazırla»: sorğu yalnız tapşırıq yazır (`report_jobs`), Worker cavab getdikdən sonra (`waitUntil`) hesabatı hazırlayır, nəticəni 7 gün saxlayır və bildiriş göndərir; Hesabatlar səhifəsinin altındakı «Hazır hesabatlar»da açılır (cədvəl, qrafik, müqayisə yox, Excel, çap). Eyni anda ən çoxu 3 tapşırıq, ən çoxu 20 000 sətir. Heç kim tapşırığı götürməsə (yerli işə salınma), ilk baxışda o hazırlanır. Migrasiya 0119.
+- **Planlı e-poçt və həftəlik plan xülasəsi:** administrator üçün `admin/run-digests` indi `force` (hamısı indi), `dryRun` (göndərmədən mesajları cavabda qaytarır) qəbul edir; cron-un eyni işini yoxlamaq olar.
+- **İşçilər səhifəsi:** status, departament və «plan» süzgəcləri, KPI düymələri (ştatsız, maaşı hədd kənarı, sınaq/müqavilə bitir), ada, departamenta və başlama tarixinə görə sıralama, 50-lik səhifələmə, «Ştat yeri» sütunu (filial, pillə) və ştatsız işçidə «Yerləşdir», seçilənləri Excel-ə yazmaq və ştata yerləşdirmək, yeni işçi kartında vəzifə üçün yer olmadıqda dərhal xəbərdarlıq (`company/staff/place-check`).

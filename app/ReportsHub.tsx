@@ -6,7 +6,7 @@ import { ATTENDANCE_CODES } from "@/lib/calendar-az";
 import { requestKindLabel } from "@/lib/requests";
 import { createXlsx } from "@/lib/xlsx";
 import { Field } from "./components";
-import { ReportChart, SavedBar, ScheduleBar, FeedKeyPanel } from "./ReportTools";
+import { ReportChart, SavedBar, ScheduleBar, FeedKeyPanel, JobsPanel } from "./ReportTools";
 import { mergeCompare, previousFilters } from "@/lib/report-compare";
 import HrFundReport from "./HrFundReport";
 import PayrollReport from "./PayrollReport";
@@ -37,6 +37,7 @@ type Report = {
   description: string;
   need?: string; // company permission
   schedulable?: boolean; // can be sent to the e-mail on a schedule
+  background?: boolean; // can be prepared in the background (big reports)
   filters?: Spec[];
   run?: (f: Filters) => Promise<Result>;
   render?: (props: { me: HubMe; notify: Notify }) => ReactNode; // reports with their own screen
@@ -87,7 +88,7 @@ const REPORTS: Report[] = [
   { id: "workforce", group: "Kadr və əmək haqqı", title: "İşçi axını və dövriyyə", description: "İşə qəbul, ayrılma, işçi sayı və dövriyyə faizi; dövr üzrə süzgəc.", need: "reports" },
 
   // ---- The plan and the staff table ----
-  { id: "staff-plan", group: "Ştat planı və fakt", schedulable: true, title: "Ştat planı sətir-sətir", description: "Filial, departament, şöbə, vəzifə və pillə üzrə plan, faktiki işçi, boş yer, dövr, maaş həddi və aylıq xərc; boş yeri olanları və aktiv olmayan sətirləri ayırmaq olar.", need: "payroll", filters: [DEPARTMENT, { id: "state", label: "Sətirlər", type: "select", options: [["free", "Boş yeri olanlar"], ["full", "Dolu olanlar"], ["inactive", "Aktiv olmayan (gələcək və ya bitmiş)"]] }],
+  { id: "staff-plan", group: "Ştat planı və fakt", schedulable: true, background: true, title: "Ştat planı sətir-sətir", description: "Filial, departament, şöbə, vəzifə və pillə üzrə plan, faktiki işçi, boş yer, dövr, maaş həddi və aylıq xərc; boş yeri olanları və aktiv olmayan sətirləri ayırmaq olar.", need: "payroll", filters: [DEPARTMENT, { id: "state", label: "Sətirlər", type: "select", options: [["free", "Boş yeri olanlar"], ["full", "Dolu olanlar"], ["inactive", "Aktiv olmayan (gələcək və ya bitmiş)"]] }],
     run: async (f) => {
       const d = await get<{ rows: { branch?: string; department: string; section: string; position: string; level?: string; rate: number; planned: number; startMonth?: string; endMonth?: string; salaryMin: number; salaryMax: number; filled: number; free: number; active?: boolean; costMax?: number }[]; total: { planned: number; filled: number; planCostMax?: number } }>("company/staff");
       const rate = { 1: "Tam ştat", 0.75: "3/4 ştat", 0.5: "Yarım ştat", 0.25: "1/4 ştat" } as Record<number, string>;
@@ -140,14 +141,14 @@ const REPORTS: Report[] = [
         rows: rows.map((r) => [dmy(r.created), r.subject, r.requested_by_name, label[r.status] || r.status, r.decided_by_name, r.note]),
       };
     } },
-  { id: "plan-exits", group: "Ştat planı və fakt", title: "Gözlənilən çıxışlar", description: "Çıxış tarixi təyin olunmuş və ya müddətli müqaviləsi bitən işçilər: bu yerlər üçün əvvəlcədən vakansiya açmaq olar.", need: "employees", filters: [DEPARTMENT, { id: "within", label: "Nə qədər irəli", type: "select", options: [["30", "30 gün"], ["90", "90 gün"], ["180", "180 gün"]], initial: "90" }],
+  { id: "plan-exits", group: "Ştat planı və fakt", background: true, title: "Gözlənilən çıxışlar", description: "Çıxış tarixi təyin olunmuş və ya müddətli müqaviləsi bitən işçilər: bu yerlər üçün əvvəlcədən vakansiya açmaq olar.", need: "employees", filters: [DEPARTMENT, { id: "within", label: "Nə qədər irəli", type: "select", options: [["30", "30 gün"], ["90", "90 gün"], ["180", "180 gün"]], initial: "90" }],
     run: async (f) => {
       const d = await get<{ items: { name: string; department: string; position: string; date: string; kind: string }[] }>("company/reports/expected-exits");
       const limit = new Date(Date.now() + Number(f.within || "90") * 86400000).toISOString().slice(0, 10);
       const rows = d.items.filter((r) => r.date <= limit && (!f.department || r.department === f.department));
       return { columns: ["İşçi", "Departament", "Vəzifə", "Tarix", "Səbəb"], rows: rows.map((r) => [r.name, r.department, r.position, dmy(r.date), r.kind]) };
     } },
-  { id: "plan-fill", group: "Ştat planı və fakt", title: "Yerin dolma müddəti", description: "Vakansiyanın açıldığı gündən işçi kartının yarandığı günə qədər keçən müddət (platforma üzərindən işə götürülənlər).", need: "employees", filters: [DEPARTMENT],
+  { id: "plan-fill", group: "Ştat planı və fakt", background: true, title: "Yerin dolma müddəti", description: "Vakansiyanın açıldığı gündən işçi kartının yarandığı günə qədər keçən müddət (platforma üzərindən işə götürülənlər).", need: "employees", filters: [DEPARTMENT],
     run: async (f) => {
       const d = await get<{ items: { name: string; department: string; position: string; title: string; opened: string; hired: string; days: number }[] }>("company/reports/fill-time");
       const rows = d.items.filter((r) => !f.department || r.department === f.department);
@@ -163,14 +164,21 @@ const REPORTS: Report[] = [
         rows: d.byDecider.map((x) => [x.name, x.count, x.avgHours]),
       };
     } },
-  { id: "company-audit", group: "Təsdiqlər və jurnal", title: "Şirkət əməliyyat jurnalı", description: "Komanda üzvlərinin son əməliyyatları (maaş, ştat, təsdiq, sənəd, idxal): kim, nə vaxt, nəyi dəyişib.", need: "audit", filters: [{ id: "q", label: "Axtarış", type: "text" }],
+  { id: "company-audit", group: "Təsdiqlər və jurnal", background: true, title: "Şirkət əməliyyat jurnalı", description: "Komanda üzvlərinin son əməliyyatları (maaş, ştat, təsdiq, sənəd, idxal): kim, nə vaxt, nəyi dəyişib.", need: "audit", filters: [{ id: "q", label: "Axtarış", type: "text" }],
     run: async (f) => {
       const d = await get<{ events: { action: string; target: string; detail: string; created: string; actor: string }[] }>("company/audit");
       const rows = d.events.filter((e) => !f.q || `${e.action} ${e.detail} ${e.actor}`.toLowerCase().includes(f.q.toLowerCase()));
       return { columns: ["Tarix", "Kim", "Əməliyyat", "Təfərrüat"], rows: rows.map((e) => [dmy(e.created), e.actor, e.action, e.detail]) };
     } },
 
-  { id: "turnover", group: "Kadr və əmək haqqı", title: "Dövriyyə: səbəb və staj üzrə", description: "İşdən çıxanlar: kim, hansı departamentdən, nə qədər işləyib, hansı səbəblə. İlk il dövriyyəsi və çıxış səbəbləri yuxarıda xülasə kimi yazılır.", need: "employees", filters: [...PERIOD, DEPARTMENT],
+  { id: "employees-register", group: "Kadr və əmək haqqı", background: true, title: "İşçi reyestri", description: "Bütün işçilərin siyahısı: vəzifə, departament, status, işə başlama, staj, sınaq və müqavilə sonu, əlaqə (maaş yalnız icazəsi olana görünür). Çox işçisi olan şirkət üçün arxa planda hazırlana bilər.", need: "employees", filters: [DEPARTMENT, { id: "status", label: "Status", type: "select", options: [["active", "İşləyir"], ["leave", "Məzuniyyətdə"], ["left", "İşdən çıxıb"]] }],
+    run: async (f) => {
+      const d = await get<{ employees: { name: string; position: string; department: string; section?: string; status: string; startDate: string; endDate?: string; probationEnd?: string; contractEnd?: string; workMode?: string; email: string; phone: string; tenure?: string; pay?: { gross: number } | null }[]; showSalary: boolean }>("company/employees");
+      const label: Record<string, string> = { active: "İşləyir", leave: "Məzuniyyətdə", left: "İşdən çıxıb" };
+      const rows = d.employees.filter((e) => (!f.department || e.department === f.department) && (!f.status || e.status === f.status));
+      return { columns: ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "Status", "İşə başlama", "Çıxış", "Staj", "Sınaq sonu", "Müqavilə sonu", "İş rejimi", "E-poçt", "Telefon", ...(d.showSalary ? ["Gross maaş"] : [])], rows: rows.map((e) => [e.name, e.position, e.department, e.section || "", label[e.status] || e.status, dmy(e.startDate), dmy(e.endDate || ""), e.tenure || "", dmy(e.probationEnd || ""), dmy(e.contractEnd || ""), e.workMode || "", e.email, e.phone, ...(d.showSalary ? [e.pay ? money(e.pay.gross) : ""] : [])]) };
+    } },
+  { id: "turnover", group: "Kadr və əmək haqqı", background: true, title: "Dövriyyə: səbəb və staj üzrə", description: "İşdən çıxanlar: kim, hansı departamentdən, nə qədər işləyib, hansı səbəblə. İlk il dövriyyəsi və çıxış səbəbləri yuxarıda xülasə kimi yazılır.", need: "employees", filters: [...PERIOD, DEPARTMENT],
     run: async (f) => {
       const d = await get<{ headcount: number; items: { name: string; department: string; position: string; start: string; end: string; tenureMonths: number | null; exitType: string; reason: string }[] }>(`company/reports/turnover?from=${f.from || ""}&to=${f.to || ""}`);
       const rows = d.items.filter((r) => !f.department || r.department === f.department);
@@ -381,6 +389,20 @@ function ReportFrame({ report, notify, onBack, companyName }: { report: Report; 
   const logUse = (action: "export" | "print") => {
     fetch("/api/joblink/company/reports/log", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ report: report.id, action, filters: values }) }).catch(() => undefined);
   };
+  const [queueing, setQueueing] = useState(false);
+  async function queueJob() {
+    setQueueing(true);
+    try {
+      const response = await fetch("/api/joblink/company/reports/jobs", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ reportId: report.id, filters: values }) });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(body.error || "Hesabat sifariş olunmadı.");
+      notify("Hesabat arxa planda hazırlanır. Hazır olanda bildiriş gələcək; «Hesabatlar» səhifəsinin altındakı «Hazır hesabatlar» bölməsindən açın.");
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setQueueing(false);
+    }
+  }
   function exportExcel() {
     if (!shown) return;
     logUse("export");
@@ -429,6 +451,7 @@ function ReportFrame({ report, notify, onBack, companyName }: { report: Report; 
         </div>
         {report.run && (
           <div className="admin-actions">
+            {report.background && !report.id.startsWith("job-") && <button type="button" className="secondary" disabled={queueing} onClick={() => void queueJob()} title="Hesabat serverdə hazırlanır, siz səhifədən ayrıla bilərsiniz; hazır olanda bildiriş gəlir">Arxa planda hazırla</button>}
             <button type="button" className="secondary report-button" disabled={!shown} onClick={exportExcel}><Download size={14} /> Excel</button>
             <button type="button" className="secondary" disabled={!shown} onClick={print}><Printer size={14} /> Çap / PDF</button>
           </div>
@@ -498,12 +521,34 @@ function ReportFrame({ report, notify, onBack, companyName }: { report: Report; 
   );
 }
 
+// A report that was prepared in the background: its stored result is shown with the same screen (table, chart, Excel, print).
+function JobFrame({ job, notify, onBack, companyName }: { job: { id: string; title: string }; notify: Notify; onBack: () => void; companyName: string }) {
+  const [report, setReport] = useState<Report | null>(null);
+  const handlers = useRef({ notify, onBack });
+  useEffect(() => {
+    handlers.current = { notify, onBack };
+  });
+  useEffect(() => {
+    get<{ title: string; created: string; result: Result | null }>(`company/reports/jobs/get?id=${job.id}`)
+      .then((d) => {
+        if (!d.result) throw new Error("Hesabatın nəticəsi hazır deyil.");
+        const result = d.result;
+        setReport({ id: `job-${job.id}`, group: "", title: d.title, description: `Arxa planda hazırlanmış hesabat (${d.created.slice(0, 16).replace("T", " ")}). Məlumat o günkü vəziyyətdir.`, run: async () => result });
+      })
+      .catch((e) => { handlers.current.notify((e as Error).message); handlers.current.onBack(); });
+  }, [job.id]);
+  if (!report) return <p className="muted">Hesabat açılır…</p>;
+  return <ReportFrame report={report} notify={notify} onBack={onBack} companyName={companyName} />;
+}
+
 // The Reports page: every report by name, grouped; a click opens it with its own filters, Excel and print.
 export default function ReportsHub({ me, notify, hiring, workforce, companyName = "" }: { me: HubMe; notify: Notify; hiring: ReactNode; workforce: ReactNode; companyName?: string }) {
   const [open, setOpen] = useState("");
   const [query, setQuery] = useState("");
+  const [jobView, setJobView] = useState<{ id: string; title: string } | null>(null);
   const allowed = useMemo(() => REPORTS.filter((r) => !r.need || !me || me.permissions.includes(r.need)), [me]);
   const current = REPORTS.find((r) => r.id === open);
+  if (jobView) return <JobFrame job={jobView} notify={notify} onBack={() => setJobView(null)} companyName={companyName} />;
   if (current) {
     const special = current.id === "hiring" ? hiring : current.id === "workforce" ? workforce : null;
     return special ? (
@@ -549,6 +594,7 @@ export default function ReportsHub({ me, notify, hiring, workforce, companyName 
         );
       })}
       {!list.length && <p className="admin-empty">Hesabat tapılmadı.</p>}
+      <JobsPanel onOpen={(j) => setJobView({ id: j.id, title: j.title })} refreshKey={open ? 1 : 0} />
       {(!me || me.permissions.includes("payroll")) && <FeedKeyPanel notify={notify} />}
     </div>
   );

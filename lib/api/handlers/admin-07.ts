@@ -5,6 +5,9 @@ import { companyAudit, notify, sendUserEmail } from "@/lib/api-core";
 import { mailerOf } from "@/lib/mail";
 import { purgeOldJobViews, runDigests, runInterviewReminders } from "@/lib/digest-job";
 import { ok } from "@/lib/api/shared";
+import { runPlanDigest } from "@/lib/plan-digest";
+import { runReportSchedules } from "@/lib/report-schedules";
+import { purgeOldReportJobs } from "@/lib/report-jobs";
 import type { RouteCtx } from "@/lib/api/ctx";
 
 export async function handle_admin_07(c: Pick<RouteCtx, "db" | "id" | "path" | "request" | "requestUrl">): Promise<Response | undefined> {
@@ -86,7 +89,16 @@ export async function handle_admin_07(c: Pick<RouteCtx, "db" | "id" | "path" | "
         new Date(),
       );
       const purged = await purgeOldJobViews(db);
-      return ok({ sent, reminders, purged });
+      // The plan notes and the scheduled report e-mails too. "force" makes every schedule due now and the plan note go out whatever the weekday;
+      // "dryRun" builds the report e-mails but sends nothing: the messages come back in the answer (a check for the administrator).
+      const captured: { to: string; subject: string; text: string }[] = [];
+      const real = mailerOf(settings);
+      const mail = body.dryRun === true ? { send: async (m: { to: string[]; subject: string; text: string }) => { captured.push({ to: m.to[0], subject: m.subject, text: m.text }); } } : real;
+      if (body.force === true) await db.prepare("UPDATE report_schedules SET next_run=?").bind(new Date(Date.now() - 86400000).toISOString().slice(0, 10)).run().catch(() => undefined);
+      const planNotes = body.dryRun === true ? 0 : await runPlanDigest(db, new Date(), body.force === true);
+      const reportMails = await runReportSchedules(db, mail as never, settings.EMAIL_FROM || (body.dryRun === true ? "dry-run@local" : undefined));
+      await purgeOldReportJobs(db);
+      return ok({ sent, reminders, purged, planNotes, reportMails, ...(body.dryRun === true ? { captured } : {}) });
     }
   if (request.method === "POST" && path === "admin/company-tax-check") {
       const b = await jsonBody(request);

@@ -38,6 +38,7 @@ import type { WorkforceMetrics } from "@/lib/workforce";
 import { siteLanguage } from "./i18n";
 import { DOC_KINDS, OTHER_TYPE, docLabel } from "@/lib/employee-docs";
 import HrDocsPanel from "./HrDocsPanel";
+import { createXlsx } from "@/lib/xlsx";
 import SalaryHistory from "./SalaryHistory";
 import { BulkLinkCodes, EmployeeLinkPanel, EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
 
@@ -2515,6 +2516,8 @@ type Employee = {
   linkPending?: boolean;
   taxReduction?: number;
   staffBand?: { min: number; max: number; side: "" | "below" | "above" } | null;
+  place?: { branch: string; level: string; position: string } | null;
+  placed?: boolean;
   tenure?: string;
   vacation?: { entitlement: number; accrued: number; used: number; remaining: number };
   pay?: { net: number; gross: number; superGross: number; incomeTax: number; employeeSocial: number; employeeUnemployment: number; employeeMedical: number } | null;
@@ -2590,6 +2593,27 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
         .catch(() => {});
   }, [editing?.id]);
   const [query, setQuery] = useState(focus?.kind === "employee" ? focus.name : "");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [deptFilter, setDeptFilter] = useState("");
+  const [planFilter, setPlanFilter] = useState("");
+  const [sort, setSort] = useState<{ key: "name" | "start" | "department"; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<string[]>([]);
+  // Does the staff table have a place for the position typed on a new card?
+  const [placeHint, setPlaceHint] = useState("");
+  useEffect(() => {
+    setPage(0);
+  }, [query, statusFilter, deptFilter, planFilter]);
+  useEffect(() => {
+    setPlaceHint("");
+    if (!editing || editing.id || !editing.department || !editing.position) return;
+    const timer = window.setTimeout(() => {
+      request<{ problem: string }>(`company/staff/place-check?department=${encodeURIComponent(editing.department || "")}&section=${encodeURIComponent(editing.section || "")}&position=${encodeURIComponent(editing.position || "")}`)
+        .then((r) => setPlaceHint(r.problem))
+        .catch(() => setPlaceHint(""));
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [editing, editing?.id, editing?.department, editing?.section, editing?.position]);
   async function save() {
     try {
       const saved = await request<{
@@ -2613,11 +2637,68 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
     }
   }
   if (!data) return <p className="muted">Yüklənir…</p>;
-  const list = data.employees.filter((e) =>
-    `${e.name} ${e.position} ${e.department} ${e.section || ""}`
-      .toLocaleLowerCase("az")
-      .includes(query.toLocaleLowerCase("az")),
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const in14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+  const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const working = (e: Employee) => e.status !== "left";
+  const flags = {
+    unplaced: (e: Employee) => working(e) && e.placed === false,
+    band: (e: Employee) => working(e) && !!e.staffBand?.side,
+    probation: (e: Employee) => e.status === "active" && !!e.probationEnd && e.probationEnd >= todayIso && e.probationEnd <= in14,
+    contract: (e: Employee) => e.status === "active" && !!e.contractEnd && e.contractEnd <= in30,
+  };
+  const departments = [...new Set(data.employees.map((e) => e.department).filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
+  const needle = query.toLocaleLowerCase("az");
+  const filtered = data.employees.filter((e) =>
+    `${e.name} ${e.position} ${e.department} ${e.section || ""} ${e.email || ""}`.toLocaleLowerCase("az").includes(needle) &&
+    (!statusFilter || e.status === statusFilter) &&
+    (!deptFilter || e.department === deptFilter) &&
+    (!planFilter || (planFilter in flags && flags[planFilter as keyof typeof flags](e))),
   );
+  const sorted = [...filtered].sort((a, b) => {
+    const dir = sort.dir === "asc" ? 1 : -1;
+    const va = sort.key === "start" ? a.startDate || "" : sort.key === "department" ? `${a.department} ${a.name}` : a.name;
+    const vb = sort.key === "start" ? b.startDate || "" : sort.key === "department" ? `${b.department} ${b.name}` : b.name;
+    return va.localeCompare(vb, "az") * dir;
+  });
+  const PAGE = 50;
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE));
+  const list = sorted.slice(Math.min(page, pageCount - 1) * PAGE, (Math.min(page, pageCount - 1) + 1) * PAGE);
+  const sortBy = (key: "name" | "start" | "department") => setSort((cur) => ({ key, dir: cur.key === key && cur.dir === "asc" ? "desc" : "asc" }));
+  const arrow = (key: string) => (sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : "");
+  const chosen = data.employees.filter((e) => selected.includes(e.id));
+  async function placeOne(employeeId: string) {
+    try {
+      const result = await request<{ pending?: boolean }>("company/staff/place-person", { employeeId });
+      notify(result.pending ? "Plan kilidlidir: sətir direktorun təsdiqinə göndərildi." : "İşçi ştata yerləşdirildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function placeChosen() {
+    const targets = chosen.filter(flags.unplaced);
+    if (!targets.length) return notify("Seçilənlər arasında ştatda yeri olmayan işçi yoxdur.");
+    let done = 0;
+    const failed: string[] = [];
+    for (const e of targets) {
+      try { await request("company/staff/place-person", { employeeId: e.id }); done++; } catch (error) { failed.push(`${e.name}: ${(error as Error).message}`); }
+    }
+    notify(`${done} işçi ştata yerləşdirildi${failed.length ? `; ${failed.length} nəfər yerləşmədi (${failed[0]})` : "."}`);
+    setSelected([]);
+    load();
+  }
+  function exportChosen() {
+    const header = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "Status", "İşə başlama", "E-poçt", "Telefon"];
+    const rows = chosen.map((e) => [e.name, e.position || "", e.department || "", e.section || "", EMPLOYEE_STATUS[e.status] || e.status, e.startDate || "", e.email || "", e.phone || ""]);
+    const bytes = createXlsx(header, rows, "İşçilər");
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `iscilar-secilmis-${todayIso}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
   const active = data.employees.filter((e) => e.status !== "left");
   const payroll = data.showSalary ? active.reduce((sum, e) => sum + (e.pay?.gross || 0), 0) : 0;
   const payrollNet = data.showSalary ? active.reduce((sum, e) => sum + (e.pay?.net || 0), 0) : 0;
@@ -2676,14 +2757,50 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           direktor və hesab sahibinə görünür.
         </p>
       )}
+      <div className="staff-kpis" style={{ marginBottom: 8 }}>
+        {([
+          ["", "Hamısı", data.employees.length],
+          ["unplaced", "Ştatda yeri yoxdur", data.employees.filter(flags.unplaced).length],
+          ["band", "Maaşı ştat həddindən kənar", data.employees.filter(flags.band).length],
+          ["probation", "Sınaq 14 gün ərzində bitir", data.employees.filter(flags.probation).length],
+          ["contract", "Müqavilə 30 gün ərzində bitir", data.employees.filter(flags.contract).length],
+        ] as [string, string, number][]).map(([key, label, count]) => (
+          <button key={key || "all"} type="button" className={`staff-kpi${planFilter === key ? " staff-kpi-warn" : ""}`} style={{ cursor: "pointer", textAlign: "left" }} onClick={() => setPlanFilter(planFilter === key ? "" : key)} aria-pressed={planFilter === key}>
+            <small>{label}</small>
+            <strong>{count}</strong>
+          </button>
+        ))}
+      </div>
+      <div className="admin-actions" style={{ justifyContent: "flex-start", flexWrap: "wrap", marginBottom: 8 }}>
+        <select aria-label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="">Bütün statuslar</option>
+          {Object.entries(EMPLOYEE_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select aria-label="Departament" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
+          <option value="">Bütün departamentlər</option>
+          {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        {(statusFilter || deptFilter || planFilter || query) && <button type="button" className="text-button" onClick={() => { setStatusFilter(""); setDeptFilter(""); setPlanFilter(""); setQuery(""); }}>Süzgəcləri təmizlə</button>}
+        <span className="muted">{filtered.length} işçi</span>
+        {data.canEdit && selected.length > 0 && (
+          <>
+            <b>{selected.length} seçilib:</b>
+            <button type="button" className="secondary" onClick={exportChosen}>Excel</button>
+            {data.canStaff && <button type="button" className="secondary" onClick={() => void placeChosen()}>Ştata yerləşdir</button>}
+            <button type="button" className="text-button" onClick={() => setSelected([])}>Seçimi ləğv et</button>
+          </>
+        )}
+      </div>
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Ad Soyad</th>
+              {data.canEdit && <th style={{ width: 28 }}><input type="checkbox" aria-label="Səhifədəkilərin hamısını seç" checked={list.length > 0 && list.every((e) => selected.includes(e.id))} onChange={(ev) => setSelected(ev.target.checked ? [...new Set([...selected, ...list.map((e) => e.id)])] : selected.filter((x) => !list.some((e) => e.id === x)))} /></th>}
+              <th><button type="button" className="text-button" onClick={() => sortBy("name")}>Ad Soyad{arrow("name")}</button></th>
               <th>Vəzifə</th>
-              <th>Departament / Şöbə</th>
-              <th>İşə başlama</th>
+              <th><button type="button" className="text-button" onClick={() => sortBy("department")}>Departament / Şöbə{arrow("department")}</button></th>
+              <th>Ştat yeri</th>
+              <th><button type="button" className="text-button" onClick={() => sortBy("start")}>İşə başlama{arrow("start")}</button></th>
               <th>Status</th>
               {data.showSalary && <th>Net</th>}
               {data.showSalary && <th>Gross</th>}
@@ -2695,6 +2812,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           <tbody>
             {list.map((e) => (
               <tr key={e.id} className={e.id === focusId ? "row-focus" : undefined} ref={e.id === focusId ? (el) => el?.scrollIntoView({ block: "center" }) : undefined}>
+                {data.canEdit && <td><input type="checkbox" aria-label={`${e.name} seç`} checked={selected.includes(e.id)} onChange={(ev) => setSelected(ev.target.checked ? [...selected, e.id] : selected.filter((x) => x !== e.id))} /></td>}
                 <td>
                   <div className="emp-name-cell">
                     {data.canPersonal && <EmployeeAvatar employeeId={e.id} name={e.name} />}
@@ -2711,6 +2829,19 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                 <td>
                   {e.department || "—"}
                   {e.section && <small className="skill-description">{e.section}</small>}
+                </td>
+                <td>
+                  {e.status === "left" ? "—" : e.place ? (
+                    <>
+                      {e.place.branch || "Baş ofis"}
+                      {e.place.level && <small className="skill-description">{e.place.level}</small>}
+                    </>
+                  ) : e.placed === false ? (
+                    <>
+                      <span className="danger-text">Ştatda yeri yoxdur</span>
+                      {data.canStaff && <button type="button" className="text-button" onClick={() => void placeOne(e.id)}>Yerləşdir</button>}
+                    </>
+                  ) : "—"}
                 </td>
                 <td>
                   {day(e.startDate)}
@@ -2808,7 +2939,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
             ))}
             {!list.length && (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={12}>
                   <p className="admin-empty">
                     İşçi yoxdur. JobMatch ilə işə qəbul etdiyiniz namizədlər bura
                     avtomatik əlavə olunur.
@@ -2819,6 +2950,13 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           </tbody>
         </table>
       </div>
+      {pageCount > 1 && (
+        <div className="admin-actions" style={{ justifyContent: "flex-start" }}>
+          <button type="button" className="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>‹ Əvvəlki</button>
+          <span className="muted">{Math.min(page, pageCount - 1) + 1} / {pageCount} (səhifədə {PAGE} işçi)</span>
+          <button type="button" className="secondary" disabled={page >= pageCount - 1} onClick={() => setPage(page + 1)}>Sonrakı ›</button>
+        </div>
+      )}
         </>
       )}
       {data.canStaff && view === "staff" && (
@@ -2879,6 +3017,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
               <OrgNameInput label="Vəzifə" kind="position" names={orgNames} onAdded={rememberOrg} fixedList={structure.length ? uniqueSorted(structure.filter((u) => !editing.department || u.department === editing.department).filter((u) => !editing.section || u.section === editing.section).map((u) => u.position)) : undefined} value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
               <OrgNameInput label="Departament" kind="department" names={orgNames} onAdded={rememberOrg} fixedList={structure.length ? uniqueSorted(structure.map((u) => u.department)) : undefined} value={editing.department || ""} onChange={(department) => setEditing({ ...editing, department })} />
               <OrgNameInput label="Şöbə" kind="section" names={orgNames} onAdded={rememberOrg} department={editing.department || ""} fixedList={structure.length ? uniqueSorted(structure.filter((u) => u.department === editing.department).map((u) => u.section)) : undefined} value={editing.section || ""} onChange={(section) => setEditing({ ...editing, section })} />
+              {!editing.id && placeHint && <p className="danger-text" style={{ gridColumn: "1 / -1" }} role="alert">{placeHint}</p>}
               {editing.id && <div style={{ gridColumn: "1 / -1" }}><EmployeeBranches employeeId={editing.id} notify={notify} /></div>}
                 </>
               )}

@@ -155,3 +155,56 @@ export function FeedKeyPanel({ notify }: { notify: Notify }) {
     </section>
   );
 }
+
+
+type Job = { id: string; reportId: string; title: string; status: string; rows: number; error: string; created: string; finished: string };
+const JOB_STATUS: Record<string, string> = { queued: "Növbədə", running: "Hazırlanır…", done: "Hazırdır", failed: "Alınmadı" };
+// The reports prepared in the background: the list (refreshed while one is still being built), open and delete.
+export function JobsPanel({ onOpen, refreshKey }: { onOpen: (job: Job) => void; refreshKey: number }) {
+  const [items, setItems] = useState<Job[]>([]);
+  const load = useCallback(() => {
+    call<{ items: Job[] }>("company/reports/jobs").then((r) => setItems(r.items)).catch(() => undefined);
+  }, []);
+  useEffect(load, [load, refreshKey]);
+  const busy = items.some((j) => j.status === "queued" || j.status === "running");
+  useEffect(() => {
+    if (!busy) return;
+    const timer = window.setInterval(() => {
+      // Looking at a waiting job also builds it when nothing else has (local run).
+      const waiting = items.find((j) => j.status === "queued");
+      if (waiting) call(`company/reports/jobs/get?id=${waiting.id}`).catch(() => undefined).finally(load);
+      else load();
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [busy, items, load]);
+  async function remove(id: string) {
+    await call("company/reports/jobs/delete", { id }).catch(() => undefined);
+    load();
+  }
+  if (!items.length) return null;
+  return (
+    <section className="panel">
+      <h3>Hazır hesabatlar (arxa planda hazırlananlar)</h3>
+      <p className="muted">Böyük hesabatları «Arxa planda hazırla» ilə sifariş edib səhifədən ayrıla bilərsiniz: hazır olanda bildiriş gəlir. Nəticə 7 gün saxlanır.</p>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead><tr><th>Hesabat</th><th>Sifariş</th><th>Vəziyyət</th><th>Sətir</th><th></th></tr></thead>
+          <tbody>
+            {items.map((j) => (
+              <tr key={j.id}>
+                <td>{j.title}</td>
+                <td>{j.created.slice(0, 16).replace("T", " ")}</td>
+                <td>{JOB_STATUS[j.status] || j.status}{j.error ? <small className="danger-text" style={{ display: "block" }}>{j.error}</small> : null}</td>
+                <td>{j.status === "done" ? j.rows : "—"}</td>
+                <td className="admin-actions">
+                  {j.status === "done" && <button type="button" onClick={() => onOpen(j)}>Aç</button>}
+                  <button type="button" aria-label="Sil" onClick={() => void remove(j.id)}><Trash2 size={14} /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}

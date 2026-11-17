@@ -5,6 +5,7 @@ import { exitTypeLabel } from "@/lib/workforce";
 import { newFeedToken, tokenHash } from "@/lib/report-feed";
 import { nextRunAfter } from "@/lib/report-text";
 import { ok } from "@/lib/api/shared";
+import { JOB_REPORTS, runReportJob } from "@/lib/report-jobs";
 import type { RouteCtx } from "@/lib/api/ctx";
 
 const SCHEDULABLE = ["staff-plan"];
@@ -98,6 +99,49 @@ export async function handle_reports_01(c: Pick<RouteCtx, "accountRole" | "db" |
     requirePermission("salaries", "Xarici alət açarını yalnız HR, direktor və hesab sahibi ləğv edə bilər.");
     await db.prepare("DELETE FROM report_tokens WHERE company_id=?").bind(id).run();
     await companyAudit(db, id, userId, "report-feed-key", "", "xarici alət açarı ləğv edildi");
+    return ok({ ok: true });
+  }
+
+
+  // ---- reports prepared in the background ----
+  if (request.method === "POST" && path === "company/reports/jobs") {
+    const b = await jsonBody(request);
+    const reportId = str(b.reportId, 60);
+    const def = JOB_REPORTS[reportId];
+    if (!def) throw new HttpError(400, "Bu hesabat arxa planda hazırlanmır.");
+    requirePermission(def.need, "Bu hesabatı hazırlamaq üçün rolunuzun icazəsi yoxdur.");
+    const active = await db.prepare("SELECT COUNT(*) AS n FROM report_jobs WHERE company_id=? AND user_id=? AND status IN ('queued','running')").bind(id, userId).first<{ n: number }>();
+    if (Number(active?.n) >= 3) throw new HttpError(409, "Eyni anda ən çoxu 3 hesabat hazırlana bilər. Biri bitənədək gözləyin.");
+    const filters = Object.fromEntries(Object.entries((b.filters && typeof b.filters === "object" ? b.filters : {}) as Record<string, unknown>).slice(0, 12).map(([k, v]) => [k.slice(0, 30), String(v ?? "").slice(0, 100)]));
+    const jobId = crypto.randomUUID();
+    await db.prepare("INSERT INTO report_jobs(id,company_id,user_id,report_id,title,filters,created) VALUES(?,?,?,?,?,?,?)").bind(jobId, id, userId, reportId, def.title, JSON.stringify(filters), new Date().toISOString()).run();
+    await companyAudit(db, id, userId, "report-job", reportId, "arxa planda hazırlanır");
+    return ok({ id: jobId, status: "queued" }, 201);
+  }
+  if (isGet && path === "company/reports/jobs") {
+    const rows = await db.prepare("SELECT id,report_id,title,status,row_count,error,created,finished FROM report_jobs WHERE company_id=? AND user_id=? ORDER BY created DESC LIMIT 20").bind(id, userId).all<{ id: string; report_id: string; title: string; status: string; row_count: number; error: string; created: string; finished: string }>();
+    return ok({ items: rows.results.map((r) => ({ id: r.id, reportId: r.report_id, title: r.title, status: r.status, rows: r.row_count, error: r.error, created: r.created, finished: r.finished })) });
+  }
+  if (isGet && path === "company/reports/jobs/get") {
+    const jobId = str(requestUrl.searchParams.get("id"), 100);
+    let row = await db.prepare("SELECT id,title,status,result,error,created,finished,row_count FROM report_jobs WHERE id=? AND company_id=? AND user_id=?").bind(jobId, id, userId).first<{ id: string; title: string; status: string; result: string; error: string; created: string; finished: string; row_count: number }>();
+    if (!row) throw new HttpError(404, "Hesabat tapılmadı.");
+    // Safety net: when nothing picked the job up within seconds (a local run), build it now; a build that hangs for minutes is closed as failed.
+    const age = Date.now() - Date.parse(row.created);
+    if (row.status === "queued" && age > 4000) {
+      await runReportJob(db, jobId);
+      row = (await db.prepare("SELECT id,title,status,result,error,created,finished,row_count FROM report_jobs WHERE id=? AND company_id=? AND user_id=?").bind(jobId, id, userId).first<typeof row>()) || row;
+    } else if (row.status === "running" && age > 5 * 60000) {
+      await db.prepare("UPDATE report_jobs SET status='failed',error='Hesabat vaxtında hazır olmadı.',finished=? WHERE id=? AND status='running'").bind(new Date().toISOString(), jobId).run();
+      row = { ...row, status: "failed", error: "Hesabat vaxtında hazır olmadı." };
+    }
+    let result: unknown = null;
+    if (row.status === "done") { try { result = JSON.parse(row.result); } catch { result = null; } }
+    return ok({ id: row.id, title: row.title, status: row.status, error: row.error, rows: row.row_count, created: row.created, finished: row.finished, result });
+  }
+  if (request.method === "POST" && path === "company/reports/jobs/delete") {
+    const b = await jsonBody(request);
+    await db.prepare("DELETE FROM report_jobs WHERE id=? AND company_id=? AND user_id=?").bind(str(b.id, 100), id, userId).run();
     return ok({ ok: true });
   }
 

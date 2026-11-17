@@ -4,8 +4,8 @@ import { notifyCompanyRoles } from "./api-core";
 
 import { planDigestText } from "./plan-digest-text.ts";
 
-export async function runPlanDigest(db: D1Database, now = new Date()) {
-  if (now.getUTCDay() !== 1) return 0;
+export async function runPlanDigest(db: D1Database, now = new Date(), force = false) {
+  if (now.getUTCDay() !== 1 && !force) return 0;
   const companies = await db.prepare("SELECT DISTINCT company_id FROM staff_units").all<{ company_id: string }>().catch(() => ({ results: [] as { company_id: string }[] }));
   const month = now.toISOString().slice(0, 7);
   let sent = 0;

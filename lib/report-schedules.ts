@@ -24,7 +24,7 @@ export async function runReportSchedules(db: D1Database, mail: Mailer, fromEmail
       const month = today.slice(0, 7);
       const summary = summarize(plan.units, plan.people);
       const cost = (g: number) => (g > 0 ? employeePay(g, "gross", "private").employerCost : 0);
-      const lines: PlanLine[] = summary.departments.map((d) => ({ department: d.department, planned: d.planned, filled: d.filled, free: d.free }));
+      const lines: PlanLine[] = summary.departments.filter((d) => d.planned > 0 || d.filled > 0).map((d) => ({ department: d.department, planned: d.planned, filled: d.filled, free: d.free }));
       const costMax = plan.units.filter((u) => unitActive(u, month)).reduce((t, u) => t + cost(u.salaryMax || u.salaryMin) * u.planned * (u.rate || 1), 0);
       const factCost = plan.people.reduce((t, p) => t + cost(p.gross || 0), 0);
       const text = planReportText(company?.name || "Şirkət", lines, { planned: summary.total.planned, filled: summary.total.filled, costMax, factCost }, today);

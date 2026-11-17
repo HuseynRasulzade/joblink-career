@@ -10,6 +10,7 @@ import { runTraced, serverTiming } from "../lib/d1-trace.ts";
 import { recordServerError, purgeOldServerErrors } from "../lib/alerts.ts";
 import { runPlanDigest } from "../lib/plan-digest.ts";
 import { runReportSchedules } from "../lib/report-schedules.ts";
+import { purgeOldReportJobs, runReportJob } from "../lib/report-jobs.ts";
 import { mailerOf } from "../lib/mail.ts";
 import { cacheable, edgeCacheSeconds } from "../lib/edge-cache.ts";
 import { withSecurityHeaders } from "../lib/security-headers.ts";
@@ -51,7 +52,7 @@ const worker = {
       ctx.waitUntil(completePastInterviews(env.DB));
       return;
     }
-    ctx.waitUntil(Promise.all([completePastInterviews(env.DB), runDigests(env.DB, mailerOf(env), env.EMAIL_FROM), runInterviewReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runTestReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runProbationReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runJobAlerts(env.DB, mailerOf(env), env.EMAIL_FROM), runPlanReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runInvoiceReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runApprovalReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runPayrollReminders(env.DB), runDeadlineReminders(env.DB), runSurveyRecurrence(env.DB), runBankDrafts(env.DB, (request) => handler.fetch(request, env, ctx)), runDueOrderEffects(env.DB, (request) => handler.fetch(request, env, ctx)), runCelebrations(env.DB, (request) => handler.fetch(request, env, ctx)), purgeOldJobViews(env.DB), purgeOldServerErrors(env.DB), runPlanDigest(env.DB), runReportSchedules(env.DB, mailerOf(env), env.EMAIL_FROM)]));
+    ctx.waitUntil(Promise.all([completePastInterviews(env.DB), runDigests(env.DB, mailerOf(env), env.EMAIL_FROM), runInterviewReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runTestReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runProbationReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runJobAlerts(env.DB, mailerOf(env), env.EMAIL_FROM), runPlanReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runInvoiceReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runApprovalReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runPayrollReminders(env.DB), runDeadlineReminders(env.DB), runSurveyRecurrence(env.DB), runBankDrafts(env.DB, (request) => handler.fetch(request, env, ctx)), runDueOrderEffects(env.DB, (request) => handler.fetch(request, env, ctx)), runCelebrations(env.DB, (request) => handler.fetch(request, env, ctx)), purgeOldJobViews(env.DB), purgeOldServerErrors(env.DB), runPlanDigest(env.DB), runReportSchedules(env.DB, mailerOf(env), env.EMAIL_FROM), purgeOldReportJobs(env.DB)]));
   },
 };
 
@@ -102,6 +103,10 @@ async function respond(request: Request, env: Env, ctx: ExecutionContext): Promi
     if (total > 2500 || trace.queries > 25 || result.status >= 500)
       console.warn(JSON.stringify({ slow: total > 2500, status: result.status, path: url.pathname.slice(0, 80), ms: total, queries: trace.queries, dbMs: trace.ms, slowest: trace.slowest }));
     if (result.status >= 500) ctx.waitUntil(recordServerError(env.DB, url.pathname, result.status));
+    // A big report is built after the answer has gone: the person does not wait for it.
+    if (request.method === "POST" && url.pathname === "/api/joblink/company/reports/jobs" && result.status === 201) {
+      ctx.waitUntil(result.clone().json().then((b) => runReportJob(env.DB, String((b as { id?: string }).id || ""))).catch(() => undefined));
+    }
     const out = new Response(result.body, result);
     out.headers.set("Server-Timing", serverTiming(trace, total));
     return out;
