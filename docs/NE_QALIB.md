@@ -341,3 +341,29 @@ Qeyd: bu siyahı menyu və koda baxışa əsaslanır (hər bölmənin düymələ
 - **Ehtiyac təklifindən vakansiya**: təsdiqlənmiş təklifin yanında «Vakansiya aç» düyməsi (filial, departament, şöbə, vəzifə ilə HR köməkçisini açır). Mövcud «ştat sətrindən vakansiya» mexanizmini istifadə edir; vakansiya yenə də plan yoxlamasından keçir.
 
 Düzəliş qeydi: 32-ci bölmədə «filial üzrə fond hesabatı yoxdur» demişdim — yanlış idi: Əmək haqqı → «Filiallar üzrə bölgü» (`BranchAllocation`) filial üzrə gross, pay, bonus və Excel verir. Yalnız aylar üzrə dinamika yoxdur.
+
+## 34. İşə qəbul menyusu: boşluqlar və təkliflər (2026-11)
+
+Qeyd: 32-ci bölmədəki kimi, menyu və koda baxışa əsaslanır (məsələn «scorecard», «qara siyahı», «avtomatik cavab», «işə qəbul müddəti» sözləri kodda tapılmadı), hər bölmə brauzerdə tam gəzilməyib. Heç bir maddə icra olunmayıb.
+
+**Ümumi baxış** — Boşluq: bölmələrə (vakansiya, namizəd, müsahibə, təklif) bir ekranda «bu həftə nə etməliyəm» siyahısı yoxdur (İşə qəbul tərəfində «bu gün» paneli HR tərəfindəki qədər güclü deyil). Təklif: vakansiya üzrə «yaş» (neçə gündür açıqdır) və dayanmış namizəd xəbərdarlığı.
+
+**Vakansiyalarım** — Boşluq: elanın performans göstəricisi (baxış → müraciət → müsahibə → təklif) bir cədvəldə yoxdur; vakansiyanı bağlayanda namizədlərə toplu rədd məktubu avtomatik getmir (əl ilə). Təklif: vakansiya şablonlarından klonlama düyməsi, vakansiyanın müddət bitmə xatırlatması, elan keyfiyyəti yoxlaması (maaş yazılıb, tələblər aydındır).
+
+**Namizədlər** — Boşluq: rədd səbəbinin vahid kataloqu və rədd məktubu şablonu seçimi var, lakin rədd səbəbləri üzrə hesabat yoxdur; namizədin mənbəyi (sayt, tövsiyə, xarici) qeyd olunur, mənbə üzrə səmərəlilik hesabatı yoxdur; «qara siyahı» / təkrar müraciət xəbərdarlığı yoxdur. Təklif: mərhələdə qalma müddəti (SLA) xəbərdarlığı; namizədə avtomatik «müraciətiniz qəbul olundu» cavabı; GDPR üslubunda namizəd məlumatının saxlama müddəti və silmə.
+
+**HR AI köməkçi** — Boşluq: AI cavablarının keyfiyyət/xərc izlənməsi admin tərəfdə var, şirkət tərəfdə istifadə sayı və qalan kredit söhbət ekranında görünmür (Hesablar və ödənişlərdə var). Təklif: elanı yazandan sonra «ədalətlilik yoxlaması» (cinsiyyət/yaş kodlu ifadələr); müsahibə sualları yaratmaq.
+
+**İstedad bazası** — Boşluq: teqlər və yadda saxlanmış axtarışlar var, lakin bazaya «yeni vakansiya açıldı, uyğun namizədlərə xəbər ver» avtomatikası yoxdur; baza girişlərinin köhnəlməsi (6 aydan köhnə) təmizlənmir. Təklif: namizədə yenilik soruşan toplu e-poçt (razılıqla), istedad hovuzu üzrə ölçü göstəriciləri.
+
+**Müsahibələr** — Boşluq: konflikt yoxlaması, cədvəl və iştirakçılar var; müsahibə sonrası vahid qiymətləndirmə vərəqi (kriteriyalar üzrə bal, çəkilərlə) yoxdur, rəy sərbəst mətndir; video link (Meet/Zoom) avtomatik yaranmır. Təklif: kriteriya şablonları və namizədləri bal üzrə müqayisə; müsahibədən 24 saat əvvəl namizədə və iştirakçılara xatırlatma (real e-poçt çatması yoxlanmayıb).
+
+**Testlər** — Boşluq: sual idxalı (Excel/AI) və nəticələr var; sual bankı arasında təkrar sualların aşkarlanması və sual çətinliyinin statistikası yoxdur; testin saxtakarlıq əlamətləri (tab dəyişmə) yalnız qismən izlənir. Təklif: sual bankı kataloqu, test vaxtı statistikası.
+
+**Təsdiqlər** — (əvvəlki işlərdə 3 pəncərəli görünüş, limitlər, adla təsdiq edilib). Boşluq: təsdiq gözləyən sorğuya e-poçt/telefon xatırlatmasının real çatması yoxlanmayıb. Təklif: təsdiqləyənin məzuniyyətdə olduğunu görüb avtomatik əvəzedicinin göstərilməsi (əvəzedici var, avtomatik seçim yoxdur).
+
+**Mesajlar** — Boşluq: şablonlar, təyin etmə, axtarış və qoşma var; namizədin cavabı üçün gözləmə müddəti (SLA) və cavabsız söhbətlərin siyahısı yoxdur; mesaj şablonlarında dəyişən (namizədin adı, vakansiya) var-yox yoxlanmayıb. Təklif: «cavab gözləyənlər» filtri, iş saatından kənar avtomatik cavab.
+
+**Təklif məktubları (Offers)** — Boşluq: şablon, göndərmə, geri çəkmə, cavab var; təklifin maaşının ştat həddi ilə avtomatik yoxlanması (vakansiya zamanı var) təklif mərhələsində ayrıca göstərilmir; təklif qəbul ediləndə işçi kartının avtomatik yaranması var, lakin onboarding yoxlama siyahısı başlamır. Təklif: qəbul → kart → onboarding tapşırıqları zəncirinin bir ekranda göstərilməsi.
+
+**Hamısına aid:** işə qəbul hesabatları (mənbə üzrə, mərhələ üzrə keçid, işə qəbul müddəti, vakansiya üzrə xərc) Hesabatlar bölməsində `hiring-flow` və `turnover` ilə qismən örtülüb; tam «işə qəbul qıfı» (funnel) səhifəsi yoxdur. Qərar tələb edənlər 32-ci bölmənin sonundakı kimidir (CSP, admin 2FA, real e-poçt, ABB, hüquqçu, pilot, test məlumatlarının silinməsi).
