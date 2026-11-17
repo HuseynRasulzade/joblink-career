@@ -283,3 +283,5 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Sorğu profili** — departamentin eNPS nəticəsi yalnız ≥5 cavab olanda; fərdi cavab göstərilmir; işçinin öz iştirakı yalnız anonim olmayan sorğuda.
 
 Məhdudiyyətlər: kütləvi dəyişiklik indi yalnız departament, şöbə və iş rejimini dəyişir (filial və maaş dəyişikliyi imzalı əmr və təsdiq tələb etdiyi üçün tək-tək əmrlə qalır); bazar müqayisəsi dərc olunmuş elanların maaş aralığına əsaslanır, real maaş statistikası deyil.
+
+Rol yoxlaması (auditor və rəhbər): rəhbər heç bir yeni endpoint-ə çıxış almır (403). Auditor xronologiya, dublikat və sorğu profilini görür; maaş müqayisəsi (maaş icazəsi) 403-dür, ixrac faylında maaş və şəxsi sahələr olmur, FİN yoxlaması söndürülür, dəyişdirici alətlər (kütləvi dəyişiklik, sahə/varis idarəsi) görünmür. Qeyd: `requirePermission("salaries")` yol bölməsinə çevrilir, ona görə maaşa bağlı yeni yerlərdə `can(role,"salaries")` birbaşa yoxlanır.

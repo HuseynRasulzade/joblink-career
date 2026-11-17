@@ -2798,7 +2798,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           </>
         )}
       </div>
-      {tools && data.canEdit && <EmployeeToolsPanel notify={notify} selectedIds={selected} departments={departments} canEdit={data.canEdit} canStaff={!!data.canStaff} onChanged={() => { setSelected([]); load(); }} />}
+      {tools && data.canEdit && <EmployeeToolsPanel notify={notify} selectedIds={selected} departments={departments} canEdit={data.canEdit && data.showSalary} canStaff={!!data.canStaff && data.showSalary} onChanged={() => { setSelected([]); load(); }} />}
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>

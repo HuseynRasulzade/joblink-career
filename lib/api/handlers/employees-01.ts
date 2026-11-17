@@ -1,6 +1,7 @@
 // employees: timeline, duplicates, bulk change, one-person export, custom fields, succession, salary benchmark, survey profile.
 import { HttpError, jsonBody, str } from "@/lib/server";
 import { companyAudit } from "@/lib/api-core";
+import { can } from "@/lib/company";
 import { ok, loadPlanData } from "@/lib/api/shared";
 import { placeProblem, checkSalary, type PlanUnit } from "@/lib/staff-plan";
 import { duplicateGroups, median, percentile, READINESS } from "@/lib/employee-insight";
@@ -13,11 +14,13 @@ const empty = { results: [] as never[] };
 const MIN_GROUP = 5; // a group smaller than this is never shown on its own (privacy)
 
 export async function handle_employees_01(c: Pick<RouteCtx, "accountRole" | "afterSigned" | "auditView" | "db" | "id" | "memberGrants" | "memberRole" | "path" | "request" | "requestUrl" | "requesterName" | "requirePermission" | "revealAll" | "userId">): Promise<Response | undefined> {
-  const { accountRole, afterSigned, auditView, db, id, path, request, requestUrl, requesterName, requirePermission, revealAll, userId } = c;
+  const { accountRole, afterSigned, auditView, db, id, memberGrants, memberRole, path, request, requestUrl, requesterName, requirePermission, revealAll, userId } = c;
   if (!path.startsWith("company/employees/") && !path.startsWith("company/succession") && !path.startsWith("company/custom-fields")) return undefined;
   if (accountRole !== "company") throw new HttpError(403, "Bu bölmə yalnız şirkət hesabı üçündür.");
   const isGet = request.method === "GET";
   const today = new Date().toISOString().slice(0, 10);
+  // requirePermission("salaries") is remapped to the section of the path (employees here); pay data needs the real salary permission.
+  const needSalaries = (message: string) => { if (!can(memberRole, "salaries", memberGrants)) throw new HttpError(403, message); };
   const loadPerson = async (employeeId: string) => {
     const p = await db.prepare("SELECT id,name,position,department,section,email,start_date,end_date,status,salary_cents,salary_type,work_mode,exit_type,exit_reason,contract_end,probation_end FROM company_employees WHERE id=? AND company_id=? AND status<>'removed'").bind(employeeId, id).first<Row>();
     if (!p) throw new HttpError(404, "İşçi tapılmadı.");
@@ -58,6 +61,7 @@ export async function handle_employees_01(c: Pick<RouteCtx, "accountRole" | "aft
     const rows = (await db.prepare("SELECT id,name,email,start_date,department,profile FROM company_employees WHERE company_id=? AND status<>'removed' LIMIT 5000").bind(id).all<{ id: string; name: string; email: string; start_date: string; department: string; profile: string }>()).results;
     let fins = new Map<string, string>();
     try {
+      if (!can(memberRole, "personal-data", memberGrants)) throw new Error("no personal data");
       const revealed = await revealAll(rows.map((r) => ({ id: r.id, profile: r.profile })));
       fins = new Map([...revealed].map(([k, v]) => [k, String(v?.fin || "")]));
       await auditView("duplicates", "", "FİN üzrə dublikat yoxlaması");
@@ -68,7 +72,7 @@ export async function handle_employees_01(c: Pick<RouteCtx, "accountRole" | "aft
 
   // ---- 2. bulk change: department / section through orders that stand at once, work mode on the card ----
   if (request.method === "POST" && path === "company/employees/bulk-update") {
-    requirePermission("salaries", "Kütləvi dəyişikliyi yalnız əmr hazırlamağa icazəsi olan şəxs edə bilər.");
+    needSalaries("Kütləvi dəyişikliyi yalnız əmr hazırlamağa icazəsi olan şəxs edə bilər.");
     const b = await jsonBody(request);
     const ids = (Array.isArray(b.ids) ? b.ids : []).map((x: unknown) => str(x, 100)).filter(Boolean).slice(0, 100);
     if (!ids.length) throw new HttpError(400, "İşçi seçilməyib.");
@@ -126,11 +130,13 @@ export async function handle_employees_01(c: Pick<RouteCtx, "accountRole" | "aft
     const p = await loadPerson(str(requestUrl.searchParams.get("employeeId"), 100));
     const full = await db.prepare("SELECT profile FROM company_employees WHERE id=? AND company_id=?").bind(p.id, id).first<{ profile: string }>();
     let profile: Record<string, unknown> = {};
-    try { profile = ((await revealAll([{ id: String(p.id), profile: full?.profile }])).get(String(p.id)) || {}) as Record<string, unknown>; await auditView("export-one", String(p.id), String(p.name)); } catch { /* no personal data */ }
+    const seePersonal = can(memberRole, "personal-data", memberGrants);
+    const seeSalary = can(memberRole, "salaries", memberGrants);
+    if (seePersonal) try { profile = ((await revealAll([{ id: String(p.id), profile: full?.profile }])).get(String(p.id)) || {}) as Record<string, unknown>; await auditView("export-one", String(p.id), String(p.name)); } catch { /* no personal data */ }
     const timeline = await (await handle_employees_01({ ...c, path: "company/employees/timeline", request: new Request("http://x/", { method: "GET" }), requestUrl: new URL(`http://x/?employeeId=${p.id}`) }))!.json() as { items: { date: string; title: string; detail: string }[] };
-    const salaries = (await db.prepare("SELECT effective_from,salary_cents,salary_type FROM employee_salary_history WHERE company_id=? AND employee_id=? ORDER BY effective_from").bind(id, p.id).all<Row>().catch(() => empty)).results;
+    const salaries = !seeSalary ? [] : (await db.prepare("SELECT effective_from,salary_cents,salary_type FROM employee_salary_history WHERE company_id=? AND employee_id=? ORDER BY effective_from").bind(id, p.id).all<Row>().catch(() => empty)).results;
     const bytes = createXlsxBook([
-      { name: "Kart", headers: ["Sahə", "Dəyər"], rows: [["Ad", String(p.name)], ["Vəzifə", String(p.position)], ["Departament", String(p.department)], ["Şöbə", String(p.section)], ["E-poçt", String(p.email)], ["İşə başlama", String(p.start_date)], ["Status", String(p.status)], ["İş rejimi", String(p.work_mode || "")], ["Maaş (AZN)", Number(p.salary_cents) / 100], ["Maaş növü", String(p.salary_type)], ...Object.entries(profile).filter(([, v]) => typeof v === "string" && v).map(([k, v]) => [`Profil: ${k}`, String(v)])] },
+      { name: "Kart", headers: ["Sahə", "Dəyər"], rows: [["Ad", String(p.name)], ["Vəzifə", String(p.position)], ["Departament", String(p.department)], ["Şöbə", String(p.section)], ["E-poçt", String(p.email)], ["İşə başlama", String(p.start_date)], ["Status", String(p.status)], ["İş rejimi", String(p.work_mode || "")], ...(seeSalary ? [["Maaş (AZN)", Number(p.salary_cents) / 100], ["Maaş növü", String(p.salary_type)]] : []), ...Object.entries(profile).filter(([, v]) => typeof v === "string" && v).map(([k, v]) => [`Profil: ${k}`, String(v)])] },
       { name: "Maaş tarixçəsi", headers: ["Tarixdən", "Məbləğ (AZN)", "Növ"], rows: salaries.map((s) => [String(s.effective_from), Number(s.salary_cents) / 100, String(s.salary_type)]) },
       { name: "Xronologiya", headers: ["Tarix", "Hadisə", "Təfərrüat"], rows: timeline.items.map((t) => [t.date, t.title, t.detail]) },
     ]);
@@ -219,7 +225,7 @@ export async function handle_employees_01(c: Pick<RouteCtx, "accountRole" | "aft
 
   // ---- 8. salary benchmark: same-position peers in the company, then the platform's published vacancies ----
   if (isGet && path === "company/employees/benchmark") {
-    requirePermission("salaries", "Maaş müqayisəsini yalnız maaşa icazəsi olan şəxs görür.");
+    needSalaries("Maaş müqayisəsini yalnız maaşa icazəsi olan şəxs görür.");
     const p = await loadPerson(str(requestUrl.searchParams.get("employeeId"), 100));
     const plan = await loadPlanData(db, id);
     const same = (a: string, b: string) => a.trim().toLocaleLowerCase("az") === b.trim().toLocaleLowerCase("az");
