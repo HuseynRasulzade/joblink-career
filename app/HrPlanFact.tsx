@@ -6,12 +6,12 @@ import HrExpenses from "./HrExpenses";
 import PlanFactExcel from "./PlanFactExcel";
 import PlanFactIntegrations from "./PlanFactIntegrations";
 import { EXPENSE_CATEGORIES } from "@/lib/hr-expenses";
-import { StaffTable, StaffPlanBuilder } from "./StaffPages";
+import { StaffTable, StaffPlanBuilder, StaffExceptions } from "./StaffPages";
 import { takeFocus } from "./focus";
 
 type Notify = (message: string) => void;
 type PlanState = { year: string; status: "draft" | "pending" | "approved"; by: string; at: string; canApprove: boolean };
-type Tab = "summary" | "headcount" | "staff" | "budget" | "expenses" | "integration";
+type Tab = "summary" | "headcount" | "staff" | "exceptions" | "budget" | "expenses" | "integration";
 type Line = { month: string; department: string; category: string; kind: string; amount: number };
 type Fact = { month: string; amount: number; state?: string; estimate?: boolean };
 type Budget = { nowMonth: string; budgets: Line[]; facts: Record<string, Fact[]> };
@@ -79,6 +79,7 @@ export default function HrPlanFact({ notify }: { notify: Notify }) {
     { id: "summary", label: "Xülasə" },
     { id: "headcount", label: "İşçi sayı planı" },
     { id: "staff", label: "Ştat cədvəli" },
+    { id: "exceptions", label: "Plandan kənar" },
     { id: "budget", label: "Büdcə" },
     { id: "expenses", label: "Xərclər" },
     { id: "integration", label: "İnteqrasiya (1C, SAP)" },
@@ -116,6 +117,7 @@ export default function HrPlanFact({ notify }: { notify: Notify }) {
           <HrTrends key={version} notify={notify} editable locked={locked} year={year} />
         </>
       )}
+      {tab === "exceptions" && <StaffExceptions notify={notify} goApprovals={() => { window.location.hash = "hr-approvals"; }} />}
       {tab === "staff" && <StaffTable notify={notify} initialQuery={focus?.department || ""} />}
       {tab === "budget" && <BudgetPlan year={year} notify={notify} editable version={version} />}
       {tab === "integration" && <PlanFactIntegrations notify={notify} />}

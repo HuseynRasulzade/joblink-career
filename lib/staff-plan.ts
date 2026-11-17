@@ -159,7 +159,7 @@ export function placeProblem(units: PlanUnit[], people: PlanPerson[], candidate:
   if (!candidate.position || !candidate.department) return "";
   const named = units.filter((u) => u.position && key(u.position) === key(candidate.position) && key(u.department) === key(candidate.department));
   // Once the staff table has rows, a position it does not name has no place at all.
-  if (!named.length) return units.length ? `Ştat cədvəlində “${candidate.position}” (${candidate.department}) vəzifəsi yoxdur. Əvvəl «Plan və fakt → İşçi sayı planı»nda bu vəzifə üçün sətir əlavə edin.` : "";
+  if (!named.length) return units.length ? `Ştat cədvəlində “${candidate.position}” (${candidate.department}) vəzifəsi yoxdur. Plana əlavə etmək üçün «Plan və fakt → İşçi sayı planı», plandan kənar ehtiyac üçün «Plandan kənar» bölməsindən istifadə edin.` : "";
   const rows = named.filter((u) => score(u, candidate) >= 0);
   const label = `“${candidate.position}” (${candidate.department})`;
   if (!rows.length) return `Ştat cədvəlində ${label} vəzifəsi belə şöbə və ya filial üçün planlaşdırılmayıb. Əvvəl ştat cədvəlinə uyğun sətir əlavə edin.`;
@@ -167,5 +167,5 @@ export function placeProblem(units: PlanUnit[], people: PlanPerson[], candidate:
   const total = rows.reduce((sum, u) => sum + u.planned, 0);
   const free = rows.reduce((sum, u) => sum + Math.max(0, u.planned - (byUnit.get(u.id)?.length || 0)), 0);
   if (free > 0) return "";
-  return `Ştat cədvəlində ${label} üçün ${total} yer planlaşdırılıb və hamısı doludur. Yeni işçi götürmək üçün əvvəl «Plan və fakt → İşçi sayı planı»nda say artırılmalıdır.`;
+  return `Ştat cədvəlində ${label} üçün ${total} yer planlaşdırılıb və hamısı doludur. Plana uyğun işçi götürmək üçün «Plan və fakt → İşçi sayı planı»nda say artırın; plandan kənar ehtiyac üçün «Plandan kənar» bölməsində səbəblə sorğu göndərin.`;
 }

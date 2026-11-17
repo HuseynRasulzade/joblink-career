@@ -3421,3 +3421,131 @@ export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: {
     </div>
   );
 }
+
+// ---------- Out-of-plan requests (the «Plandan kənar» tab) ----------
+// Taking on people the plan does not hold, widening a pay band, or paying one person above the band. Each needs a reason; a director
+// applies it at once, everybody else sends it to the approvals. Everything is kept in one list.
+type ExceptionItem = { id: string; kind: string; subject: string; status: string; requested_by_name: string; decided_by_name: string; note: string; created: string; decided: string };
+const EXC_STATUS: Record<string, string> = { pending: "Təsdiq gözləyir", approved: "Təsdiqlənib / tətbiq olunub", rejected: "Rədd edilib", returned: "Geri qaytarılıb", cancelled: "Ləğv edilib" };
+export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApprovals: () => void }) {
+  const [mode, setMode] = useState<"places" | "band" | "employee-salary">("places");
+  const [data, setData] = useState<StaffData | null>(null);
+  const [items, setItems] = useState<ExceptionItem[]>([]);
+  const [direct, setDirect] = useState(false);
+  const [branch, setBranch] = useState("");
+  const [department, setDepartment] = useState("");
+  const [section, setSection] = useState("");
+  const [position, setPosition] = useState("");
+  const [extra, setExtra] = useState(1);
+  const [rate, setRate] = useState(1);
+  const [salaryMin, setSalaryMin] = useState("");
+  const [salaryMax, setSalaryMax] = useState("");
+  const [rowId, setRowId] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [salary, setSalary] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const { names, remember } = useOrgNames();
+  const load = useCallback(() => {
+    request<StaffData>("company/staff").then(setData).catch((e) => notify((e as Error).message));
+    request<{ items: ExceptionItem[]; canApplyDirectly: boolean }>("company/staff/exceptions").then((r) => { setItems(r.items); setDirect(r.canApplyDirectly); }).catch(() => undefined);
+  }, [notify]);
+  useEffect(load, [load]);
+  const rows = data?.rows || [];
+  const people = rows.flatMap((r) => r.people.map((p) => ({ ...p, where: [r.department, r.position].filter(Boolean).join(" / ") })));
+  const branches = [...new Set(rows.map((r) => r.branch || "").filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
+  async function send() {
+    setBusy(true);
+    try {
+      const body =
+        mode === "places" ? { kind: mode, branch, department, section, position, extra, rate, salaryMin: Number(salaryMin) || 0, salaryMax: Number(salaryMax) || 0, reason }
+        : mode === "band" ? { kind: mode, rowId, salaryMin: Number(salaryMin) || 0, salaryMax: Number(salaryMax) || 0, reason }
+        : { kind: mode, employeeId, salary: Number(salary) || 0, reason };
+      const r = await request<{ applied?: boolean; pending?: boolean }>("company/staff/exception", body);
+      notify(r.applied ? "Plandan kənar dəyişiklik tətbiq olundu və siyahıya yazıldı." : "Sorğu direktorun təsdiqinə göndərildi.");
+      if (mode === "places") { remember("department", department); remember("section", section); remember("position", position); }
+      setReason(""); setSalary(""); setExtra(1);
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const tabs: { id: typeof mode; label: string; hint: string }[] = [
+    { id: "places", label: "Plandan kənar işçi yeri", hint: "Planda olmayan və ya planı aşan işçi götürmək lazımdır (layihə, təcili ehtiyac). Yer plana əlavə olunur." },
+    { id: "band", label: "Maaş həddi artımı", hint: "Ştat sətrinin maaş həddi artırılır; həmin vəzifədəki hamı üçün keçərlidir." },
+    { id: "employee-salary", label: "İşçinin maaş artımı", hint: "Bir işçinin maaşı ştat həddindən kənara qaldırılır. Təsdiqlər bölməsində təsdiqlənir; hədd də artırılmasa, işçi cədvəldə «həddən yuxarı» görünəcək." },
+  ];
+  const active = tabs.find((t) => t.id === mode)!;
+  return (
+    <div className="panel">
+      <h4 style={{ marginTop: 0 }}>Plandan kənar işə qəbul və maaş artımı</h4>
+      <p className="muted">Plan və maaş həddi qaydaları pozulmur: istisna lazımdırsa, burada <b>səbəblə</b> yazılır. {direct ? "Direktor kimi sorğu dərhal tətbiq olunur (işçi maaşı istisna olmaqla)." : "Sorğu direktorun təsdiqinə gedir."} Hamısı aşağıdakı siyahıda saxlanır.</p>
+      <div className="admin-actions" role="tablist" aria-label="Plandan kənar" style={{ justifyContent: "flex-start" }}>
+        {tabs.map((t) => <button key={t.id} type="button" role="tab" aria-selected={mode === t.id} className={mode === t.id ? "primary" : "secondary"} onClick={() => setMode(t.id)}>{t.label}</button>)}
+      </div>
+      <p className="muted">{active.hint}</p>
+      <div className="form-grid">
+        {mode === "places" && (
+          <>
+            <Field label="Filial">
+              <input list="exc-branch-names" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Baş ofis (boş buraxın)" />
+              <datalist id="exc-branch-names">{branches.map((b) => <option key={b} value={b} />)}</datalist>
+            </Field>
+            <OrgNameInput label="Departament" kind="department" names={names} onAdded={remember} value={department} onChange={(d) => { setDepartment(d); setSection(""); }} />
+            <OrgNameInput label="Şöbə" kind="section" names={names} onAdded={remember} department={department} value={section} onChange={setSection} />
+            <OrgNameInput label="Vəzifə" kind="position" names={names} onAdded={remember} value={position} onChange={setPosition} />
+            <Field label="Əlavə neçə nəfər"><input type="number" min={1} value={extra} onChange={(e) => setExtra(Number(e.target.value))} /></Field>
+            <Field label="Ştatın növü (yeni sətir üçün)">
+              <select value={rate} onChange={(e) => setRate(Number(e.target.value))}>{RATES.map((r) => <option key={r} value={r}>{RATE_LABEL[r]}</option>)}</select>
+            </Field>
+          </>
+        )}
+        {mode === "band" && (
+          <Field label="Ştat sətri">
+            <select value={rowId} onChange={(e) => setRowId(e.target.value)}>
+              <option value="">— seçin —</option>
+              {rows.map((r) => <option key={r.id} value={r.id}>{[r.branch || "Baş ofis", r.department, r.section, r.position].filter(Boolean).join(" / ")} · {bandText(r)}</option>)}
+            </select>
+          </Field>
+        )}
+        {mode === "employee-salary" && (
+          <>
+            <Field label="İşçi">
+              <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
+                <option value="">— seçin —</option>
+                {people.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.where}{p.gross ? ` · ${azn(p.gross)}` : ""}</option>)}
+              </select>
+            </Field>
+            <Field label="Yeni maaş (AZN, kartdakı kimi)"><input type="number" min={0} value={salary} onChange={(e) => setSalary(e.target.value)} /></Field>
+          </>
+        )}
+        {mode !== "employee-salary" && (
+          <>
+            <Field label={mode === "band" ? "Yeni maaş həddi — minimum (AZN, gross)" : "Maaş həddi — minimum (yeni sətir üçün)"}><input type="number" min={0} value={salaryMin} onChange={(e) => setSalaryMin(e.target.value)} /></Field>
+            <Field label={mode === "band" ? "Yeni maaş həddi — maksimum (AZN, gross)" : "Maaş həddi — maksimum (yeni sətir üçün)"}><input type="number" min={0} value={salaryMax} onChange={(e) => setSalaryMax(e.target.value)} placeholder="boşdursa minimumla eyni" /></Field>
+          </>
+        )}
+        <Field label="Səbəb (məcburi)"><input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} placeholder="məs. yeni layihə, təcili əvəzetmə, bazar maaşı" /></Field>
+      </div>
+      <div className="admin-actions">
+        <button type="button" className="primary" disabled={busy} onClick={() => void send()}>{direct && mode !== "employee-salary" ? "Tətbiq et" : "Təsdiqə göndər"}</button>
+        <button type="button" className="secondary" onClick={goApprovals}>Təsdiqlərə keç</button>
+      </div>
+      <h5 style={{ marginBottom: 4 }}>Plandan kənar sorğular ({items.length})</h5>
+      {items.length ? (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead><tr><th>Tarix</th><th>Sorğu</th><th>Göndərən</th><th>Vəziyyət</th><th>Qərar</th></tr></thead>
+            <tbody>
+              {items.map((i) => (
+                <tr key={i.id}><td>{i.created.slice(0, 10)}</td><td>{i.subject}</td><td>{i.requested_by_name || "—"}</td><td>{EXC_STATUS[i.status] || i.status}</td><td>{i.decided_by_name ? `${i.decided_by_name}${i.note ? `: ${i.note}` : ""}` : "—"}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <p className="admin-empty">Hələ plandan kənar sorğu yoxdur.</p>}
+    </div>
+  );
+}

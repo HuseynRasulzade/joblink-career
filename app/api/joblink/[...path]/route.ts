@@ -2452,7 +2452,7 @@ async function route(request: Request) {
   // A vacancy needs a place the plan does not have: an extra place of the row (or a new row) goes to approval.
   // The director's own request is approved on the spot; nobody else can add a place by themselves.
     {
-    const r = await handle_company_31({ accountRole, canAct, db, id, path, planLocked, queueApproval, request, requestUrl, requirePermission, unitInput, userId });
+    const r = await handle_company_31({ accountRole, canAct, db, id, path, planLocked, queueApproval, request, requestUrl, requesterName, requirePermission, unitInput, userId });
     if (r) return r;
   }
   // ---- Company structure: departments and their sections ----

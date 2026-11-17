@@ -208,3 +208,9 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Plana yazılmamış vəzifə:** ştat cədvəlində sətir varsa, orada adı olmayan vəzifəyə işçi götürmək olmur (əl ilə, təklif, işə qəbul, Excel). Cədvəli hələ boş olan şirkət məhdudlaşmır.
 - **Say artırmaq:** eyni filial, departament, şöbə və vəzifə yenidən yazılanda yeni sətir yaranmır, mövcud sətir yenilənir; qurucuda hər sətirdə «Düzəlt» və «Sil» var.
 - Plan kilidlidirsə (təsdiqlənibsə), dəyişiklik direktorun təsdiqinə gedir: bu, nəzarət üçün qalır.
+
+## 22. «Plandan kənar» bölməsi (2026-11-17)
+
+- «Plan və fakt → Plandan kənar»: üç növ sorğu, hamısında **səbəb məcburidir**: (1) plandan kənar işçi yeri (mövcud sətrə +N və ya yeni sətir), (2) ştat sətrinin maaş həddi artımı, (3) bir işçinin maaşının həddən kənara qaldırılması.
+- Direktor (yeri/həddi) dərhal tətbiq edir, qalanlar üçün sorğu **Təsdiqlər** bölməsinə gedir; işçi maaş artımı həmişə təsdiqlə olur (təsdiq maaş həddini yoxlamır, istisna məhz budur; hədd də artırılmasa işçi ştat cədvəlində «həddən yuxarı» görünür). Bütün sorğular (tətbiq olunanlar da) bölmənin siyahısında saxlanır. Server: `company/staff/exception`, `company/staff/exceptions`.
+- Say və maaş həddi rədd mesajları bu bölməyə yönəldir.
