@@ -41,8 +41,19 @@ export async function handle_company_02(c: Pick<RouteCtx, "auditView" | "dataKey
   }
   if (request.method === "GET" && path === "company/employees") {
     const showSalary = can(memberRole, "salaries");
-    if (showSalary) await auditView("view-salaries");
-    if (can(memberRole, "personal-data", memberGrants)) await auditView("view-personal-data");
+    // The independent reads start together: each round trip to D1 costs about as much as the query itself.
+    const audits = Promise.all([showSalary ? auditView("view-salaries") : undefined, can(memberRole, "personal-data", memberGrants) ? auditView("view-personal-data") : undefined]);
+    const taskQuery = db
+      .prepare("SELECT employee_id,done,due FROM employee_tasks WHERE company_id=?")
+      .bind(id)
+      .all<{ employee_id: string; done: number; due: string }>()
+      .catch(() => ({ results: [] as { employee_id: string; done: number; due: string }[] }));
+    const annualQuery = db
+      .prepare("SELECT employee_id,COUNT(*) AS n FROM attendance_marks WHERE company_id=? AND code='annual' GROUP BY employee_id")
+      .bind(id)
+      .all<{ employee_id: string; n: number }>()
+      .catch(() => ({ results: [] as { employee_id: string; n: number }[] }));
+    const planQuery = loadPlanData(db, id);
     const rows = await db
       .prepare(
         "SELECT * FROM company_employees WHERE company_id=? AND status<>'removed' ORDER BY name",
@@ -72,20 +83,12 @@ export async function handle_company_02(c: Pick<RouteCtx, "auditView" | "dataKey
         vacation_days?: number;
         vacation_used?: number;
       }>();
-    const taskRows = await db
-      .prepare("SELECT employee_id,done,due FROM employee_tasks WHERE company_id=?")
-      .bind(id)
-      .all<{ employee_id: string; done: number; due: string }>()
-      .catch(() => ({ results: [] as { employee_id: string; done: number; due: string }[] }));
+    const taskRows = await taskQuery;
     const tasksBy = new Map<string, { done: number; due: string }[]>();
     for (const t of taskRows.results) tasksBy.set(t.employee_id, [...(tasksBy.get(t.employee_id) || []), t]);
     const todayIso = new Date().toISOString().slice(0, 10);
     // Annual leave days marked in the attendance sheet are used leave too.
-    const annual = await db
-      .prepare("SELECT employee_id,COUNT(*) AS n FROM attendance_marks WHERE company_id=? AND code='annual' GROUP BY employee_id")
-      .bind(id)
-      .all<{ employee_id: string; n: number }>()
-      .catch(() => ({ results: [] as { employee_id: string; n: number }[] }));
+    const annual = await annualQuery;
     const annualBy = new Map(annual.results.map((row) => [row.employee_id, Number(row.n)]));
     // The pay band of the staff row each employee sits in, to show it beside the salary.
     const bandBy = new Map<string, [number, number]>();
@@ -94,7 +97,7 @@ export async function handle_company_02(c: Pick<RouteCtx, "auditView" | "dataKey
     // The row of the staff table each working employee fills (branch and level), so the list can show it and mark who has none.
     const placeBy = new Map<string, { branch: string; level: string; position: string }>();
     {
-      const planData = await loadPlanData(db, id);
+      const planData = await planQuery;
       const placed = assignPeople(planData.units, planData.people);
       for (const [unitId, list] of placed.byUnit) {
         const unit = planData.units.find((u) => u.id === unitId)!;
@@ -106,6 +109,7 @@ export async function handle_company_02(c: Pick<RouteCtx, "auditView" | "dataKey
         }
       }
     }
+    await audits;
     const revealed = can(memberRole, "personal-data", memberGrants) ? await revealAll(rows.results as unknown as { id: string; profile?: string }[]) : new Map<string, ReturnType<typeof parseProfile>>();
     return ok({
       showSalary,
