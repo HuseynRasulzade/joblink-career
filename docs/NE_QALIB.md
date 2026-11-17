@@ -194,3 +194,9 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Yoxlanılanlar (yerli, 4 rol):** 561 endpoint × GET/POST × 3 rol (admin, şirkət, namizəd) boş sorğu ilə 5xx axtarışı; hər rolun bütün menyuları brauzerlə; tam yol: qeydiyyat → profil → müraciət → müsahibə dəvəti → qəbul → iş təklifi → qəbul → işçi kartı avtomatik → «İş yerim» (məzuniyyət təklifi, təsdiq, giriş qeydi); admin: istifadəçini dayandırma/bərpa, vakansiya moderasiyası, siyahılar.
 - **Düzəldilənlər:** formData tələb edən 3 endpoint (CV OCR, CV faylı, test bank qərarı) səhv formatda 500 yerinə 400 qaytarır; admin bacarıq kataloqunda təkrar React açarı.
 - **Bağlandı (2026-11-17):** «Müsahibə» statusundan birbaşa «İşə qəbul» yalnız keçirilmiş (tamamlanmış) müsahibə və ya təhvil verilmiş test varsa mümkündür; yoxsa server 409 qaytarır. İş təklifinin qəbulu ilə işə qəbul bu qayda ilə bağlı deyil.
+
+## 20. İşçi sayı planında ştat planını qurmaq (2026-11-17)
+
+- «Plan və fakt → İşçi sayı planı» səhifəsinin yuxarısında **«Ştat planını qur»** bölməsi var: filial (boş = baş ofis), departament, şöbə, vəzifə, ştatın növü (tam / 3/4 / yarım / 1/4), işçi sayı və maaş həddi (min–maks). «Plana əlavə et» sətri birbaşa **Ştat cədvəlinə** yazır (eyni `staff_units` sətirləri, eyni yoxlamalar: maaş həddi, plan kilidi və direktor təsdiqi).
+- Bölmənin altında plandakı bütün sətirlər, cəmi nəfər, tam ştat vahidi və aylıq maaş həddi görünür; «Cəmi … dekabr hədəfi kimi yaz» ştat cəmini ilin dekabr hədəfi edir, sonra aşağıdakı «Bərabər paylaşdır» ilə aylara bölünür.
+- Ştat cədvəli (Filial → Departament → Şöbə → Vəzifə) bu sətirlərdən qurulur: plan, ştat növü, maaş həddi, işləyənlər, boş yerlər və «Vakansiya yarat».

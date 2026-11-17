@@ -6,7 +6,7 @@ import HrExpenses from "./HrExpenses";
 import PlanFactExcel from "./PlanFactExcel";
 import PlanFactIntegrations from "./PlanFactIntegrations";
 import { EXPENSE_CATEGORIES } from "@/lib/hr-expenses";
-import { StaffTable } from "./StaffPages";
+import { StaffTable, StaffPlanBuilder } from "./StaffPages";
 import { takeFocus } from "./focus";
 
 type Notify = (message: string) => void;
@@ -110,7 +110,12 @@ export default function HrPlanFact({ notify }: { notify: Notify }) {
         ))}
       </div>
       {tab === "summary" && <Summary year={year} version={version} go={setTab} notify={notify} />}
-      {tab === "headcount" && <HrTrends notify={notify} editable locked={locked} year={year} />}
+      {tab === "headcount" && (
+        <>
+          <StaffPlanBuilder notify={notify} year={year} locked={locked} onChanged={() => setVersion((n) => n + 1)} goStaff={() => setTab("staff")} />
+          <HrTrends key={version} notify={notify} editable locked={locked} year={year} />
+        </>
+      )}
       {tab === "staff" && <StaffTable notify={notify} initialQuery={focus?.department || ""} />}
       {tab === "budget" && <BudgetPlan year={year} notify={notify} editable version={version} />}
       {tab === "integration" && <PlanFactIntegrations notify={notify} />}

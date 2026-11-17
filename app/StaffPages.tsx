@@ -3302,3 +3302,120 @@ function ShiftFields({ profile, set }: { profile: EmployeeProfile; set: <K exten
     </>
   );
 }
+
+// ---------- Staff plan builder (the «İşçi sayı planı» tab) ----------
+// The plan is built here row by row: branch, department, section, position, kind of place (full, 3/4, half, 1/4), number of people
+// and the pay band. Every row goes straight to the staff table (the same rows), which shows who fills it and what is free.
+export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: { notify: Notify; year: string; locked: boolean; onChanged: () => void; goStaff: () => void }) {
+  const HEAD_OFFICE = "";
+  const blank = { branch: HEAD_OFFICE, department: "", section: "", position: "", rate: 1, planned: 1, salaryMin: "", salaryMax: "" };
+  const [form, setForm] = useState(blank);
+  const [data, setData] = useState<StaffData | null>(null);
+  const [made, setMade] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const { names, remember } = useOrgNames();
+  const load = useCallback(() => {
+    request<StaffData>("company/staff").then(setData).catch((e) => notify((e as Error).message));
+    request<{ branches?: { name: string }[] }>("company/staff/structure").then((r) => setMade((r.branches || []).map((b) => b.name))).catch(() => setMade([]));
+  }, [notify]);
+  useEffect(load, [load]);
+  const branches = [...new Set([...(data?.rows || []).map((r) => r.branch || ""), ...made].filter(Boolean))].sort((a, b) => a.localeCompare(b, "az"));
+  const min = Number(form.salaryMin) || 0;
+  const max = Number(form.salaryMax) || 0;
+  async function add() {
+    if (!form.department.trim() || !form.position.trim()) return notify("Departamenti və vəzifəni seçin.");
+    if (!(form.planned >= 1)) return notify("İşçi sayı ən azı 1 olmalıdır.");
+    if (max && max < min) return notify("Maksimum maaş minimumdan az ola bilməz.");
+    setBusy(true);
+    try {
+      const result = await request<{ pending?: boolean }>("company/staff/save", { branch: form.branch, department: form.department, section: form.section, position: form.position, planned: form.planned, rate: form.rate, salaryMin: min, salaryMax: max || min });
+      notify(result.pending ? "Plan sətri direktorun təsdiqinə göndərildi." : "Plan sətri ştat cədvəlinə əlavə olundu.");
+      remember("department", form.department);
+      remember("section", form.section);
+      remember("position", form.position);
+      setForm({ ...blank, branch: form.branch, department: form.department });
+      load();
+      onChanged();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function toTarget() {
+    if (!data) return;
+    setBusy(true);
+    try {
+      await request("company/hr-trends/targets", { targets: [{ month: `${year}-12`, target: data.total.planned }] });
+      notify(`${year}-ci il dekabr hədəfi ${data.total.planned} nəfər (ştat cəmi) kimi yazıldı. Aylara bölmək üçün aşağıda «Bərabər paylaşdır» basın.`);
+      onChanged();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const rows = data?.rows || [];
+  const total = data?.total;
+  return (
+    <div className="panel">
+      <h4 style={{ marginTop: 0 }}>Ştat planını qur</h4>
+      <p className="muted">Hər sətir: harada (filial), hansı departament və şöbədə, hansı vəzifədə, ştatın növü, neçə nəfər və maaş həddi. Əlavə etdiyiniz sətir dərhal <b>Ştat cədvəlinə</b> düşür; orada faktiki işçilər, boş yerlər və vakansiya yaratma görünür.</p>
+      {locked && <p className="danger-text">{year} planı kilidlidir: yeni sətir direktorun təsdiqinə göndəriləcək.</p>}
+      <div className="form-grid">
+        <Field label="Filial">
+          <input list="plan-branch-names" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} placeholder="Baş ofis (boş buraxın)" />
+          <datalist id="plan-branch-names">{branches.map((b) => <option key={b} value={b} />)}</datalist>
+          <small className="skill-picker-help">Boş = baş ofis. Yeni filialın adını yazsanız, o ştatdan yaranır.</small>
+        </Field>
+        <OrgNameInput label="Departament" kind="department" names={names} onAdded={remember} value={form.department} onChange={(department) => setForm({ ...form, department, section: "" })} />
+        <OrgNameInput label="Şöbə" kind="section" names={names} onAdded={remember} department={form.department} value={form.section} onChange={(section) => setForm({ ...form, section })} />
+        <OrgNameInput label="Vəzifə" kind="position" names={names} onAdded={remember} value={form.position} onChange={(position) => setForm({ ...form, position })} />
+        <Field label="Ştatın növü">
+          <select value={form.rate} onChange={(e) => setForm({ ...form, rate: Number(e.target.value) })}>
+            {RATES.map((rate) => <option key={rate} value={rate}>{RATE_LABEL[rate]}</option>)}
+          </select>
+        </Field>
+        <Field label="İşçi sayı (neçə nəfər)">
+          <input type="number" min={1} value={form.planned} onChange={(e) => setForm({ ...form, planned: Number(e.target.value) })} />
+        </Field>
+        <Field label="Maaş həddi — minimum (AZN, gross)">
+          <input type="number" min={0} value={form.salaryMin} onChange={(e) => setForm({ ...form, salaryMin: e.target.value })} />
+        </Field>
+        <Field label="Maaş həddi — maksimum (AZN, gross)">
+          <input type="number" min={0} value={form.salaryMax} placeholder="boşdursa minimumla eyni" onChange={(e) => setForm({ ...form, salaryMax: e.target.value })} />
+        </Field>
+      </div>
+      <p className="muted">
+        {form.planned > 0 ? `${form.planned} × ${RATE_LABEL[form.rate].toLocaleLowerCase("az")} = ${num(form.planned * form.rate)} tam ştat vahidi.` : ""}
+        {min || max ? ` Aylıq plan həddi: ${azn(form.planned * form.rate * (max || min))} (maksimuma görə).` : ""}
+      </p>
+      <div className="admin-actions">
+        <button type="button" className="primary" disabled={busy} onClick={() => void add()}><Plus size={15} /> Plana əlavə et</button>
+        <button type="button" className="secondary" onClick={goStaff}>Ştat cədvəlinə keç</button>
+      </div>
+      {total && (
+        <>
+          <h5 style={{ marginBottom: 4 }}>Plandakı sətirlər ({rows.length}) · cəmi {total.planned} nəfər, {num(total.fte)} tam ştat vahidi{total.budget ? `, aylıq həddi ${azn(total.budget)}` : ""}</h5>
+          {rows.length ? (
+            <div className="table-wrap">
+              <table className="staff-table">
+                <thead><tr><th>Filial</th><th>Departament</th><th>Şöbə</th><th>Vəzifə</th><th>Növ</th><th>Say</th><th>Maaş həddi</th><th>İşləyir</th><th>Boş</th></tr></thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id}><td>{r.branch || "Baş ofis"}</td><td>{r.department || "—"}</td><td>{r.section || "—"}</td><td>{r.position || "—"}</td><td>{RATE_LABEL[r.rate] || "Tam ştat"}</td><td>{r.planned}</td><td>{bandText(r)}</td><td>{r.filled}</td><td>{r.free > 0 ? <b>{r.free}</b> : "—"}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <p className="admin-empty">Hələ plan sətri yoxdur. Yuxarıdakı formla ilk sətri əlavə edin.</p>}
+          {rows.length > 0 && (
+            <div className="admin-actions">
+              <button type="button" className="secondary" disabled={busy || locked} onClick={() => void toTarget()}>Cəmi ({total.planned}) {year} dekabr hədəfi kimi yaz</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
