@@ -63,3 +63,59 @@ test("attendance lock: the months a range touches and the refusal text", () => {
   assert.equal(lockedProblem(["2026-10"], "2026-11-01", "2026-11-05"), "");
   assert.ok(lockedProblem(["2026-11"], "2026-10-30", "2026-11-02").includes("noyabr 2026"));
 });
+
+import { weightedScore, ratingOf, sanitizeScores, sanitizeCriteria, DEFAULT_CRITERIA } from "../lib/interview-scorecard.ts";
+import { sourceFunnel } from "../lib/hiring-sources.ts";
+test("scorecard: weighted mean over scored criteria, rating is a whole 1-5", () => {
+  const c = [{ id: "a", label: "A", weight: 3 }, { id: "b", label: "B", weight: 1 }, { id: "c", label: "C", weight: 2 }];
+  assert.equal(weightedScore(c, { a: 5, b: 1 }), 4); // (15+1)/4
+  assert.equal(weightedScore(c, { a: 4, b: 4, c: 1 }), 3.0); // (12+4+2)/6
+  assert.equal(weightedScore(c, {}), null);
+  assert.equal(ratingOf(3.5), 4); assert.equal(ratingOf(null), null);
+  assert.deepEqual(sanitizeScores(c, { a: 5, b: 9, c: "2", z: 3, x: 1.5 }), { a: 5, c: 2 });
+});
+test("scorecard: criteria are cleaned and bounded", () => {
+  const ok = sanitizeCriteria([{ label: "  Ünsiyyət ", weight: 9 }, { label: "Bilik", weight: 0 }, { label: "" }]);
+  assert.deepEqual(ok.map((x) => [x.label, x.weight]), [["Ünsiyyət", 5], ["Bilik", 1]]);
+  assert.ok("error" in sanitizeCriteria([{ label: "Eyni" }, { label: "eyni" }]));
+  assert.ok("error" in sanitizeCriteria(Array.from({ length: 13 }, (_, i) => ({ label: "K" + i }))));
+  assert.ok(DEFAULT_CRITERIA.length >= 3);
+});
+test("sourceFunnel counts how far each source gets", () => {
+  const rows = sourceFunnel([
+    { id: "1", source: "platform", reached: ["Göndərildi", "Müsahibə", "İşə qəbul edildi"] },
+    { id: "2", source: "platform", reached: ["Göndərildi"] },
+    { id: "3", source: "invite", reached: ["Göndərildi", "Müsahibə", "Təklif edildi"] },
+    { id: "4", source: "", reached: [] },
+  ]);
+  const platform = rows.find((r) => r.source === "platform");
+  assert.equal(platform.applied, 3); assert.equal(platform.hired, 1); assert.equal(platform.hireRate, 33.3);
+  assert.equal(rows.find((r) => r.source === "invite").offer, 1);
+});
+
+import { buildAtsReport, reachedSteps } from "../lib/ats-analytics.ts";
+test("ATS analytics: funnel, time to hire, rejections and stale candidates", () => {
+  const ev = (to, at, type = "status") => ({ type, from: "", to, created: at });
+  const apps = [
+    { id: "a", jobId: "j1", candidate: "A", source: "platform", status: "İşə qəbul edildi", stage: "", created: "2026-10-01T00:00:00Z", updated: "2026-10-21T00:00:00Z", events: [ev("Baxışda", "2026-10-03T00:00:00Z"), ev("Müsahibə", "2026-10-10T00:00:00Z"), ev("Təklif edildi", "2026-10-15T00:00:00Z"), ev("İşə qəbul edildi", "2026-10-21T00:00:00Z")] },
+    { id: "b", jobId: "j1", candidate: "B", source: "invite", status: "Uyğun deyil", stage: "", created: "2026-10-02T00:00:00Z", updated: "2026-10-05T00:00:00Z", events: [ev("Baxışda", "2026-10-03T00:00:00Z"), ev("Uyğun deyil", "2026-10-05T00:00:00Z"), ev("Bacarıqlar vakansiyanın tələbinə uyğun deyil", "2026-10-05T00:00:00Z", "rejection")] },
+    { id: "c", jobId: "j1", candidate: "C", source: "", status: "Baxışda", stage: "Test", created: "2026-10-05T00:00:00Z", updated: "2026-10-06T00:00:00Z", events: [] },
+    { id: "d", jobId: "j2", candidate: "D", source: "platform", status: "Göndərildi", stage: "", created: "2026-11-10T00:00:00Z", updated: "", events: [] },
+  ];
+  const r = buildAtsReport(apps, [{ id: "j1", title: "Mühasib", status: "published", created: "2026-09-25T00:00:00Z" }, { id: "j2", title: "Satış", status: "published", created: "2026-11-01T00:00:00Z" }], Date.parse("2026-11-12T00:00:00Z"), 7);
+  assert.deepEqual(r.funnel.map((f) => f.count), [4, 3, 1, 1, 1]); // c is "Baxışda" by status alone: counted as reviewed
+  assert.equal(r.funnel[1].fromPrevious, 75);
+  assert.equal(r.timeToHire.hired, 1); assert.equal(r.timeToHire.medianDays, 20);
+  assert.equal(r.rejected, 1); assert.equal(r.rejections[0].count, 1);
+  assert.deepEqual(r.stale.map((s) => s.applicationId), ["c"]); // d is only 2 days old
+  assert.equal(r.jobs[0].hired, 1);
+  assert.deepEqual(reachedSteps({ status: "Təklif edildi", events: [] }), ["Göndərildi", "Baxışda", "Müsahibə", "Təklif edildi"]);
+  assert.equal(r.timeInStep[0].medianDays, 1.5); // "Göndərildi" lasted 2 days for a and 1 day for b
+});
+
+import { atsDigestText } from "../lib/ats-digest-text.ts";
+test("atsDigestText: silent when nobody waits", () => {
+  assert.equal(atsDigestText({ stale: 0, oldestDays: 0, unanswered: 0 }), null);
+  const t = atsDigestText({ stale: 4, oldestDays: 12, unanswered: 2 });
+  assert.ok(t.body.includes("4 namizəd") && t.body.includes("12 gün") && t.body.includes("2 nəfərin"));
+});

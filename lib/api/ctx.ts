@@ -57,7 +57,7 @@ export type RouteCtx = {
   BUDGET_CATEGORIES: string[];
   EMPLOYEE_DOC_CATEGORIES: string[];
   FX: NormCurrency[];
-  INTERVIEW_COLUMNS: "i.id,i.application_id,i.job_id,i.company_id,i.candidate_id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.panel,i.slots,i.status,i.candidate_note,i.created_by,i.rating,i.feedback,i.decision,i.round,i.questions,i.created,\n      COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS candidate,COALESCE(a.status,'') AS application_status,COALESCE((SELECT name FROM accounts WHERE id=i.created_by),'') AS created_by_name";
+  INTERVIEW_COLUMNS: "i.id,i.application_id,i.job_id,i.company_id,i.candidate_id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.panel,i.slots,i.status,i.candidate_note,i.created_by,i.rating,i.feedback,i.decision,i.scores,i.round,i.questions,i.created,\n      COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS candidate,COALESCE(a.status,'') AS application_status,COALESCE((SELECT name FROM accounts WHERE id=i.created_by),'') AS created_by_name";
   ORDER_COLUMNS: "o.id,o.employee_id,o.kind,o.number,o.order_date,o.input,o.signers,o.status,o.holder,o.history,o.created_by,o.created";
   PAY_LABEL: Record<string, string>;
   PROFILE_CHANGE_FIELDS: Record<string, string>;

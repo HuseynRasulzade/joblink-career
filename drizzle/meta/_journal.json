@@ -855,6 +855,13 @@
       "when": 1801422000000,
       "tag": "0121_attendance_locks",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "6",
+      "when": 1801508400000,
+      "tag": "0122_interview_scorecard",
+      "breakpoints": true
     }
   ]
 }

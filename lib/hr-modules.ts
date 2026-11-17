@@ -15,6 +15,7 @@ export const HR_MODULE_OF: Record<string, HrModule | "both"> = {
   "hr-talent": "recruit",
   "hr-interviews": "recruit",
   "hr-tests": "recruit",
+  "hr-ats": "recruit",
   "hr-messages": "recruit",
   // running the staff
   "hr-employees": "ops",

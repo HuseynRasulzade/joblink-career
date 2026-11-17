@@ -128,6 +128,8 @@ import { handle_company_33 } from "@/lib/api/handlers/company-33";
 import { handle_reports_01 } from "@/lib/api/handlers/reports-01";
 import { handle_employees_01 } from "@/lib/api/handlers/employees-01";
 import { handle_attendance_01 } from "@/lib/api/handlers/attendance-01";
+import { handle_interviews_02 } from "@/lib/api/handlers/interviews-02";
+import { handle_ats_01 } from "@/lib/api/handlers/ats-01";
 import { lockedProblem } from "@/lib/attendance-lock";
 import { handle_company_34 } from "@/lib/api/handlers/company-34";
 import { handle_company_35 } from "@/lib/api/handlers/company-35";
@@ -2533,6 +2535,14 @@ async function route(request: Request) {
     const r = await handle_attendance_01({ accountRole, db, id, memberGrants, memberRole, path, request, requestUrl, requesterName, requirePermission, userId });
     if (r) return r;
   }
+  {
+    const r = await handle_interviews_02({ accountRole, db, id, memberGrants, memberRole, path, request, userId });
+    if (r) return r;
+  }
+  {
+    const r = await handle_ats_01({ accountRole, db, id, memberRole, path, request, requestUrl });
+    if (r) return r;
+  }
     {
     const r = await handle_company_34({ approvalRules, canAct, db, id, memberGrants, memberRole, path, queueApproval, request, requirePermission, salaryChange, userId });
     if (r) return r;
@@ -2881,7 +2891,7 @@ async function route(request: Request) {
     const r = await handle_hr_03({ assignTest, db, id, path, request, requestUrl, requirePermission, testsDenied, userId });
     if (r) return r;
   }
-  const INTERVIEW_COLUMNS = `i.id,i.application_id,i.job_id,i.company_id,i.candidate_id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.panel,i.slots,i.status,i.candidate_note,i.created_by,i.rating,i.feedback,i.decision,i.round,i.questions,i.created,
+  const INTERVIEW_COLUMNS = `i.id,i.application_id,i.job_id,i.company_id,i.candidate_id,i.scheduled_at,i.duration_min,i.kind,i.location,i.note,i.panel,i.slots,i.status,i.candidate_note,i.created_by,i.rating,i.feedback,i.decision,i.scores,i.round,i.questions,i.created,
       COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS candidate,COALESCE(a.status,'') AS application_status,COALESCE((SELECT name FROM accounts WHERE id=i.created_by),'') AS created_by_name`;
   const interviewKindText = (row: { kind: string; location: string }) =>
     `${INTERVIEW_KINDS.find((k) => k.id === row.kind)?.label || row.kind}${row.location ? `: ${row.location}` : ""}`;

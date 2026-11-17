@@ -239,11 +239,11 @@ export async function handle_company_37(c: Pick<RouteCtx, "customSkillLabels" | 
         ? null
         : await db
             .prepare(
-              "SELECT owner,json_extract(data,'$.title') AS title FROM jobs WHERE id=?",
+              "SELECT owner,json_extract(data,'$.title') AS title,json_extract(data,'$.company') AS company FROM jobs WHERE id=?",
             )
             .bind(jobId)
-            .first<{ owner: string; title: string }>();
-      if (owner)
+            .first<{ owner: string; title: string; company: string }>();
+      if (owner) {
         await notify(db, {
           userId: owner.owner,
           type: "application",
@@ -251,6 +251,16 @@ export async function handle_company_37(c: Pick<RouteCtx, "customSkillLabels" | 
           link: "hr-candidates",
           email: true,
         });
+        // The candidate is told at once that the application arrived: silence after applying is what candidates dislike most.
+        await notify(db, {
+          userId: id,
+          type: "application-status",
+          title: `Müraciətiniz qəbul olundu: ${owner.title}`,
+          body: `${owner.company ? `${owner.company} ` : "İşəgötürən "}müraciətinizə baxacaq. Status dəyişəndə burada və “Müraciətlərim” bölməsində görəcəksiniz.`,
+          link: "applications",
+          email: true,
+        }).catch(() => undefined);
+      }
     }
     return ok({ ok: true });
   }

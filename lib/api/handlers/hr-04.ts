@@ -7,6 +7,7 @@ import { STAGE_CATALOG, WITHDRAWN_STATUS, sanitizeStages } from "@/lib/recruitme
 import { can } from "@/lib/company";
 import { companyAudit, notify, recordApplicationEvent, sendUserEmail } from "@/lib/api-core";
 import { completePastInterviews } from "@/lib/interview-auto";
+import { DEFAULT_CRITERIA, ratingOf, sanitizeScores, weightedScore } from "@/lib/interview-scorecard";
 import { quiet } from "@/lib/quiet";
 import { InterviewRow, ok } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
@@ -94,6 +95,7 @@ export async function handle_hr_04(c: Pick<RouteCtx, "INTERVIEW_COLUMNS" | "acco
       interviews: rows.results.map((r) => ({
         ...r,
         participants: parts[r.id] || [],
+        scores: (() => { try { return JSON.parse((r as { scores?: string }).scores || "{}") as Record<string, number>; } catch { return {} as Record<string, number>; } })(),
         questions: sanitizeGuideQuestions((() => { try { return JSON.parse(r.questions || "[]"); } catch { return []; } })()),
         slots: (() => {
           try {
@@ -463,16 +465,21 @@ export async function handle_hr_04(c: Pick<RouteCtx, "INTERVIEW_COLUMNS" | "acco
         409,
         "Rəy yalnız keçirilmiş müsahibə üçün yazılır. Əvvəl müsahibəni “keçirildi” kimi qeyd edin.",
       );
-    const fb = sanitizeFeedback(b);
+    // With a scorecard the rating is the weighted mean of the criteria that were scored; the chosen recommendation stays.
+    const criteria = await db.prepare("SELECT id,label,weight FROM interview_criteria WHERE company_id=? ORDER BY position,created").bind(id).all<{ id: string; label: string; weight: number }>().then((r) => (r.results.length ? r.results : DEFAULT_CRITERIA)).catch(() => DEFAULT_CRITERIA);
+    const scores = sanitizeScores(criteria, (b as { scores?: unknown }).scores);
+    const derived = ratingOf(weightedScore(criteria, scores));
+    const fb = sanitizeFeedback(derived ? { ...b, rating: derived } : b);
     if ("error" in fb) throw new HttpError(400, fb.error);
     await db
       .prepare(
-        "UPDATE interviews SET rating=?,feedback=?,decision=?,updated=? WHERE id=?",
+        "UPDATE interviews SET rating=?,feedback=?,decision=?,scores=?,updated=? WHERE id=?",
       )
       .bind(
         fb.rating,
         fb.feedback,
         fb.decision,
+        JSON.stringify(scores),
         new Date().toISOString(),
         row.id,
       )

@@ -4,6 +4,7 @@ import { BriefcaseBusiness, CalendarClock, CalendarPlus, Check, ClipboardCheck, 
 import type { Application } from "@/lib/model";
 import { stageInfo } from "@/lib/recruitment";
 import { ACTIVE_INTERVIEW, INTERVIEW_KINDS, bakuLocal, type InterviewKind } from "@/lib/interviews";
+import { ratingOf, weightedScore, type Criterion } from "@/lib/interview-scorecard";
 import { Field, Modal } from "./components";
 import { AssignTestModal } from "./AssessmentsPage";
 import { MyRequests, PanelChain, PanelFields, QuestionList, StageFields, ScheduleGrid, panelCall, type Conflict, type MyRequest, type Participant } from "./InterviewPanel";
@@ -28,6 +29,7 @@ export type InterviewItem = {
   rating?: number;
   feedback?: string;
   decision?: string;
+  scores?: Record<string, number>;
   round?: string;
   created_by_name?: string;
   questions?: string[];
@@ -430,7 +432,13 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
   const [testFor, setTestFor] = useState<Application | null>(null);
   const [openGuide, setOpenGuide] = useState("");
   const [feedbackFor, setFeedbackFor] = useState<string | null>(null);
-  const [fb, setFb] = useState({ rating: 4, decision: "auto", feedback: "" });
+  const [fb, setFb] = useState<{ rating: number; decision: string; feedback: string; scores: Record<string, number> }>({ rating: 4, decision: "auto", feedback: "", scores: {} });
+  // The scorecard: the company's criteria (or the defaults), loaded when the first feedback form opens.
+  const [criteria, setCriteria] = useState<{ list: Criterion[]; canEdit: boolean; custom: boolean } | null>(null);
+  const [editCriteria, setEditCriteria] = useState<Criterion[] | null>(null);
+  const loadCriteria = useCallback(() => {
+    request<{ criteria: Criterion[]; canEdit: boolean; custom: boolean }>("hr/interviews/criteria").then((r) => setCriteria({ list: r.criteria, canEdit: r.canEdit, custom: r.custom })).catch(() => undefined);
+  }, []);
   const [mine, setMine] = useState<MyRequest[]>([]);
   const [people, setPeople] = useState<{ userId: string; name: string; role: string }[]>([]);
   useEffect(() => {
@@ -454,6 +462,17 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
       await request("hr/interviews/update", body);
       notify(message);
       load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function saveCriteria() {
+    if (!editCriteria) return;
+    try {
+      await request("hr/interviews/criteria", { criteria: editCriteria });
+      notify("Kriteriyalar yadda saxlanıldı.");
+      setEditCriteria(null);
+      loadCriteria();
     } catch (error) {
       notify((error as Error).message);
     }
@@ -548,12 +567,34 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
           {i.created_by_name && <p className="muted">Müsahibəni quran: {i.created_by_name}</p>}
           {i.status === "panel_declined" && <p className="iv-conflict-inline">İştirakçı imtina etdi. Namizədə heç nə göndərilməyib: vaxtı və ya iştirakçıları dəyişin.</p>}
           {i.candidate_note && <p className="muted">Namizəd yazdı: “{i.candidate_note}”</p>}
-          {i.status === "completed" && i.rating ? <p className="muted">Rəy: {i.rating}/5 · {i.decision === "advance" ? "növbəti mərhələyə keçsin" : i.decision === "reject" ? "uyğun deyil" : "qərar gözlənilir"}{i.feedback ? ` · ${i.feedback}` : ""}</p> : null}
+          {i.status === "completed" && i.rating ? <p className="muted">Rəy: {i.rating}/5 · {i.decision === "advance" ? "növbəti mərhələyə keçsin" : i.decision === "reject" ? "uyğun deyil" : "qərar gözlənilir"}{i.feedback ? ` · ${i.feedback}` : ""}{criteria && i.scores && Object.keys(i.scores).length ? ` · ${criteria.list.filter((c) => i.scores?.[c.id]).map((c) => `${c.label}: ${i.scores?.[c.id]}`).join(", ")}` : ""}</p> : null}
           {guideBox(`i:${i.id}`, jobId)}
           {feedbackFor === i.id && (
             <div className="offer-composer">
               <div className="form-grid">
-                <Field label="Qiymət (1–5)"><select value={fb.rating} onChange={(e) => setFb({ ...fb, rating: Number(e.target.value) })}>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}</select></Field>
+                {(() => {
+                  const mean = criteria ? weightedScore(criteria.list, fb.scores) : null;
+                  return (
+                    <>
+                      {(criteria?.list || []).map((c) => (
+                        <Field key={c.id} label={`${c.label}${c.weight > 1 ? ` (çəki ${c.weight})` : ""}`}>
+                          <select value={fb.scores[c.id] || ""} onChange={(e) => { const next = { ...fb.scores }; if (e.target.value) next[c.id] = Number(e.target.value); else delete next[c.id]; setFb({ ...fb, scores: next }); }}>
+                            <option value="">—</option>
+                            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </Field>
+                      ))}
+                      {mean !== null ? (
+                        <p className="muted" style={{ gridColumn: "1 / -1" }}>Çəkili orta bal: <b>{mean}</b> → ümumi qiymət <b>{ratingOf(mean)}/5</b>. {criteria?.canEdit && <button type="button" className="text-button" onClick={() => setEditCriteria(criteria.list)}>Kriteriyaları dəyiş</button>}</p>
+                      ) : (
+                        <>
+                          <Field label="Qiymət (1–5), kriteriya doldurmasanız"><select value={fb.rating} onChange={(e) => setFb({ ...fb, rating: Number(e.target.value) })}>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}</select></Field>
+                          {criteria?.canEdit && <p style={{ gridColumn: "1 / -1" }}><button type="button" className="text-button" onClick={() => setEditCriteria(criteria.list)}>Kriteriyaları dəyiş</button></p>}
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
                 <Field label="Tövsiyə">
                   <select value={fb.decision} onChange={(e) => setFb({ ...fb, decision: e.target.value })}>
                     <option value="auto">Avtomatik (qiymətə görə)</option>
@@ -576,7 +617,7 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
           {isActive(i.status) && isPast && i.status !== "pending_panel" && i.status !== "panel_declined" && <button className="primary" onClick={() => act({ id: i.id, action: "complete" }, "Müsahibə keçirilmiş kimi qeyd edildi.")}><Check size={14} /> Keçirildi</button>}
           {isActive(i.status) && isPast && i.status !== "pending_panel" && i.status !== "panel_declined" && <button className="secondary" onClick={() => act({ id: i.id, action: "no_show" }, "Namizəd gəlmədi kimi qeyd edildi.")}><X size={14} /> Gəlmədi</button>}
           {i.status === "completed" && !i.rating && <button className="secondary" onClick={() => act({ id: i.id, action: "no_show" }, "Namizəd gəlmədi kimi qeyd edildi.")}>Namizəd gəlmədi</button>}
-          {i.status === "completed" && <button className={i.rating ? "secondary" : "primary"} onClick={() => { setFeedbackFor(feedbackFor === i.id ? null : i.id); setFb({ rating: i.rating || 4, decision: i.decision || "auto", feedback: i.feedback || "" }); }}>{i.rating ? "Rəyi dəyiş" : "Rəy yaz"}</button>}
+          {i.status === "completed" && <button className={i.rating ? "secondary" : "primary"} onClick={() => { setFeedbackFor(feedbackFor === i.id ? null : i.id); setFb({ rating: i.rating || 4, decision: i.decision || "auto", feedback: i.feedback || "", scores: i.scores || {} }); if (!criteria) loadCriteria(); }}>{i.rating ? "Rəyi dəyiş" : "Rəy yaz"}</button>}
           {i.application_id && <button className="secondary" onClick={() => setTestFor(stub({ application_id: i.application_id as string, job_id: jobId, candidate: i.candidate || "" }))}><ClipboardCheck size={14} /> Test göndər</button>}
           <button className="secondary" onClick={() => setOpenGuide(openGuide === `i:${i.id}` ? "" : `i:${i.id}`)}>Suallar</button>
           <a className="secondary" href={`/api/joblink/hr/interviews/ics?id=${encodeURIComponent(i.id)}`}><CalendarPlus size={14} /> Təqvim</a>
@@ -619,6 +660,24 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
       <FeedbackComparison notify={notify} />
       {scheduling && <ScheduleInterviewModal application={scheduling} onClose={() => setScheduling(null)} onDone={load} notify={notify} />}
       {editing && <ScheduleInterviewModal existing={editing} onClose={() => setEditing(null)} onDone={load} notify={notify} />}
+      {editCriteria && (
+        <Modal title="Müsahibə qiymətləndirmə kriteriyaları" onClose={() => setEditCriteria(null)}>
+          <p className="muted">Hər müsahibədə iştirakçı bu kriteriyaları 1–5 qiymətləndirir; ümumi qiymət çəkili ortadır. Çəki 1–5 (böyük çəki daha vacibdir). Siyahını boş saxlasanız hazır kriteriyalara qayıdılır. Əvvəlki rəylər dəyişmir.</p>
+          <div style={{ display: "grid", gap: 8 }}>
+            {editCriteria.map((c, index) => (
+              <div key={index} style={{ display: "grid", gridTemplateColumns: "1fr 110px auto", gap: 8, alignItems: "center" }}>
+                <input aria-label={`Kriteriya ${index + 1}`} value={c.label} maxLength={60} onChange={(e) => setEditCriteria(editCriteria.map((x, i) => (i === index ? { ...x, label: e.target.value } : x)))} />
+                <select aria-label="Çəki" value={c.weight} onChange={(e) => setEditCriteria(editCriteria.map((x, i) => (i === index ? { ...x, weight: Number(e.target.value) } : x)))}>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>çəki {n}</option>)}</select>
+                <button type="button" className="text-button" onClick={() => setEditCriteria(editCriteria.filter((_, i) => i !== index))}>Sil</button>
+              </div>
+            ))}
+          </div>
+          <div className="admin-actions" style={{ marginTop: 10 }}>
+            <button type="button" className="secondary" disabled={editCriteria.length >= 12} onClick={() => setEditCriteria([...editCriteria, { id: "", label: "", weight: 1 }])}>Kriteriya əlavə et</button>
+            <button type="button" className="primary" onClick={() => void saveCriteria()}>Saxla</button>
+          </div>
+        </Modal>
+      )}
       {testFor && <AssignTestModal application={testFor} onClose={() => { setTestFor(null); load(); }} notify={notify} />}
     </div>
   );

@@ -128,6 +128,7 @@ import WorkplacePage from "./WorkplacePage";
 import PayrollPage from "./PayrollPage";
 import { HIDDEN_HR_PAGES, HR_MODULES, inModule, moduleOf, type HrModule } from "@/lib/hr-modules";
 import PeopleOps from "./PeopleOps";
+import AtsAnalytics from "./AtsAnalytics";
 import GrowthHub from "./GrowthHub";
 import EncryptionPanel from "./EncryptionPanel";
 import ReportsHub from "./ReportsHub";
@@ -158,6 +159,7 @@ const hrNav = [
   { id: "hr-talent", label: "İstedad bazası", icon: BookmarkCheck },
   { id: "hr-interviews", label: "Müsahibələr", icon: CalendarClock },
   { id: "hr-tests", label: "Testlər", icon: ClipboardCheck },
+  { id: "hr-ats", label: "İşə qəbul analitikası", icon: BarChart3 },
   { id: "hr-approvals", label: "Təsdiqlər", icon: ListChecks },
   { id: "hr-reports", label: "Hesabatlar", icon: BarChart3 },
   { id: "hr-employees", label: "İşçilər", icon: Contact },
@@ -503,6 +505,8 @@ export default function Joblink() {
     (item) =>
       !HIDDEN_HR_PAGES.has(item.id) &&
       !(item.id === "hr-proposals" && companyMe?.role === "auditor") &&
+      // The hiring analytics show candidate names: the hiring roles only.
+      !(item.id === "hr-ats" && companyMe && !["owner", "director", "hr", "recruiter"].includes(companyMe.role)) &&
       (!hrNeeds[item.id] ||
       !companyMe ||
       companyMe.permissions.includes(hrNeeds[item.id] as never)),
@@ -2787,6 +2791,7 @@ export default function Joblink() {
             hr &&
             [
               "hr-approvals",
+              "hr-ats",
               "hr-reports",
               "hr-employees",
               "hr-orders",
@@ -2829,6 +2834,7 @@ export default function Joblink() {
                   }}
                 />
               )}
+              {page === "hr-ats" && <AtsAnalytics notify={notify} />}
               {page === "hr-reports" && (
                 <ReportsHub
                   me={companyMe}
