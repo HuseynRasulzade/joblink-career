@@ -171,9 +171,18 @@ export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAc
         orgNameList(db, id, "department"),
         orgNameList(db, id, "position"),
         department ? orgNameList(db, id, "section", department) : Promise.resolve([] as string[]),
-        db.prepare("SELECT id,subject,status,decided_by_name,note,created,decided FROM approval_requests WHERE company_id=? AND requested_by=? AND payload LIKE '%\"proposal\"%' ORDER BY created DESC LIMIT 40").bind(id, userId).all<{ id: string; subject: string; status: string; decided_by_name: string; note: string; created: string; decided: string }>(),
+        db.prepare("SELECT id,subject,status,decided_by_name,note,created,decided,payload FROM approval_requests WHERE company_id=? AND requested_by=? AND payload LIKE '%\"proposal\"%' ORDER BY created DESC LIMIT 40").bind(id, userId).all<{ id: string; subject: string; status: string; decided_by_name: string; note: string; created: string; decided: string; payload: string }>(),
       ]);
-      return ok({ ownDepartment: own, departments: own ? [own] : departments, positions, sections, items: rows.results });
+      // The place of an approved proposal, so a vacancy can be opened from it.
+      const placeOf = (payload: string) => {
+        try {
+          const unit = (JSON.parse(payload) as { unit?: { branch?: string; department?: string; section?: string; position?: string } }).unit;
+          return unit ? { branch: String(unit.branch || ""), department: String(unit.department || ""), section: String(unit.section || ""), position: String(unit.position || "") } : null;
+        } catch {
+          return null;
+        }
+      };
+      return ok({ ownDepartment: own, departments: own ? [own] : departments, positions, sections, items: rows.results.map(({ payload, ...item }) => ({ ...item, place: item.status === "approved" ? placeOf(payload) : null })) });
     }
     if (request.method === "POST") {
       const b = await jsonBody(request);

@@ -252,6 +252,8 @@ export async function handle_company_25(c: Pick<RouteCtx, "ACCOUNT_KEYS" | "PAY_
       .prepare("INSERT INTO payroll_runs(company_id,month,status,snapshot,approved_by,approved_by_name,approved_at,updated) VALUES(?,?,'approved',?,?,?,?,?) ON CONFLICT(company_id,month) DO UPDATE SET status='approved',snapshot=excluded.snapshot,approved_by=excluded.approved_by,approved_by_name=excluded.approved_by_name,approved_at=excluded.approved_at,updated=excluded.updated")
       .bind(id, monthRaw, JSON.stringify({ rows: sheet.rows.map((r) => ({ employeeId: r.employeeId, result: r.result })) }), userId, me, now, now)
       .run();
+    // The attendance of an approved month is locked: later changes by hand need the director to open it.
+    await db.prepare("INSERT INTO attendance_locks(company_id,month,locked_by,reason,locked_at) VALUES(?,?,?,?,?) ON CONFLICT(company_id,month) DO NOTHING").bind(id, monthRaw, me, "Əmək haqqı təsdiqləndi", now).run().catch(() => undefined);
     await companyAudit(db, id, userId, "payroll-approved", "", `${monthRaw}: ${sheet.rows.length} işçi, ödəniləcək ${sheet.totals.toPay} AZN`);
     // Deductions cut down to the legal limit are carried to the next month, so the debt is not lost.
     const nextMonth = new Date(Date.UTC(Number(monthRaw.slice(0, 4)), Number(monthRaw.slice(5, 7)), 1)).toISOString().slice(0, 7);

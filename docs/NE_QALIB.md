@@ -333,3 +333,11 @@ Qeyd: bu siyahı menyu və koda baxışa əsaslanır (hər bölmənin düymələ
 **Dəstək** — Boşluq: müraciətin təcililik/kateqoriyası, SLA və cavab müddəti göstəricisi yoxdur; şirkət tərəfdə müraciət tarixçəsində axtarış yoxdur. Təklif: tez-tez verilən suallar bölməsi və müraciət yaratmazdan əvvəl avtomatik təkliflər.
 
 **Hamısına aid, qərar tələb edənlər:** CSP-nin məcburi rejimi, admin 2FA-nın məcburiliyi, real e-poçt çatdırılmasının canlıda yoxlanması (göndərici provayderi və açarı lazımdır), ABB ödəniş müqaviləsi, hüquqçu baxışı, əsl istifadəçilərlə pilot, açıq buraxılışdan əvvəl bütün ZZ-TEST və test məlumatlarının silinməsi.
+
+## 33. Qalan bölmələrdən üç bəndin icrası (2026-11, miqrasiya 0121)
+
+- **Davamiyyət ayını kilidləmək** (`lib/attendance-lock.ts`, `lib/api/handlers/attendance-01.ts`, cədvəl `attendance_locks`): «Ayı kilidlə» düyməsi; kilidli ayda cədvəldən əl ilə dəyişiklik (409) və Excel yükləməsi (sətir sətir bildirilir, qalanlar işləyir) bağlıdır. İmzalanmış əmrlər və ezamiyyət cədvələ yenə yazılır (hüquqi fakt sayılır). Əmək haqqı ayı təsdiqlənəndə davamiyyət avtomatik kilidlənir. Kilidi yalnız direktor/hesab sahibi açır və səbəb yazmalıdır (jurnala düşür). Yerlidə hamısı sınandı: kilid, 409, rəhbər üçün 403, səbəbsiz açma 400, açandan sonra dəyişiklik 200, əmək haqqı təsdiqində avtomatik kilid.
+- **Kalkulyatordan maaş dəyişikliyi əmri**: Kalkulyatorlar → işçi seçilir → «… üçün maaş dəyişikliyi əmri hazırla»; açılan əmr pəncərəsində növ «maaş dəyişikliyi», məbləğ və əsas doldurulub gəlir; əmr adi imza axınına düşür. Məbləğ işçinin maaş növündə (gross/net) olmalıdır, uyğun gəlməyəndə izahla dayanır. Yerlidə pəncərənin açılması və məbləğin (1100) doldurulması brauzerdə yoxlandı; imza axınının tamamlanması bu dəfə yoxlanmadı (əvvəlki əmr testləri ilə eyni yol).
+- **Ehtiyac təklifindən vakansiya**: təsdiqlənmiş təklifin yanında «Vakansiya aç» düyməsi (filial, departament, şöbə, vəzifə ilə HR köməkçisini açır). Mövcud «ştat sətrindən vakansiya» mexanizmini istifadə edir; vakansiya yenə də plan yoxlamasından keçir.
+
+Düzəliş qeydi: 32-ci bölmədə «filial üzrə fond hesabatı yoxdur» demişdim — yanlış idi: Əmək haqqı → «Filiallar üzrə bölgü» (`BranchAllocation`) filial üzrə gross, pay, bonus və Excel verir. Yalnız aylar üzrə dinamika yoxdur.

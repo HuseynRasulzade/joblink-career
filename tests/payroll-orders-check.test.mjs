@@ -54,3 +54,12 @@ test("orderDigestText: nothing to say means no note", () => {
   const t = orderDigestText({ stale: 2, oldestDays: 9, returned: 1 });
   assert.ok(t.body.includes("2 əmr") && t.body.includes("9 gün") && t.body.includes("1 əmr geri"));
 });
+
+import { monthsInRange, lockedProblem } from "../lib/attendance-lock.ts";
+test("attendance lock: the months a range touches and the refusal text", () => {
+  assert.deepEqual(monthsInRange("2026-11-28", "2027-01-02"), ["2026-11", "2026-12", "2027-01"]);
+  assert.deepEqual(monthsInRange("2026-05-10", "2026-05-12"), ["2026-05"]);
+  assert.deepEqual(monthsInRange("bad", "2026-05-12"), []);
+  assert.equal(lockedProblem(["2026-10"], "2026-11-01", "2026-11-05"), "");
+  assert.ok(lockedProblem(["2026-11"], "2026-10-30", "2026-11-02").includes("noyabr 2026"));
+});

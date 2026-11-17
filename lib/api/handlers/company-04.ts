@@ -31,7 +31,7 @@ export async function handle_company_04(c: Pick<RouteCtx, "calendarYear" | "db" 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) throw new HttpError(400, "Tarixləri düzgün yazın.");
     const length = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
     if (length > 366) throw new HttpError(400, "Bir dəfəyə ən çox 366 gün qeyd etmək olar.");
-    const marked = await markAttendance(employee.id, from, to, code, str(b.note, 200));
+    const marked = await markAttendance(employee.id, from, to, code, str(b.note, 200), true);
     await companyAudit(db, id, userId, "attendance-set", employee.id, `${employee.name}: ${code || "silindi"} ${from}–${to}`);
     return ok({ ok: true, marked });
   }

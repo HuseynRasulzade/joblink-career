@@ -6,7 +6,8 @@ import { calculateFromGross } from "@/lib/salary";
 import { SalaryCalculator } from "./SalaryCalculator";
 import { createXlsx } from "@/lib/xlsx";
 import { ageOn, type EmployeeProfile } from "@/lib/employee-profile";
-import { Field } from "./components";
+import { Field, Modal } from "./components";
+import { OrderMaker } from "./StaffPages";
 
 const azn = (v: number) => `${v.toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AZN`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -28,6 +29,9 @@ type Emp = {
   pay?: { gross: number; net: number } | null;
   taxReduction?: number;
   profile?: EmployeeProfile | null;
+  section?: string;
+  probationEnd?: string;
+  endDate?: string;
 };
 const empLabel = (e: Emp) => `${e.name} — ${e.position || "vəzifəsiz"}${e.department ? ` (${e.department})` : ""}`;
 const grossOf = (e?: Emp | null) => e?.pay?.gross || 0;
@@ -724,6 +728,8 @@ export function HrCalculators({
       .catch(() => undefined);
   }, [employer]);
   const emp = employees.find((e) => e.id === empId) || null;
+  // A salary-change order drawn up from the calculator for the picked person.
+  const [ordering, setOrdering] = useState<{ amount: number } | null>(null);
   const [search, setSearch] = useState("");
   const [picking, setPicking] = useState(false);
   const needle = search.toLocaleLowerCase("az").trim();
@@ -797,6 +803,7 @@ export function HrCalculators({
           api={api}
           notify={tell}
           initial={emp && emp.salary ? { amount: emp.salary, from: emp.salaryType || "gross", sector: emp.sector || "private", reduction: emp.taxReduction || 0 } : undefined}
+          onApply={employer && emp ? { label: `${emp.name} üçün maaş dəyişikliyi əmri hazırla`, hint: `Məbləğ işçinin maaş növündə (${(emp.salaryType || "gross") === "net" ? "net" : "gross"}) olmalıdır; əmr imza axınına düşür və kartı imzalananda dəyişir.`, disabled: false, run: (amount, kind) => { if (kind !== (emp.salaryType || "gross")) return tell(`Bu işçinin maaşı ${(emp.salaryType || "gross") === "net" ? "net" : "gross"} kimi saxlanır. Yuxarıda «${(emp.salaryType || "gross") === "net" ? "Net" : "Gross"}» seçib məbləği həmin növdə yazın.`); setOrdering({ amount }); } } : undefined}
         />
       )}
       {tab === "vacation" && <Vacation key={empId} emp={emp} />}
@@ -811,6 +818,17 @@ export function HrCalculators({
       {tab === "extra" && <ExtraWork key={empId} emp={emp} />}
       {tab === "deductions" && <Deductions key={empId} emp={emp} />}
       {tab === "taxes" && <Taxes key={empId} emp={emp} />}
+      {ordering && emp && (
+        <Modal title={`Maaş dəyişikliyi əmri: ${emp.name}`} onClose={() => setOrdering(null)}>
+          <OrderMaker
+            employee={{ id: emp.id, name: emp.name, position: emp.position, department: emp.department, section: emp.section || "", startDate: emp.startDate, salary: emp.salary, salaryType: emp.salaryType || "gross", probationEnd: emp.probationEnd || "", endDate: emp.endDate || "" }}
+            notify={tell}
+            initialKind="salary"
+            prefill={{ requestId: "", kind: "salary", from: new Date().toISOString().slice(0, 10), to: "", quantity: "", vacationKind: "", basis: "Əmək haqqı kalkulyatoru ilə hesablanıb", salary: String(ordering.amount) }}
+            onSaved={() => { setOrdering(null); tell("Əmr hazırlandı: «Əmrlər reyestri» bölməsində imza prosesini izləyin."); }}
+          />
+        </Modal>
+      )}
       <p className="muted fine-print">
         Hesablamalar məlumat xarakterlidir; kollektiv/əmək müqaviləsi qanundan yüksək şərtlər nəzərdə tuta bilər. Rəsmi
         sənədləşmədən əvvəl mühasib və ya hüquqşünasla yoxlayın.

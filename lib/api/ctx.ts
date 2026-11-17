@@ -142,7 +142,7 @@ export type RouteCtx = {
   loadOfferTarget: (applicationId: string) => Promise<{ row: { id: string; status: string; stage: string; candidate_id: string; job_id: string; job_data: string; }; job: Job; }>;
   loadOrder: (orderId: string) => Promise<{ signers: FlowSigner[]; status: "pending" | "returned" | "signed"; holder: FlowHolder; history: FlowEvent[]; id: string; employeeId: string; kind: string; number: string; date: string; created: string; input: Loose; }>;
   loadPeople: () => Promise<Person[]>;
-  markAttendance: (employeeId: string, from: string, to: string, code: string, note: string) => Promise<number>;
+  markAttendance: (employeeId: string, from: string, to: string, code: string, note: string, manual?: boolean) => Promise<number>;
   maskedValue: (field: string, value: string) => string;
   mayActFor: (role: string, name: string) => Promise<string>;
   memberGrants: string[];

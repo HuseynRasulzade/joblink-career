@@ -59,6 +59,8 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
   const [cell, setCell] = useState<{ employee: SheetEmployee; date: string } | null>(null);
   const [bulk, setBulk] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [locks, setLocks] = useState<{ month: string; by: string; reason: string; at: string }[]>([]);
+  const [canUnlock, setCanUnlock] = useState(false);
   const [calendarForm, setCalendarForm] = useState({ day: "", kind: "off", label: "" });
   const notifyRef = useRef(notify);
   useEffect(() => {
@@ -70,6 +72,28 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
       .catch((error) => notifyRef.current((error as Error).message));
   }, [month]);
   useEffect(load, [load]);
+  const loadLocks = useCallback(() => {
+    request<{ locks: { month: string; by: string; reason: string; at: string }[]; canUnlock: boolean }>(`company/attendance/locks?year=${month.slice(0, 4)}`)
+      .then((r) => { setLocks(r.locks); setCanUnlock(r.canUnlock); })
+      .catch(() => undefined);
+  }, [month]);
+  useEffect(loadLocks, [loadLocks]);
+  const lock = locks.find((l) => l.month === month);
+  async function toggleLock() {
+    try {
+      if (lock) {
+        const reason = window.prompt("Kilidi açmağın səbəbi (jurnala yazılır):");
+        if (!reason) return;
+        await request("company/attendance/lock", { month, locked: false, reason });
+      } else {
+        if (!window.confirm("Bu ayın davamiyyəti kilidlənsin? Əl ilə dəyişiklik bağlanır (əmrlər yenə də yazılır).")) return;
+        await request("company/attendance/lock", { month, locked: true });
+      }
+      loadLocks();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   const departments = useMemo(() => [...new Set((sheet?.employees || []).map((e) => e.department).filter(Boolean))].sort((a, b) => a.localeCompare(b, "az")), [sheet]);
   const rows = (sheet?.employees || []).filter((e) => !department || e.department === department);
   const year = Number(month.slice(0, 4));
@@ -111,11 +135,17 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
           <button type="button" className="secondary" onClick={() => setImporting(true)}>
             <FileSpreadsheet size={14} /> Excel-dən yüklə
           </button>
+          {(!lock || canUnlock) && <button type="button" className="secondary" onClick={() => void toggleLock()}>{lock ? "Kilidi aç" : "Ayı kilidlə"}</button>}
           <button type="button" className="primary" onClick={() => setBulk(true)}>
             <Plus size={14} /> Toplu qeyd (məzuniyyət, xəstəlik…)
           </button>
         </div>
       </div>
+      {lock && (
+        <div className="notice" role="status">
+          Bu ayın davamiyyəti kilidlidir ({lock.by}, {lock.at.slice(0, 10).split("-").reverse().join(".")}{lock.reason ? `: ${lock.reason}` : ""}). Əl ilə dəyişiklik və Excel yükləməsi bağlıdır; imzalanmış əmrlər cədvəli yenə də yeniləyir.
+        </div>
+      )}
       {!sheet.years.includes(year) && (
         <div className="notice" role="status">
           {year}-ci il üçün Ramazan və Qurban bayramı günləri hələ daxil edilməyib (Nazirlər Kabinetinin qərarı ilə bildirilir). Bu günləri aşağıdakı “Şirkət təqvimi”ndə qeyri-iş günü kimi əlavə edin.

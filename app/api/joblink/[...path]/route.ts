@@ -127,6 +127,8 @@ import { handle_company_32 } from "@/lib/api/handlers/company-32";
 import { handle_company_33 } from "@/lib/api/handlers/company-33";
 import { handle_reports_01 } from "@/lib/api/handlers/reports-01";
 import { handle_employees_01 } from "@/lib/api/handlers/employees-01";
+import { handle_attendance_01 } from "@/lib/api/handlers/attendance-01";
+import { lockedProblem } from "@/lib/attendance-lock";
 import { handle_company_34 } from "@/lib/api/handlers/company-34";
 import { handle_company_35 } from "@/lib/api/handlers/company-35";
 import { handle_company_36 } from "@/lib/api/handlers/company-36";
@@ -837,7 +839,13 @@ async function route(request: Request) {
     if (r) return r;
   }
   // Marks the days from..to of an employee with a code (or clears them), counting annual leave without holidays.
-  const markAttendance = async (employeeId: string, from: string, to: string, code: string, note: string) => {
+  // "manual" changes (the sheet, the Excel import) are refused in a locked month; orders and trips are legal facts and always write.
+  const markAttendance = async (employeeId: string, from: string, to: string, code: string, note: string, manual = false) => {
+    if (manual) {
+      const locks = await db.prepare("SELECT month FROM attendance_locks WHERE company_id=? AND month BETWEEN ? AND ?").bind(id, from.slice(0, 7), to.slice(0, 7)).all<{ month: string }>().catch(() => ({ results: [] as { month: string }[] }));
+      const problem = lockedProblem(locks.results.map((r) => r.month), from, to);
+      if (problem) throw new HttpError(409, problem);
+    }
     const length = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
     const now = new Date().toISOString();
     const overrides = await db.prepare("SELECT day,kind,label FROM company_calendar WHERE company_id=? AND day BETWEEN ? AND ?").bind(id, from, to).all<CalendarOverride>();
@@ -2519,6 +2527,10 @@ async function route(request: Request) {
   }
   {
     const r = await handle_employees_01({ accountRole, afterSigned, auditView, db, id, memberGrants, memberRole, path, request, requestUrl, requesterName, requirePermission, revealAll, userId });
+    if (r) return r;
+  }
+  {
+    const r = await handle_attendance_01({ accountRole, db, id, memberGrants, memberRole, path, request, requestUrl, requesterName, requirePermission, userId });
     if (r) return r;
   }
     {

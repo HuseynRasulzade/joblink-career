@@ -25,11 +25,14 @@ export function SalaryCalculator({
   api,
   notify,
   initial,
+  onApply,
 }: {
   employer?: boolean;
   api?: (path: string, body?: unknown) => Promise<Loose>;
   notify: (message: string) => void;
   initial?: { amount: number; from: "gross" | "net"; sector: Sector; reduction?: number };
+  // Offered when a person is picked: takes the amount in the field to a salary-change order for that person.
+  onApply?: { label: string; hint: string; disabled: boolean; run: (amount: number, from: "gross" | "net") => void };
 }) {
   const [from, setFrom] = useState<"gross" | "net">(initial?.from || "gross");
   const [sector, setSector] = useState<Sector>(initial?.sector || "private");
@@ -89,6 +92,12 @@ export function SalaryCalculator({
           )}
         </div>
         {employer && <button className="primary" onClick={calculate}>Hesabla</button>}
+        {employer && onApply && (
+          <div className="admin-actions" style={{ justifyContent: "flex-start", alignItems: "center", marginTop: 8 }}>
+            <button type="button" className="secondary" disabled={onApply.disabled || !(amount > 0)} onClick={() => onApply.run(amount, from)}>{onApply.label}</button>
+            <span className="muted">{onApply.hint}</span>
+          </div>
+        )}
       </section>
       {r ? (
         <section className="panel calc-result">

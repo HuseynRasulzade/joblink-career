@@ -590,7 +590,7 @@ function OrderFormField({ field, kind, form, salaryType, set, structure }: { fie
 type OrderEmployee = { id: string; name: string; position: string; department: string; section: string; startDate: string; salary: number | null; salaryType: SalaryType; probationEnd: string; endDate: string; contractEnd?: string; workMode?: string };
 
 // Draws an order up, or (with `editing`) changes one that was sent back.
-export type OrderPrefill = { requestId: string; kind: OrderKind; from: string; to: string; quantity: string; vacationKind: string; basis: string };
+export type OrderPrefill = { requestId: string; kind: OrderKind; from: string; to: string; quantity: string; vacationKind: string; basis: string; salary?: string };
 export function OrderMaker({ employee, notify, editing, onSaved, prefill, initialKind }: { employee: OrderEmployee; notify: Notify; editing?: SavedOrder; onSaved?: () => void; prefill?: OrderPrefill; initialKind?: OrderKind }) {
   const [facts, setFacts] = useState<CompanyFacts>({ name: "", voen: "", director: "" });
   const today = new Date().toISOString().slice(0, 10);
@@ -604,7 +604,7 @@ export function OrderMaker({ employee, notify, editing, onSaved, prefill, initia
     newDepartment: prior?.newDepartment || "",
     newSection: prior?.newSection || "",
     newBranch: prior?.newBranch || "",
-    salary: prior?.salary && editing?.kind !== "hire" ? String(prior.salary) : "",
+    salary: prior?.salary && editing?.kind !== "hire" ? String(prior.salary) : prefill?.salary || "",
     basis: prior?.basis || prefill?.basis || "",
     vacationKind: prior?.vacationKind || prefill?.vacationKind || (editing?.kind === "unpaid" || prefill?.kind === "unpaid" ? "" : "illik əmək məzuniyyəti"),
     place: prior?.place || "",
@@ -3724,7 +3724,7 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
 // ---------- A department head's own page: «Ehtiyac təklifi» ----------
 // The head asks for places for their department (a new row or more places in a row), with a reason. Every proposal goes to the approvals;
 // the sender sees only their own list with the decision.
-type ProposalData = { ownDepartment: string; departments: string[]; positions: string[]; sections: string[]; items: { id: string; subject: string; status: string; decided_by_name: string; note: string; created: string; decided: string }[] };
+type ProposalData = { ownDepartment: string; departments: string[]; positions: string[]; sections: string[]; items: { id: string; subject: string; status: string; decided_by_name: string; note: string; created: string; decided: string; place?: { branch: string; department: string; section: string; position: string } | null }[] };
 export function StaffProposals({ notify }: { notify: Notify }) {
   const blank = { department: "", section: "", position: "", level: "", extra: 1, rate: 1, startMonth: "", endMonth: "", salaryMin: "", salaryMax: "", reason: "" };
   const [form, setForm] = useState(blank);
@@ -3798,9 +3798,9 @@ export function StaffProposals({ notify }: { notify: Notify }) {
         {data.items.length ? (
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Tarix</th><th>Təklif</th><th>Vəziyyət</th><th>Qərar</th></tr></thead>
+              <thead><tr><th>Tarix</th><th>Təklif</th><th>Vəziyyət</th><th>Qərar</th><th></th></tr></thead>
               <tbody>
-                {data.items.map((i) => <tr key={i.id}><td>{i.created.slice(0, 10)}</td><td>{i.subject}</td><td>{EXC_STATUS[i.status] || i.status}</td><td>{i.decided_by_name ? `${i.decided_by_name}${i.note ? `: ${i.note}` : ""}` : "—"}</td></tr>)}
+                {data.items.map((i) => <tr key={i.id}><td>{i.created.slice(0, 10)}</td><td>{i.subject}</td><td>{EXC_STATUS[i.status] || i.status}</td><td>{i.decided_by_name ? `${i.decided_by_name}${i.note ? `: ${i.note}` : ""}` : "—"}</td><td>{i.place && i.place.position && <button type="button" className="secondary" onClick={() => { try { window.sessionStorage.setItem("joblink-staff-vacancy", JSON.stringify(i.place)); } catch { /* the vacancy is made by hand */ } window.location.hash = "hr-ai"; }}>Vakansiya aç</button>}</td></tr>)}
               </tbody>
             </table>
           </div>

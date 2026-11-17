@@ -26,8 +26,14 @@ export async function handle_company_26(c: Pick<RouteCtx, "dataKey" | "db" | "em
         issues.push({ line: row.line, reason: found.error });
         continue;
       }
-      days += await markAttendance(found.id, row.from, row.to, row.code, row.note);
-      applied += 1;
+      try {
+        days += await markAttendance(found.id, row.from, row.to, row.code, row.note, true);
+        applied += 1;
+      } catch (error) {
+        // A locked month does not stop the other rows: the line is reported.
+        if (!(error instanceof HttpError)) throw error;
+        issues.push({ line: row.line, reason: error.message });
+      }
     }
     await companyAudit(db, id, userId, "attendance-imported", "", `${applied} sətir, ${days} gün`);
     return ok({ applied, days, issues });
