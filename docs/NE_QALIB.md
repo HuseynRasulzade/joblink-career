@@ -252,3 +252,11 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Yeni qrup «Ştat planı və fakt»:** Ştat planı sətir-sətir (filial, departament, şöbə, vəzifə, pillə, plan, faktiki, boş, dövr, maaş həddi, aylıq xərc), Ştat xərci plan/fakt (departament üzrə), Ştat uyğunsuzluqları (ştatsız və hədd kənarı), Plandan kənar sorğular və təkliflər (ilkin və hazırkı plan fərqi ilə), Gözlənilən çıxışlar, Yerin dolma müddəti.
 - **Yeni qrup «Təsdiqlər və jurnal»:** Təsdiqlər (say, orta qərar müddəti, qərar verənlər), Şirkət əməliyyat jurnalı (icazəsi olanlar üçün).
 - Hamısında Excel və çap var; serverdə iki yeni oxuma endpointi: `company/reports/expected-exits`, `company/reports/fill-time`.
+
+## 28. Hesabatlar: müqayisə, qrafik, saxlanmış süzgəc, e-poçt, xarici alətlər (2026-11-17)
+
+- **Hər hesabatda:** «Əvvəlki dövrlə müqayisə» (ay, il və ya tarix aralığı olan hesabatlarda; rəqəm sütunlarının yanında «əvvəlki dövr» və «dəyişiklik»), «Qrafik» (seçilən rəqəm sütunu üzrə ən böyük 15), 50 sətirlik səhifələmə (Excel hamısını yazır), «Süzgəcləri saxla» (öz adı ilə, hər istifadəçiyə ayrı), rəsmi çap/PDF şablonu (şirkət adı, tarix, süzgəclər, «Hazırladı / Yoxladı / Təsdiq etdi» imza yerləri). Excel və çap `company_audit`-ə yazılır (`report-export`, `report-print`); «Şirkət əməliyyat jurnalı»ndan axtarmaq olar.
+- **Yeni hesabatlar:** Dövriyyə (səbəb və staj üzrə, ilk il faizi), İşə qəbul mərhələ müddəti və təklif qəbulu (+ bir işə qəbulun dəyəri), Əmək haqqı fondunun aylıq dəyişikliyi, Filial üzrə icmal, Gecikmə və erkən çıxış, Məzuniyyət öhdəliyi (təxmini: qalıq gün × aylıq maaş ÷ 30,4). Ad və çıxış səbəbi görünən hesabatlar yalnız «işçi məlumatı» icazəsi olanlara açıqdır.
+- **E-poçtla göndəriş:** «Ştat planı sətir-sətir» hesabatı hər bazar ertəsi və ya ayın 1-i öz e-poçtunuza (mətn cədvəli kimi; qoşma yoxdur) gedir. Gündəlik cron işləyir (`lib/report-schedules.ts`).
+- **Xarici alətlər:** Hesabatlar səhifəsinin altında açar yaradılır (bir dəfə göstərilir, bazada yalnız hash saxlanır, yenilənə/ləğv edilə bilər). `GET /api/report-feed/staff-plan` (başlıq `Authorization: Bearer AÇAR`) ştat planını CSV kimi verir (şəxsi ad və maaş yoxdur): Excel «From Web», Power BI «Web».
+- Migrasiya 0118 (`report_saved`, `report_schedules`, `report_tokens`).

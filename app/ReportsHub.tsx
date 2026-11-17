@@ -6,6 +6,8 @@ import { ATTENDANCE_CODES } from "@/lib/calendar-az";
 import { requestKindLabel } from "@/lib/requests";
 import { createXlsx } from "@/lib/xlsx";
 import { Field } from "./components";
+import { ReportChart, SavedBar, ScheduleBar, FeedKeyPanel } from "./ReportTools";
+import { mergeCompare, previousFilters } from "@/lib/report-compare";
 import HrFundReport from "./HrFundReport";
 import PayrollReport from "./PayrollReport";
 
@@ -34,6 +36,7 @@ type Report = {
   title: string;
   description: string;
   need?: string; // company permission
+  schedulable?: boolean; // can be sent to the e-mail on a schedule
   filters?: Spec[];
   run?: (f: Filters) => Promise<Result>;
   render?: (props: { me: HubMe; notify: Notify }) => ReactNode; // reports with their own screen
@@ -84,7 +87,7 @@ const REPORTS: Report[] = [
   { id: "workforce", group: "Kadr və əmək haqqı", title: "İşçi axını və dövriyyə", description: "İşə qəbul, ayrılma, işçi sayı və dövriyyə faizi; dövr üzrə süzgəc.", need: "reports" },
 
   // ---- The plan and the staff table ----
-  { id: "staff-plan", group: "Ştat planı və fakt", title: "Ştat planı sətir-sətir", description: "Filial, departament, şöbə, vəzifə və pillə üzrə plan, faktiki işçi, boş yer, dövr, maaş həddi və aylıq xərc; boş yeri olanları və aktiv olmayan sətirləri ayırmaq olar.", need: "payroll", filters: [DEPARTMENT, { id: "state", label: "Sətirlər", type: "select", options: [["free", "Boş yeri olanlar"], ["full", "Dolu olanlar"], ["inactive", "Aktiv olmayan (gələcək və ya bitmiş)"]] }],
+  { id: "staff-plan", group: "Ştat planı və fakt", schedulable: true, title: "Ştat planı sətir-sətir", description: "Filial, departament, şöbə, vəzifə və pillə üzrə plan, faktiki işçi, boş yer, dövr, maaş həddi və aylıq xərc; boş yeri olanları və aktiv olmayan sətirləri ayırmaq olar.", need: "payroll", filters: [DEPARTMENT, { id: "state", label: "Sətirlər", type: "select", options: [["free", "Boş yeri olanlar"], ["full", "Dolu olanlar"], ["inactive", "Aktiv olmayan (gələcək və ya bitmiş)"]] }],
     run: async (f) => {
       const d = await get<{ rows: { branch?: string; department: string; section: string; position: string; level?: string; rate: number; planned: number; startMonth?: string; endMonth?: string; salaryMin: number; salaryMax: number; filled: number; free: number; active?: boolean; costMax?: number }[]; total: { planned: number; filled: number; planCostMax?: number } }>("company/staff");
       const rate = { 1: "Tam ştat", 0.75: "3/4 ştat", 0.5: "Yarım ştat", 0.25: "1/4 ştat" } as Record<number, string>;
@@ -137,14 +140,14 @@ const REPORTS: Report[] = [
         rows: rows.map((r) => [dmy(r.created), r.subject, r.requested_by_name, label[r.status] || r.status, r.decided_by_name, r.note]),
       };
     } },
-  { id: "plan-exits", group: "Ştat planı və fakt", title: "Gözlənilən çıxışlar", description: "Çıxış tarixi təyin olunmuş və ya müddətli müqaviləsi bitən işçilər: bu yerlər üçün əvvəlcədən vakansiya açmaq olar.", need: "reports", filters: [DEPARTMENT, { id: "within", label: "Nə qədər irəli", type: "select", options: [["30", "30 gün"], ["90", "90 gün"], ["180", "180 gün"]], initial: "90" }],
+  { id: "plan-exits", group: "Ştat planı və fakt", title: "Gözlənilən çıxışlar", description: "Çıxış tarixi təyin olunmuş və ya müddətli müqaviləsi bitən işçilər: bu yerlər üçün əvvəlcədən vakansiya açmaq olar.", need: "employees", filters: [DEPARTMENT, { id: "within", label: "Nə qədər irəli", type: "select", options: [["30", "30 gün"], ["90", "90 gün"], ["180", "180 gün"]], initial: "90" }],
     run: async (f) => {
       const d = await get<{ items: { name: string; department: string; position: string; date: string; kind: string }[] }>("company/reports/expected-exits");
       const limit = new Date(Date.now() + Number(f.within || "90") * 86400000).toISOString().slice(0, 10);
       const rows = d.items.filter((r) => r.date <= limit && (!f.department || r.department === f.department));
       return { columns: ["İşçi", "Departament", "Vəzifə", "Tarix", "Səbəb"], rows: rows.map((r) => [r.name, r.department, r.position, dmy(r.date), r.kind]) };
     } },
-  { id: "plan-fill", group: "Ştat planı və fakt", title: "Yerin dolma müddəti", description: "Vakansiyanın açıldığı gündən işçi kartının yarandığı günə qədər keçən müddət (platforma üzərindən işə götürülənlər).", need: "reports", filters: [DEPARTMENT],
+  { id: "plan-fill", group: "Ştat planı və fakt", title: "Yerin dolma müddəti", description: "Vakansiyanın açıldığı gündən işçi kartının yarandığı günə qədər keçən müddət (platforma üzərindən işə götürülənlər).", need: "employees", filters: [DEPARTMENT],
     run: async (f) => {
       const d = await get<{ items: { name: string; department: string; position: string; title: string; opened: string; hired: string; days: number }[] }>("company/reports/fill-time");
       const rows = d.items.filter((r) => !f.department || r.department === f.department);
@@ -165,6 +168,76 @@ const REPORTS: Report[] = [
       const d = await get<{ events: { action: string; target: string; detail: string; created: string; actor: string }[] }>("company/audit");
       const rows = d.events.filter((e) => !f.q || `${e.action} ${e.detail} ${e.actor}`.toLowerCase().includes(f.q.toLowerCase()));
       return { columns: ["Tarix", "Kim", "Əməliyyat", "Təfərrüat"], rows: rows.map((e) => [dmy(e.created), e.actor, e.action, e.detail]) };
+    } },
+
+  { id: "turnover", group: "Kadr və əmək haqqı", title: "Dövriyyə: səbəb və staj üzrə", description: "İşdən çıxanlar: kim, hansı departamentdən, nə qədər işləyib, hansı səbəblə. İlk il dövriyyəsi və çıxış səbəbləri yuxarıda xülasə kimi yazılır.", need: "employees", filters: [...PERIOD, DEPARTMENT],
+    run: async (f) => {
+      const d = await get<{ headcount: number; items: { name: string; department: string; position: string; start: string; end: string; tenureMonths: number | null; exitType: string; reason: string }[] }>(`company/reports/turnover?from=${f.from || ""}&to=${f.to || ""}`);
+      const rows = d.items.filter((r) => !f.department || r.department === f.department);
+      const firstYear = rows.filter((r) => r.tenureMonths !== null && r.tenureMonths < 12).length;
+      const byType = new Map<string, number>();
+      for (const r of rows) byType.set(r.exitType || "Göstərilməyib", (byType.get(r.exitType || "Göstərilməyib") || 0) + 1);
+      const rate = d.headcount + rows.length ? Math.round((rows.length / (d.headcount + rows.length)) * 1000) / 10 : 0;
+      return {
+        note: rows.length ? `${rows.length} çıxış (hazırkı işçi ${d.headcount}; dövriyyə ≈ ${rate}%). İlk ilində çıxan: ${firstYear} (${Math.round((firstYear / rows.length) * 100)}%). Səbəblər: ${[...byType.entries()].map(([k, v]) => `${k} ${v}`).join(", ")}.` : undefined,
+        columns: ["İşçi", "Departament", "Vəzifə", "İşə başlama", "Çıxış", "Staj (ay)", "Çıxışın növü", "Səbəb"],
+        rows: rows.map((r) => [r.name, r.department, r.position, dmy(r.start), dmy(r.end), r.tenureMonths ?? "", r.exitType, r.reason]),
+      };
+    } },
+  { id: "hiring-flow", group: "İşə qəbul", title: "İşə qəbul: mərhələ müddəti və təklifin qəbulu", description: "Müraciətlər hər mərhələyə nə qədər çatır, mərhələlər arasında orta neçə gün keçir, təkliflərin neçə faizi qəbul olunub və bir işə qəbulun orta dəyəri (işə qəbul xərcləri).", need: "reports",
+    run: async () => {
+      const d = await get<{ stages: { stage: string; reached: number; avgDays: number | null }[]; offers: { sent: number; accepted: number; answered: number; acceptRate: number | null }; hires: number; hiringCost: number }>("company/reports/hiring-flow");
+      return {
+        note: `Təkliflər: cavab verilən ${d.offers.answered}, qəbul edilən ${d.offers.accepted}${d.offers.acceptRate !== null ? ` (${d.offers.acceptRate}%)` : ""}, cavab gözləyən ${d.offers.sent}. Son 12 ayda ${d.hires} işə qəbul${d.hires && d.hiringCost ? `, işə qəbul xərci ${d.hiringCost} AZN, bir işə qəbulun dəyəri ≈ ${Math.round(d.hiringCost / d.hires)} AZN` : ""}.`,
+        columns: ["Mərhələ", "Çatan müraciət", "Əvvəlki mərhələdən orta gün"],
+        rows: d.stages.map((x) => [x.stage, x.reached, x.avgDays ?? ""]),
+      };
+    } },
+  { id: "fund-change", group: "Kadr və əmək haqqı", title: "Əmək haqqı fondunun aylıq dəyişikliyi", description: "Hər ayın gross, net və işəgötürən xərci, əvvəlki aya görə dəyişiklik və həmin ayda neçə işə qəbul, çıxış və maaş dəyişikliyi olub.", need: "payroll", filters: [],
+    run: async () => {
+      const d = await get<{ year: string; months: { month: string; gross: number; net: number; employerCost: number; hires: number; exits: number; raises: number }[] }>("company/reports/fund-change");
+      const rows = d.months.map((m, i) => [m.month, money(m.gross), i ? money(m.gross - d.months[i - 1].gross) : "", money(m.net), money(m.employerCost), m.hires, m.exits, m.raises]);
+      return { note: `${d.year} ili. «Dəyişiklik» əvvəlki ayın gross fonduna görədir.`, columns: ["Ay", "Gross", "Əvvəlki aya görə dəyişiklik", "Net", "İşəgötürənin xərci", "İşə qəbul", "Çıxış", "Maaş dəyişikliyi"], rows };
+    } },
+  { id: "branch-summary", group: "Ştat planı və fakt", title: "Filial üzrə icmal", description: "Hər filialın planı, faktiki işçi sayı, boş yer, plan xərci və faktiki gross fond bir cədvəldə.", need: "payroll",
+    run: async () => {
+      const d = await get<{ rows: { branch?: string; planned: number; filled: number; free: number; active?: boolean; costMax?: number; people: { gross?: number | null }[] }[] }>("company/staff");
+      const by = new Map<string, { planned: number; filled: number; free: number; cost: number; gross: number }>();
+      for (const r of d.rows) {
+        if (r.active === false) continue;
+        const k = r.branch || "Baş ofis";
+        const cur = by.get(k) || { planned: 0, filled: 0, free: 0, cost: 0, gross: 0 };
+        cur.planned += r.planned; cur.filled += r.filled; cur.free += Math.max(0, r.free); cur.cost += r.costMax || 0;
+        cur.gross += r.people.reduce((t, p) => t + (p.gross || 0), 0);
+        by.set(k, cur);
+      }
+      const rows = [...by.entries()].sort((a, b) => a[0].localeCompare(b[0], "az"));
+      const sum = (pick: (v: { planned: number; filled: number; free: number; cost: number; gross: number }) => number) => money(rows.reduce((t, [, v]) => t + pick(v), 0));
+      return { columns: ["Filial", "Plan", "Faktiki", "Boş", "Plan xərci (aylıq, maks.)", "Faktiki gross fond"], rows: rows.map(([k, v]) => [k, v.planned, v.filled, v.free, money(v.cost), money(v.gross)]), totals: ["CƏMİ", sum((v) => v.planned), sum((v) => v.filled), sum((v) => v.free), sum((v) => v.cost), sum((v) => v.gross)] };
+    } },
+  { id: "lateness", group: "Davamiyyət və vaxt", title: "Gecikmə və erkən çıxış", description: "Ay üzrə hər işçinin gecikdiyi və erkən çıxdığı günlərin sayı və cəmi dəqiqə (giriş-çıxış qeydinə görə).", need: "attendance", filters: [{ id: "month", label: "Ay", type: "month" }, DEPARTMENT],
+    run: async (f) => {
+      const d = await get<{ employees: { name: string; position: string; department: string; entries?: { late?: number; early?: number }[]; days?: { late?: number; early?: number }[] }[] }>(`company/hours?month=${f.month}`);
+      const rows = d.employees.filter((e) => !f.department || e.department === f.department).map((e) => {
+        const list = e.entries || e.days || [];
+        const late = list.filter((x) => (x.late || 0) > 0), early = list.filter((x) => (x.early || 0) > 0);
+        return [e.name, e.position, e.department, late.length, money(late.reduce((t, x) => t + (x.late || 0), 0)), early.length, money(early.reduce((t, x) => t + (x.early || 0), 0))];
+      }).filter((r) => (r[3] as number) > 0 || (r[5] as number) > 0);
+      return { columns: ["İşçi", "Vəzifə", "Departament", "Gecikmə (gün)", "Gecikmə (dəqiqə)", "Erkən çıxış (gün)", "Erkən çıxış (dəqiqə)"], rows };
+    } },
+  { id: "leave-liability", group: "Davamiyyət və vaxt", title: "Məzuniyyət öhdəliyi (işçi üzrə)", description: "Hər işçinin istifadə olunmamış məzuniyyət günləri və təxmini maliyyə öhdəliyi (qalıq gün × orta gündəlik maaş; təxmini hesablamadır).", need: "payroll", filters: [DEPARTMENT],
+    run: async (f) => {
+      const d = await get<{ employees: { name: string; position: string; department: string; salary?: number; salaryType?: string; remaining?: number; vacation?: { remaining: number } }[] }>("company/leave-schedule");
+      const people = await get<{ employees: { id: string; name: string; salary?: number; gross?: number; salaryType?: string }[] }>("company/employees").catch(() => ({ employees: [] }));
+      const pay = new Map(people.employees.map((p) => [p.name, p.gross ?? p.salary ?? 0]));
+      const rows = d.employees.filter((e) => !f.department || e.department === f.department).map((e) => {
+        const remaining = e.remaining ?? e.vacation?.remaining ?? 0;
+        const monthly = pay.get(e.name) || 0;
+        const daily = monthly / 30.4;
+        return [e.name, e.position, e.department, remaining, money(monthly), money(daily), money(remaining * daily)];
+      });
+      const total = money(rows.reduce((t, r) => t + (r[6] as number), 0));
+      return { note: "Orta gündəlik maaş = aylıq maaş ÷ 30,4. Maaşı görünməyən işçilərdə öhdəlik 0 göstərilir.", columns: ["İşçi", "Vəzifə", "Departament", "Qalıq (gün)", "Aylıq maaş", "Orta gündəlik", "Təxmini öhdəlik"], rows, totals: ["CƏMİ", "", "", money(rows.reduce((t, r) => t + (r[3] as number), 0)), "", "", total] };
     } },
 
   { id: "attendance", group: "Davamiyyət və vaxt", title: "Davamiyyət xülasəsi", description: "Ay üzrə hər işçinin norma, işlənmiş gün və məzuniyyət, xəstəlik, yoxluq günləri.", need: "attendance", filters: [{ id: "month", label: "Ay", type: "month" }, DEPARTMENT],
@@ -254,7 +327,7 @@ const REPORTS: Report[] = [
 
 const GROUP_ORDER = ["İşə qəbul", "Kadr və əmək haqqı", "Ştat planı və fakt", "Davamiyyət və vaxt", "İnkişaf", "Kadr əməliyyatları", "Təsdiqlər və jurnal"];
 
-function ReportFrame({ report, notify, onBack }: { report: Report; notify: Notify; onBack: () => void }) {
+function ReportFrame({ report, notify, onBack, companyName }: { report: Report; notify: Notify; onBack: () => void; companyName: string }) {
   const specs = useMemo(() => report.filters || [], [report.filters]);
   const [values, setValues] = useState<Filters>(() => Object.fromEntries(specs.map((s) => [s.id, s.initial ?? (s.type === "month" ? thisMonth() : s.type === "year" ? thisYear() : "")])));
   const [departments, setDepartments] = useState<string[]>([]);
@@ -281,9 +354,37 @@ function ReportFrame({ report, notify, onBack }: { report: Report; notify: Notif
   useEffect(load, [load]);
   const data = result?.key === key ? result.data ?? null : null;
   const error = result?.key === key ? result.error || "" : "";
+  // The period before, side by side (for reports with a month, a year or a date range).
+  const [compare, setCompare] = useState(false);
+  const types = useMemo(() => Object.fromEntries(specs.map((s) => [s.id, s.type])), [specs]);
+  const canCompare = previousFilters(values, types) !== null;
+  const prev = useMemo(() => (compare ? previousFilters(values, types) : null), [compare, values, types]);
+  const [prevResult, setPrevResult] = useState<{ key: string; data?: Result } | null>(null);
+  useEffect(() => {
+    if (!run || !prev) return;
+    const prevKey = JSON.stringify(prev);
+    let live = true;
+    run(prev).then((d) => live && setPrevResult({ key: prevKey, data: d })).catch(() => live && setPrevResult({ key: prevKey }));
+    return () => { live = false; };
+  }, [run, prev]);
+  const prevData = prev && prevResult?.key === JSON.stringify(prev) ? prevResult.data ?? null : null;
+  const shown = data && compare && prevData ? mergeCompare(data, prevData) : data;
+  // A chart of one numeric column, and the table in pages of fifty.
+  const [chartOn, setChartOn] = useState(false);
+  const [chartCol, setChartCol] = useState(0);
+  const numericCols = shown ? shown.columns.map((_, i) => i).filter((i) => i > 0 && shown.rows.some((r) => typeof r[i] === "number")) : [];
+  const activeCol = numericCols.includes(chartCol) ? chartCol : numericCols[0] ?? 0;
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [key, compare]);
+  const PAGE = 50;
+  const pageCount = shown ? Math.max(1, Math.ceil(shown.rows.length / PAGE)) : 1;
+  const logUse = (action: "export" | "print") => {
+    fetch("/api/joblink/company/reports/log", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ report: report.id, action, filters: values }) }).catch(() => undefined);
+  };
   function exportExcel() {
-    if (!data) return;
-    const bytes = createXlsx(data.columns, data.totals ? [...data.rows, data.totals] : data.rows, report.title);
+    if (!shown) return;
+    logUse("export");
+    const bytes = createXlsx(shown.columns, shown.totals ? [...shown.rows, shown.totals] : shown.rows, report.title);
     const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
     const link = document.createElement("a");
     link.href = url;
@@ -292,12 +393,28 @@ function ReportFrame({ report, notify, onBack }: { report: Report; notify: Notif
     URL.revokeObjectURL(url);
   }
   function print() {
-    if (!data) return;
+    if (!shown) return;
+    logUse("print");
     const esc = (v: Cell) => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const win = window.open("", "_blank");
     if (!win) return notify("Çap pəncərəsi bloklanıb.");
-    const shown = specs.map((s) => [s.label, values[s.id]]).filter(([, v]) => v).map(([l, v]) => `${l}: ${v}`).join(" · ");
-    win.document.write(`<!doctype html><html lang="az"><head><meta charset="utf-8"><title>${esc(report.title)}</title><style>body{font:12px/1.4 Arial,sans-serif;margin:18px;color:#17332b}h1{font-size:17px;margin:0}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #cdd9d3;padding:3px 6px;text-align:left}th{background:#eef4f1}p{margin:4px 0}</style></head><body><h1>${esc(report.title)}</h1><p>${esc(shown || "Süzgəcsiz")} · hazırlanıb ${dmy(today())}</p>${data.note ? `<p>${esc(data.note)}</p>` : ""}<table><thead><tr>${data.columns.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${[...data.rows, ...(data.totals ? [data.totals] : [])].map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></body></html>`);
+    const filters = specs.map((s) => [s.label, values[s.id]]).filter(([, v]) => v).map(([l, v]) => `${l}: ${v}`).join(" · ");
+    const head = shown.columns.map((c) => `<th>${esc(c)}</th>`).join("");
+    const rows = shown.rows.map((r) => `<tr>${r.map((c) => `<td>${esc(typeof c === "number" && !Number.isInteger(c) ? c.toFixed(2) : c)}</td>`).join("")}</tr>`).join("");
+    const totals = shown.totals ? `<tr class="tot">${shown.totals.map((c) => `<td><b>${esc(c)}</b></td>`).join("")}</tr>` : "";
+    win.document.write(`<!doctype html><html lang="az"><head><meta charset="utf-8"><title>${esc(report.title)}</title><style>
+      @page{size:A4 landscape;margin:14mm}body{font:12px/1.45 Arial,sans-serif;color:#111;margin:0}
+      .top{display:flex;justify-content:space-between;border-bottom:2px solid #1b7f73;padding-bottom:6px;margin-bottom:10px}
+      h1{font-size:18px;margin:0}small{color:#555}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:4px 6px;text-align:left;vertical-align:top}
+      th{background:#eef5f3}tr.tot td{background:#f6f6f6}.sign{display:flex;gap:60px;margin-top:36px}.sign div{flex:1;border-top:1px solid #333;padding-top:4px;font-size:11px;color:#444}
+      thead{display:table-header-group}tr{page-break-inside:avoid}
+    </style></head><body>
+      <div class="top"><div><h1>${esc(report.title)}</h1><small>${esc(companyName)}${filters ? ` · ${esc(filters)}` : ""}</small></div><small>${esc(dmy(today()))}</small></div>
+      ${shown.note ? `<p><b>${esc(shown.note)}</b></p>` : ""}
+      <table><thead><tr>${head}</tr></thead><tbody>${rows}${totals}</tbody></table>
+      <p><small>${shown.rows.length} sətir</small></p>
+      <div class="sign"><div>Hazırladı (ad, vəzifə, tarix)</div><div>Yoxladı</div><div>Təsdiq etdi</div></div>
+    </body></html>`);
     win.document.close();
     win.focus();
     win.print();
@@ -312,12 +429,14 @@ function ReportFrame({ report, notify, onBack }: { report: Report; notify: Notif
         </div>
         {report.run && (
           <div className="admin-actions">
-            <button type="button" className="secondary report-button" disabled={!data} onClick={exportExcel}><Download size={14} /> Excel</button>
-            <button type="button" className="secondary" disabled={!data} onClick={print}><Printer size={14} /> Çap</button>
+            <button type="button" className="secondary report-button" disabled={!shown} onClick={exportExcel}><Download size={14} /> Excel</button>
+            <button type="button" className="secondary" disabled={!shown} onClick={print}><Printer size={14} /> Çap / PDF</button>
           </div>
         )}
       </div>
       <p className="muted">{report.description}</p>
+      {report.run && <SavedBar reportId={report.id} values={values} onApply={(f) => setValues({ ...Object.fromEntries(specs.map((sp) => [sp.id, sp.initial ?? (sp.type === "month" ? thisMonth() : sp.type === "year" ? thisYear() : "")])), ...f })} notify={notify} />}
+      {report.schedulable && <ScheduleBar reportId={report.id} notify={notify} />}
       {specs.length > 0 && (
         <div className="form-grid report-filters">
           {specs.map((s) => (
@@ -345,18 +464,33 @@ function ReportFrame({ report, notify, onBack }: { report: Report; notify: Notif
       {report.run ? (
         error ? <p className="danger-text">{error}</p> : !data ? <p className="muted">Hesabat hazırlanır…</p> : (
           <>
-            {data.note && <p><b>{data.note}</b></p>}
-            <p className="muted">{data.rows.length} sətir</p>
+            {shown && <>
+            {shown.note && <p><b>{shown.note}</b></p>}
+            <div className="admin-actions" style={{ justifyContent: "flex-start", flexWrap: "wrap" }}>
+              <span className="muted">{shown.rows.length} sətir</span>
+              {canCompare && <button type="button" className={compare ? "primary" : "secondary"} onClick={() => setCompare(!compare)}>{compare ? "Müqayisəni söndür" : "Əvvəlki dövrlə müqayisə"}</button>}
+              {numericCols.length > 0 && <button type="button" className={chartOn ? "primary" : "secondary"} onClick={() => setChartOn(!chartOn)}>{chartOn ? "Qrafiki gizlət" : "Qrafik"}</button>}
+              {chartOn && numericCols.length > 1 && <select aria-label="Qrafik sütunu" value={activeCol} onChange={(e) => setChartCol(Number(e.target.value))}>{numericCols.map((i) => <option key={i} value={i}>{shown.columns[i]}</option>)}</select>}
+              {compare && !prevData && <span className="muted">Əvvəlki dövr yüklənir…</span>}
+            </div>
+            {chartOn && <ReportChart data={shown} column={activeCol} />}</>}
             <div className="admin-table-wrap">
               <table className="admin-table">
-                <thead><tr>{data.columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+                <thead><tr>{(shown || data).columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
                 <tbody>
-                  {data.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{typeof c === "number" && !Number.isInteger(c) ? c.toFixed(2) : c}</td>)}</tr>)}
-                  {data.totals && <tr className="tot">{data.totals.map((c, j) => <td key={j}><b>{c}</b></td>)}</tr>}
-                  {!data.rows.length && <tr><td colSpan={data.columns.length}><p className="admin-empty">Seçilmiş süzgəclərə uyğun məlumat yoxdur.</p></td></tr>}
+                  {(shown || data).rows.slice(page * PAGE, (page + 1) * PAGE).map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{typeof c === "number" && !Number.isInteger(c) ? c.toFixed(2) : c}</td>)}</tr>)}
+                  {(shown || data).totals && page === pageCount - 1 && <tr className="tot">{((shown || data).totals as Cell[]).map((c, j) => <td key={j}><b>{c}</b></td>)}</tr>}
+                  {!(shown || data).rows.length && <tr><td colSpan={(shown || data).columns.length}><p className="admin-empty">Seçilmiş süzgəclərə uyğun məlumat yoxdur.</p></td></tr>}
                 </tbody>
               </table>
             </div>
+            {pageCount > 1 && (
+              <div className="admin-actions" style={{ justifyContent: "flex-start" }}>
+                <button type="button" className="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>‹ Əvvəlki</button>
+                <span className="muted">{page + 1} / {pageCount} (səhifədə {PAGE} sətir; Excel hamısını yazır)</span>
+                <button type="button" className="secondary" disabled={page >= pageCount - 1} onClick={() => setPage(page + 1)}>Sonrakı ›</button>
+              </div>
+            )}
           </>
         )
       ) : null}
@@ -365,7 +499,7 @@ function ReportFrame({ report, notify, onBack }: { report: Report; notify: Notif
 }
 
 // The Reports page: every report by name, grouped; a click opens it with its own filters, Excel and print.
-export default function ReportsHub({ me, notify, hiring, workforce }: { me: HubMe; notify: Notify; hiring: ReactNode; workforce: ReactNode }) {
+export default function ReportsHub({ me, notify, hiring, workforce, companyName = "" }: { me: HubMe; notify: Notify; hiring: ReactNode; workforce: ReactNode; companyName?: string }) {
   const [open, setOpen] = useState("");
   const [query, setQuery] = useState("");
   const allowed = useMemo(() => REPORTS.filter((r) => !r.need || !me || me.permissions.includes(r.need)), [me]);
@@ -386,7 +520,7 @@ export default function ReportsHub({ me, notify, hiring, workforce }: { me: HubM
         {current.render({ me, notify })}
       </div>
     ) : (
-      <ReportFrame key={current.id} report={current} notify={notify} onBack={() => setOpen("")} />
+      <ReportFrame key={current.id} report={current} notify={notify} onBack={() => setOpen("")} companyName={companyName} />
     );
   }
   const q = query.trim().toLowerCase();
@@ -415,6 +549,7 @@ export default function ReportsHub({ me, notify, hiring, workforce }: { me: HubM
         );
       })}
       {!list.length && <p className="admin-empty">Hesabat tapılmadı.</p>}
+      {(!me || me.permissions.includes("payroll")) && <FeedKeyPanel notify={notify} />}
     </div>
   );
 }

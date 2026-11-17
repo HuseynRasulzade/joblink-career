@@ -125,6 +125,7 @@ import { handle_company_30 } from "@/lib/api/handlers/company-30";
 import { handle_company_31 } from "@/lib/api/handlers/company-31";
 import { handle_company_32 } from "@/lib/api/handlers/company-32";
 import { handle_company_33 } from "@/lib/api/handlers/company-33";
+import { handle_reports_01 } from "@/lib/api/handlers/reports-01";
 import { handle_company_34 } from "@/lib/api/handlers/company-34";
 import { handle_company_35 } from "@/lib/api/handlers/company-35";
 import { handle_company_36 } from "@/lib/api/handlers/company-36";
@@ -2509,6 +2510,10 @@ async function route(request: Request) {
     "İşçi sənədlərini yalnız HR, direktor və hesab sahibi idarə edə bilər.";
     {
     const r = await handle_company_33({ AWAY_CODES, EMPLOYEE_DOC_CATEGORIES, assertYearOpen, auditView, canAct, db, employeeDocsDenied, id, memberGrants, memberRole, path, request, requestUrl, requirePermission, userId, yearPlanState });
+    if (r) return r;
+  }
+  {
+    const r = await handle_reports_01({ accountRole, db, hrFundReport, id, memberRole, path, request, requestUrl, requirePermission, userId });
     if (r) return r;
   }
     {

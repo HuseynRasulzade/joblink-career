@@ -9,6 +9,7 @@ import { completePastInterviews } from "../lib/interview-auto.ts";
 import { runTraced, serverTiming } from "../lib/d1-trace.ts";
 import { recordServerError, purgeOldServerErrors } from "../lib/alerts.ts";
 import { runPlanDigest } from "../lib/plan-digest.ts";
+import { runReportSchedules } from "../lib/report-schedules.ts";
 import { mailerOf } from "../lib/mail.ts";
 import { cacheable, edgeCacheSeconds } from "../lib/edge-cache.ts";
 import { withSecurityHeaders } from "../lib/security-headers.ts";
@@ -50,7 +51,7 @@ const worker = {
       ctx.waitUntil(completePastInterviews(env.DB));
       return;
     }
-    ctx.waitUntil(Promise.all([completePastInterviews(env.DB), runDigests(env.DB, mailerOf(env), env.EMAIL_FROM), runInterviewReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runTestReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runProbationReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runJobAlerts(env.DB, mailerOf(env), env.EMAIL_FROM), runPlanReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runInvoiceReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runApprovalReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runPayrollReminders(env.DB), runDeadlineReminders(env.DB), runSurveyRecurrence(env.DB), runBankDrafts(env.DB, (request) => handler.fetch(request, env, ctx)), runDueOrderEffects(env.DB, (request) => handler.fetch(request, env, ctx)), runCelebrations(env.DB, (request) => handler.fetch(request, env, ctx)), purgeOldJobViews(env.DB), purgeOldServerErrors(env.DB), runPlanDigest(env.DB)]));
+    ctx.waitUntil(Promise.all([completePastInterviews(env.DB), runDigests(env.DB, mailerOf(env), env.EMAIL_FROM), runInterviewReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runTestReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runProbationReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runJobAlerts(env.DB, mailerOf(env), env.EMAIL_FROM), runPlanReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runInvoiceReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runApprovalReminders(env.DB, mailerOf(env), env.EMAIL_FROM), runPayrollReminders(env.DB), runDeadlineReminders(env.DB), runSurveyRecurrence(env.DB), runBankDrafts(env.DB, (request) => handler.fetch(request, env, ctx)), runDueOrderEffects(env.DB, (request) => handler.fetch(request, env, ctx)), runCelebrations(env.DB, (request) => handler.fetch(request, env, ctx)), purgeOldJobViews(env.DB), purgeOldServerErrors(env.DB), runPlanDigest(env.DB), runReportSchedules(env.DB, mailerOf(env), env.EMAIL_FROM)]));
   },
 };
 

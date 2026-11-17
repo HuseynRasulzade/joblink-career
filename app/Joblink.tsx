@@ -2832,6 +2832,7 @@ export default function Joblink() {
               {page === "hr-reports" && (
                 <ReportsHub
                   me={companyMe}
+                  companyName={companyMe?.company?.name || ""}
                   notify={notify}
                   hiring={<CompanyDashboard me={companyMe} notify={notify} />}
                   workforce={<WorkforcePage me={companyMe} notify={notify} />}

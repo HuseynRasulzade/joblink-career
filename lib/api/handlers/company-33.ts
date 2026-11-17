@@ -192,13 +192,13 @@ export async function handle_company_33(c: Pick<RouteCtx, "AWAY_CODES" | "EMPLOY
   }
   // Reports of the plan: who is expected to leave, and how long each place took to fill.
   if (request.method === "GET" && path === "company/reports/expected-exits") {
-    requirePermission("reports");
+    requirePermission("employees", "Gözlənilən çıxışları yalnız işçi məlumatına icazəsi olan şəxs görə bilər.");
     const today = new Date().toISOString().slice(0, 10);
     const rows = await db.prepare("SELECT name,department,position,end_date,contract_end,exit_type FROM company_employees WHERE company_id=? AND status IN ('active','leave') AND ((end_date<>'' AND end_date>=?) OR (contract_end<>'' AND contract_end>=?)) ORDER BY COALESCE(NULLIF(end_date,''),contract_end)").bind(id, today, today).all<{ name: string; department: string; position: string; end_date: string; contract_end: string; exit_type: string }>();
     return ok({ items: rows.results.map((r) => ({ name: r.name, department: r.department, position: r.position, date: r.end_date || r.contract_end, kind: r.end_date ? "Təyin olunmuş çıxış tarixi" : "Müddətli müqavilənin sonu", exitType: r.exit_type || "" })) });
   }
   if (request.method === "GET" && path === "company/reports/fill-time") {
-    requirePermission("reports");
+    requirePermission("employees", "Dolma müddətini (ad ilə) yalnız işçi məlumatına icazəsi olan şəxs görə bilər.");
     const rows = await db.prepare("SELECT e.name,e.department,e.position,substr(j.created,1,10) AS opened,substr(e.created,1,10) AS hired,CAST(julianday(substr(e.created,1,10))-julianday(substr(j.created,1,10)) AS INTEGER) AS days,json_extract(j.data,'$.title') AS title FROM company_employees e JOIN jobs j ON j.id=e.job_id WHERE e.company_id=? AND e.source='hired' ORDER BY e.created DESC LIMIT 300").bind(id).all<{ name: string; department: string; position: string; opened: string; hired: string; days: number; title: string }>();
     return ok({ items: rows.results.map((r) => ({ ...r, days: Math.max(0, Number(r.days) || 0) })) });
   }
