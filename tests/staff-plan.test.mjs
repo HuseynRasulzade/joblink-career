@@ -74,7 +74,7 @@ test("staff rows carry the rate and the pay band", () => {
   assert.equal(parseRateCell("0,75"), 0.75);
   assert.equal(parseRateCell("50%"), 0.5);
   assert.equal(parseRateCell("0.3"), 0);
-  const r = parseStaffRows([STAFF_TEMPLATE_HEADERS, STAFF_TEMPLATE_EXAMPLE, ["IT", "", "Proqramçı", "2", "yarım", "1000", "", ""], ["IT", "", "Test", "1", "0.3", "", "", ""]]);
+  const r = parseStaffRows([STAFF_TEMPLATE_HEADERS, STAFF_TEMPLATE_EXAMPLE, ["", "IT", "", "Proqramçı", "", "2", "yarım", "1000", "", "", "", ""], ["", "IT", "", "Test", "", "1", "0.3", "", "", "", "", ""]]);
   assert.equal(r.rows.length, 2);
   assert.deepEqual([r.rows[0].rate, r.rows[0].salary, r.rows[0].salaryMax], [1, 2500, 3000]);
   assert.deepEqual([r.rows[1].rate, r.rows[1].salary, r.rows[1].salaryMax], [0.5, 1000, 1000]);

@@ -7,7 +7,7 @@ import { planFactTemplate, planFactWorkbook, type ExportData } from "@/lib/plan-
 import { Modal } from "./components";
 
 type Notify = (message: string) => void;
-type Summary = { budgets: number; targets: number; expenses: number; skipped: number; found: string[] };
+type Summary = { budgets: number; staff: number; expenses: number; skipped: number; found: string[]; staffPending?: boolean; staffCreated?: number; staffUpdated?: number };
 type Preview = { summary: Summary; issues: { sheet: string; line: number; reason: string }[]; applied?: boolean };
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
@@ -38,14 +38,14 @@ export default function PlanFactExcel({ year, notify, onDone }: { year: string; 
     try {
       const data = await call<ExportData>(`company/plan-fact/export-data?year=${year}`);
       save(createXlsxBook(planFactWorkbook(data)), `plan-ve-fakt-${year}.xlsx`);
-      notify(`${year} planı və faktı Excel-ə yazıldı: ${data.budgets.length} büdcə sətri, ${data.targets.length} ay planı, ${data.expenses.length} xərc.`);
+      notify(`${year} planı və faktı Excel-ə yazıldı: ${data.budgets.length} büdcə sətri, ${data.staff.length} ştat sətri, ${data.expenses.length} xərc.`);
     } catch (error) {
       notify((error as Error).message);
     }
   }
   function sample() {
     save(createXlsxBook(planFactTemplate(year)), `plan-ve-fakt-numune-${year}.xlsx`);
-    notify("Nümunə fayl yükləndi: Təlimat, Büdcə, İşçi sayı planı və Xərclər vərəqləri.");
+    notify("Nümunə fayl yükləndi: Təlimat, Büdcə, Ştat planı və Xərclər vərəqləri.");
   }
   async function pick(file: File | undefined) {
     if (!file) return;
@@ -68,7 +68,7 @@ export default function PlanFactExcel({ year, notify, onDone }: { year: string; 
       const result = await call<Preview>("company/plan-fact/import", { sheets, apply: true });
       setPreview(result);
       if (result.applied) {
-        notify(`Yükləndi: ${result.summary.budgets} büdcə sətri, ${result.summary.targets} ay planı, ${result.summary.expenses} xərc.`);
+        notify(`Yükləndi: ${result.summary.budgets} büdcə sətri, ${result.summary.staffPending ? `${result.summary.staff} ştat sətri direktorun təsdiqinə göndərildi` : `${result.summary.staffCreated ?? 0} yeni, ${result.summary.staffUpdated ?? 0} yenilənən ştat sətri`}, ${result.summary.expenses} xərc.`);
         onDone();
       }
     } catch (error) {
@@ -81,7 +81,7 @@ export default function PlanFactExcel({ year, notify, onDone }: { year: string; 
     setPreview(null);
     setSheets(null);
   };
-  const empty = preview && !preview.summary.budgets && !preview.summary.targets && !preview.summary.expenses;
+  const empty = preview && !preview.summary.budgets && !preview.summary.staff && !preview.summary.expenses;
   return (
     <>
       <button type="button" className="secondary report-button" onClick={() => void exportYear()}><Download size={14} /> Excel: ixrac</button>
@@ -94,7 +94,7 @@ export default function PlanFactExcel({ year, notify, onDone }: { year: string; 
             {preview.applied ? <p><b>Yükləmə tamamlandı.</b></p> : <p className="muted">Fayl yoxlandı. «Yüklə» basılana qədər heç nə saxlanmayıb.</p>}
             <ul style={{ paddingLeft: 18, margin: 0 }}>
               <li>Büdcə sətri: <b>{preview.summary.budgets}</b></li>
-              <li>Ay üzrə işçi sayı planı: <b>{preview.summary.targets}</b></li>
+              <li>Ştat planı sətri: <b>{preview.summary.staff}</b>{preview.applied && preview.summary.staffPending ? " (plan təsdiqlənib: direktorun təsdiqinə göndərildi)" : preview.applied ? ` (${preview.summary.staffCreated ?? 0} yeni, ${preview.summary.staffUpdated ?? 0} yenilənən)` : ""}</li>
               <li>Yeni xərc (planlaşdırılıb vəziyyətində): <b>{preview.summary.expenses}</b></li>
               {preview.summary.skipped > 0 && <li className="muted">Platformadan çıxmış {preview.summary.skipped} xərc sətri atlandı (artıq sistemdədir).</li>}
             </ul>

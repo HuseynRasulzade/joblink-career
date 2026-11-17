@@ -274,7 +274,7 @@ export async function loadPlanData(db: D1Database, companyId: string) {
 export async function staffBandProblem(
   db: D1Database,
   companyId: string,
-  changes: { id?: string; branch?: string; department: string; section: string; position: string; planned: number; rate?: number; salaryCents: number; salaryMaxCents?: number }[],
+  changes: { id?: string; branch?: string; department: string; section: string; position: string; level?: string; planned: number; rate?: number; salaryCents: number; salaryMaxCents?: number; startMonth?: string; endMonth?: string }[],
 ): Promise<string> {
   if (!changes.some((c) => c.salaryCents > 0 || (c.salaryMaxCents || 0) > 0)) return "";
   const plan = await loadPlanData(db, companyId);
@@ -283,13 +283,16 @@ export async function staffBandProblem(
   const touched = new Set<string>();
   changes.forEach((c, index) => {
     const position = bestCatalogMatch(c.position)?.title.label || c.position;
-    const existing = units.find((u) => (c.id && u.id === c.id) || (!c.id && same(u.branch || "", c.branch || "") && same(u.department, c.department) && same(u.section, c.section) && same(u.position, position)));
+    const existing = units.find((u) => (c.id && u.id === c.id) || (!c.id && same(u.branch || "", c.branch || "") && same(u.department, c.department) && same(u.section, c.section) && same(u.level || "", c.level || "") && same(u.position, position)));
     const next: PlanUnit = {
       id: existing?.id || `new-${index}`,
       branch: c.branch || "",
       department: c.department,
       section: c.section,
       position,
+      level: c.level || "",
+      startMonth: c.startMonth || "",
+      endMonth: c.endMonth || "",
       planned: c.planned,
       rate: normalizeRate(c.rate ?? 1),
       salaryMin: c.salaryCents / 100,
@@ -319,8 +322,8 @@ export async function applyStaffRows(db: D1Database, companyId: string, rows: St
     const position = (await resolvePosition(db, companyId, row.position)).name;
     const branch = await ensureBranch(db, companyId, row.branch || "");
     const found = await db
-      .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(branch)=lower(?) AND lower(department)=lower(?) AND lower(section)=lower(?) AND lower(position)=lower(?)")
-      .bind(companyId, branch, department, section, position)
+      .prepare("SELECT id FROM staff_units WHERE company_id=? AND lower(branch)=lower(?) AND lower(department)=lower(?) AND lower(section)=lower(?) AND lower(position)=lower(?) AND lower(level)=lower(?)")
+      .bind(companyId, branch, department, section, position, row.level || "")
       .first<{ id: string }>();
     await saveStaffUnit(db, companyId, found?.id || "", { ...row, branch, department, section, position });
     if (found) updated++;

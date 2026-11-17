@@ -8,12 +8,12 @@ import { categoryLabel as expenseCategoryLabel, integrationSetting, pushWebhook,
 import { matchEmployee, fold as plainFold } from "@/lib/sheet-imports";
 import { normalizeMode, splitAmount } from "@/lib/branches";
 import { parseBranchSheets } from "@/lib/branches-excel";
-import { parsePlanFactSheets } from "@/lib/plan-fact-excel";
-import { ExpenseDbRow, ok } from "@/lib/api/shared";
+import { PF, parsePlanFactSheets } from "@/lib/plan-fact-excel";
+import { ExpenseDbRow, applyStaffRows, loadPlanData, ok, staffBandProblem } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
-export async function handle_company_20(c: Pick<RouteCtx, "auditView" | "branchContext" | "canAct" | "db" | "employeeRefs" | "expenseRow" | "heldBudget" | "hrFundReport" | "id" | "monthApproved" | "monthOf" | "path" | "payrollMonth" | "payrollRows" | "request" | "requestUrl" | "requirePermission" | "revealAll" | "userId" | "yearPlanState">): Promise<Response | undefined> {
-  const { auditView, branchContext, canAct, db, employeeRefs, expenseRow, heldBudget, hrFundReport, id, monthApproved, monthOf, path, payrollMonth, payrollRows, request, requestUrl, requirePermission, revealAll, userId, yearPlanState } = c;
+export async function handle_company_20(c: Pick<RouteCtx, "auditView" | "branchContext" | "canAct" | "db" | "employeeRefs" | "expenseRow" | "heldBudget" | "hrFundReport" | "id" | "monthApproved" | "monthOf" | "path" | "payrollMonth" | "payrollRows" | "planLocked" | "queueApproval" | "request" | "requestUrl" | "requirePermission" | "revealAll" | "userId" | "yearPlanState">): Promise<Response | undefined> {
+  const { auditView, branchContext, canAct, db, employeeRefs, expenseRow, heldBudget, hrFundReport, id, monthApproved, monthOf, path, payrollMonth, payrollRows, planLocked, queueApproval, request, requestUrl, requirePermission, revealAll, userId, yearPlanState } = c;
   if (request.method === "GET" && path === "company/branches") {
     requirePermission("salaries", "Filialları yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
     const month = monthOf(requestUrl.searchParams.get("month"));
@@ -333,12 +333,13 @@ export async function handle_company_20(c: Pick<RouteCtx, "auditView" | "branchC
     requirePermission("salaries", "Plan və fakt məlumatını yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
     const y = str(requestUrl.searchParams.get("year"), 4);
     const year = /^\d{4}$/.test(y) ? y : new Date().toISOString().slice(0, 4);
-    const [lines, targets, expenses] = await Promise.all([
+    const [lines, plan, expenses] = await Promise.all([
       db.prepare("SELECT month,department,category,amount FROM budget_lines WHERE company_id=? AND month LIKE ? AND kind='budget' ORDER BY category,department,month").bind(id, `${year}-%`).all<{ month: string; department: string; category: string; amount: number }>().catch(() => ({ results: [] as { month: string; department: string; category: string; amount: number }[] })),
-      db.prepare("SELECT month,target FROM headcount_targets WHERE company_id=? AND month LIKE ? ORDER BY month").bind(id, `${year}-%`).all<{ month: string; target: number }>().catch(() => ({ results: [] as { month: string; target: number }[] })),
+      loadPlanData(db, id),
       db.prepare("SELECT * FROM hr_expenses WHERE company_id=? AND expense_date LIKE ? ORDER BY expense_date,created").bind(id, `${year}-%`).all<ExpenseDbRow>().catch(() => ({ results: [] as ExpenseDbRow[] })),
     ]);
-    return ok({ year, budgets: lines.results, targets: targets.results, expenses: expenses.results.map(expenseRow) });
+    const staff = plan.units.map((u) => ({ branch: u.branch || "", department: u.department, section: u.section, position: u.position, level: u.level || "", rate: u.rate, planned: u.planned, salaryMin: u.salaryMin, salaryMax: u.salaryMax, startMonth: u.startMonth || "", endMonth: u.endMonth || "", note: u.note }));
+    return ok({ year, budgets: lines.results, staff, expenses: expenses.results.map(expenseRow) });
   }
   if (request.method === "POST" && path === "company/plan-fact/import") {
     requirePermission("salaries", "Planı yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
@@ -347,7 +348,7 @@ export async function handle_company_20(c: Pick<RouteCtx, "auditView" | "branchC
     const parsed = parsePlanFactSheets(sheets);
     const apply = b.apply === true;
     const problems = [...parsed.issues];
-    const years = new Set([...parsed.budgets.map((x) => x.month.slice(0, 4)), ...parsed.targets.map((x) => x.month.slice(0, 4))]);
+    const years = new Set(parsed.budgets.map((x) => x.month.slice(0, 4)));
     for (const y of years) {
       const st = await yearPlanState(y);
       if (st.status !== "draft") problems.push({ sheet: "", line: 0, reason: `${y} planı ${st.status === "approved" ? "təsdiqlənib" : "təsdiqdədir"}: büdcə və işçi sayı planı dəyişmir. Direktor «Redaktə üçün aç» etməlidir.` });
@@ -381,16 +382,34 @@ export async function handle_company_20(c: Pick<RouteCtx, "auditView" | "branchC
       okExpenses.push(e);
     }
     const blocked = problems.some((x) => !x.sheet) || (parsed.found.length === 0);
-    const summary = { budgets: parsed.budgets.length, targets: parsed.targets.length, expenses: okExpenses.length, skipped: parsed.skipped, found: parsed.found };
+    const staffRows = parsed.staff.map((row) => ({ branch: row.branch, department: row.department, section: row.section, position: row.position, level: row.level, planned: row.planned, rate: row.rate, salaryCents: Math.round(row.salary * 100), salaryMaxCents: Math.round(row.salaryMax * 100), startMonth: row.startMonth, endMonth: row.endMonth, note: row.note }));
+    // The staff sheet follows the staff table's rules: pay bands against the people, and a locked plan sends it to the director.
+    if (staffRows.length) {
+      const staffProblem = await staffBandProblem(db, id, staffRows);
+      if (staffProblem) problems.push({ sheet: PF.staff, line: 0, reason: staffProblem });
+    }
+    const summary = { budgets: parsed.budgets.length, staff: staffRows.length, expenses: okExpenses.length, skipped: parsed.skipped, found: parsed.found };
     if (!apply || blocked) return ok({ applied: false, summary, issues: problems });
     const now = new Date().toISOString();
     const statements: D1PreparedStatement[] = [];
     for (const x of parsed.budgets) statements.push(db.prepare("INSERT INTO budget_lines(company_id,month,department,category,kind,amount,updated,updated_by) VALUES(?,?,?,?,'budget',?,?,?) ON CONFLICT(company_id,month,department,category,kind) DO UPDATE SET amount=excluded.amount,updated=excluded.updated,updated_by=excluded.updated_by").bind(id, x.month, x.department, x.category, x.amount, now, userId));
-    for (const x of parsed.targets) statements.push(db.prepare("INSERT INTO headcount_targets(company_id,month,target,updated,updated_by) VALUES(?,?,?,?,?) ON CONFLICT(company_id,month) DO UPDATE SET target=excluded.target,updated=excluded.updated,updated_by=excluded.updated_by").bind(id, x.month, x.target, now, userId));
     for (const x of okExpenses) statements.push(db.prepare("INSERT INTO hr_expenses(id,company_id,category,title,department,employee_id,amount,expense_date,payee,note,status,created_by,created,updated,source) VALUES(?,?,?,?,?,'',?,?,?,?,'planned',?,?,?,'excel')").bind(crypto.randomUUID(), id, x.category, x.title, x.department, x.amount, x.date, x.payee, x.note, userId, now, now));
     for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50));
-    await companyAudit(db, id, userId, "plan-fact-import", "", `${parsed.budgets.length} büdcə, ${parsed.targets.length} ay planı, ${okExpenses.length} xərc`);
-    return ok({ applied: true, summary, issues: problems });
+    let staffPending = false;
+    let staffCreated = 0;
+    let staffUpdated = 0;
+    if (staffRows.length) {
+      if (await planLocked()) {
+        await queueApproval("headcount", `Excel idxalı: ${staffRows.length} ştat sətri (plan və fakt faylı)`, { units: staffRows });
+        staffPending = true;
+      } else {
+        const applied = await applyStaffRows(db, id, staffRows);
+        staffCreated = applied.created;
+        staffUpdated = applied.updated;
+      }
+    }
+    await companyAudit(db, id, userId, "plan-fact-import", "", `${parsed.budgets.length} büdcə, ${staffRows.length} ştat sətri, ${okExpenses.length} xərc`);
+    return ok({ applied: true, summary: { ...summary, staffPending, staffCreated, staffUpdated }, issues: problems });
   }
   if (request.method === "GET" && path === "company/hr-report") {
     requirePermission("salaries", "Kadr və əmək haqqı fondu hesabatını yalnız əmək haqqı icazəsi olan şəxs görə bilər.");

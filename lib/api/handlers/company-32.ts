@@ -226,7 +226,7 @@ export async function handle_company_32(c: Pick<RouteCtx, "canAct" | "dataKey" |
       (Array.isArray(b.rows) ? b.rows : []).slice(0, 501).map((row: unknown) => (Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [])),
     );
     if (!incoming.rows.length) throw new HttpError(400, incoming.issues[0]?.reason || "Faylda ştat sətri tapılmadı.");
-    const rows = incoming.rows.map((row) => ({ branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned, rate: row.rate, salaryCents: Math.round(row.salary * 100), salaryMaxCents: Math.round(row.salaryMax * 100), note: row.note }));
+    const rows = incoming.rows.map((row) => ({ branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned, rate: row.rate, salaryCents: Math.round(row.salary * 100), salaryMaxCents: Math.round(row.salaryMax * 100), level: row.level, startMonth: row.startMonth, endMonth: row.endMonth, note: row.note }));
     const importProblem = await staffBandProblem(db, id, rows);
     if (importProblem) throw new HttpError(409, importProblem);
     if (await planLocked()) {

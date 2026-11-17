@@ -17,7 +17,7 @@ export type EmployeeRow = {
   vacationUsed: number;
   fin: string;
 };
-export type StaffRow = { line: number; branch: string; department: string; section: string; position: string; planned: number; rate: number; salary: number; salaryMax: number; note: string };
+export type StaffRow = { line: number; branch: string; department: string; section: string; position: string; level: string; planned: number; rate: number; salary: number; salaryMax: number; startMonth: string; endMonth: string; note: string };
 export type StructureRow = { line: number; department: string; section: string };
 export type RowIssue = { line: number; reason: string };
 
@@ -65,7 +65,7 @@ export function parseNumberCell(value: string): number {
   return Number.isFinite(number) ? number : 0;
 }
 
-type Field = "branch" | "fin" | "name" | "position" | "department" | "section" | "startDate" | "salary" | "salaryType" | "sector" | "email" | "phone" | "vacationDays" | "vacationUsed" | "planned" | "note" | "rate" | "salaryMax";
+type Field = "branch" | "fin" | "name" | "position" | "department" | "section" | "startDate" | "salary" | "salaryType" | "sector" | "email" | "phone" | "vacationDays" | "vacationUsed" | "planned" | "note" | "rate" | "level" | "startMonth" | "endMonth" | "salaryMax";
 const ALIASES: Record<Field, string[]> = {
   fin: ["fin", "fin kod", "fin kodu", "fin kodu 7 simvol"],
   name: ["ad soyad", "ad soyad ata adi", "soyad ad", "isci", "isci adi", "ad", "fio", "ф и о", "фио", "full name", "name", "employee"],
@@ -84,6 +84,9 @@ const ALIASES: Record<Field, string[]> = {
   planned: ["say", "stat sayi", "stat vahidi", "stat vahidlerinin sayi", "planned", "count", "количество", "штат"],
   note: ["qeyd", "note", "comment", "примечание"],
   rate: ["stat derecesi", "stat nisbeti", "stat novu", "nisbet", "derece", "rate", "fte", "ставка"],
+  level: ["pille", "pille seviyyesi", "seviyye", "tecrube seviyyesi", "level", "grade", "уровень"],
+  startMonth: ["baslangic ay", "nece vaxtdan", "acilma ayi", "yer acilir", "start month", "from month", "начало"],
+  endMonth: ["son ay", "bitme ayi", "nece vaxta qeder", "muveqqeti son ay", "end month", "to month", "окончание"],
   salaryMax: ["maksimum emek haqqi", "maksimum maas", "maks emek haqqi", "maks maas", "max maas", "max emek haqqi", "salary max", "maximum salary", "максимальный оклад"],
 };
 
@@ -168,6 +171,36 @@ export function parseEmployeeRows(rows: string[][], limit = 500): { rows: Employ
   return { rows: out, issues };
 }
 
+const MONTH_NAMES = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avqust", "sentyabr", "oktyabr", "noyabr", "dekabr"];
+// "2026-11", "11.2026", "11/2026", "Noyabr 2026" or a date of that month, as "2026-11" ("" when it cannot be read).
+export function parseMonthCell(value: string): string {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  let m = /^(\d{4})[-./](\d{1,2})$/.exec(text);
+  if (m) return Number(m[2]) >= 1 && Number(m[2]) <= 12 ? `${m[1]}-${String(Number(m[2])).padStart(2, "0")}` : "";
+  m = /^(\d{1,2})[-./](\d{4})$/.exec(text);
+  if (m) return Number(m[1]) >= 1 && Number(m[1]) <= 12 ? `${m[2]}-${String(Number(m[1])).padStart(2, "0")}` : "";
+  m = /^([^\d\s]+)\s+(\d{4})$/.exec(text);
+  if (m) {
+    const at = MONTH_NAMES.indexOf(fold(m[1]));
+    return at >= 0 ? `${m[2]}-${String(at + 1).padStart(2, "0")}` : "";
+  }
+  const date = parseDateCell(text);
+  return date ? date.slice(0, 7) : "";
+}
+
+// "junior", "orta", "böyük", "senior", "rəhbər", "lead" -> the level name the staff table uses ("" = no level, null = not understood).
+export function parseLevelCell(value: string): string | null {
+  const text = fold(value);
+  if (!text) return "";
+  const word = text.split(" ")[0];
+  if (["junior", "kicik", "baslangic", "jun"].includes(word)) return "Junior";
+  if (["orta", "middle", "mid"].includes(word)) return "Orta";
+  if (["boyuk", "senior", "yuksek", "sen"].includes(word)) return "Böyük (Senior)";
+  if (["rehber", "lead", "bas", "head"].includes(word)) return "Rəhbər (Lead)";
+  return null;
+}
+
 // "tam", "yarım", "1/2", "0,25", "50%" -> a share of a full place (1, 0.75, 0.5 or 0.25).
 export function parseRateCell(value: string): number {
   const text = fold(value);
@@ -182,7 +215,7 @@ export function parseRateCell(value: string): number {
 }
 
 export function parseStaffRows(rows: string[][], limit = 500): { rows: StaffRow[]; issues: RowIssue[] } {
-  const fields: Field[] = ["branch", "department", "section", "position", "planned", "rate", "salaryMax", "salary", "note"];
+  const fields: Field[] = ["branch", "department", "section", "position", "level", "planned", "rate", "salaryMax", "salary", "startMonth", "endMonth", "note"];
   const header = findHeader(rows, fields, "department") || findHeader(rows, fields, "position");
   if (!header) return { rows: [], issues: [{ line: 1, reason: "“Departament” və ya “Vəzifə” sütunu tapılmadı. Birinci sətirdə sütun adları olmalıdır." }] };
   const get = (row: string[], field: Field) => String(row[header.map.get(field) ?? -1] ?? "").trim();
@@ -213,9 +246,24 @@ export function parseStaffRows(rows: string[][], limit = 500): { rows: StaffRow[
       issues.push({ line, reason: `Ştat dərəcəsi tam, 3/4, yarım və ya 1/4 olmalıdır: “${get(row, "rate")}”.` });
       continue;
     }
+    const level = parseLevelCell(get(row, "level"));
+    if (level === null) {
+      issues.push({ line, reason: `Pillə Junior, Orta, Böyük (Senior) və ya Rəhbər (Lead) olmalıdır: “${get(row, "level")}”.` });
+      continue;
+    }
+    const startMonth = parseMonthCell(get(row, "startMonth"));
+    const endMonth = parseMonthCell(get(row, "endMonth"));
+    if ((get(row, "startMonth") && !startMonth) || (get(row, "endMonth") && !endMonth)) {
+      issues.push({ line, reason: `Başlanğıc və son ay oxunmadı (məs. 2026-11): “${get(row, "startMonth")}” / “${get(row, "endMonth")}”.` });
+      continue;
+    }
+    if (startMonth && endMonth && endMonth < startMonth) {
+      issues.push({ line, reason: "Son ay başlanğıc aydan əvvəl ola bilməz." });
+      continue;
+    }
     const salary = Math.max(0, parseNumberCell(get(row, "salary")));
     const salaryMax = Math.max(salary, parseNumberCell(get(row, "salaryMax")));
-    out.push({ line, branch: get(row, "branch").slice(0, 120), department, section: get(row, "section").slice(0, 120), position, planned, rate, salary, salaryMax, note: get(row, "note").slice(0, 300) });
+    out.push({ line, branch: get(row, "branch").slice(0, 120), department, section: get(row, "section").slice(0, 120), position, level, planned, rate, salary, salaryMax, startMonth, endMonth, note: get(row, "note").slice(0, 300) });
   }
   return { rows: out, issues };
 }
@@ -247,7 +295,7 @@ export function parseStructureRows(rows: string[][], limit = 500): { rows: Struc
 
 export const EMPLOYEE_TEMPLATE_HEADERS = ["Ad Soyad", "Vəzifə", "Departament", "Şöbə", "İşə başlama", "Əmək haqqı", "Maaş növü (gross/net)", "Sektor (özəl/dövlət)", "E-poçt", "Telefon", "Məzuniyyət günləri (il üçün)", "İstifadə olunmuş məzuniyyət", "FİN"];
 export const EMPLOYEE_TEMPLATE_EXAMPLE = ["Aysel Məmmədova", "Baş mühasib", "Maliyyə", "Mühasibat", "2026-04-09", 2800, "gross", "özəl", "aysel@example.az", "+994501234567", 21, 5, "5ABC123"];
-export const STAFF_TEMPLATE_HEADERS = ["Departament", "Şöbə", "Vəzifə", "Ştat sayı", "Ştat dərəcəsi", "Əmək haqqı", "Maksimum əmək haqqı", "Qeyd"];
-export const STAFF_TEMPLATE_EXAMPLE = ["Maliyyə", "Mühasibat", "Baş mühasib", 1, "tam", 2500, 3000, ""];
+export const STAFF_TEMPLATE_HEADERS = ["Filial", "Departament", "Şöbə", "Vəzifə", "Pillə", "Ştat sayı", "Ştat dərəcəsi", "Əmək haqqı", "Maksimum əmək haqqı", "Başlanğıc ay", "Son ay", "Qeyd"];
+export const STAFF_TEMPLATE_EXAMPLE = ["", "Maliyyə", "Mühasibat", "Baş mühasib", "", 1, "tam", 2500, 3000, "", "", ""];
 export const STRUCTURE_TEMPLATE_HEADERS = ["Departament", "Şöbə"];
 export const STRUCTURE_TEMPLATE_EXAMPLE = ["Maliyyə", "Mühasibat"];

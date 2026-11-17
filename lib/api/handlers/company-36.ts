@@ -204,10 +204,10 @@ export async function handle_company_36(c: Pick<RouteCtx, "approvalHistory" | "a
       ]);
     } else if (kind === "staff") {
       const overview = await staffOverview();
-      // The first columns are those of the import template, so the file can be edited and loaded back.
-      headers = ["Departament", "Şöbə", "Vəzifə", "Ştat sayı", "Ştat dərəcəsi", "Əmək haqqı", "Maksimum əmək haqqı", "Qeyd", "İşləyir", "Boş yer", "Ştat vahidi (FTE)"];
+      // The first twelve columns are those of the import template, so the file can be edited and loaded back.
+      headers = ["Filial", "Departament", "Şöbə", "Vəzifə", "Pillə", "Ştat sayı", "Ştat dərəcəsi", "Əmək haqqı", "Maksimum əmək haqqı", "Başlanğıc ay", "Son ay", "Qeyd", "İşləyir", "Boş yer", "Ştat vahidi (FTE)", "Aylıq xərc (maks., işəgötürən payları ilə)"];
       const rateWord: Record<number, string> = { 1: "tam", 0.75: "3/4", 0.5: "yarım", 0.25: "1/4" };
-      rows = overview.rows.map((r) => [r.department, r.section, r.position, r.planned, rateWord[r.rate] || "tam", r.salaryMin || "", r.salaryMax > r.salaryMin ? r.salaryMax : "", r.note, r.filled, r.free, r.fte]);
+      rows = overview.rows.map((r) => [r.branch || "", r.department, r.section, r.position, r.level || "", r.planned, rateWord[r.rate] || "tam", r.salaryMin || "", r.salaryMax > r.salaryMin ? r.salaryMax : "", r.startMonth || "", r.endMonth || "", r.note, r.filled, r.free, r.fte, r.costMax || ""]);
     } else if (kind === "structure") {
       headers = ["Departament", "Şöbə", "Ştat sətri", "İşçi"];
       const structure = await loadStructure(db, id);

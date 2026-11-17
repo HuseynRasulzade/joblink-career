@@ -1987,7 +1987,7 @@ async function route(request: Request) {
   const monthOf = (value: string | null) => (/^\d{4}-(0[1-9]|1[0-2])$/.test(String(value || "")) ? String(value) : new Date().toISOString().slice(0, 7));
   const monthApproved = async (month: string) => (await db.prepare("SELECT status FROM payroll_runs WHERE company_id=? AND month=?").bind(id, month).first<{ status: string }>().catch(() => null))?.status === "approved";
     {
-    const r = await handle_company_20({ auditView, branchContext, canAct, db, employeeRefs, expenseRow, heldBudget, hrFundReport, id, monthApproved, monthOf, path, payrollMonth, payrollRows, request, requestUrl, requirePermission, revealAll, userId, yearPlanState });
+    const r = await handle_company_20({ auditView, branchContext, canAct, db, employeeRefs, expenseRow, heldBudget, hrFundReport, id, monthApproved, monthOf, path, payrollMonth, payrollRows, planLocked, queueApproval, request, requestUrl, requirePermission, revealAll, userId, yearPlanState });
     if (r) return r;
   }
   // ── Settlement report: per employee what was accrued, what was paid and for what, and who owes whom ──
