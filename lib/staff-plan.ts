@@ -154,12 +154,12 @@ export function conflictMessage(conflicts: BandConflict[]): string {
   return `“${first.unit.position || first.unit.department}” üçün maaş həddi ${min === max ? money(min) : `${money(min)} – ${money(max)}`} (gross) olacaq, amma bu sətirdəki işçilərin maaşı ona uyğun deyil: ${who}${conflicts.length > 5 ? ` və daha ${conflicts.length - 5} nəfər` : ""}. Əvvəl işçilərin maaşını ştata uyğunlaşdırın (işçi kartı) və ya həddi dəyişin.`;
 }
 
-// A new person may only be taken on when the staff table has a free place for the position. Positions the table does not name at all
-// are not limited (same rule as the pay band). Returns the message, or "" when there is room.
+// A new person may only be taken on when the staff table has a free place for the position. A company with no staff rows yet is not limited; once it has rows, a position the table does not name is refused. Returns the message, or "" when there is room.
 export function placeProblem(units: PlanUnit[], people: PlanPerson[], candidate: PlanPerson): string {
   if (!candidate.position || !candidate.department) return "";
   const named = units.filter((u) => u.position && key(u.position) === key(candidate.position) && key(u.department) === key(candidate.department));
-  if (!named.length) return "";
+  // Once the staff table has rows, a position it does not name has no place at all.
+  if (!named.length) return units.length ? `Ştat cədvəlində “${candidate.position}” (${candidate.department}) vəzifəsi yoxdur. Əvvəl «Plan və fakt → İşçi sayı planı»nda bu vəzifə üçün sətir əlavə edin.` : "";
   const rows = named.filter((u) => score(u, candidate) >= 0);
   const label = `“${candidate.position}” (${candidate.department})`;
   if (!rows.length) return `Ştat cədvəlində ${label} vəzifəsi belə şöbə və ya filial üçün planlaşdırılmayıb. Əvvəl ştat cədvəlinə uyğun sətir əlavə edin.`;

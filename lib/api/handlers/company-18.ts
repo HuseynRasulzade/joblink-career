@@ -21,9 +21,9 @@ export async function handle_company_18(c: Pick<RouteCtx, "BUDGET_CATEGORIES" | 
     if (st.status !== "draft") throw new HttpError(409, st.status === "approved" ? "Plan artıq təsdiqlənib." : "Plan artıq təsdiqə göndərilib.");
     const counts = await Promise.all([
       db.prepare("SELECT COUNT(*) AS n FROM budget_lines WHERE company_id=? AND month LIKE ? AND kind='budget'").bind(id, `${year}-%`).first<{ n: number }>(),
-      db.prepare("SELECT COUNT(*) AS n FROM headcount_targets WHERE company_id=? AND month LIKE ?").bind(id, `${year}-%`).first<{ n: number }>().catch(() => ({ n: 0 })),
+      db.prepare("SELECT COUNT(*) AS n FROM staff_units WHERE company_id=?").bind(id).first<{ n: number }>().catch(() => ({ n: 0 })),
     ]);
-    if (!Number(counts[0]?.n) && !Number(counts[1]?.n)) throw new HttpError(400, `${year} üçün nə büdcə, nə də işçi sayı planı yazılıb.`);
+    if (!Number(counts[0]?.n) && !Number(counts[1]?.n)) throw new HttpError(400, `${year} üçün nə büdcə, nə də ştat planı (işçi sayı) yazılıb.`);
     if (canAct("approve-director")) {
       await setYearPlan(year, "approved", userId);
       await companyAudit(db, id, userId, "year-plan-approved", year, `${year} planı təsdiqləndi`);

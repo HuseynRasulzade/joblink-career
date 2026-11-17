@@ -11,8 +11,8 @@ import { summarize } from "@/lib/staff-plan";
 import { loadPlanData, ok } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
-export async function handle_company_33(c: Pick<RouteCtx, "AWAY_CODES" | "EMPLOYEE_DOC_CATEGORIES" | "assertYearOpen" | "auditView" | "canAct" | "db" | "employeeDocsDenied" | "id" | "memberGrants" | "memberRole" | "path" | "request" | "requestUrl" | "requirePermission" | "userId">): Promise<Response | undefined> {
-  const { AWAY_CODES, EMPLOYEE_DOC_CATEGORIES, assertYearOpen, auditView, canAct, db, employeeDocsDenied, id, memberGrants, memberRole, path, request, requestUrl, requirePermission, userId } = c;
+export async function handle_company_33(c: Pick<RouteCtx, "AWAY_CODES" | "EMPLOYEE_DOC_CATEGORIES" | "assertYearOpen" | "auditView" | "canAct" | "db" | "employeeDocsDenied" | "id" | "memberGrants" | "memberRole" | "path" | "request" | "requestUrl" | "requirePermission" | "userId" | "yearPlanState">): Promise<Response | undefined> {
+  const { AWAY_CODES, EMPLOYEE_DOC_CATEGORIES, assertYearOpen, auditView, canAct, db, employeeDocsDenied, id, memberGrants, memberRole, path, request, requestUrl, requirePermission, userId, yearPlanState } = c;
   if (request.method === "GET" && path === "company/employee-docs") {
     requirePermission("salaries", employeeDocsDenied);
     const rows = await db
@@ -197,8 +197,13 @@ export async function handle_company_33(c: Pick<RouteCtx, "AWAY_CODES" | "EMPLOY
     const plan = await loadPlanData(db, id);
     const fact = summarize(plan.units, plan.people);
     const planFact = fact.departments.map((d) => ({ department: d.department, planned: d.planned, filled: d.filled, unplaced: d.unplaced }));
+    // The plan line of the chart is the headcount of the APPROVED staff plan (budget) of each year: the staff table's total number of places.
+    // A year whose plan is not approved has no plan line (nothing is typed by hand any more).
     const targets: Record<string, number> = {};
-    for (const t of (await db.prepare("SELECT month,target FROM headcount_targets WHERE company_id=? ORDER BY month").bind(id).all<{ month: string; target: number }>().catch(() => ({ results: [] as { month: string; target: number }[] }))).results) targets[t.month] = t.target;
+    const plannedTotal = fact.departments.reduce((sum, d) => sum + d.planned, 0);
+    const thisYear = new Date().getFullYear();
+    for (const y of [thisYear - 1, thisYear, thisYear + 1])
+      if ((await yearPlanState(String(y))).status === "approved") for (let m = 1; m <= 12; m++) targets[`${y}-${String(m).padStart(2, "0")}`] = plannedTotal;
     const units = new Map(fact.departments.map((d) => [d.department, d.units]));
     return ok({ series, forecast: forecast(series, 3, 6), planFact: planFact.map((r) => ({ ...r, units: units.get(r.department) || 0 })), alerts: [...targetAlerts(series, targets), ...planFactAlerts(planFact)], planned: fact.total.planned, filled: fact.total.filled, targets, canPlan: canAct("staff") });
   }

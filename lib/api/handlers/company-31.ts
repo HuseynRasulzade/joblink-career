@@ -42,7 +42,12 @@ export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAc
     const unit = unitInput(b);
     if (!unit.department && !unit.position) throw new HttpError(400, "Departamenti və ya vəzifəni yazın.");
     if (!Number.isFinite(unit.planned)) throw new HttpError(400, "Ştat sayı düzgün deyil.");
-    const unitId = str(b.id, 100);
+    let unitId = str(b.id, 100);
+    // The same branch, department, section and position is one row: saving it again changes that row instead of adding a second one.
+    if (!unitId) {
+      const same = (await loadPlanData(db, id)).units.find((u) => [["branch", unit.branch], ["department", unit.department], ["section", unit.section], ["position", unit.position]].every(([k, v]) => String((u as Record<string, unknown>)[k] || "").trim().toLocaleLowerCase("az") === String(v || "").trim().toLocaleLowerCase("az")));
+      if (same) unitId = same.id;
+    }
     const unitProblem = await staffBandProblem(db, id, [{ ...unit, id: unitId }]);
     if (unitProblem) throw new HttpError(409, unitProblem);
     if (await planLocked()) {

@@ -112,7 +112,8 @@ test("placeProblem: a full position refuses a new person; free, unnamed and othe
   const cand = { id: "", department: "Maliyyə", section: "Mühasibatlıq", position: "Mühasib" };
   assert.equal(placeProblem(units, [person("a")], cand), "");
   assert.match(placeProblem(units, [person("a"), person("b")], cand), /2 yer planlaşdırılıb/);
-  assert.equal(placeProblem(units, [person("a"), person("b")], { ...cand, position: "Kassir" }), "");
+  assert.match(placeProblem(units, [person("a")], { ...cand, position: "Kassir" }), /vəzifəsi yoxdur/);
+  assert.equal(placeProblem([], [], cand), "");
   assert.match(placeProblem(units, [], { ...cand, section: "Kredit" }), /belə şöbə/);
   assert.equal(placeProblem(units, [person("a"), person("b", { status: "left" })], cand), "");
 });

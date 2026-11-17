@@ -182,7 +182,7 @@ function Summary({ year, version, go, notify }: { year: string; version: number;
       <div className="panel">
         <b>Harada nə yazılır?</b>
         <ul style={{ paddingLeft: 18, margin: "6px 0 0" }}>
-          <li><button type="button" className="text-button" onClick={() => go("headcount")}>İşçi sayı planı</button>: aylıq hədəf say, departament planı, qrafikdə plan xətti.</li>
+          <li><button type="button" className="text-button" onClick={() => go("headcount")}>İşçi sayı planı</button>: ştat planını qurmaq (filial, departament, şöbə, vəzifə, say, maaş həddi); qrafikdəki plan xətti təsdiqlənmiş ştat planından gəlir.</li>
           <li><button type="button" className="text-button" onClick={() => go("staff")}>Ştat cədvəli</button>: departament, vəzifə, say və maaş həddi (öz təsdiq qaydası ilə).</li>
           <li><button type="button" className="text-button" onClick={() => go("budget")}>Büdcə</button>: əmək haqqı, təlim və bütün HR xərc növləri, departament və ay üzrə.</li>
           <li><button type="button" className="text-button" onClick={() => go("expenses")}>Xərclər</button>: sertifikat, tədbir, hədiyyə, tibbi, geyim, işə qəbul və digər xərclər; yaz, təsdiqlə, ödə.</li>

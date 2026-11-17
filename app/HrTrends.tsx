@@ -1,6 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { linearTargets } from "@/lib/hr-trends";
+import { useCallback, useEffect, useState } from "react";
 
 type Notify = (message: string) => void;
 type Series = { month: string; headcount: number; joined: number; left: number; turnover: number };
@@ -48,7 +47,7 @@ function Chart({ series, forecast, targets }: { series: Series[]; forecast: Data
           <text x={x(series.length + i)} y={H - PAD + 16} fontSize={10} textAnchor="middle" fill="currentColor" opacity={0.7}>{f.month.slice(2)}</text>
         </g>
       ))}
-      <text x={PAD} y={H + 75} fontSize={11} fill="currentColor">Yaşıl: işə qəbul · Qırmızı: çıxış · Qırıq xətt: proqnoz · Narıncı nöqtəli xətt: plan</text>
+      <text x={PAD} y={H + 75} fontSize={11} fill="currentColor">Yaşıl: işə qəbul · Qırmızı: çıxış · Qırıq xətt: proqnoz · Narıncı nöqtəli xətt: plan (təsdiqlənmiş ştat cəmi)</text>
     </svg>
   );
 }
@@ -80,77 +79,6 @@ async function post(path: string, body: unknown) {
 }
 
 // The plan of a year: one figure for each month, or a year-end figure spread in a straight line from today's number.
-function PlanEditor({ data, notify, onSaved, year, locked }: { data: Data; notify: Notify; onSaved: () => void; year: string; locked: boolean }) {
-  const now = data.series[data.series.length - 1]?.month || new Date().toISOString().slice(0, 7);
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [end, setEnd] = useState("");
-  const [busy, setBusy] = useState(false);
-  const months = useMemo(() => Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`), [year]);
-  const shown = (m: string) => (values[m] !== undefined ? values[m] : data.targets[m] !== undefined ? String(data.targets[m]) : "");
-  const current = data.series[data.series.length - 1]?.headcount ?? 0;
-  function spread() {
-    const target = Number(end);
-    if (!Number.isFinite(target) || target < 0) return notify("İlin sonuna hədəf işçi sayını yazın.");
-    const from = year === now.slice(0, 4) ? now : `${year}-01`;
-    const start = year === now.slice(0, 4) ? current : data.targets[`${Number(year) - 1}-12`] ?? current;
-    const next: Record<string, string> = { ...values };
-    for (const t of linearTargets(start, target, from, `${year}-12`)) next[t.month] = String(t.target);
-    setValues(next);
-  }
-  async function save() {
-    const list = months.filter((m) => values[m] !== undefined).map((m) => ({ month: m, target: values[m] === "" ? null : Number(values[m]) }));
-    if (!list.length) return notify("Dəyişiklik yoxdur.");
-    setBusy(true);
-    try {
-      await post("company/hr-trends/targets", { targets: list });
-      notify(`${year} planı saxlanıldı.`);
-      setValues({});
-      onSaved();
-    } catch (error) {
-      notify((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function clearYear() {
-    if (!window.confirm(`${year}-ci ilin bütün aylıq işçi sayı planı silinsin?`)) return;
-    setBusy(true);
-    try {
-      await post("company/hr-trends/targets", { targets: months.filter((m) => data.targets[m] !== undefined).map((m) => ({ month: m, target: null })) });
-      notify(`${year} planı silindi.`);
-      setValues({});
-      onSaved();
-    } catch (error) {
-      notify((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div className="panel">
-      <h4 style={{ marginTop: 0 }}>Planı təyin et: aylıq hədəf işçi sayı</h4>
-      <p className="muted">Hər ay üçün şirkətdə olmalı işçi sayını yazın. Plan qrafikdə narıncı xətt kimi görünür; faktiki say plandan 5%-dən çox (ən azı 1 nəfər) kənara çıxanda xəbərdarlıq çıxır.</p>
-      <div className="admin-actions" style={{ flexWrap: "wrap" }}>
-        <b>{year}</b>
-        <input inputMode="numeric" aria-label="İlin sonuna hədəf" placeholder={`Dekabr hədəfi (indi ${current})`} style={{ width: 190 }} value={end} onChange={(e) => setEnd(e.target.value)} />
-        <button type="button" className="secondary" disabled={locked} onClick={spread}>Bərabər paylaşdır</button>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 8, margin: "10px 0", maxWidth: 720 }}>
-        {months.map((m) => (
-          <label key={m} style={{ display: "grid", gap: 2, fontSize: 12, minWidth: 0 }}>
-            {m.slice(5)}. ay
-            <input inputMode="numeric" aria-label={`${m} planı`} style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }} value={shown(m)} disabled={locked} onChange={(e) => setValues({ ...values, [m]: e.target.value })} />
-          </label>
-        ))}
-      </div>
-      <div className="admin-actions">
-        <button type="button" className="primary" disabled={busy || locked} onClick={() => void save()}>Planı saxla</button>
-        <button type="button" className="secondary" disabled={busy || locked || !months.some((m) => data.targets[m] !== undefined)} onClick={() => void clearYear()}>{year} planını sil</button>
-      </div>
-    </div>
-  );
-}
-
 // A department's own plan, changed on the spot when it is one row of the staff table (more rows are changed in the table).
 function DeptPlan({ row, notify, onSaved }: { row: Data["planFact"][number]; notify: Notify; onSaved: () => void }) {
   const [value, setValue] = useState(String(row.planned));
@@ -172,7 +100,7 @@ function DeptPlan({ row, notify, onSaved }: { row: Data["planFact"][number]; not
   );
 }
 
-export default function HrTrends({ notify, editable = false, locked = false, year, onOpenPlan }: { notify: Notify; editable?: boolean; locked?: boolean; year?: string; onOpenPlan?: () => void }) {
+export default function HrTrends({ notify, editable = false, onOpenPlan }: { notify: Notify; editable?: boolean; locked?: boolean; year?: string; onOpenPlan?: () => void }) {
   const [data, setData] = useState<Data | null>(null);
   const load = useCallback(() => {
     fetch("/api/joblink/company/hr-trends", { credentials: "same-origin", cache: "no-store" })
@@ -196,8 +124,17 @@ export default function HrTrends({ notify, editable = false, locked = false, yea
         <div className="panel" style={{ flex: "1 1 140px" }}><small className="muted">3 aya proqnoz</small><div style={{ fontSize: 22, fontWeight: 700 }}>{data.forecast[data.forecast.length - 1]?.headcount ?? "—"}</div></div>
       </div>
       <div className="panel"><Chart series={data.series} forecast={data.forecast} targets={data.targets} /></div>
-      {data.canPlan && editable && <PlanEditor data={data} notify={notify} onSaved={load} year={year || (data.series[data.series.length - 1]?.month || new Date().toISOString().slice(0, 7)).slice(0, 4)} locked={locked} />}
-      {data.canPlan && !editable && onOpenPlan && <div className="panel"><b>Plan harada dəyişdirilir?</b> <span className="muted">Aylıq hədəf işçi sayı, ştat və büdcə bir yerdə, «Plan və fakt» bölməsində yazılır, silinir və təsdiqlənir.</span> <button type="button" className="secondary" onClick={onOpenPlan}>Plan və fakt bölməsinə keç</button></div>}
+      {data.canPlan && editable && (
+        <div className="panel">
+          <b>Plan xətti təsdiqlənmiş ştat planından (büdcədən) gəlir.</b>{" "}
+          <span className="muted">
+            {Object.keys(data.targets).length
+              ? `Qrafikdə narıncı xətt təsdiqlənmiş planın ştat cəmidir (${Object.values(data.targets)[0]} nəfər). Say dəyişəndə plan yenidən təsdiqlənməlidir.`
+              : "Bu il üçün plan hələ təsdiqlənməyib, ona görə qrafikdə plan xətti yoxdur. Ştat planını qurub yuxarıdakı «Planı təsdiqlə» (və ya «Təsdiqə göndər») düyməsini basın."}
+          </span>
+        </div>
+      )}
+      {data.canPlan && !editable && onOpenPlan && <div className="panel"><b>Plan harada dəyişdirilir?</b> <span className="muted">Ştat planı və büdcə bir yerdə, «Plan və fakt» bölməsində yazılır, silinir və təsdiqlənir.</span> <button type="button" className="secondary" onClick={onOpenPlan}>Plan və fakt bölməsinə keç</button></div>}
       <h4>Plan-fakt: ştat cədvəli və faktiki işçi</h4>
       {!!data.alerts.length && (
         <ul style={{ paddingLeft: 18 }}>

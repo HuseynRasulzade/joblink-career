@@ -201,3 +201,10 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - Bölmənin altında plandakı bütün sətirlər, cəmi nəfər, tam ştat vahidi və aylıq maaş həddi görünür; «Cəmi … dekabr hədəfi kimi yaz» ştat cəmini ilin dekabr hədəfi edir, sonra aşağıdakı «Bərabər paylaşdır» ilə aylara bölünür.
 - Ştat cədvəli (Filial → Departament → Şöbə → Vəzifə) bu sətirlərdən qurulur: plan, ştat növü, maaş həddi, işləyənlər, boş yerlər və «Vakansiya yarat».
 - **Say limiti (2026-11-17):** ştat sətri yazıldıqdan sonra həmin departament/şöbə/vəzifə üçün yer qalmayıbsa, yeni işçi əlavə etmək (əl ilə), iş təklifi göndərmək (gözləyən təkliflər də yer tutur), işə qəbul etmək və Excel idxalı 409 ilə rədd olunur (`placeProblem`, `assertStaffPlace`). Cədvəldə adı olmayan vəzifə məhdudlaşmır. Maaş həddi qaydası əvvəlki kimi qalır (əl ilə, təklif, idxal, vakansiya).
+
+## 21. Plan xətti təsdiqlənmiş büdcədən; say limiti sərtləşdi (2026-11-17)
+
+- «İşçi sayı planı» səhifəsində aylıq hədəf yazmaq bölməsi **ləğv edildi**. Qrafikdəki narıncı plan xətti həmin ilin **təsdiqlənmiş planının** ştat cəmidir (hər ay eyni rəqəm); plan təsdiqlənməyibsə xətt yoxdur. Planı təsdiqə göndərmək üçün büdcə və ya ştat sətri olması kifayətdir (`company/plan-fact/submit` ştat sətirlərini də sayır).
+- **Plana yazılmamış vəzifə:** ştat cədvəlində sətir varsa, orada adı olmayan vəzifəyə işçi götürmək olmur (əl ilə, təklif, işə qəbul, Excel). Cədvəli hələ boş olan şirkət məhdudlaşmır.
+- **Say artırmaq:** eyni filial, departament, şöbə və vəzifə yenidən yazılanda yeni sətir yaranmır, mövcud sətir yenilənir; qurucuda hər sətirdə «Düzəlt» və «Sil» var.
+- Plan kilidlidirsə (təsdiqlənibsə), dəyişiklik direktorun təsdiqinə gedir: bu, nəzarət üçün qalır.

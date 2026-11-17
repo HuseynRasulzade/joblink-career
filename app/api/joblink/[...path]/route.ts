@@ -2481,7 +2481,7 @@ async function route(request: Request) {
   const employeeDocsDenied =
     "İşçi sənədlərini yalnız HR, direktor və hesab sahibi idarə edə bilər.";
     {
-    const r = await handle_company_33({ AWAY_CODES, EMPLOYEE_DOC_CATEGORIES, assertYearOpen, auditView, canAct, db, employeeDocsDenied, id, memberGrants, memberRole, path, request, requestUrl, requirePermission, userId });
+    const r = await handle_company_33({ AWAY_CODES, EMPLOYEE_DOC_CATEGORIES, assertYearOpen, auditView, canAct, db, employeeDocsDenied, id, memberGrants, memberRole, path, request, requestUrl, requirePermission, userId, yearPlanState });
     if (r) return r;
   }
     {
