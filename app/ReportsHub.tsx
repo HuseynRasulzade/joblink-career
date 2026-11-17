@@ -83,6 +83,90 @@ const REPORTS: Report[] = [
   { id: "trends", group: "Kadr və əmək haqqı", title: "Kadr dinamikası, proqnoz və plan-fakt", description: "Son 12 ayda işçi sayı, işə qəbul və çıxış qrafiki, 3 aylıq proqnoz, ştat cədvəli ilə faktiki işçi müqayisəsi və xəbərdarlıqlar.", need: "reports", render: ({ notify }) => <HrTrends notify={notify} onOpenPlan={openPlan} /> },
   { id: "workforce", group: "Kadr və əmək haqqı", title: "İşçi axını və dövriyyə", description: "İşə qəbul, ayrılma, işçi sayı və dövriyyə faizi; dövr üzrə süzgəc.", need: "reports" },
 
+  // ---- The plan and the staff table ----
+  { id: "staff-plan", group: "Ştat planı və fakt", title: "Ştat planı sətir-sətir", description: "Filial, departament, şöbə, vəzifə və pillə üzrə plan, faktiki işçi, boş yer, dövr, maaş həddi və aylıq xərc; boş yeri olanları və aktiv olmayan sətirləri ayırmaq olar.", need: "payroll", filters: [DEPARTMENT, { id: "state", label: "Sətirlər", type: "select", options: [["free", "Boş yeri olanlar"], ["full", "Dolu olanlar"], ["inactive", "Aktiv olmayan (gələcək və ya bitmiş)"]] }],
+    run: async (f) => {
+      const d = await get<{ rows: { branch?: string; department: string; section: string; position: string; level?: string; rate: number; planned: number; startMonth?: string; endMonth?: string; salaryMin: number; salaryMax: number; filled: number; free: number; active?: boolean; costMax?: number }[]; total: { planned: number; filled: number; planCostMax?: number } }>("company/staff");
+      const rate = { 1: "Tam ştat", 0.75: "3/4 ştat", 0.5: "Yarım ştat", 0.25: "1/4 ştat" } as Record<number, string>;
+      const rows = d.rows.filter((r) => (!f.department || r.department === f.department) && (!f.state || (f.state === "free" ? r.free > 0 && r.active !== false : f.state === "full" ? r.free <= 0 : r.active === false)));
+      return {
+        columns: ["Filial", "Departament", "Şöbə", "Vəzifə", "Pillə", "Ştat növü", "Plan", "Faktiki", "Boş", "Dövr", "Maaş həddi (min)", "Maaş həddi (maks)", "Aylıq xərc (maks.)", "Vəziyyət"],
+        rows: rows.map((r) => [r.branch || "Baş ofis", r.department, r.section, r.position, r.level || "", rate[r.rate] || "Tam ştat", r.planned, r.filled, Math.max(0, r.free), r.startMonth || r.endMonth ? `${r.startMonth || "…"} – ${r.endMonth || "…"}` : "il boyu", money(r.salaryMin), money(r.salaryMax || r.salaryMin), money(r.costMax || 0), r.active === false ? "Aktiv deyil" : r.free > 0 ? "Boş yer var" : r.free < 0 ? "Plandan artıq" : "Dolu"]),
+        totals: ["CƏMİ", "", "", "", "", "", money(rows.reduce((t, r) => t + r.planned, 0)), money(rows.reduce((t, r) => t + r.filled, 0)), money(rows.reduce((t, r) => t + Math.max(0, r.free), 0)), "", "", "", money(rows.reduce((t, r) => t + (r.costMax || 0), 0)), ""],
+      };
+    } },
+  { id: "staff-cost", group: "Ştat planı və fakt", title: "Ştat xərci: plan və fakt (departament üzrə)", description: "Hər departamentin plan üzrə maksimum aylıq maaş fondu (maaş həddi × say), faktiki işçilərin gross maaşı və fərq; plan xərci işəgötürən payları ilə.", need: "payroll", filters: [DEPARTMENT],
+    run: async (f) => {
+      const d = await get<{ rows: { department: string; rate: number; planned: number; salaryMin: number; salaryMax: number; costMax?: number; active?: boolean; people: { gross?: number | null }[] }[] }>("company/staff");
+      const by = new Map<string, { planned: number; planGross: number; planCost: number; factGross: number; people: number }>();
+      for (const r of d.rows) {
+        if (r.active === false) continue;
+        const cur = by.get(r.department) || { planned: 0, planGross: 0, planCost: 0, factGross: 0, people: 0 };
+        cur.planned += r.planned;
+        cur.planGross += (r.salaryMax || r.salaryMin) * r.planned * (r.rate || 1);
+        cur.planCost += r.costMax || 0;
+        for (const p of r.people) { cur.factGross += p.gross || 0; cur.people += 1; }
+        by.set(r.department, cur);
+      }
+      const rows = [...by.entries()].filter(([name]) => !f.department || name === f.department).sort((a, b) => a[0].localeCompare(b[0], "az"));
+      const sum = (pick: (v: { planned: number; planGross: number; planCost: number; factGross: number; people: number }) => number) => money(rows.reduce((t, [, v]) => t + pick(v), 0));
+      return {
+        note: "Plan: maaş həddinin yuxarı sərhədi (həddi olmayan sətir 0 sayılır). Faktiki: işçi kartındakı gross maaş.",
+        columns: ["Departament", "Plan (nəfər)", "Faktiki (nəfər)", "Plan fondu (gross)", "Faktiki fond (gross)", "Fərq (plan − fakt)", "Plan xərci (işəgötürən payları ilə)"],
+        rows: rows.map(([name, v]) => [name || "Departamentsiz", v.planned, v.people, money(v.planGross), money(v.factGross), money(v.planGross - v.factGross), money(v.planCost)]),
+        totals: ["CƏMİ", sum((v) => v.planned), sum((v) => v.people), sum((v) => v.planGross), sum((v) => v.factGross), sum((v) => v.planGross - v.factGross), sum((v) => v.planCost)],
+      };
+    } },
+  { id: "staff-issues", group: "Ştat planı və fakt", title: "Ştat uyğunsuzluqları", description: "Ştatda yeri olmayan işçilər və maaşı ştat həddindən kənar olanlar: düzəldilməsi lazım olan siyahı.", need: "payroll", filters: [DEPARTMENT, { id: "kind", label: "Növ", type: "select", options: [["unplaced", "Ştatda yeri yoxdur"], ["band", "Maaşı həddən kənar"]] }],
+    run: async (f) => {
+      const d = await get<{ unplaced: { name: string; department: string; section: string; position: string }[]; rows: { department: string; position: string; salaryMin: number; salaryMax: number; people: { name: string; gross?: number | null; outside?: string }[] }[] }>("company/staff");
+      const out: Cell[][] = [];
+      if (!f.kind || f.kind === "unplaced") for (const p of d.unplaced) if (!f.department || p.department === f.department) out.push(["Ştatda yeri yoxdur", p.name, p.department, p.position, "", "", "Ştat sətri əlavə edin və ya vəzifəni düzəldin"]);
+      if (!f.kind || f.kind === "band") for (const r of d.rows) for (const p of r.people) if (p.outside && (!f.department || r.department === f.department)) out.push(["Maaşı həddən kənar", p.name, r.department, r.position, p.gross ?? "", `${money(r.salaryMin)} – ${money(r.salaryMax || r.salaryMin)}`, p.outside === "above" ? "Maaş həddən yuxarıdır" : "Maaş həddən aşağıdır"]);
+      return { columns: ["Növ", "İşçi", "Departament", "Vəzifə", "Maaş (gross)", "Ştat həddi", "Nə etməli"], rows: out };
+    } },
+  { id: "plan-exceptions", group: "Ştat planı və fakt", title: "Plandan kənar sorğular və təkliflər", description: "Plandan kənar yer, departament təklifi, maaş həddi və işçi maaş artımı sorğuları: kim, nə vaxt, səbəb və qərar. İlkin plan ilə hazırkı planın fərqi də göstərilir.", need: "payroll", filters: [...PERIOD, { id: "status", label: "Vəziyyət", type: "select", options: [["pending", "Təsdiq gözləyir"], ["approved", "Təsdiqlənib / tətbiq olunub"], ["rejected", "Rədd edilib"]] }],
+    run: async (f) => {
+      const d = await get<{ items: { created: string; subject: string; requested_by_name: string; status: string; decided_by_name: string; note: string }[]; summary?: { year: string; baselinePlanned: number | null; planned: number; requests: number; approved: number } }>("company/staff/exceptions");
+      const label: Record<string, string> = { pending: "Təsdiq gözləyir", approved: "Təsdiqlənib / tətbiq olunub", rejected: "Rədd edilib", returned: "Geri qaytarılıb", cancelled: "Ləğv edilib" };
+      const rows = d.items.filter((r) => inRange(r.created, f.from, f.to) && (!f.status || r.status === f.status));
+      const s = d.summary;
+      return {
+        note: s ? `${s.year}: ilkin plan ${s.baselinePlanned ?? "təsdiqlənməyib"}, hazırkı plan ${s.planned}${s.baselinePlanned !== null ? ` (${s.planned - s.baselinePlanned >= 0 ? "+" : ""}${s.planned - s.baselinePlanned})` : ""}; bu il ${s.requests} sorğu, ${s.approved} tətbiq/təsdiq.` : undefined,
+        columns: ["Tarix", "Sorğu", "Göndərən", "Vəziyyət", "Qərar verən", "Qeyd"],
+        rows: rows.map((r) => [dmy(r.created), r.subject, r.requested_by_name, label[r.status] || r.status, r.decided_by_name, r.note]),
+      };
+    } },
+  { id: "plan-exits", group: "Ştat planı və fakt", title: "Gözlənilən çıxışlar", description: "Çıxış tarixi təyin olunmuş və ya müddətli müqaviləsi bitən işçilər: bu yerlər üçün əvvəlcədən vakansiya açmaq olar.", need: "reports", filters: [DEPARTMENT, { id: "within", label: "Nə qədər irəli", type: "select", options: [["30", "30 gün"], ["90", "90 gün"], ["180", "180 gün"]], initial: "90" }],
+    run: async (f) => {
+      const d = await get<{ items: { name: string; department: string; position: string; date: string; kind: string }[] }>("company/reports/expected-exits");
+      const limit = new Date(Date.now() + Number(f.within || "90") * 86400000).toISOString().slice(0, 10);
+      const rows = d.items.filter((r) => r.date <= limit && (!f.department || r.department === f.department));
+      return { columns: ["İşçi", "Departament", "Vəzifə", "Tarix", "Səbəb"], rows: rows.map((r) => [r.name, r.department, r.position, dmy(r.date), r.kind]) };
+    } },
+  { id: "plan-fill", group: "Ştat planı və fakt", title: "Yerin dolma müddəti", description: "Vakansiyanın açıldığı gündən işçi kartının yarandığı günə qədər keçən müddət (platforma üzərindən işə götürülənlər).", need: "reports", filters: [DEPARTMENT],
+    run: async (f) => {
+      const d = await get<{ items: { name: string; department: string; position: string; title: string; opened: string; hired: string; days: number }[] }>("company/reports/fill-time");
+      const rows = d.items.filter((r) => !f.department || r.department === f.department);
+      const avg = rows.length ? Math.round(rows.reduce((t, r) => t + r.days, 0) / rows.length) : 0;
+      return { note: rows.length ? `Orta müddət: ${avg} gün (${rows.length} işə qəbul).` : undefined, columns: ["İşçi", "Departament", "Vəzifə", "Vakansiya açıldı", "İşə qəbul", "Gün"], rows: rows.map((r) => [r.name, r.department, r.position, dmy(r.opened), dmy(r.hired), r.days]) };
+    } },
+  { id: "approvals-stats", group: "Təsdiqlər və jurnal", title: "Təsdiqlər: say və gözləmə müddəti", description: "Gözləyən, təsdiqlənən və rədd edilən sorğular, orta qərar müddəti və qərar verənlər üzrə bölgü.", need: "approve-hr",
+    run: async () => {
+      const d = await get<{ pending: number; info: number; approved: number; rejected: number; avgHours: number; byDecider: { name: string; count: number; avgHours: number }[] }>("company/approvals/stats");
+      return {
+        note: `Gözləyən: ${d.pending} · məlumat gözləyən: ${d.info} · təsdiqlənən: ${d.approved} · rədd edilən: ${d.rejected} · orta qərar müddəti: ${d.avgHours} saat.`,
+        columns: ["Qərar verən", "Qərar sayı", "Orta müddət (saat)"],
+        rows: d.byDecider.map((x) => [x.name, x.count, x.avgHours]),
+      };
+    } },
+  { id: "company-audit", group: "Təsdiqlər və jurnal", title: "Şirkət əməliyyat jurnalı", description: "Komanda üzvlərinin son əməliyyatları (maaş, ştat, təsdiq, sənəd, idxal): kim, nə vaxt, nəyi dəyişib.", need: "audit", filters: [{ id: "q", label: "Axtarış", type: "text" }],
+    run: async (f) => {
+      const d = await get<{ events: { action: string; target: string; detail: string; created: string; actor: string }[] }>("company/audit");
+      const rows = d.events.filter((e) => !f.q || `${e.action} ${e.detail} ${e.actor}`.toLowerCase().includes(f.q.toLowerCase()));
+      return { columns: ["Tarix", "Kim", "Əməliyyat", "Təfərrüat"], rows: rows.map((e) => [dmy(e.created), e.actor, e.action, e.detail]) };
+    } },
+
   { id: "attendance", group: "Davamiyyət və vaxt", title: "Davamiyyət xülasəsi", description: "Ay üzrə hər işçinin norma, işlənmiş gün və məzuniyyət, xəstəlik, yoxluq günləri.", need: "attendance", filters: [{ id: "month", label: "Ay", type: "month" }, DEPARTMENT],
     run: async (f) => {
       const d = await get<{ employees: { name: string; position: string; department: string; summary: { norm: number; worked: number; byCode: Record<string, number>; hours: number } }[] }>(`company/attendance?month=${f.month}`);
@@ -168,7 +252,7 @@ const REPORTS: Report[] = [
     } },
 ];
 
-const GROUP_ORDER = ["İşə qəbul", "Kadr və əmək haqqı", "Davamiyyət və vaxt", "İnkişaf", "Kadr əməliyyatları"];
+const GROUP_ORDER = ["İşə qəbul", "Kadr və əmək haqqı", "Ştat planı və fakt", "Davamiyyət və vaxt", "İnkişaf", "Kadr əməliyyatları", "Təsdiqlər və jurnal"];
 
 function ReportFrame({ report, notify, onBack }: { report: Report; notify: Notify; onBack: () => void }) {
   const specs = useMemo(() => report.filters || [], [report.filters]);

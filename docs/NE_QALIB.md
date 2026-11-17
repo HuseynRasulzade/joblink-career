@@ -246,3 +246,9 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Ümumi baxış («Bu gün» siyahısı, Kadr rejimi):** ştatda yeri olmayan işçi, maaşı ştat həddindən kənar işçi, müddəti bitmiş müvəqqəti yerdə işçi, boş ştat yeri olub vakansiyası olmayan departamentlər, gözləyən plandan kənar sorğu/təklif, ilin planı təsdiqlənməyib, minimumdan aşağı maaş həddi.
 - **Ümumi baxış (İşə qəbul rejimi, «Diqqət tələb edir»):** boş ştat yeri olan, amma vakansiya açılmayan departamentlər.
 - Excel idxalının önizləmə pəncərələri (ştat cədvəli və plan-fakt faylı) brauzerdə yoxlandı: yeni sütunlar (filial, pillə, dövr) düzgün göstərilir.
+
+## 27. Hesabatlar: ştat planı və təsdiq hesabatları (2026-11-17)
+
+- **Yeni qrup «Ştat planı və fakt»:** Ştat planı sətir-sətir (filial, departament, şöbə, vəzifə, pillə, plan, faktiki, boş, dövr, maaş həddi, aylıq xərc), Ştat xərci plan/fakt (departament üzrə), Ştat uyğunsuzluqları (ştatsız və hədd kənarı), Plandan kənar sorğular və təkliflər (ilkin və hazırkı plan fərqi ilə), Gözlənilən çıxışlar, Yerin dolma müddəti.
+- **Yeni qrup «Təsdiqlər və jurnal»:** Təsdiqlər (say, orta qərar müddəti, qərar verənlər), Şirkət əməliyyat jurnalı (icazəsi olanlar üçün).
+- Hamısında Excel və çap var; serverdə iki yeni oxuma endpointi: `company/reports/expected-exits`, `company/reports/fill-time`.
