@@ -47,3 +47,10 @@ test("duplicate numbers are per year and the quick filters pick the right orders
   assert.ok(effectWaiting(o)); assert.ok(matchesQuick(o, "unapplied", dup)); assert.ok(matchesQuick(o, "duplicate", dup));
   assert.ok(!matchesQuick({ ...o, effect: { supported: true, status: "applied" } }, "unapplied", dup));
 });
+
+import { orderDigestText } from "../lib/order-digest-text.ts";
+test("orderDigestText: nothing to say means no note", () => {
+  assert.equal(orderDigestText({ stale: 0, oldestDays: 0, returned: 0 }), null);
+  const t = orderDigestText({ stale: 2, oldestDays: 9, returned: 1 });
+  assert.ok(t.body.includes("2 əmr") && t.body.includes("9 gün") && t.body.includes("1 əmr geri"));
+});

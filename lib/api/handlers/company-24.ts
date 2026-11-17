@@ -86,6 +86,28 @@ export async function handle_company_24(c: Pick<RouteCtx, "applyDueOrderEffects"
     const sheet = await payrollRows(payrollMonth().raw);
     return ok(auditorOnly ? { ...sheet, rows: sheet.rows.map((r) => ({ ...r, iban: r.iban ? "••••" : "", fin: "", cardNumber: "" })) } : sheet);
   }
+  // The year at a glance: for every approved month, what each employee earned and paid in tax and insurance.
+  if (request.method === "GET" && path === "company/payroll/annual") {
+    requirePermission("salaries", "İllik yekunu yalnız əmək haqqı icazəsi olan şəxs görə bilər.");
+    const year = Number(str(requestUrl.searchParams.get("year"), 4)) || new Date().getUTCFullYear();
+    if (year < 2000 || year > 2100) throw new HttpError(400, "İli düzgün seçin.");
+    await auditView("view-payroll-annual", String(year));
+    const last = year === new Date().getUTCFullYear() ? new Date().getUTCMonth() + 1 : 12;
+    const months = Array.from({ length: last }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
+    const sheets = await Promise.all(months.map((m) => payrollRows(m).then((sheet) => ({ month: m, sheet })).catch(() => null)));
+    const approvedMonths: string[] = [];
+    const people = new Map<string, { id: string; name: string; position: string; department: string; months: Record<string, { gross: number; incomeTax: number; insurance: number; net: number }> }>();
+    for (const item of sheets) {
+      if (!item || item.sheet.status !== "approved") continue;
+      approvedMonths.push(item.month);
+      for (const r of item.sheet.rows) {
+        const person = people.get(r.employeeId) || { id: r.employeeId, name: r.name, position: r.position, department: r.department, months: {} };
+        person.months[item.month] = { gross: r.result.gross, incomeTax: r.result.incomeTax, insurance: Math.round((r.result.employeeSocial + r.result.employeeUnemployment + r.result.employeeMedical) * 100) / 100, net: r.result.net };
+        people.set(r.employeeId, person);
+      }
+    }
+    return ok({ year, months: approvedMonths, notApproved: months.filter((m) => !approvedMonths.includes(m)), employees: [...people.values()].sort((a, b) => a.name.localeCompare(b.name, "az")) });
+  }
   if (request.method === "GET" && path === "company/payroll/workbook") {
     requirePermission("salaries", "Hesablama iş kitabını yalnız əmək haqqı icazəsi olan şəxs yükləyə bilər.");
     const { raw: monthRaw, year, month } = payrollMonth();

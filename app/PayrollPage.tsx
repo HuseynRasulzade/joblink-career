@@ -9,6 +9,7 @@ import { payslipHtml } from "@/lib/payslip-html";
 import { SheetImport } from "./StaffPages";
 import { WorkbookButtons, WorkbookImport } from "./PayrollWorkbook";
 import { checkPayroll } from "@/lib/payroll-check";
+import { createXlsxBook } from "@/lib/xlsx";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -71,6 +72,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const [view, setView] = useState<"sheet" | "report" | "bank" | "branches">("sheet");
   // The month before, to compare with; the table search and the "only unpaid" switch.
   const [previous, setPrevious] = useState<Row[] | null | undefined>(undefined);
+  const [previousStatus, setPreviousStatus] = useState<"draft" | "approved" | "">("");
   const [search, setSearch] = useState("");
   const [onlyOpen, setOnlyOpen] = useState(false);
   const notifyRef = useRef(notify);
@@ -85,9 +87,10 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   useEffect(load, [load]);
   useEffect(() => {
     setPrevious(undefined);
+    setPreviousStatus("");
     let live = true;
     // A month with no rows has no sheet to compare with.
-    request<Sheet>(`company/payroll?month=${shift(month, -1)}`).then((r) => { if (live) setPrevious(r.rows.length ? r.rows : null); }).catch(() => { if (live) setPrevious(null); });
+    request<Sheet>(`company/payroll?month=${shift(month, -1)}`).then((r) => { if (live) { setPrevious(r.rows.length ? r.rows : null); setPreviousStatus(r.rows.length ? r.status : ""); } }).catch(() => { if (live) setPrevious(null); });
     return () => { live = false; };
   }, [month]);
   async function act(path: string, body: Record<string, unknown>, done: string) {
@@ -95,6 +98,28 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       await request(path, { month, ...body });
       notify(done);
       load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  // The year's totals per employee as an Excel file: gross by month, then tax, insurance and net for the year.
+  async function annualExport() {
+    const year = Number(month.slice(0, 4));
+    try {
+      const data = await request<{ year: number; months: string[]; notApproved: string[]; employees: { name: string; position: string; department: string; months: Record<string, { gross: number; incomeTax: number; insurance: number; net: number }> }[] }>(`company/payroll/annual?year=${year}`);
+      if (!data.months.length) return notify(`${year} ilində təsdiqlənmiş ay yoxdur: illik yekun yalnız təsdiqlənmiş aylardan hazırlanır.`);
+      const sum = (e: (typeof data.employees)[number], key: "gross" | "incomeTax" | "insurance" | "net") => Math.round(data.months.reduce((t, m) => t + (e.months[m]?.[key] || 0), 0) * 100) / 100;
+      const bytes = createXlsxBook([
+        { name: "Gross aylar üzrə", headers: ["İşçi", "Vəzifə", "Departament", ...data.months, "İllik gross"], rows: data.employees.map((e) => [e.name, e.position, e.department, ...data.months.map((m) => e.months[m]?.gross || 0), sum(e, "gross")]) },
+        { name: "İllik yekun", headers: ["İşçi", "Vəzifə", "Departament", "Gross", "Gəlir vergisi", "Sığorta (işçi)", "Net"], rows: data.employees.map((e) => [e.name, e.position, e.department, sum(e, "gross"), sum(e, "incomeTax"), sum(e, "insurance"), sum(e, "net")]) },
+      ]);
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `emek-haqqi-illik-${year}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+      notify(`${data.months.length} təsdiqlənmiş ay${data.notApproved.length ? `; təsdiqlənməyən aylar daxil deyil: ${data.notApproved.join(", ")}` : ""}.`);
     } catch (error) {
       notify((error as Error).message);
     }
@@ -190,6 +215,9 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           <button type="button" className="secondary" onClick={() => setBenefits(true)}>
             Müavinət uçotu
           </button>
+          <button type="button" className="secondary" onClick={() => void annualExport()}>
+            İllik yekun (XLSX)
+          </button>
           <button type="button" className="secondary" onClick={() => setView("report")}>
             Hesablaşma hesabatı
           </button>
@@ -237,6 +265,12 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
             Təsdiqdən əvvəl yoxlama: {errorCount ? `${errorCount} xəta` : "xəta yoxdur"}, {review.findings.filter((f) => f.level === "warn").length} xəbərdarlıq, {review.findings.filter((f) => f.level === "info").length} məlumat
             {review.totals.change !== null ? ` · gross əvvəlki aya görə ${review.totals.change > 0 ? "+" : ""}${review.totals.change}% (${azn(review.totals.previousGross || 0)} → ${azn(review.totals.gross)})` : previous === undefined ? " · əvvəlki ay yüklənir…" : " · əvvəlki ayda cədvəl yoxdur"}
           </summary>
+          <ul className="muted" style={{ listStyle: "none", paddingLeft: 0 }} aria-label="Ay bağlama siyahısı">
+            <li>{previous === undefined ? "…" : previousStatus === "approved" || previous === null ? "✓" : "✗"} Əvvəlki ay təsdiqlənib{previous === null ? " (əvvəlki ayda cədvəl yoxdur)" : previousStatus !== "approved" && previous !== undefined ? ": təsdiqlənməmiş ay qalıb" : ""}</li>
+            <li>{sheet.settings.taxCheck?.confirmed ? "✓" : "✗"} Vergi parametrləri mühasib tərəfindən təsdiqlənib</li>
+            <li>{errorCount ? "✗" : "✓"} Yoxlamada xəta yoxdur{errorCount ? ` (${errorCount})` : ""}</li>
+            <li>{sheet.rows.some((r) => r.monthlySalary <= 0) ? "✗" : "✓"} Hər işçinin maaşı daxil edilib</li>
+          </ul>
           {review.findings.length ? (
             <ul>{review.findings.map((f, i) => <li key={i} className={f.level === "error" ? "danger-text" : undefined}><b>{f.level === "error" ? "Xəta" : f.level === "warn" ? "Diqqət" : "Qeyd"}:</b> {f.name} — {f.text}</li>)}</ul>
           ) : <p className="muted">Çatışmazlıq tapılmadı.</p>}
