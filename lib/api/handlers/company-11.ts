@@ -5,7 +5,8 @@ import { companyAudit } from "@/lib/api-core";
 import { deadlinesOf } from "@/lib/hr-deadlines";
 import { matchEmployee, parsePerfGoals } from "@/lib/sheet-imports";
 import { parseProfile } from "@/lib/employee-profile";
-import { ok } from "@/lib/api/shared";
+import { loadPlanData, ok } from "@/lib/api/shared";
+import { assignPeople, bandConflicts, summarize } from "@/lib/staff-plan";
 import type { RouteCtx } from "@/lib/api/ctx";
 
 export async function handle_company_11(c: Pick<RouteCtx, "dateOk" | "db" | "employeeRefs" | "id" | "path" | "request" | "requestUrl" | "requesterName" | "requirePermission" | "skillMatrix" | "tellEmployee" | "userId">): Promise<Response | undefined> {
@@ -187,6 +188,34 @@ export async function handle_company_11(c: Pick<RouteCtx, "dateOk" | "db" | "emp
       item("deadlines", "Sənəd və sertifikat müddəti 30 gün ərzində bitir", deadlines.length, "hr-people-ops", deadlines.some((d) => d.days < 0) ? "red" : "amber", deadlines.slice(0, 5).map((d) => `${d.employeeName}: ${d.what} — ${d.days < 0 ? "müddəti bitib" : `${d.days} gün`}`)),
       item("birthdays", "Yaxınlaşan ad günləri (14 gün)", upcoming.length, "hr-employees", "info", upcoming.slice(0, 6).map((p) => `${p.name}: ${p.md.slice(3)}.${p.md.slice(0, 2)}`)),
     ].filter((i) => i.count > 0);
+    // The plan: people with no place, pay outside a band, temporary places that ended, free places with no vacancy, requests out of the plan.
+    const month = today.slice(0, 7);
+    const plan = await loadPlanData(db, id);
+    if (plan.units.length) {
+      const summary = summarize(plan.units, plan.people);
+      const conflicts = bandConflicts(plan.units, plan.people);
+      const assigned = assignPeople(plan.units, plan.people);
+      const ended = plan.units.filter((u) => u.endMonth && u.endMonth < month && (assigned.byUnit.get(u.id)?.length || 0) > 0);
+      const openVacancies = new Map(((await db.prepare("SELECT lower(COALESCE(json_extract(data,'$.department'),'')) AS department, COUNT(*) AS n FROM jobs WHERE owner=? AND status IN ('published','pending_approval') GROUP BY 1").bind(id).all<{ department: string; n: number }>()).results || []).map((r) => [r.department, Number(r.n)]));
+      const idle = summary.departments.filter((d) => d.free > 0 && !(openVacancies.get(d.department.toLocaleLowerCase("az")) || 0));
+      const exceptions = (await db.prepare("SELECT subject FROM approval_requests WHERE company_id=? AND status IN ('pending','info') AND payload LIKE '%\"exception\"%' ORDER BY created DESC LIMIT 5").bind(id).all<{ subject: string }>()).results;
+      const exceptionCount = await count("SELECT COUNT(*) AS n FROM approval_requests WHERE company_id=? AND status IN ('pending','info') AND payload LIKE '%\"exception\"%'", id);
+      const year = today.slice(0, 4);
+      const planStatus = (await db.prepare("SELECT status FROM plan_year_state WHERE company_id=? AND year=?").bind(id, year).first<{ status: string }>().catch(() => null))?.status || "draft";
+      const planOpen = planStatus === "draft";
+      const lowPay = plan.units.filter((u) => u.salaryMax > 0 && u.salaryMin > 0 && u.salaryMin < 400);
+      items.push(
+        ...[
+          item("unplaced", "Ştatda yeri olmayan işçi", summary.unplaced.length, "hr-planfact", "amber", summary.unplaced.slice(0, 5).map((p) => `${(p as { name?: string }).name || ""}: ${[p.department, p.position].filter(Boolean).join(" / ") || "departamentsiz"}`)),
+          item("band", "Maaşı ştat həddindən kənar işçi", conflicts.length, "hr-planfact", "red", conflicts.slice(0, 5).map((c) => `${(c.person as { name?: string }).name || ""}: ${c.side === "above" ? "həddən yuxarı" : "həddən aşağı"}`)),
+          item("ended-units", "Müddəti bitmiş müvəqqəti yerdə işçi var", ended.length, "hr-planfact", "amber", ended.slice(0, 5).map((u) => `${u.position || u.department}: ${u.endMonth} ayında bitib`)),
+          item("idle-places", "Boş ştat yeri var, vakansiya açılmayıb", idle.length, "hr-jobs", "info", idle.slice(0, 5).map((d) => `${d.department || "Departamentsiz"}: ${d.free} boş yer`)),
+          item("plan-requests", "Plandan kənar sorğu və ya departament təklifi gözləyir", exceptionCount, "hr-approvals", "amber", exceptions.map((e) => e.subject)),
+          item("plan-draft", `${year} planı təsdiqlənməyib`, planOpen ? 1 : 0, "hr-planfact", "info", ["Plan təsdiqlənməyənədək qrafikdə plan xətti görünmür."]),
+          item("low-pay", "Maaş həddi ölkə minimumundan aşağı olan ştat sətri", lowPay.length, "hr-planfact", "amber", lowPay.slice(0, 5).map((u) => `${u.position || u.department}: ${u.salaryMin} AZN`)),
+        ].filter((i) => i.count > 0),
+      );
+    }
     return ok({ today, items });
   }
   if (request.method === "GET" && path === "company/skill-matrix") {

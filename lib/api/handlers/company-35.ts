@@ -8,7 +8,8 @@ import { comparePeriods, inPeriod, monthlyTrend, pctChange, reachedFunnel } from
 import { conversionPercent } from "@/lib/job-views";
 import { normalizeFrequency } from "@/lib/digest";
 import { sourceBreakdown } from "@/lib/sources";
-import { normalizedJobRecord, normalizedProfileRecord, ok } from "@/lib/api/shared";
+import { loadPlanData, normalizedJobRecord, normalizedProfileRecord, ok } from "@/lib/api/shared";
+import { summarize } from "@/lib/staff-plan";
 import type { RouteCtx } from "@/lib/api/ctx";
 
 export async function handle_company_35(c: Pick<RouteCtx, "canAct" | "canDecideStep" | "customSkillLabels" | "db" | "id" | "memberGrants" | "memberRole" | "path" | "reportScope" | "request" | "requestUrl" | "requirePermission" | "userId">): Promise<Response | undefined> {
@@ -157,6 +158,15 @@ export async function handle_company_35(c: Pick<RouteCtx, "canAct" | "canDecideS
           : "şirkəti təsdiqləyin (VÖEN sənədi)",
         "hr-company",
       );
+    // The staff table has free places but no vacancy is open for them: the recruiter's to-do.
+    if (can(memberRole, "staff", memberGrants) || can(memberRole, "salaries", memberGrants)) {
+      const plan = await loadPlanData(db, id);
+      if (plan.units.length) {
+        const open = new Map(((await db.prepare("SELECT lower(COALESCE(json_extract(data,'$.department'),'')) AS department, COUNT(*) AS n FROM jobs WHERE owner=? AND status IN ('published','pending_approval') GROUP BY 1").bind(id).all<{ department: string; n: number }>().catch(() => ({ results: [] as { department: string; n: number }[] }))).results).map((r) => [r.department, Number(r.n)]));
+        const idle = summarize(plan.units, plan.people).departments.filter((d) => d.free > 0 && !(open.get(d.department.toLocaleLowerCase("az")) || 0));
+        add("idle-places", idle.length, `departamentdə boş ştat yeri var, amma vakansiya açılmayıb (${idle.slice(0, 3).map((d) => d.department || "departamentsiz").join(", ")})`, "hr-jobs");
+      }
+    }
     return ok({ items });
   }
   if (request.method === "GET" && path === "company/dashboard") {

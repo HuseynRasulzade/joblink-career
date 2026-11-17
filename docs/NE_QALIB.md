@@ -239,3 +239,10 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Plan və fakt faylı:** «İşçi sayı planı» (aylıq hədəf) vərəqi **«Ştat planı»** ilə əvəz olundu: Filial | Departament | Şöbə | Vəzifə | Pillə | Ştat sayı | Ştat dərəcəsi | Əmək haqqı | Maksimum əmək haqqı | Başlanğıc ay | Son ay | Qeyd. İxrac cari ştat sətirlərini yazır, yükləmə həmin sətirləri yeniləyir/əlavə edir (eyni filial, departament, şöbə, vəzifə, pillə = bir sətir). Maaş həddi yoxlanır; plan təsdiqlənibsə yükləmə direktorun təsdiqinə gedir. Köhnə «İşçi sayı planı» vərəqi oxunmur və bu barədə xəbərdarlıq çıxır.
 - **Ştat cədvəli faylı** (şablon, idxal, XLSX ixracı): pillə, başlanğıc ay və son ay sütunları əlavə olundu; ixrac əvvəl «Filial» sütunu olmadığı üçün geri yüklənəndə filial itirdi, indi ixracın ilk 12 sütunu şablonla eynidir (yalnız oxunan əlavə sütunlar: işləyir, boş yer, FTE, aylıq xərc).
 - Nümunə fayllar və təlimat vərəqləri yeni sütunları izah edir (pillə siyahısı, ay formatları, müvəqqəti yer).
+
+## 26. Təsdiqlər və Ümumi baxış: plan əlaqəsi (2026-11-17)
+
+- **Təsdiqlər:** ştat/plandan kənar sorğularının təfərrüatında indi sorğunun növü (plandan kənar yer, departament təklifi, maaş həddi artımı), səbəb, təklif edən, filial, pillə, say dəyişikliyi (məs. 3 → 5), ştatın növü, dövr və maaş həddi (indikinə qarşı) görünür. İşçi maaş artımında səbəb, vəzifənin ştat maaş həddi və yeni maaşın həddi aşıb-aşmadığı xəbərdarlığı göstərilir.
+- **Ümumi baxış («Bu gün» siyahısı, Kadr rejimi):** ştatda yeri olmayan işçi, maaşı ştat həddindən kənar işçi, müddəti bitmiş müvəqqəti yerdə işçi, boş ştat yeri olub vakansiyası olmayan departamentlər, gözləyən plandan kənar sorğu/təklif, ilin planı təsdiqlənməyib, minimumdan aşağı maaş həddi.
+- **Ümumi baxış (İşə qəbul rejimi, «Diqqət tələb edir»):** boş ştat yeri olan, amma vakansiya açılmayan departamentlər.
+- Excel idxalının önizləmə pəncərələri (ştat cədvəli və plan-fakt faylı) brauzerdə yoxlandı: yeni sütunlar (filial, pillə, dövr) düzgün göstərilir.

@@ -3,7 +3,9 @@ import { APPROVAL_CHAINS, APPROVAL_KIND_LABEL, type ApprovalKind, can, delegateU
 import { HttpError, jsonBody, str } from "@/lib/server";
 import { companyAudit, notify } from "@/lib/api-core";
 import { exitTypeLabel } from "@/lib/workforce";
-import { StaffInput, applyStaffRows, ok, saveStaffUnit, setDepartmentPlan, setPlanStatus, staffBandProblem } from "@/lib/api/shared";
+import { StaffInput, applyStaffRows, loadPlanData, ok, saveStaffUnit, setDepartmentPlan, setPlanStatus, staffBandProblem } from "@/lib/api/shared";
+import { RATE_LABEL, checkSalary, salaryBand } from "@/lib/staff-plan";
+import { employeePay } from "@/lib/payroll";
 import type { RouteCtx } from "@/lib/api/ctx";
 
 export async function handle_company_38(c: Pick<RouteCtx, "approvalHistory" | "approvalRules" | "approverCandidates" | "approverPeople" | "auditView" | "canAct" | "db" | "deliverOffer" | "hoursBetween" | "id" | "lentFrom" | "loadOfferTarget" | "memberGrants" | "memberRole" | "path" | "request" | "requesterName" | "salaryChange" | "setYearPlan" | "userId">): Promise<Response | undefined> {
@@ -35,6 +37,19 @@ export async function handle_company_38(c: Pick<RouteCtx, "approvalHistory" | "a
       const oldPay = employee.salary_cents / 100;
       const next = Number(payload.salary);
       facts.push({ label: "İşçi", value: employee.name }, { label: "Vəzifə", value: `${employee.position || "—"}${employee.department ? ` · ${employee.department}` : ""}` }, { label: "İşə başlama", value: employee.start_date || "—" }, { label: "Hazırkı maaş", value: azn(oldPay) }, { label: "Təklif olunan maaş", value: azn(next) }, { label: "Dəyişiklik", value: `${next >= oldPay ? "+" : ""}${azn(next - oldPay)} (${oldPay > 0 ? `${Math.round(((next - oldPay) / oldPay) * 1000) / 10}%` : "yeni maaş"})` });
+      if (payload.reason) facts.push({ label: "Səbəb", value: String(payload.reason) });
+      // The staff band of the position, and whether the new pay leaves it (an exception to the band).
+      {
+        const units = (await loadPlanData(db, id)).units;
+        const person = { id: String(payload.employeeId), department: employee.department, section: employee.section, position: employee.position };
+        const own = units.filter((x) => x.department.trim().toLocaleLowerCase("az") === employee.department.trim().toLocaleLowerCase("az") && x.position.trim().toLocaleLowerCase("az") === employee.position.trim().toLocaleLowerCase("az") && salaryBand(x));
+        if (own.length) {
+          const [lo, hi] = salaryBand(own[0])!;
+          facts.push({ label: "Ştat maaş həddi", value: lo === hi ? azn(lo) : `${azn(lo)} – ${azn(hi)}` });
+          const gross = employeePay(next, employee.salary_type === "net" ? "net" : "gross", "private").gross;
+          if (checkSalary(units, person, gross)) facts.push({ label: "Diqqət", value: "Yeni maaş ştat həddindən kənardır: təsdiq istisna kimi olacaq (həddi də artırmaq üçün «Plandan kənar → Maaş həddi artımı» istifadə edin)." });
+        }
+      }
       links.push({ label: "İşçinin kartı", page: "hr-employees", target: { kind: "employee", id: String(payload.employeeId), name: employee.name } });
     } else if (row.kind === "exit" && employee) {
       facts.push({ label: "İşçi", value: employee.name }, { label: "Vəzifə", value: `${employee.position || "—"}${employee.department ? ` · ${employee.department}` : ""}` }, { label: "İşə başlama", value: employee.start_date || "—" }, { label: "Xitam növü", value: exitTypeLabel(String(payload.exitType || "")) }, { label: "Son iş günü", value: String(payload.endDate || "—") }, { label: "Səbəb", value: String(payload.exitReason || "—") });
@@ -53,9 +68,22 @@ export async function handle_company_38(c: Pick<RouteCtx, "approvalHistory" | "a
       else if (Array.isArray(payload.units)) facts.push({ label: "Əməliyyat", value: `Excel idxalı: ${payload.units.length} ştat sətri plana yazılacaq` }, ...(payload.units as { department?: string; position?: string; planned?: number }[]).slice(0, 8).map((u) => ({ label: u.department || "—", value: `${u.position || "—"}: ${u.planned ?? "?"} ştat` })));
       else if (payload.unitDelete) facts.push({ label: "Əməliyyat", value: "Ştat sətri silinir" });
       else if (payload.unit && typeof payload.unit === "object") {
-        const u = payload.unit as { department?: string; section?: string; position?: string; planned?: number; salaryCents?: number; note?: string };
-        facts.push({ label: "Departament / şöbə", value: [u.department, u.section].filter(Boolean).join(" / ") || "—" }, { label: "Vəzifə", value: u.position || "—" }, { label: "Ştat sayı", value: String(u.planned ?? "—") });
-        if (u.salaryCents) facts.push({ label: "Maaş", value: azn(u.salaryCents / 100) });
+        const u = payload.unit as { id?: string; branch?: string; department?: string; section?: string; position?: string; level?: string; planned?: number; rate?: number; salaryCents?: number; salaryMaxCents?: number; startMonth?: string; endMonth?: string; note?: string };
+        const kindLabel: Record<string, string> = { places: "Plandan kənar işçi yeri", proposal: "Departament təklifi", band: "Maaş həddi artımı" };
+        if (typeof payload.exception === "string") facts.push({ label: "Sorğunun növü", value: kindLabel[payload.exception] || "Plandan kənar" });
+        if (payload.reason) facts.push({ label: "Səbəb", value: String(payload.reason) });
+        if (payload.proposer) facts.push({ label: "Təklif edən", value: String(payload.proposer) });
+        facts.push({ label: "Filial", value: u.branch || "Baş ofis" }, { label: "Departament / şöbə", value: [u.department, u.section].filter(Boolean).join(" / ") || "—" }, { label: "Vəzifə", value: `${u.position || "—"}${u.level ? ` (${u.level})` : ""}` });
+        // What the row holds now, so the new figure is read against it.
+        const current = u.id ? (await loadPlanData(db, id)).units.find((x) => x.id === u.id) : undefined;
+        facts.push({ label: "Ştat sayı", value: current && current.planned !== u.planned ? `${current.planned} → ${u.planned}` : String(u.planned ?? "—") });
+        if (u.rate && u.rate !== 1) facts.push({ label: "Ştatın növü", value: RATE_LABEL[u.rate] || String(u.rate) });
+        if (u.startMonth || u.endMonth) facts.push({ label: "Dövr", value: `${u.startMonth || "plan əvvəli"} – ${u.endMonth || "müddətsiz"}` });
+        if (u.salaryCents) {
+          const band = u.salaryMaxCents && u.salaryMaxCents > u.salaryCents ? `${azn(u.salaryCents / 100)} – ${azn(u.salaryMaxCents / 100)}` : azn(u.salaryCents / 100);
+          const was = current && (current.salaryMin || current.salaryMax) ? ` (indiki: ${current.salaryMax > current.salaryMin ? `${azn(current.salaryMin)} – ${azn(current.salaryMax)}` : azn(current.salaryMin)})` : "";
+          facts.push({ label: "Maaş həddi", value: `${band}${was}` });
+        }
         if (u.note) facts.push({ label: "Qeyd", value: u.note });
       } else facts.push({ label: "Departament", value: String(payload.department || "—") }, { label: "Yeni plan", value: payload.planned === null ? "plan silinir" : `${payload.planned} ştat` });
       {
