@@ -359,7 +359,10 @@ export default function HrPanel({
     all[key] = (all[key] || 0) + 1;
     return all;
   }, {});
+  // Someone who withdrew their application to this vacancy is not offered again among its suitable candidates.
+  const withdrawnHere = new Set(selectedJob ? applications.filter((a) => a.jobId === selectedJob.id && a.status === WITHDRAWN_STATUS && a.candidateId).map((a) => a.candidateId) : []);
   const results = candidates
+    .filter((c) => !withdrawnHere.has(c.id))
     .map((c) => ({
       ...c,
       ranking: selectedJob ? match(c.profile, selectedJob) : null,

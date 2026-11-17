@@ -131,6 +131,8 @@ export async function handle_fit_review_01(c: Pick<RouteCtx, "accountRole" | "ai
       )
       .bind(job.id, job.id)
       .all<{ user_id: string; data: string; applied: number }>();
+    // A candidate who withdrew from this vacancy is neither ranked nor analysed for it.
+    const withdrawn = new Set(((await db.prepare("SELECT candidate_id FROM applications WHERE job_id=? AND status='Geri götürülüb'").bind(job.id).all<{ candidate_id: string }>()).results || []).map((r) => r.candidate_id));
     // Rule-based pre-selection, then a blind AI review of the best 20:
     // names, contacts, age and photos are never sent to the model.
     let ranked = pool.results
@@ -147,6 +149,7 @@ export async function handle_fit_review_01(c: Pick<RouteCtx, "accountRole" | "ai
         };
       })
       .filter((c) => !b.applicantsOnly || c.applied)
+      .filter((c) => !withdrawn.has(c.id))
       .sort((a, b) => b.rule.score - a.rule.score);
     // With the AI on, EVERY candidate gets the AI's judgement (so a profile the rules underrate is not missed). The judgement
     // is kept until the candidate or the vacancy really changes, so the AI looks at each pair once.
