@@ -4,7 +4,7 @@ import { HttpError, jsonBody, str } from "@/lib/server";
 import { addHiredEmployee } from "@/lib/api-matching";
 import { manualStatusMove } from "@/lib/application-flow";
 import { notify, recordApplicationEvent } from "@/lib/api-core";
-import { normalizedJobRecord, ok } from "@/lib/api/shared";
+import { assertStaffPlace, normalizedJobRecord, ok } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
 export async function handle_application_status_01(c: Pick<RouteCtx, "customSkillLabels" | "db" | "id" | "path" | "request" | "userId">): Promise<Response | undefined> {
@@ -71,6 +71,9 @@ export async function handle_application_status_01(c: Pick<RouteCtx, "customSkil
         409,
         "Namizədin iş təklifinə cavabı gözlənilir. Namizəd təklifi qəbul edəndə işə qəbul avtomatik tamamlanır. Gözləmək istəmirsinizsə, əvvəlcə təklifi geri çəkin.",
       );
+    // Taking the person on needs a free place in the staff table for the vacancy's position.
+    if (b.status === "İşə qəbul edildi" && row.status !== b.status)
+      await assertStaffPlace(db, id, { branch: job.branch, department: job.department || "", section: job.section || "", position: job.title || "" });
     await db
       .prepare("UPDATE applications SET status=?,stage=?,updated=? WHERE id=?")
       .bind(b.status, stage, new Date().toISOString(), row.id)

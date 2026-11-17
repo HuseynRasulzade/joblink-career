@@ -153,3 +153,19 @@ export function conflictMessage(conflicts: BandConflict[]): string {
   const [min, max] = first.band;
   return `“${first.unit.position || first.unit.department}” üçün maaş həddi ${min === max ? money(min) : `${money(min)} – ${money(max)}`} (gross) olacaq, amma bu sətirdəki işçilərin maaşı ona uyğun deyil: ${who}${conflicts.length > 5 ? ` və daha ${conflicts.length - 5} nəfər` : ""}. Əvvəl işçilərin maaşını ştata uyğunlaşdırın (işçi kartı) və ya həddi dəyişin.`;
 }
+
+// A new person may only be taken on when the staff table has a free place for the position. Positions the table does not name at all
+// are not limited (same rule as the pay band). Returns the message, or "" when there is room.
+export function placeProblem(units: PlanUnit[], people: PlanPerson[], candidate: PlanPerson): string {
+  if (!candidate.position || !candidate.department) return "";
+  const named = units.filter((u) => u.position && key(u.position) === key(candidate.position) && key(u.department) === key(candidate.department));
+  if (!named.length) return "";
+  const rows = named.filter((u) => score(u, candidate) >= 0);
+  const label = `“${candidate.position}” (${candidate.department})`;
+  if (!rows.length) return `Ştat cədvəlində ${label} vəzifəsi belə şöbə və ya filial üçün planlaşdırılmayıb. Əvvəl ştat cədvəlinə uyğun sətir əlavə edin.`;
+  const { byUnit } = assignPeople(units, people.filter((p) => p.id !== candidate.id));
+  const total = rows.reduce((sum, u) => sum + u.planned, 0);
+  const free = rows.reduce((sum, u) => sum + Math.max(0, u.planned - (byUnit.get(u.id)?.length || 0)), 0);
+  if (free > 0) return "";
+  return `Ştat cədvəlində ${label} üçün ${total} yer planlaşdırılıb və hamısı doludur. Yeni işçi götürmək üçün əvvəl «Plan və fakt → İşçi sayı planı»nda say artırılmalıdır.`;
+}

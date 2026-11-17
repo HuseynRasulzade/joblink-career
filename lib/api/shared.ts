@@ -4,7 +4,7 @@ import { normalizeSkills, SKILL_CATALOG, normalizeSkillKey, type SkillDefinition
 import { cleanOrgName } from "@/lib/org-names";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { canonicalOrg } from "@/lib/staff-db";
-import { normalizeRate, type PlanUnit, type PlanPerson, bandConflicts, conflictMessage } from "@/lib/staff-plan";
+import { normalizeRate, type PlanUnit, type PlanPerson, bandConflicts, conflictMessage, placeProblem } from "@/lib/staff-plan";
 import { HttpError, str, runtime, recordAiUsage } from "@/lib/server";
 import { employeePay, freeStaffPlaces } from "@/lib/payroll";
 import { taxReduction } from "@/lib/employee-rights";
@@ -376,6 +376,13 @@ export async function staffPlaces(db: D1Database, companyId: string, department:
       .first<{ n: number }>(),
   ]);
   return freeStaffPlaces(units.results, people.results, Number(open?.n) || 0, department);
+}
+
+// Taking on a person needs a free place in the staff table (see placeProblem); throws 409 when the position is full.
+export async function assertStaffPlace(db: D1Database, companyId: string, person: { branch?: string; department: string; section?: string; position: string }, reserved: PlanPerson[] = []) {
+  const plan = await loadPlanData(db, companyId);
+  const problem = placeProblem(plan.units, [...plan.people, ...reserved], { id: "", department: person.department || "", section: person.section || "", position: person.position || "", branches: person.branch ? [person.branch] : undefined });
+  if (problem) throw new HttpError(409, problem);
 }
 
 export async function assertVacancyPlan(db: D1Database, companyId: string, job: { id?: string; branch?: string; reason?: string; department?: string; section?: string; title?: string; minSalary?: number; maxSalary?: number; salaryKind?: string }) {

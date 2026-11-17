@@ -3360,7 +3360,7 @@ export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: {
   return (
     <div className="panel">
       <h4 style={{ marginTop: 0 }}>Ştat planını qur</h4>
-      <p className="muted">Hər sətir: harada (filial), hansı departament və şöbədə, hansı vəzifədə, ştatın növü, neçə nəfər və maaş həddi. Əlavə etdiyiniz sətir dərhal <b>Ştat cədvəlinə</b> düşür; orada faktiki işçilər, boş yerlər və vakansiya yaratma görünür.</p>
+      <p className="muted">Hər sətir: harada (filial), hansı departament və şöbədə, hansı vəzifədə, ştatın növü, neçə nəfər və maaş həddi. Əlavə etdiyiniz sətir dərhal <b>Ştat cədvəlinə</b> düşür; orada faktiki işçilər, boş yerlər və vakansiya yaratma görünür. <b>Sətir yazıldıqdan sonra həmin say və maaş həddindən artıq işçi götürmək olmur</b>: əl ilə işçi əlavəsi, iş təklifi, işə qəbul və Excel idxalı bu yoxlamadan keçir. Daha çox işçi lazımdırsa, əvvəl burada say artırılır.</p>
       {locked && <p className="danger-text">{year} planı kilidlidir: yeni sətir direktorun təsdiqinə göndəriləcək.</p>}
       <div className="form-grid">
         <Field label="Filial">

@@ -3,7 +3,7 @@ import { HttpError, jsonBody, str } from "@/lib/server";
 import { checkSalary } from "@/lib/staff-plan";
 import { employeePay } from "@/lib/payroll";
 import { needsDirector } from "@/lib/company";
-import { loadPlanData, ok } from "@/lib/api/shared";
+import { assertStaffPlace, loadPlanData, ok } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
 export async function handle_offers_02(c: Pick<RouteCtx, "approvalRules" | "canAct" | "db" | "deliverOffer" | "id" | "loadOfferTarget" | "path" | "queueApproval" | "request" | "requirePermission">): Promise<Response | undefined> {
@@ -50,6 +50,13 @@ export async function handle_offers_02(c: Pick<RouteCtx, "approvalRules" | "canA
       const gross = employeePay(salary, data.salaryPeriod === "gross" ? "gross" : "net", "private").gross;
       const problem = checkSalary(plan.units, { id: "", department: job.department || "", section: job.section || "", position: data.position }, gross);
       if (problem) throw new HttpError(409, problem.replace("təyin etmək olmaz", "təklif etmək olmaz"));
+      // The place must be free, counting the offers that wait for an answer (each one holds a place).
+      const waiting = await db
+        .prepare("SELECT o.application_id AS app, json_extract(o.data,'$.position') AS position, json_extract(j.data,'$.department') AS department, json_extract(j.data,'$.section') AS section FROM offers o JOIN applications a ON a.id=o.application_id JOIN jobs j ON j.id=a.job_id WHERE o.company_id=? AND o.status='sent' AND o.application_id<>?")
+        .bind(id, row.id)
+        .all<{ app: string; position: string | null; department: string | null; section: string | null }>()
+        .catch(() => ({ results: [] as { app: string; position: string | null; department: string | null; section: string | null }[] }));
+      await assertStaffPlace(db, id, { branch: job.branch, department: job.department || "", section: job.section || "", position: data.position }, waiting.results.map((w) => ({ id: `offer:${w.app}`, department: w.department || "", section: w.section || "", position: w.position || "" })));
     }
     // With the offer rule on, only a director (or a substitute) sends offers directly.
     if (

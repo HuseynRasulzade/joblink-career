@@ -104,3 +104,15 @@ test("people paid outside the band of their row are found, with a message that n
   assert.match(text, /Aysel — 2800 AZN \(həddən aşağı\)/);
   assert.deepEqual(bandConflicts([unit("a", "X", "", "Y", 1)], [person("1", "X", "", "Y", { gross: 5 })]), []);
 });
+
+import { placeProblem } from "../lib/staff-plan.ts";
+test("placeProblem: a full position refuses a new person; free, unnamed and other sections pass", () => {
+  const units = [{ id: "u1", branch: "", department: "Maliyyə", section: "Mühasibatlıq", position: "Mühasib", planned: 2, rate: 1, salaryMin: 0, salaryMax: 0 }];
+  const person = (id, extra = {}) => ({ id, department: "Maliyyə", section: "Mühasibatlıq", position: "Mühasib", status: "active", ...extra });
+  const cand = { id: "", department: "Maliyyə", section: "Mühasibatlıq", position: "Mühasib" };
+  assert.equal(placeProblem(units, [person("a")], cand), "");
+  assert.match(placeProblem(units, [person("a"), person("b")], cand), /2 yer planlaşdırılıb/);
+  assert.equal(placeProblem(units, [person("a"), person("b")], { ...cand, position: "Kassir" }), "");
+  assert.match(placeProblem(units, [], { ...cand, section: "Kredit" }), /belə şöbə/);
+  assert.equal(placeProblem(units, [person("a"), person("b", { status: "left" })], cand), "");
+});

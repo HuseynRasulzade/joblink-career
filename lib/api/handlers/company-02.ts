@@ -1,7 +1,7 @@
 // company: handlers of the JobMatch API (moved out of route.ts; the order of the checks is the order of the calls in route.ts).
 import { EXIT_REASONS, EXIT_TYPES } from "@/lib/workforce";
 import { HttpError, jsonBody, str } from "@/lib/server";
-import { assignPeople, checkSalary, salaryBand } from "@/lib/staff-plan";
+import { assignPeople, checkSalary, placeProblem, salaryBand, type PlanPerson } from "@/lib/staff-plan";
 import { can } from "@/lib/company";
 import { canonicalOrg } from "@/lib/staff-db";
 import { companyAudit } from "@/lib/api-core";
@@ -292,6 +292,8 @@ export async function handle_company_02(c: Pick<RouteCtx, "auditView" | "dataKey
     let updated = 0;
     const plan = await loadPlanData(db, id);
     const seenFin = new Set<string>();
+    // People this file adds take places too, so a position cannot be overfilled by one file.
+    const addedPeople: PlanPerson[] = [];
     for (const row of incoming.rows) {
       if (row.fin && !/^[A-Z0-9]{7}$/.test(row.fin)) {
         incoming.issues.push({ line: row.line, reason: `${row.name}: FİN kodu 7 simvol olmalıdır (“${row.fin}”).` });
@@ -316,6 +318,14 @@ export async function handle_company_02(c: Pick<RouteCtx, "auditView" | "dataKey
         continue;
       }
       const found = finHits[0] || (row.email && byEmail.get(lower(row.email))) || byName.get(`${lower(row.name)}|${row.startDate}`);
+      if (!found) {
+        const noRoom = placeProblem(plan.units, [...plan.people, ...addedPeople], { id: "", department: row.department, section: row.section, position: row.position });
+        if (noRoom) {
+          incoming.issues.push({ line: row.line, reason: `${row.name}: ${noRoom}` });
+          continue;
+        }
+        addedPeople.push({ id: `new:${row.line}`, department: row.department, section: row.section, position: row.position });
+      }
       if (found) {
         const before = existing.results.find((e) => e.id === found);
         const cardFin = finById.get(found) || "";

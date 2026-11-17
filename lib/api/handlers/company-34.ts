@@ -11,7 +11,7 @@ import { parseProfile } from "@/lib/employee-profile";
 import { quiet } from "@/lib/quiet";
 import { taxReduction } from "@/lib/employee-rights";
 import { vatParts } from "@/lib/vat";
-import { loadPlanData, ok, resolvePosition } from "@/lib/api/shared";
+import { assertStaffPlace, loadPlanData, ok, resolvePosition } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
 export async function handle_company_34(c: Pick<RouteCtx, "approvalRules" | "canAct" | "db" | "id" | "memberGrants" | "memberRole" | "path" | "queueApproval" | "request" | "requirePermission" | "salaryChange" | "userId">): Promise<Response | undefined> {
@@ -76,6 +76,8 @@ export async function handle_company_34(c: Pick<RouteCtx, "approvalRules" | "can
       const problem = checkSalary(plan.units, { id: existingId, department, section: str(b.section, 120), position }, gross);
       if (problem) throw new HttpError(409, problem);
     }
+    // A new person needs a free place in the staff table for the position (a count already full refuses).
+    if (!existingId && status !== "left") await assertStaffPlace(db, id, { department, section: str(b.section, 120), position });
     const sectionName = await canonicalOrg(db, id, "section", str(b.section, 120), department);
     // Section, whether the pay is gross or net, the tax sector and the leave figures.
     const saveEmployeeExtras = (employeeId: string) =>
