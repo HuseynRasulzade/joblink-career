@@ -409,4 +409,42 @@ Namizəd, işəgötürən (həm «İşə qəbul», həm «Kadr» rejimi) və adm
 - **«İlk addımlar» kartı** (`app/FirstSteps.tsx`): namizədin ümumi baxışında (profil ≥70%, CV təhlili, yadda saxlama, ilk müraciət) və işəgötürənin ümumi baxışında (ilk vakansiya, ilk müraciət, müsahibə); hamısı bitəndə özü yox olur. Yeni, boş hesab üçün nəzərdə tutulub.
 - **Ctrl+K / Cmd+K sürətli keçid** (`app/CommandPalette.tsx`): menyudakı istənilən bölməni hərf yazaraq açır (Azərbaycan hərflərini diakritiksiz də tapır), ox düymələri və Enter ilə.
 - **Hərəkət:** «Yüklənir…» yazıları parıldayan animasiya alır (`loading-line`), səhifə açılanda yumşaq görünmə, KPI kartlarında hover qalxma; `prefers-reduced-motion` olanda hamısı söndürülür.
-- Hələ edilməyib: yan menyunun açılıb-bağlanan qruplara bölünməsi (Ctrl+K bunun yerinə sürətli keçid verir), vakansiya kartlarında şirkət loqosu, illüstrasiyalar, qaranlıq rejim.
+- **Yan menyu qrupları** (`lib/nav-groups.ts`): işəgötürən menyusu «Vakansiya və namizəd», «Qiymətləndirmə», «İşçilər və əmrlər», «Plan və əmək haqqı», «Şirkət» başlıqları altında açılıb-bağlanır; bağlanan başlıqlar brauzerdə yadda qalır, cari səhifənin qrupu həmişə açıq qalır. Yerlidə yoxlandı (bağlama, yadda qalma, Ctrl+K ilə keçid). Namizəd və admin menyusu dəyişməyib.
+- Hələ edilməyib: vakansiya kartlarında şirkət loqosu, illüstrasiyalar, qaranlıq rejim (bax: bölmə 40).
+
+## 40. NƏ QALIB (2026-11-18-ə olan vəziyyət)
+
+Bu bölmə bütün işlərin sonunda qalan hər şeyin dürüst siyahısıdır. «Kod» = mən icra edə bilərəm; «Qərar/xarici» = sənin qərarın, hüquqi, müqavilə, açar və ya real istifadəçi lazımdır.
+
+### A. Açıq buraxılışdan əvvəl məcburi (qərar / xarici)
+1. **Test məlumatlarının silinməsi:** ZZ-TEST hesabları (`zz-test-company-…`, `zz-test-candidate-…`, `zz-test-reg-…`), `sirket-demo`, test qeydləri, yerli demo hesablar. Canlı mühitdən silinməlidir.
+2. **Real e-poçt çatdırılması:** bütün e-poçt xatırlatmaları (əmr, namizəd qəbulu, dayanmış namizəd, hesabat cədvəli, təsdiq) kodda var, lakin canlıda göndərici provayder və açar yoxlanmayıb. Yerlidə yalnız gələn qutusu bildirişləri təsdiqlənib.
+3. **Ödəniş:** ABB müqaviləsi və açarları; avtomatik yenilənən ödəniş.
+4. **Öz domen:** indi `workers.dev` ünvanıdır; domen, e-poçt göndərən ünvanı, təqdimatlardakı ünvan.
+5. **Hüquqçu baxışı:** istifadə şərtləri və məxfilik siyasəti, namizəd məlumatının saxlama müddəti və silinməsi, qara siyahı (yalnız hüquqi baxışdan sonra), əmək haqqı hesablamalarının məsuliyyət qeydi.
+6. **Təhlükəsizlik siyasəti:** CSP hələ yalnız hesabat rejimindədir (məcburi rejimə keçmək üçün əvvəl canlıda pozuntu hesabatlarına baxmaq lazımdır); admin üçün 2 addımlı giriş məcburi deyil.
+7. **Real istifadəçi pilotu:** sistemdə real istifadəçi yoxdur; analitika (işə qəbul müddəti və s.) real məlumatla mənalı olacaq.
+8. **CI-də e2e testləri üçün gizli açarlar** (repoda qurulmayıb).
+
+### B. Məhsul (kod, istəsən icra edim)
+**İşə qəbul:** istedad bazasına toplu «hələ maraqlısınızmı» e-poçtu (razılıq qaydası ilə); namizəd məlumatının saxlama müddəti və silmə aləti; Meet/Zoom linkinin avtomatik yaranması (açar tələb edir); vakansiya üzrə ayrıca SLA həddi; skorkartlı müsahibələrin kriteriya üzrə ümumi hesabatı.
+**Kadr və əmək haqqı:** növbəti ilə plan köçürmə sihirbazı; çoxlu işçi üçün toplu «maaş artımı dalğası» təsdiqi; vəzifəyə görə fərqli adaptasiya siyahısı (departament üzrə var); kütləvi dəyişikliyin filial və maaşı əhatə etməsi (indi yalnız departament, şöbə, iş rejimi); kalkulyator nəticəsinin hesabda saxlanması/paylaşılması; müvəqqəti icazə bitəndə xatırlatma; əmək haqqında aylar üzrə illik yekunun sürətləndirilməsi (indi canlıda ~5 s).
+**Davamiyyət və komanda:** terminal/cihaz inteqrasiyası; gecikmədən intizam əmrinə birbaşa keçid; icazələrin tarixçəsi ekranı.
+**Hesab-faktura:** çap/PDF forması (satıcının hüquqi rekvizitləri və ƏDV qaydası lazımdır — yazmamışam).
+**Dəstək:** təcililik dərəcəsi və cavab müddəti (SLA).
+**Sürət:** canlıda D1 sorğusu ~100 ms-dir; `dashboard` (14 sorğu), `today` (17), `hr-trends` (11), `hr-report` (10) səhifələri hələ ardıcıl sorğularla işləyir; `employees` artıq paralel edilib (~1,3 s → ~0,8 s).
+
+### C. Vizual
+Vakansiya kartlarında şirkət loqosu (loqo yüklənir, amma namizədə göstərmək üçün ictimai loqo ünvanı və vakansiya məlumatına əlavə lazımdır); illüstrasiyalar və boş vəziyyət şəkilləri; qaranlıq rejim (köhnə CSS-də çoxlu sərt rəng var, ayrıca iş tələb edir); marka serif şriftinin başlıqlarda istifadəsi.
+
+### D. Yoxlama boşluqları (kodda var, amma brauzerdə təsdiqlənməyib)
+- Rəhbər və auditor üçün yeni işçilər, əmrlər, əmək haqqı səhifələri tam gəzilməyib (API 403-lər yoxlanıb).
+- Rus və ingilis dilində yeni səhifələr (açılış, təlimat) brauzerdə yoxlanmayıb; təlimat yalnız Azərbaycan dilindədir.
+- Kalkulyatordan əmr: pəncərə açılır, lakin imza axını sonuna qədər sınanmayıb. «Vakansiya aç» düyməsi HR köməkçisini açır, elanın tam yaradılması sınanmayıb.
+- Bölmə 32-dəki üç «yoxdur» iddiası təsdiqlənməyib (bölmə 36-ya bax): davamiyyətdə intizama keçid, komanda icazə tarixçəsi, dəstək SLA-sı.
+- Təqdimat slaydları brauzerdə vizual yoxlanmayıb (linklər şəxsidir).
+
+### E. Təqdimatlar və təlimat
+- İnvestor təqdimatında sarı qutulu yerlər doldurulmalıdır: tarix, bazar rəqəmləri (mənbə ilə), rəqiblərin adları, nəticələr (real istifadəçi, pilot, ödəyən müştəri), komanda, tələb olunan məbləğ və istifadə bölgüsü, əlaqə.
+- Reklam təqdimatında sayt ünvanı və əlaqə məlumatı yenilənməlidir; qiymətlər təqdimatdan əvvəl təsdiqlənməlidir.
+- «İstifadə təlimatı» (`lib/guide-content.ts`) əl ilə yazılır: yeni funksiya əlavə edəndə təlimatı da yeniləmək lazımdır (menyu adı dəyişsə test pozulur).

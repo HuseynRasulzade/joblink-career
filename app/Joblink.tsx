@@ -134,6 +134,7 @@ import GuidePage from "./GuidePage";
 import Landing from "./Landing";
 import FirstSteps from "./FirstSteps";
 import CommandPalette from "./CommandPalette";
+import { groupNav } from "@/lib/nav-groups";
 import GrowthHub from "./GrowthHub";
 import EncryptionPanel from "./EncryptionPanel";
 import ReportsHub from "./ReportsHub";
@@ -362,6 +363,15 @@ export default function Joblink() {
   const [page, setPage] = useState("overview");
   // The employer panel shows one of its two programs at a time: recruitment or HR operations.
   const [hrMode, setHrMode] = useState<HrModule>("recruit");
+  // Headings of the HR menu the person has closed (remembered in this browser).
+  const [closedGroups, setClosedGroups] = useState<string[]>(() => {
+    try { return JSON.parse(window.localStorage.getItem("joblink.closedNav") || "[]") as string[]; } catch { return []; }
+  });
+  const toggleGroup = (id: string) => setClosedGroups((cur) => {
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    try { window.localStorage.setItem("joblink.closedNav", JSON.stringify(next)); } catch { /* no storage */ }
+    return next;
+  });
   const [profile, setProfile] = useState<Profile>(sampleProfile);
   const [sample, setSample] = useState(true);
   const [jobs, setJobs] = useState<Job[]>(sampleJobs);
@@ -1864,36 +1874,49 @@ export default function Joblink() {
           {admin ? "İDARƏETMƏ" : hr ? HR_MODULES[hrMode].hint.toLocaleUpperCase("az") : "İŞ MƏKANIM"}
         </p>
         <nav aria-label="Əsas naviqasiya">
-          {navigation.map(({ id, label, icon: Icon }) => (
+          {(hr ? groupNav(navigation) : [{ group: null, items: navigation }]).map((entry, gi) => {
+            const open = !entry.group || !closedGroups.includes(entry.group.id) || entry.items.some((i) => i.id === page);
+            return (
+              <div key={entry.group?.id || `loose-${gi}`} className="nav-group">
+                {entry.group && (
+                  <button type="button" className="nav-group-head" aria-expanded={open} onClick={() => toggleGroup(entry.group!.id)}>
+                    <span>{entry.group.label}</span>
+                    <i aria-hidden="true">{open ? "−" : "+"}</i>
+                  </button>
+                )}
+                {open && entry.items.map(({ id, label, icon: Icon }) => (
             <button
-              title={label}
-              aria-current={page === id ? "page" : undefined}
-              key={id}
-              onClick={() => go(id)}
-              className={page === id ? "nav-item active" : "nav-item"}
-            >
-              <span>
-                <Icon size={19} />
-              </span>
-              <em>{label}</em>
-              {id.includes("ai") || id === "advice" ? <b>AI</b> : null}
-              {(id === "messages" || id === "hr-messages") &&
-              unread.messages > 0 ? (
-                <i className="nav-count">{unread.messages}</i>
-              ) : null}
-              {id === "hr-approvals" &&
-              companyMe &&
-              companyMe.awaitingApproval > 0 ? (
-                <i className="nav-count">{companyMe.awaitingApproval}</i>
-              ) : null}
-              {(id === "support" ||
-                id === "hr-support" ||
-                id === "admin-support") &&
-              unread.support > 0 ? (
-                <i className="nav-count">{unread.support}</i>
-              ) : null}
-            </button>
-          ))}
+                  title={label}
+                  aria-current={page === id ? "page" : undefined}
+                  key={id}
+                  onClick={() => go(id)}
+                  className={page === id ? "nav-item active" : "nav-item"}
+                >
+                  <span>
+                    <Icon size={19} />
+                  </span>
+                  <em>{label}</em>
+                  {id.includes("ai") || id === "advice" ? <b>AI</b> : null}
+                  {(id === "messages" || id === "hr-messages") &&
+                  unread.messages > 0 ? (
+                    <i className="nav-count">{unread.messages}</i>
+                  ) : null}
+                  {id === "hr-approvals" &&
+                  companyMe &&
+                  companyMe.awaitingApproval > 0 ? (
+                    <i className="nav-count">{companyMe.awaitingApproval}</i>
+                  ) : null}
+                  {(id === "support" ||
+                    id === "hr-support" ||
+                    id === "admin-support") &&
+                  unread.support > 0 ? (
+                    <i className="nav-count">{unread.support}</i>
+                  ) : null}
+                </button>
+                ))}
+              </div>
+            );
+          })}
         </nav>
         <div className="sidebar-bottom">
           <div className="career-note">
