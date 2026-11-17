@@ -3398,8 +3398,8 @@ export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: {
         <>
           <h5 style={{ marginBottom: 4 }}>Plandakı sətirlər ({rows.length}) · cəmi {total.planned} nəfər, {num(total.fte)} tam ştat vahidi{total.budget ? `, aylıq həddi ${azn(total.budget)}` : ""}</h5>
           {rows.length ? (
-            <div className="table-wrap">
-              <table className="staff-table">
+            <div className="admin-table-wrap">
+              <table className="admin-table staff-table">
                 <thead><tr><th>Filial</th><th>Departament</th><th>Şöbə</th><th>Vəzifə</th><th>Növ</th><th>Say</th><th>Maaş həddi</th><th>İşləyir</th><th>Boş</th></tr></thead>
                 <tbody>
                   {rows.map((r) => (
