@@ -39,6 +39,7 @@ import { siteLanguage } from "./i18n";
 import { DOC_KINDS, OTHER_TYPE, docLabel } from "@/lib/employee-docs";
 import HrDocsPanel from "./HrDocsPanel";
 import { createXlsx } from "@/lib/xlsx";
+import { EmployeeDetailModal, EmployeeToolsPanel } from "./EmployeeExtras";
 import SalaryHistory from "./SalaryHistory";
 import { BulkLinkCodes, EmployeeLinkPanel, EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
 
@@ -2599,6 +2600,9 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
   const [sort, setSort] = useState<{ key: "name" | "start" | "department"; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
+  const [detail, setDetail] = useState<{ id: string; name: string } | null>(null);
+  const [tools, setTools] = useState(false);
+  const [hideArchive, setHideArchive] = useState(false);
   // Does the staff table have a place for the position typed on a new card?
   const [placeHint, setPlaceHint] = useState("");
   useEffect(() => {
@@ -2653,6 +2657,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
     `${e.name} ${e.position} ${e.department} ${e.section || ""} ${e.email || ""}`.toLocaleLowerCase("az").includes(needle) &&
     (!statusFilter || e.status === statusFilter) &&
     (!deptFilter || e.department === deptFilter) &&
+    (!hideArchive || !(e.status === "left" && e.endDate && e.endDate < new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10))) &&
     (!planFilter || (planFilter in flags && flags[planFilter as keyof typeof flags](e))),
   );
   const sorted = [...filtered].sort((a, b) => {
@@ -2781,6 +2786,8 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           {departments.map((d) => <option key={d} value={d}>{d}</option>)}
         </select>
         {(statusFilter || deptFilter || planFilter || query) && <button type="button" className="text-button" onClick={() => { setStatusFilter(""); setDeptFilter(""); setPlanFilter(""); setQuery(""); }}>Süzgəcləri təmizlə</button>}
+        <label className="muted" style={{ display: "inline-flex", gap: 4, alignItems: "center" }}><input type="checkbox" checked={hideArchive} onChange={(e) => setHideArchive(e.target.checked)} /> Arxivi gizlət (12 aydan əvvəl çıxanlar)</label>
+        {data.canEdit && <button type="button" className="secondary" aria-pressed={tools} onClick={() => setTools(!tools)}>Əlavə alətlər</button>}
         <span className="muted">{filtered.length} işçi</span>
         {data.canEdit && selected.length > 0 && (
           <>
@@ -2791,6 +2798,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
           </>
         )}
       </div>
+      {tools && data.canEdit && <EmployeeToolsPanel notify={notify} selectedIds={selected} departments={departments} canEdit={data.canEdit} canStaff={!!data.canStaff} onChanged={() => { setSelected([]); load(); }} />}
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
@@ -2817,7 +2825,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
                   <div className="emp-name-cell">
                     {data.canPersonal && <EmployeeAvatar employeeId={e.id} name={e.name} />}
                     <div>
-                      <strong>{e.name}</strong>
+                      <strong>{e.name}</strong>{data.canEdit && <> <button type="button" className="text-button" onClick={() => setDetail({ id: e.id, name: e.name })}>Ətraflı</button></>}
                       <small className="skill-description">
                         {e.email}
                         {e.source === "hired" ? " · JobMatch ilə işə qəbul" : ""}
@@ -2982,6 +2990,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
         />
       )}
       {importingProfiles && <SheetImport kind="profiles" notify={notify} onClose={() => setImportingProfiles(false)} onDone={load} />}
+      {detail && <EmployeeDetailModal employee={detail} canSalary={data.showSalary} canEdit={data.canEdit} notify={notify} onClose={() => setDetail(null)} />}
       {editing && (
         <Modal
           title={editing.id ? "İşçini düzəlt" : "Yeni işçi"}

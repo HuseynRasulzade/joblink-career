@@ -126,6 +126,7 @@ import { handle_company_31 } from "@/lib/api/handlers/company-31";
 import { handle_company_32 } from "@/lib/api/handlers/company-32";
 import { handle_company_33 } from "@/lib/api/handlers/company-33";
 import { handle_reports_01 } from "@/lib/api/handlers/reports-01";
+import { handle_employees_01 } from "@/lib/api/handlers/employees-01";
 import { handle_company_34 } from "@/lib/api/handlers/company-34";
 import { handle_company_35 } from "@/lib/api/handlers/company-35";
 import { handle_company_36 } from "@/lib/api/handlers/company-36";
@@ -2514,6 +2515,10 @@ async function route(request: Request) {
   }
   {
     const r = await handle_reports_01({ accountRole, db, hrFundReport, id, memberRole, path, request, requestUrl, requirePermission, userId });
+    if (r) return r;
+  }
+  {
+    const r = await handle_employees_01({ accountRole, afterSigned, auditView, db, id, memberGrants, memberRole, path, request, requestUrl, requesterName, requirePermission, revealAll, userId });
     if (r) return r;
   }
     {

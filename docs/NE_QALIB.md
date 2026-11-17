@@ -266,3 +266,20 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Arxa planda hesabat:** ştat planı, işçi reyestri, dövriyyə, gözlənilən çıxışlar, dolma müddəti və əməliyyat jurnalı (5000 sətir) hesabatlarında «Arxa planda hazırla»: sorğu yalnız tapşırıq yazır (`report_jobs`), Worker cavab getdikdən sonra (`waitUntil`) hesabatı hazırlayır, nəticəni 7 gün saxlayır və bildiriş göndərir; Hesabatlar səhifəsinin altındakı «Hazır hesabatlar»da açılır (cədvəl, qrafik, müqayisə yox, Excel, çap). Eyni anda ən çoxu 3 tapşırıq, ən çoxu 20 000 sətir. Heç kim tapşırığı götürməsə (yerli işə salınma), ilk baxışda o hazırlanır. Migrasiya 0119.
 - **Planlı e-poçt və həftəlik plan xülasəsi:** administrator üçün `admin/run-digests` indi `force` (hamısı indi), `dryRun` (göndərmədən mesajları cavabda qaytarır) qəbul edir; cron-un eyni işini yoxlamaq olar.
 - **İşçilər səhifəsi:** status, departament və «plan» süzgəcləri, KPI düymələri (ştatsız, maaşı hədd kənarı, sınaq/müqavilə bitir), ada, departamenta və başlama tarixinə görə sıralama, 50-lik səhifələmə, «Ştat yeri» sütunu (filial, pillə) və ştatsız işçidə «Yerləşdir», seçilənləri Excel-ə yazmaq və ştata yerləşdirmək, yeni işçi kartında vəzifə üçün yer olmadıqda dərhal xəbərdarlıq (`company/staff/place-check`).
+
+## 30. İşçilər bölməsinin genişlənməsi (miqrasiya 0120)
+
+İşçi siyahısında «Ətraflı» düyməsi (işçi məlumatlarına icazəsi olan rollar üçün) və «Əlavə alətlər» paneli əlavə olundu. Server: `lib/api/handlers/employees-01.ts`, saf məntiq: `lib/employee-insight.ts` (testli).
+
+- **Xronologiya** — `company/employees/timeline`: kart hadisələri, əmrlər, təsdiqlənmiş məzuniyyət, təlim, performans, məlumat sorğuları və sənədlər bir siyahıda (yeni → köhnə).
+- **Kütləvi dəyişiklik** — `company/employees/bulk-update`: seçilən işçilər (≤100) üçün departament/şöbə köçürməsi imzasız, dərhal qüvvədə olan «köçürmə» əmri kimi yazılır (nömrə `KD-…`), kart `afterSigned` ilə dəyişir; hər işçi üçün ştat yeri (`placeProblem`) və maaş həddi (`checkSalary`) yoxlanılır, uyğun olmayan buraxılır və səbəb göstərilir. İş rejimi birbaşa kartda dəyişir və tarixçəyə yazılır. «Əvvəlcə yoxla» (dryRun) heç nə dəyişmir. Yeni departament şöbə göstərilməyəndə köhnə şöbə təmizlənir.
+- **Təşkilat sxemi** — işçi siyahısındakı «Əlavə alətlər → Təşkilat sxemi» mövcud sxemi (`OrgChart`) orada açır.
+- **Dublikatlar** — `company/employees/duplicates`: eyni FİN (yalnız şəxsi məlumat icazəsi və açar olanda; baxış jurnalına yazılır), eyni e-poçt, eyni ad + işə başlama günü.
+- **Arxiv** — «Arxivi gizlət»: 12 aydan əvvəl çıxanlar siyahıdan gizlənir (silinmir).
+- **İxrac** — `company/employees/export-one`: bir işçinin kartı, maaş tarixçəsi və xronologiyası Excel faylında; şəxsi sahələr yalnız şəxsi məlumat icazəsi ilə; jurnala yazılır.
+- **Əlavə sahələr** — şirkət özü sahə yaradır (mətn/rəqəm/tarix, ≤20); dəyərlər işçi pəncərəsində. Yaratmaq/silmək «staff» icazəsi, dəyərləri görmək/yazmaq «employees» icazəsi tələb edir.
+- **Varislik** — ştat sətri «əsas vəzifə» işarələnir (`staff_units.critical`), varislər hazırlıq dərəcəsi ilə (`succession`). Risk: vəzifə boşdur / varis yoxdur / dərhal hazır varis yoxdur.
+- **Maaş müqayisəsi** — eyni vəzifədə şirkət daxili median və 25–75 faiz (≥3 nəfər), platformada dərc olunmuş elanların orta maaş həddi (≥5 elan; net maaşlı elanlar çıxarılır). Kiçik qruplar göstərilmir.
+- **Sorğu profili** — departamentin eNPS nəticəsi yalnız ≥5 cavab olanda; fərdi cavab göstərilmir; işçinin öz iştirakı yalnız anonim olmayan sorğuda.
+
+Məhdudiyyətlər: kütləvi dəyişiklik indi yalnız departament, şöbə və iş rejimini dəyişir (filial və maaş dəyişikliyi imzalı əmr və təsdiq tələb etdiyi üçün tək-tək əmrlə qalır); bazar müqayisəsi dərc olunmuş elanların maaş aralığına əsaslanır, real maaş statistikası deyil.
