@@ -3,6 +3,7 @@ import { COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, INVITE_DAYS, type JobApprova
 import { HttpError, jsonBody, runtime, str } from "@/lib/server";
 import { type MemberFigures, groupTotals, snapshotTotals, turnoverPercent } from "@/lib/company-group";
 import { calculateFromGross, calculateFromNet } from "@/lib/salary";
+import { activeGrants, grantsUntilProblem } from "@/lib/grants-expiry";
 import { companyAudit, notify } from "@/lib/api-core";
 import { mailConfigured, sendMail } from "@/lib/mail";
 import { quiet } from "@/lib/quiet";
@@ -204,11 +205,11 @@ export async function handle_misc_02(c: Pick<RouteCtx, "accountRole" | "canAct" 
       .first<{ id: string; name: string; email: string }>();
     const members = await db
       .prepare(
-        `SELECT m.id,m.user_id,m.email,m.role,m.department,m.grants,m.status,m.created,m.updated,COALESCE(a.name,'') AS name FROM company_members m
+        `SELECT m.id,m.user_id,m.email,m.role,m.department,m.grants,m.grants_until,m.status,m.created,m.updated,COALESCE(a.name,'') AS name FROM company_members m
         LEFT JOIN accounts a ON a.id=m.user_id WHERE m.company_id=? AND m.status<>'removed' ORDER BY m.created`,
       )
       .bind(id)
-      .all<Record<string, unknown> & { grants: string }>();
+      .all<Record<string, unknown> & { grants: string; grants_until?: string }>();
     const lastSeen = await db
       .prepare(
         "SELECT actor_id,MAX(created) AS last FROM company_audit WHERE company_id=? GROUP BY actor_id",
@@ -228,6 +229,8 @@ export async function handle_misc_02(c: Pick<RouteCtx, "accountRole" | "canAct" 
             return [];
           }
         })(),
+        grantsUntil: m.grants_until || "",
+        grantsExpired: !!m.grants_until && activeGrants([1], m.grants_until).length === 0,
         lastActive: last.get(String(m.user_id)) || "",
         expired:
           m.status === "invited" &&
@@ -364,14 +367,19 @@ export async function handle_misc_02(c: Pick<RouteCtx, "accountRole" | "canAct" 
         "Direktorun rolunu yalnız hesab sahibi dəyişə bilər.",
       );
     const grants = normalizeGrants(b.grants);
+    // A temporary grant ends on this day (empty: no end). Without any extra permission there is nothing to end.
+    const grantsUntil = grants.length ? str(b.grantsUntil, 10) : "";
+    const untilProblem = grantsUntilProblem(grantsUntil);
+    if (untilProblem) throw new HttpError(400, untilProblem);
     await db
       .prepare(
-        "UPDATE company_members SET role=?,department=?,grants=?,updated=? WHERE id=?",
+        "UPDATE company_members SET role=?,department=?,grants=?,grants_until=?,updated=? WHERE id=?",
       )
       .bind(
         role,
         str(b.department, 120),
         JSON.stringify(grants),
+        grantsUntil,
         new Date().toISOString(),
         member.id,
       )
@@ -382,7 +390,7 @@ export async function handle_misc_02(c: Pick<RouteCtx, "accountRole" | "canAct" 
       userId,
       "member-role",
       member.email,
-      `${roleLabel(member.role)} → ${roleLabel(role)}${grants.length ? ` (+${grants.join(", ")})` : ""}`,
+      `${roleLabel(member.role)} → ${roleLabel(role)}${grants.length ? ` (+${grants.join(", ")}${grantsUntil ? `, ${grantsUntil} tarixinədək` : ""})` : ""}`,
     );
     return ok({ ok: true });
   }

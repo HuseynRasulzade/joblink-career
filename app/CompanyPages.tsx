@@ -1468,6 +1468,8 @@ type Team = {
     role: string;
     department: string;
     grants: string[];
+    grantsUntil?: string;
+    grantsExpired?: boolean;
     status: string;
     name: string;
     created: string;
@@ -1595,6 +1597,7 @@ export function TeamPage({
   }>({ email: "", role: "manager", department: "", grants: [] });
   const [grantsFor, setGrantsFor] = useState<Team["members"][number] | null>(null);
   const [draftGrants, setDraftGrants] = useState<string[]>([]);
+  const [draftUntil, setDraftUntil] = useState("");
   const [activity, setActivity] = useState<
     | {
         actor: string;
@@ -1810,6 +1813,10 @@ export function TeamPage({
               rolePermissions={team.matrix?.find((x) => x.role === grantsFor.role)?.permissions || []}
               onChange={setDraftGrants}
             />
+            <Field label="Əlavə icazələr bu tarixədək (boşdursa müddətsiz)">
+              <input type="date" value={draftUntil} min={new Date().toISOString().slice(0, 10)} disabled={!draftGrants.length} onChange={(e) => setDraftUntil(e.target.value)} />
+            </Field>
+            <p className="muted">Müvəqqəti icazə, məsələn məzuniyyətdə olan işçinin əvəzedicisi üçün: tarix keçəndə əlavə icazələr avtomatik işləməyi dayandırır (rolun öz icazələri qalır). Bitmə günü daxildir.</p>
             <div className="admin-actions">
               <button
                 type="button"
@@ -1817,7 +1824,7 @@ export function TeamPage({
                 onClick={() => {
                   void act(
                     "company/team/update",
-                    { id: grantsFor.id, role: grantsFor.role, department: grantsFor.department, grants: draftGrants },
+                    { id: grantsFor.id, role: grantsFor.role, department: grantsFor.department, grants: draftGrants, grantsUntil: draftUntil },
                     "İcazələr yeniləndi.",
                   );
                   setGrantsFor(null);
@@ -1883,6 +1890,7 @@ export function TeamPage({
                               role: e.target.value,
                               department: m.department,
                               grants: m.grants,
+                              grantsUntil: m.grantsUntil || "",
                             },
                             "Rol dəyişdirildi.",
                           )
@@ -1903,9 +1911,15 @@ export function TeamPage({
                       <button type="button" className="text-button" onClick={() => {
                           setGrantsFor(m);
                           setDraftGrants(m.grants);
+                          setDraftUntil(m.grantsUntil || "");
                         }}>
                         İcazələr{m.grants.length ? ` (+${m.grants.length})` : ""}
                       </button>
+                    )}
+                    {!!m.grants.length && m.grantsUntil && (
+                      <small className={m.grantsExpired ? "danger-text" : "skill-description"}>
+                        {m.grantsExpired ? `Əlavə icazə ${m.grantsUntil.split("-").reverse().join(".")} tarixində bitib` : `Əlavə icazə ${m.grantsUntil.split("-").reverse().join(".")} tarixinədək`}
+                      </small>
                     )}
                     {!team.canManage && !!m.grants.length && (
                       <small className="skill-description">Əlavə icazə: {m.grants.length}</small>

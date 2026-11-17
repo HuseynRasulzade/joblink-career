@@ -131,6 +131,7 @@ import { handle_attendance_01 } from "@/lib/api/handlers/attendance-01";
 import { handle_interviews_02 } from "@/lib/api/handlers/interviews-02";
 import { handle_ats_01 } from "@/lib/api/handlers/ats-01";
 import { lockedProblem } from "@/lib/attendance-lock";
+import { activeGrants } from "@/lib/grants-expiry";
 import { handle_company_34 } from "@/lib/api/handlers/company-34";
 import { handle_company_35 } from "@/lib/api/handlers/company-35";
 import { handle_company_36 } from "@/lib/api/handlers/company-36";
@@ -197,7 +198,7 @@ async function route(request: Request) {
     runtime().EXTERNAL_AUTH === "password"
       ? await db.batch([
           db.prepare("SELECT COALESCE(role,'candidate') AS role FROM accounts WHERE id=?").bind(userId),
-          db.prepare("SELECT m.company_id,m.role,m.grants FROM company_members m JOIN accounts c ON c.id=m.company_id WHERE m.user_id=? AND m.status='active'").bind(userId),
+          db.prepare("SELECT m.company_id,m.role,m.grants,m.grants_until FROM company_members m JOIN accounts c ON c.id=m.company_id WHERE m.user_id=? AND m.status='active'").bind(userId),
           db.prepare("SELECT 1 AS yes FROM company_members WHERE user_id=? AND status='suspended'").bind(userId),
           db.prepare("SELECT company_id,from_user FROM approval_delegates WHERE to_user=? AND until>=?").bind(userId, new Date().toISOString().slice(0, 10)),
         ])
@@ -210,7 +211,7 @@ async function route(request: Request) {
   // The colleagues whose approval rights this person holds for now (named substitutes).
   const lentFrom: string[] = [];
   if (accountRole === "company") {
-    const membership = (membershipRows?.results?.[0] as { company_id: string; role: string; grants: string } | undefined) || null;
+    const membership = (membershipRows?.results?.[0] as { company_id: string; role: string; grants: string; grants_until?: string } | undefined) || null;
     const suspended = suspendedRows?.results?.[0] || null;
     const lentAll = { results: ((lentRows?.results as { company_id: string; from_user: string }[] | undefined) || []) };
     if (membership) {
@@ -218,7 +219,7 @@ async function route(request: Request) {
       memberRole = membership.role;
       // Extra permissions the owner gave to this person (column added by migration 0025).
       try {
-        memberGrants = normalizeGrants(JSON.parse(membership.grants || "[]"));
+        memberGrants = activeGrants(normalizeGrants(JSON.parse(membership.grants || "[]")), membership.grants_until || "");
       } catch {
         memberGrants = [];
       }

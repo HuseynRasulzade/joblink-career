@@ -393,3 +393,8 @@ Qeydlər: 34-cü bölmədə «müsahibə xatırlatması yoxdur» deməmişdim, l
 Yoxlanmamış qalan «yoxdur» iddiaları (Davamiyyət → gecikmədən intizam əmrinə keçid, Komanda → icazə tarixçəsi ekranı, Dəstək → təcililik/SLA): koddan bir baxışla göründüyü qədərdir, brauzerdə təsdiqlənməyib.
 
 **Niyə hesab-fakturanın çap/PDF formasını bilərəkdən yazmadım:** rəsmi hesab-faktura satıcının hüquqi rekvizitlərini (VÖEN, bank, imza) və ƏDV qaydalarını tələb edir; bu rekvizitlər mənə məlum deyil və yanlış rekvizitli «rəsmi» sənəd yaratmaq riskli olardı. Platformanın hüquqi məlumatları verilərsə edilə bilər.
+
+## 37. Müvəqqəti icazə və adaptasiya siyahısı şablonu (miqrasiya 0123, 0124)
+
+- **Müvəqqəti əlavə icazə** (`lib/grants-expiry.ts`, `company_members.grants_until`): Komanda və rollar → «İcazələr» pəncərəsində «Əlavə icazələr bu tarixədək» sahəsi (məs. məzuniyyətdə olan işçinin əvəzedicisi üçün). Bitmə günü daxildir; ondan sonra əlavə icazələr avtomatik işləməyi dayandırır, rolun öz icazələri qalır. Keçmiş tarix qəbul edilmir, jurnala tarixlə yazılır, cədvəldə «tarixədək / bitib» qeydi görünür. Yerlidə sınandı: rəhbərə «payroll» icazəsi (sabaha qədər) verilən kimi 200, tarix 2020-ə çəkiləndə 403, komanda siyahısında «bitib». Rol dəyişdirmə dropdown-u tarixi saxlayır.
+- **Adaptasiya (qəbul) siyahısı şablonu** (`lib/onboarding.ts`, cədvəl `onboarding_templates`, İşçilər → Əlavə alətlər → «Qəbul siyahısı»): şirkət öz ümumi siyahısını və departamentə görə əlavə tapşırıqları yazır; yazmayıbsa hazır 9 tapşırıqlıq siyahı işləyir. Departament tapşırıqları ümumi siyahıya əlavə olunur. Yalnız yeni yaradılan adaptasiya siyahılarına təsir edir. Yerlidə: Maliyyə işçisi «ofis turu + 1C girişi (2-ci gün)», Satış işçisi yalnız «ofis turu» aldı. Rəhbər üçün 403.

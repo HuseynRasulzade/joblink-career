@@ -15,7 +15,7 @@ const MIN_GROUP = 5; // a group smaller than this is never shown on its own (pri
 
 export async function handle_employees_01(c: Pick<RouteCtx, "accountRole" | "afterSigned" | "auditView" | "db" | "id" | "memberGrants" | "memberRole" | "path" | "request" | "requestUrl" | "requesterName" | "requirePermission" | "revealAll" | "userId">): Promise<Response | undefined> {
   const { accountRole, afterSigned, auditView, db, id, memberGrants, memberRole, path, request, requestUrl, requesterName, requirePermission, revealAll, userId } = c;
-  if (!path.startsWith("company/employees/") && !path.startsWith("company/succession") && !path.startsWith("company/custom-fields")) return undefined;
+  if (!path.startsWith("company/employees/") && !path.startsWith("company/succession") && !path.startsWith("company/custom-fields") && path !== "company/onboarding-template") return undefined;
   if (accountRole !== "company") throw new HttpError(403, "Bu bölmə yalnız şirkət hesabı üçündür.");
   const isGet = request.method === "GET";
   const today = new Date().toISOString().slice(0, 10);
@@ -181,6 +181,29 @@ export async function handle_employees_01(c: Pick<RouteCtx, "accountRole" | "aft
     if (value && field.kind === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new HttpError(400, "Tarixi gün-ay-il formatında seçin.");
     await db.prepare("INSERT INTO employee_custom_values(company_id,employee_id,field_id,value,updated) VALUES(?,?,?,?,?) ON CONFLICT(employee_id,field_id) DO UPDATE SET value=excluded.value,updated=excluded.updated").bind(id, p.id, field.id, value, new Date().toISOString()).run();
     return ok({ ok: true });
+  }
+
+  // ---- onboarding list of the company: a general list and extra tasks per department ----
+  if (path === "company/onboarding-template") {
+    if (isGet) {
+      requirePermission("employees", "Qəbul siyahısını yalnız işçi məlumatlarına icazəsi olan şəxs görür.");
+      const rows = (await db.prepare("SELECT department,title,offset_days FROM onboarding_templates WHERE company_id=? ORDER BY position,created").bind(id).all<{ department: string; title: string; offset_days: number }>()).results;
+      return ok({ items: rows.map((r) => ({ department: r.department, title: r.title, offsetDays: r.offset_days })), custom: rows.length > 0 });
+    }
+    if (request.method === "POST") {
+      requirePermission("staff", "Qəbul siyahısını yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+      const b = await jsonBody(request);
+      const items = (Array.isArray(b.items) ? b.items : []).slice(0, 60).map((x: unknown) => {
+        const r = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+        return { department: str(r.department, 120).trim(), title: str(r.title, 160).replace(/\s+/g, " ").trim(), offsetDays: Math.min(365, Math.max(0, Math.round(Number(r.offsetDays) || 0))) };
+      }).filter((x: { title: string }) => x.title.length >= 2);
+      const now = new Date().toISOString();
+      const statements = [db.prepare("DELETE FROM onboarding_templates WHERE company_id=?").bind(id)];
+      items.forEach((x: { department: string; title: string; offsetDays: number }, i: number) => statements.push(db.prepare("INSERT INTO onboarding_templates(id,company_id,department,title,offset_days,position,created) VALUES(?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, x.department, x.title, x.offsetDays, i, now)));
+      await db.batch(statements);
+      await companyAudit(db, id, userId, "onboarding-template", "", `${items.length} tapşırıq`);
+      return ok({ ok: true, count: items.length });
+    }
   }
 
   // ---- 7. succession: key positions and their successors ----

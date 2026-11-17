@@ -77,7 +77,7 @@ function BenchRow({ title, side }: { title: string; side: BenchSide }) {
 type Dup = { reason: string; people: { id: string; name: string; email: string; startDate: string; department: string }[] };
 // Panels under "Əlavə alətlər": duplicates, bulk change, custom fields, succession and the org chart.
 export function EmployeeToolsPanel({ notify, selectedIds, departments, canEdit, canStaff, onChanged }: { notify: Notify; selectedIds: string[]; departments: string[]; canEdit: boolean; canStaff: boolean; onChanged: () => void }) {
-  const [tool, setTool] = useState<"" | "dups" | "bulk" | "fields" | "succession" | "chart">("");
+  const [tool, setTool] = useState<"" | "dups" | "bulk" | "fields" | "succession" | "chart" | "onboarding">("");
   const [dups, setDups] = useState<{ groups: Dup[]; checkedFin: boolean } | null>(null);
   const [bulk, setBulk] = useState({ department: "", section: "", workMode: "", date: new Date().toISOString().slice(0, 10) });
   const [bulkResult, setBulkResult] = useState<{ done: number; dryRun: boolean; items: { id: string; name: string; status: string; reason: string }[] } | null>(null);
@@ -87,8 +87,12 @@ export function EmployeeToolsPanel({ notify, selectedIds, departments, canEdit, 
   const [succ, setSucc] = useState<Succession | null>(null);
   const [people, setPeople] = useState<{ id: string; name: string }[]>([]);
   const [pick, setPick] = useState({ unitId: "", employeeId: "", readiness: "year" });
+  type Task = { department: string; title: string; offsetDays: number };
+  const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [tasksCustom, setTasksCustom] = useState(false);
   const fail = (e: Error) => notify(e.message);
   useEffect(() => {
+    if (tool === "onboarding") call<{ items: Task[]; custom: boolean }>("company/onboarding-template").then((r) => { setTasks(r.items); setTasksCustom(r.custom); }).catch(fail);
     if (tool === "dups") call<NonNullable<typeof dups>>("company/employees/duplicates").then(setDups).catch(fail);
     if (tool === "fields") call<{ fields: typeof fieldList }>("company/custom-fields").then((r) => setFieldList(r.fields)).catch(fail);
     if (tool === "succession") { call<Succession>("company/succession").then(setSucc).catch(fail); call<{ employees: { id: string; name: string; status: string }[] }>("company/employees").then((r) => setPeople(r.employees.filter((e) => e.status === "active" || e.status === "leave"))).catch(fail); }
@@ -106,7 +110,7 @@ export function EmployeeToolsPanel({ notify, selectedIds, departments, canEdit, 
     <section className="card" style={{ marginBottom: 10 }}>
       <div className="admin-actions" style={{ justifyContent: "flex-start", flexWrap: "wrap" }}>
         <b>Əlavə alətlər:</b>
-        {([["dups", "Dublikatlar"], ["bulk", "Kütləvi dəyişiklik"], ["fields", "Əlavə sahələr"], ["succession", "Əsas vəzifələr və varislik"], ["chart", "Təşkilat sxemi"]] as [typeof tool, string][]).map(([k, label]) => (
+        {([["dups", "Dublikatlar"], ["bulk", "Kütləvi dəyişiklik"], ["fields", "Əlavə sahələr"], ["succession", "Əsas vəzifələr və varislik"], ["onboarding", "Qəbul siyahısı"], ["chart", "Təşkilat sxemi"]] as [typeof tool, string][]).map(([k, label]) => (
           <button key={k} type="button" aria-pressed={tool === k} className={tool === k ? "primary" : "secondary"} onClick={() => setTool(tool === k ? "" : k)}>{label}</button>))}
       </div>
       {tool === "dups" && (dups ? (dups.groups.length ? dups.groups.map((g, i) => (
@@ -149,6 +153,23 @@ export function EmployeeToolsPanel({ notify, selectedIds, departments, canEdit, 
             <select aria-label="Varis işçi" value={pick.employeeId} onChange={(e) => setPick({ ...pick, employeeId: e.target.value })}><option value="">Varis seç…</option>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
             <select aria-label="Hazırlıq" value={pick.readiness} onChange={(e) => setPick({ ...pick, readiness: e.target.value })}><option value="now">Hazırdır</option><option value="year">1 ilə hazır olar</option><option value="later">Daha uzun inkişaf lazımdır</option></select>
             <select aria-label="Hansı vəzifəyə varis" value="" onChange={(e) => { if (e.target.value && pick.employeeId) call("company/succession/successor", { unitId: e.target.value, employeeId: pick.employeeId, readiness: pick.readiness }).then(reloadSucc).catch(fail); }}><option value="">Hansı əsas vəzifəyə varis?</option>{succ.items.map((i) => <option key={i.unitId} value={i.unitId}>{i.department} · {i.position}</option>)}</select>
+          </div>}
+        </div>) : <p className="muted">Yüklənir…</p>)}
+      {tool === "onboarding" && (tasks ? (
+        <div style={{ marginTop: 8 }}>
+          <p className="muted">Yeni işçiyə verilən adaptasiya tapşırıqları (işçi JobMatch ilə işə qəbul ediləndə və ya kartda adaptasiya siyahısı yaradılanda). {tasksCustom ? "Şirkətin öz siyahısı işləyir." : "İndi hazır siyahı işləyir (9 tapşırıq); aşağıya yazsanız ona əlavə olunur: «Departament» boşdursa hamıya, doldurulubsa yalnız həmin departamentin yeni işçilərinə."} «Neçənci gün» işə başlama günündən sayılır. Mövcud işçilərin tapşırıqları dəyişmir.</p>
+          {tasks.map((t, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 150px 90px auto", gap: 8, marginBottom: 6 }}>
+              <input aria-label={`Tapşırıq ${i + 1}`} value={t.title} maxLength={160} onChange={(e) => setTasks(tasks.map((x, k) => (k === i ? { ...x, title: e.target.value } : x)))} />
+              <select aria-label="Departament" value={t.department} onChange={(e) => setTasks(tasks.map((x, k) => (k === i ? { ...x, department: e.target.value } : x)))}><option value="">Hamıya</option>{departments.map((d) => <option key={d} value={d}>{d}</option>)}</select>
+              <input type="number" min={0} max={365} aria-label="Neçənci gün" value={t.offsetDays} onChange={(e) => setTasks(tasks.map((x, k) => (k === i ? { ...x, offsetDays: Number(e.target.value) } : x)))} />
+              <button type="button" className="text-button" onClick={() => setTasks(tasks.filter((_, k) => k !== i))}>Sil</button>
+            </div>
+          ))}
+          {canStaff && <div className="admin-actions" style={{ justifyContent: "flex-start" }}>
+            <button type="button" className="secondary" onClick={() => setTasks([...tasks, { department: "", title: "", offsetDays: 0 }])}>Tapşırıq əlavə et</button>
+            <button type="button" className="primary" onClick={() => call("company/onboarding-template", { items: tasks }).then(() => { notify("Qəbul siyahısı saxlanıldı."); return call<{ items: Task[]; custom: boolean }>("company/onboarding-template").then((r) => { setTasks(r.items); setTasksCustom(r.custom); }); }).catch(fail)}>Saxla</button>
+            <button type="button" className="text-button" onClick={() => setTasks([])}>Hamısını sil (hazır siyahıya qayıt)</button>
           </div>}
         </div>) : <p className="muted">Yüklənir…</p>)}
       {tool === "chart" && <div style={{ marginTop: 8 }}><OrgChart notify={notify} /></div>}

@@ -26,6 +26,14 @@ export function addDaysIso(date: string, days: number) {
   return base.toISOString().slice(0, 10);
 }
 
+export type OnboardingTemplate = { department: string; title: string; offsetDays: number };
+const same = (a: string, b: string) => a.trim().toLocaleLowerCase("az") === b.trim().toLocaleLowerCase("az");
+// The list for one new employee: the company's own general list (or the built-in one when it has none) plus what its template adds for the employee's department.
+export function composeOnboarding(templates: OnboardingTemplate[], department: string): OnboardingTask[] {
+  const general = templates.filter((t) => !t.department);
+  const own = templates.filter((t) => t.department && same(t.department, department));
+  return [...(general.length ? general : DEFAULT_ONBOARDING).map((t) => ({ title: t.title, offsetDays: t.offsetDays })), ...own.map((t) => ({ title: t.title, offsetDays: t.offsetDays }))];
+}
 // Default tasks with due dates counted from the start of work.
 export const defaultTasks = (startDate: string) =>
   DEFAULT_ONBOARDING.map((task) => ({
@@ -58,7 +66,14 @@ export async function seedOnboardingTasks(
     .catch(() => null);
   if (!existing || Number(existing.n) > 0) return 0;
   const now = new Date().toISOString();
-  const tasks = defaultTasks(startDate);
+  const templates = await db
+    .prepare("SELECT department,title,offset_days FROM onboarding_templates WHERE company_id=? ORDER BY position,created")
+    .bind(companyId)
+    .all<{ department: string; title: string; offset_days: number }>()
+    .then((r) => r.results.map((t) => ({ department: t.department, title: t.title, offsetDays: Number(t.offset_days) || 0 })))
+    .catch(() => [] as OnboardingTemplate[]);
+  const person = await db.prepare("SELECT department FROM company_employees WHERE id=? AND company_id=?").bind(employeeId, companyId).first<{ department: string }>().catch(() => null);
+  const tasks = composeOnboarding(templates, person?.department || "").map((task) => ({ title: task.title, due: addDaysIso(startDate, task.offsetDays) }));
   for (const [index, task] of tasks.entries())
     await db
       .prepare(

@@ -139,3 +139,24 @@ test("duplicates: a candidate turned down for another vacancy is flagged", () =>
   assert.equal(d["1"].previouslyRejected, 0);
   assert.equal(d["3"], undefined);
 });
+
+import { activeGrants, grantsUntilProblem } from "../lib/grants-expiry.ts";
+test("temporary grants: they count until the end date (inclusive) and no longer after", () => {
+  assert.deepEqual(activeGrants(["payroll"], "", "2026-11-20"), ["payroll"]);
+  assert.deepEqual(activeGrants(["payroll"], "2026-11-20", "2026-11-20"), ["payroll"]);
+  assert.deepEqual(activeGrants(["payroll"], "2026-11-19", "2026-11-20"), []);
+  assert.equal(grantsUntilProblem("2026-11-19", "2026-11-20") !== "", true);
+  assert.equal(grantsUntilProblem("2026-11-21", "2026-11-20"), "");
+  assert.equal(grantsUntilProblem("", "2026-11-20"), "");
+  assert.equal(grantsUntilProblem("20.11.2026", "2026-11-20") !== "", true);
+});
+
+import { composeOnboarding, DEFAULT_ONBOARDING } from "../lib/onboarding.ts";
+test("onboarding: the built-in list until the company writes its own, plus department extras", () => {
+  assert.equal(composeOnboarding([], "Satış").length, DEFAULT_ONBOARDING.length);
+  const t = [{ department: "", title: "Hamıya", offsetDays: 0 }, { department: "Satış", title: "CRM təlimi", offsetDays: 2 }, { department: "Maliyyə", title: "1C girişi", offsetDays: 1 }];
+  assert.deepEqual(composeOnboarding(t, " satış ").map((x) => x.title), ["Hamıya", "CRM təlimi"]);
+  assert.deepEqual(composeOnboarding(t, "IT").map((x) => x.title), ["Hamıya"]);
+  // only department tasks written: the built-in general list stays and the extras are added
+  assert.equal(composeOnboarding([{ department: "Satış", title: "CRM", offsetDays: 1 }], "Satış").length, DEFAULT_ONBOARDING.length + 1);
+});
