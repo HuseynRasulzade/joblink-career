@@ -69,7 +69,7 @@ export function OhsPanel({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const labelOf = (r: OhsRecord) => (r.type === "briefing" ? data.labels.briefing : r.type === "medical" ? data.labels.medical : data.labels.incident)[String(r.data.kind)] || String(r.data.kind);
   return (
     <div className="company-page">
@@ -280,7 +280,7 @@ export function PoliciesPanel({ notify }: { notify: Notify }) {
   }
   const editing = !!edit;
   const current = open?.versions[0];
-  if (!list) return <p className="muted">Yüklənir…</p>;
+  if (!list) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <p className="muted">Daxili əmək qaydaları, siyasətlər və şəxsi məlumatların işlənməsinə razılıq. Mətn dəyişəndə yeni versiya yaranır, köhnələri qalır; işçilər “İş yerim → Qaydalar” bölməsində təsdiq edir (təsdiq mətnin hash-i ilə saxlanır). Razılığı işçi özü geri götürə bilər.</p>
@@ -446,7 +446,7 @@ export function RetentionPanel({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <p className="muted">Hər sənəd qrupunun nə qədər saxlanacağı. İlkin illər orientirdir: şirkət özü hüquqşünas və arxiv qaydaları ilə yoxlayıb dəyişməlidir. Sistem heç nəyi öz-özünə silmir: müddəti bitmiş işçi işləri yalnız siyahıda göstərilir.</p>
@@ -520,7 +520,7 @@ export function CelebrationsPanel({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <p className="muted">Növbəti 30 gündə işçilərin ad günləri və il dönümləri (doğum tarixi və işə başlama tarixi işçi kartından götürülür).</p>

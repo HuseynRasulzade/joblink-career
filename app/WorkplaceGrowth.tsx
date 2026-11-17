@@ -49,7 +49,7 @@ export function MyPerformance({ employeeId, notify }: { employeeId: string; noti
   const [data, load] = useLoad<{ cycle: { id: string; name: string; start: string; end: string; status: string } | null; goals: Goal[]; goalScore: number | null; review: { selfScore: number | null; selfComment: string; managerScore: number | null; managerComment: string; reviewer: string; status: string; acknowledgedAt: string } | null; rating: Record<string, string> }>(`employee/performance?employeeId=${employeeId}`, notify);
   const [goal, setGoal] = useState({ title: "", target: "" });
   const [self, setSelf] = useState({ score: "", comment: "" });
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   if (!data.cycle) return <p className="muted">Şirkətdə hələ qiymətləndirmə dövrü açılmayıb.</p>;
   const open = data.cycle.status === "open";
   const review = data.review;
@@ -98,7 +98,7 @@ export function MyPerformance({ employeeId, notify }: { employeeId: string; noti
 
 export function MyTraining({ employeeId, notify }: { employeeId: string; notify: Notify }) {
   const [data, load] = useLoad<{ items: { id: string; title: string; provider: string; kind: string; start: string; end: string; hours: number; trainingStatus: string; status: string; result: string; certificateNo: string; validUntil: string }[] }>(`employee/training?employeeId=${employeeId}`, notify);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   if (!data.items.length) return <p className="muted">Sizə təlim təyin olunmayıb.</p>;
   const PS: Record<string, string> = { invited: "Dəvət olunub", attending: "İştirak edəcəksiniz", completed: "Tamamlamısınız", declined: "İmtina etmisiniz" };
   return (
@@ -126,7 +126,7 @@ type ClockData = { locationMode?: "off" | "warn" | "require"; enabled: boolean; 
 // Arrival and departure: the server stamps the time, so nothing can be typed in.
 export function MyClock({ employeeId, notify }: { employeeId: string; notify: Notify }) {
   const [data, load] = useLoad<ClockData>(`employee/clock?employeeId=${employeeId}`, notify);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const today = data.items.find((i) => i.day === data.today);
   // When the company checks the place, the position is asked from the browser and sent with the click; only the distance is kept.
   const stamp = (action: "in" | "out", done: string) => {
@@ -167,7 +167,7 @@ export function MyShifts({ employeeId, notify }: { employeeId: string; notify: N
   const [data] = useLoad<{ items: { day: string; name: string; start: string; end: string }[] }>(`employee/shifts?employeeId=${employeeId}`, notify);
   const [swaps, loadSwaps] = useLoad<{ items: SwapItem[]; colleagues: { id: string; name: string }[] }>(`employee/shift-swaps?employeeId=${employeeId}`, notify);
   const [form, setForm] = useState({ day: "", toEmployeeId: "", note: "" });
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="offer-composer">
       {!data.items.length ? (
@@ -231,7 +231,7 @@ export function MyTrips({ employeeId, notify }: { employeeId: string; notify: No
   const [data, load] = useLoad<{ trips: Trip[] }>(`employee/trips?employeeId=${employeeId}`, notify);
   const [form, setForm] = useState({ destination: "", purpose: "", start: "", end: "", abroad: false });
   const [expense, setExpense] = useState({ tripId: "", label: "", amount: 0 });
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="offer-composer">
       {data.trips.map((t) => (
@@ -265,7 +265,7 @@ type SurveyQ = { id: string; label: string; kind: "scale10" | "scale5" | "yesno"
 export function MyEngage({ employeeId, notify }: { employeeId: string; notify: Notify }) {
   const [data, load] = useLoad<{ news: { id: string; title: string; body: string; pinned: boolean; author: string; created: string; requiresAck?: boolean; read?: boolean; acked?: boolean; allowComments?: boolean; comments?: { id: string; author: string; body: string; created: string; mine: boolean; hr: boolean }[] }[]; surveys: { id: string; title: string; anonymous: boolean; questions: SurveyQ[] }[] }>(`employee/engage?employeeId=${employeeId}`, notify);
   const [answers, setAnswers] = useState<Record<string, Record<string, string>>>({});
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="offer-composer">
       {data.surveys.map((sv) => (
@@ -310,7 +310,7 @@ export function MyEngage({ employeeId, notify }: { employeeId: string; notify: N
 export function MyReferrals({ employeeId, notify }: { employeeId: string; notify: Notify }) {
   const [data, load] = useLoad<{ bonus: number; statusText: Record<string, string>; jobs: { id: string; title: string }[]; items: { id: string; jobTitle: string; name: string; status: string; bonus: number; paid: boolean; created: string }[] }>(`employee/referrals?employeeId=${employeeId}`, notify);
   const [form, setForm] = useState({ jobId: "", name: "", phone: "", email: "", note: "" });
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="offer-composer">
       <p className="muted">Tanıdığınız uyğun şəxsi açıq vakansiyaya tövsiyə edin{data.bonus > 0 ? `; işə qəbul olunarsa tövsiyə bonusu ${azn(data.bonus)}` : ""}.</p>

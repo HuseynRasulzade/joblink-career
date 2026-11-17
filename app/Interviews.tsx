@@ -488,7 +488,7 @@ export function InterviewsPage({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!items) return <p className="muted">Yüklənir…</p>;
+  if (!items) return <p className="muted loading-line">Yüklənir…</p>;
   const now = Date.now();
   const past = (i: InterviewItem) => Date.parse(i.scheduled_at) <= now + 15 * 60000;
   const upcoming = items.filter((i) => isActive(i.status) && Date.parse(i.scheduled_at) > now - 15 * 60000);

@@ -292,7 +292,7 @@ export default function CandidateDrawer({
       {application && (
         <section className="cand-block">
           <h4>Müraciətin tarixçəsi</h4>
-          {events === null ? <p className="muted">Yüklənir…</p> : events.length ? (
+          {events === null ? <p className="muted loading-line">Yüklənir…</p> : events.length ? (
             <ul className="cand-timeline">
               {events.map((e, i) => (
                 <li key={i}>

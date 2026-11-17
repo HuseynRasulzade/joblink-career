@@ -141,7 +141,7 @@ export function AdminVerifications({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!list) return <p className="muted">Yüklənir…</p>;
+  if (!list) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <section className="panel admin-table-card">
       <div className="admin-table-wrap">

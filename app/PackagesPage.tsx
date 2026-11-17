@@ -114,7 +114,7 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
     }
   }
 
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const current = data.plans.find((p) => p.id === data.plan) || data.plans[0];
   const sub = data.subscription;
   const defaultMethod = data.methods.find((m) => m.isDefault) || data.methods[0];

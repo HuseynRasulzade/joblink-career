@@ -88,7 +88,7 @@ export default function GroupPage({ notify }: { notify: Notify }) {
     link.click();
     URL.revokeObjectURL(link.href);
   }
-  if (!info) return <p className="muted">Yüklənir…</p>;
+  if (!info) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <p className="muted">

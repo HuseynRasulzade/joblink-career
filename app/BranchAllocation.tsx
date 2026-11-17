@@ -32,7 +32,7 @@ export default function BranchAllocation({ initialMonth, notify, version = 0, on
     call<Data>(`company/payroll/branches?month=${month}`).then(setData).catch((e) => notifyRef.current((e as Error).message));
   }, [month]);
   useEffect(load, [load, version]);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
 
   function excel() {
     const d = data as Data;

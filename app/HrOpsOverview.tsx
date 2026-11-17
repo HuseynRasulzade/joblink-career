@@ -82,7 +82,7 @@ export default function HrOpsOverview({ go }: { go: (page: string) => void }) {
       .catch(() => setToday([]));
   }, []);
   if (failed) return <p className="notice error">{failed}</p>;
-  if (!ops) return <p className="muted">Yüklənir…</p>;
+  if (!ops) return <p className="muted loading-line">Yüklənir…</p>;
   const hc = ops.headcount;
   const waiting = ops.ordersWaiting + ops.requestsNew;
   const deadlines = today.filter((i) => DEADLINE_KEYS.includes(i.key));

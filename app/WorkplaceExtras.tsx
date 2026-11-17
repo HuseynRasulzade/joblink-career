@@ -57,7 +57,7 @@ export function MyLeave({ employeeId, notify }: { employeeId: string; notify: No
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="offer-composer">
       <p>Qalan məzuniyyət: <b>{data.balance.remaining} gün</b> (qazanılıb {data.balance.accrued}, istifadə {data.balance.used}).</p>
@@ -94,7 +94,7 @@ export function MyAssets({ employeeId, notify }: { employeeId: string; notify: N
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   if (!data.items.length) return <p className="muted">Sizə şirkət əmlakı verilməyib.</p>;
   return (
     <table className="admin-table">
@@ -113,7 +113,7 @@ export function ExitInterview({ employeeId, notify }: { employeeId: string; noti
   const [data] = useLoad<{ open: boolean; questions: { id: string; label: string; kind: "choice" | "scale" | "yesno" | "text"; options?: string[] }[]; answers: Record<string, string> }>(`employee/offboarding?employeeId=${employeeId}`, notify);
   const [answers, setAnswers] = useState<Record<string, string> | null>(null);
   const current = answers || data?.answers || {};
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   if (!data.open) return <p className="muted">Hazırda çıxış prosesi açıq deyil.</p>;
   async function save() {
     try {
@@ -158,7 +158,7 @@ export function DocsToSign({ employeeId, notify }: { employeeId: string; notify:
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   if (!data.items.length) return <p className="muted">Təsdiq üçün sənəd yoxdur.</p>;
   return (
     <div className="offer-composer">

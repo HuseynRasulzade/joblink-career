@@ -17,7 +17,7 @@ export default function AdminMatching({ api, notify }: { api: (path: string, bod
   useEffect(() => {
     (api("admin/matching-settings") as Promise<{ settings: MatchingSettings }>).then((b) => setSettings(b.settings)).catch((e) => notify((e as Error).message));
   }, [api, notify]);
-  if (!settings) return <p className="muted">Yüklənir…</p>;
+  if (!settings) return <p className="muted loading-line">Yüklənir…</p>;
   async function save() {
     setBusy(true);
     try {

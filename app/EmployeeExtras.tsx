@@ -39,27 +39,27 @@ export function EmployeeDetailModal({ employee, canSalary, canEdit, notify, onCl
       </div>
       {error && <p className="danger-text" role="alert">{error}</p>}
       {tab === "timeline" && (timeline ? (timeline.length ? <ol className="timeline" style={{ listStyle: "none", padding: 0, margin: 0, maxHeight: 420, overflow: "auto" }}>{timeline.map((t, i) => (
-        <li key={i} style={{ display: "grid", gridTemplateColumns: "90px 110px 1fr", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--line, #e5e7eb)" }}><span className="muted">{dateText(t.date)}</span><span className="pill">{KIND_LABEL[t.kind] || t.kind}</span><span><b>{t.title}</b>{t.detail && <small className="skill-description">{t.detail}</small>}</span></li>))}</ol> : <p className="admin-empty">Hələ qeyd yoxdur.</p>) : <p className="muted">Yüklənir…</p>)}
+        <li key={i} style={{ display: "grid", gridTemplateColumns: "90px 110px 1fr", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--line, #e5e7eb)" }}><span className="muted">{dateText(t.date)}</span><span className="pill">{KIND_LABEL[t.kind] || t.kind}</span><span><b>{t.title}</b>{t.detail && <small className="skill-description">{t.detail}</small>}</span></li>))}</ol> : <p className="admin-empty">Hələ qeyd yoxdur.</p>) : <p className="muted loading-line">Yüklənir…</p>)}
       {tab === "pay" && (bench ? (
         <div>
           <p>Vəzifə: <b>{bench.position || "—"}</b>. Bu işçinin gross maaşı: <b>{bench.gross ? `${bench.gross} AZN` : "—"}</b>.</p>
           <BenchRow title="Şirkətdə eyni vəzifədəkilər" side={bench.peers} />
           <BenchRow title="Platformada dərc olunmuş elanlar (bazar)" side={bench.market} />
           <p className="muted">Kiçik qruplar (peer ≥ 3, bazar ≥ 5) göstərilmir: fərdi maaşı başqasından təxmin etmək mümkün olmamalıdır.</p>
-        </div>) : <p className="muted">Yüklənir…</p>)}
+        </div>) : <p className="muted loading-line">Yüklənir…</p>)}
       {tab === "survey" && (survey ? (
         <div>
           {survey.items.length ? <table className="admin-table"><thead><tr><th>Sorğu</th><th>Departament ({survey.department || "—"})</th><th>Öz iştirakı</th></tr></thead><tbody>{survey.items.map((s) => (
             <tr key={s.id}><td>{s.title}</td><td>{s.department.hidden ? `Gizlədilib (cavab ${s.department.responses}/${s.department.headcount}; ən azı 5 lazımdır)` : `eNPS ${s.department.enps ?? "—"} · cavab ${s.department.responses}/${s.department.headcount}`}</td><td>{s.anonymous ? "Anonim sorğu: göstərilmir" : s.took ? "Cavab verib" : "Cavab verməyib"}</td></tr>))}</tbody></table> : <p className="admin-empty">eNPS sorğusu yoxdur.</p>}
           <p className="muted">{survey.note}</p>
-        </div>) : <p className="muted">Yüklənir…</p>)}
+        </div>) : <p className="muted loading-line">Yüklənir…</p>)}
       {tab === "fields" && (fields ? (fields.fields.length ? (
         <div className="admin-form" style={{ display: "grid", gap: 8 }}>
           {fields.fields.map((f) => (
             <label key={f.id}>{f.label}
               <input type={f.kind === "number" ? "text" : f.kind === "date" ? "date" : "text"} disabled={!canEdit} defaultValue={fields.values[f.id] || ""} onBlur={(e) => { if (e.target.value === (fields.values[f.id] || "")) return; call("company/custom-fields/value", { employeeId: id, fieldId: f.id, value: e.target.value }).then(() => { setFields({ ...fields, values: { ...fields.values, [f.id]: e.target.value } }); notify("Saxlanıldı."); }).catch((er: Error) => notify(er.message)); }} />
             </label>))}
-        </div>) : <p className="admin-empty">Şirkət hələ əlavə sahə yaratmayıb. «Əlavə alətlər → Əlavə sahələr» bölməsindən yaradın.</p>) : <p className="muted">Yüklənir…</p>)}
+        </div>) : <p className="admin-empty">Şirkət hələ əlavə sahə yaratmayıb. «Əlavə alətlər → Əlavə sahələr» bölməsindən yaradın.</p>) : <p className="muted loading-line">Yüklənir…</p>)}
     </Modal>
   );
 }
@@ -154,7 +154,7 @@ export function EmployeeToolsPanel({ notify, selectedIds, departments, canEdit, 
             <select aria-label="Hazırlıq" value={pick.readiness} onChange={(e) => setPick({ ...pick, readiness: e.target.value })}><option value="now">Hazırdır</option><option value="year">1 ilə hazır olar</option><option value="later">Daha uzun inkişaf lazımdır</option></select>
             <select aria-label="Hansı vəzifəyə varis" value="" onChange={(e) => { if (e.target.value && pick.employeeId) call("company/succession/successor", { unitId: e.target.value, employeeId: pick.employeeId, readiness: pick.readiness }).then(reloadSucc).catch(fail); }}><option value="">Hansı əsas vəzifəyə varis?</option>{succ.items.map((i) => <option key={i.unitId} value={i.unitId}>{i.department} · {i.position}</option>)}</select>
           </div>}
-        </div>) : <p className="muted">Yüklənir…</p>)}
+        </div>) : <p className="muted loading-line">Yüklənir…</p>)}
       {tool === "onboarding" && (tasks ? (
         <div style={{ marginTop: 8 }}>
           <p className="muted">Yeni işçiyə verilən adaptasiya tapşırıqları (işçi JobMatch ilə işə qəbul ediləndə və ya kartda adaptasiya siyahısı yaradılanda). {tasksCustom ? "Şirkətin öz siyahısı işləyir." : "İndi hazır siyahı işləyir (9 tapşırıq); aşağıya yazsanız ona əlavə olunur: «Departament» boşdursa hamıya, doldurulubsa yalnız həmin departamentin yeni işçilərinə."} «Neçənci gün» işə başlama günündən sayılır. Mövcud işçilərin tapşırıqları dəyişmir.</p>
@@ -171,7 +171,7 @@ export function EmployeeToolsPanel({ notify, selectedIds, departments, canEdit, 
             <button type="button" className="primary" onClick={() => call("company/onboarding-template", { items: tasks }).then(() => { notify("Qəbul siyahısı saxlanıldı."); return call<{ items: Task[]; custom: boolean }>("company/onboarding-template").then((r) => { setTasks(r.items); setTasksCustom(r.custom); }); }).catch(fail)}>Saxla</button>
             <button type="button" className="text-button" onClick={() => setTasks([])}>Hamısını sil (hazır siyahıya qayıt)</button>
           </div>}
-        </div>) : <p className="muted">Yüklənir…</p>)}
+        </div>) : <p className="muted loading-line">Yüklənir…</p>)}
       {tool === "chart" && <div style={{ marginTop: 8 }}><OrgChart notify={notify} /></div>}
     </section>
   );

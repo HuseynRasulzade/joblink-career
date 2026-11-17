@@ -33,7 +33,7 @@ export default function PlanFactIntegrations({ notify }: { notify: Notify }) {
     call<Data>("company/integrations").then(setData).catch((e) => notifyRef.current((e as Error).message));
   }, []);
   useEffect(load, [load]);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const base = `${typeof window === "undefined" ? "" : window.location.origin}/api/integration/v1`;
 
   async function run(action: () => Promise<unknown>, done: string) {

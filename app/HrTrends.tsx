@@ -112,7 +112,7 @@ export default function HrTrends({ notify, editable = false, onOpenPlan }: { not
       .catch((e) => notify((e as Error).message));
   }, [notify]);
   useEffect(load, [load]);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const last = data.series[data.series.length - 1];
   return (
     <div className="company-page">

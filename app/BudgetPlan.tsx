@@ -45,7 +45,7 @@ export default function BudgetPlan({ year, notify, editable = false, version = 0
       live = false;
     };
   }, [year, reloads, version]);
-  if (!data) return <div className="year-budget"><h4>{year}-ci il büdcəsi</h4><p className="muted">Yüklənir…</p></div>;
+  if (!data) return <div className="year-budget"><h4>{year}-ci il büdcəsi</h4><p className="muted loading-line">Yüklənir…</p></div>;
 
   const months = MONTHS.map((_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
   const rows = [COMPANY, ...data.departments];

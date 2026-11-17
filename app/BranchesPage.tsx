@@ -39,7 +39,7 @@ export default function BranchesPage({ notify }: { notify: Notify }) {
     call<Data>(`company/branches?month=${month}`).then(setData).catch((e) => notifyRef.current((e as Error).message));
   }, [month]);
   useEffect(load, [load, version]);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
 
   async function run(action: () => Promise<unknown>, done: string) {
     setBusy(true);

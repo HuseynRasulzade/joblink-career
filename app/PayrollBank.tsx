@@ -83,7 +83,7 @@ export default function PayrollBank({ month, notify, onChanged }: { month: strin
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const set = (key: keyof Account, value: string | boolean) => setForm(form ? { ...form, [key]: value } : form);
   const input = (key: keyof Account, label: string, props: Record<string, unknown> = {}) => (
     <Field label={label}>

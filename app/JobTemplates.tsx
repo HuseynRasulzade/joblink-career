@@ -53,7 +53,7 @@ export function TemplatesModal({ onClose, onUse, notify }: { onClose: () => void
   return (
     <Modal title="Vakansiya şablonları" onClose={onClose}>
       {list === null ? (
-        <p className="muted">Yüklənir…</p>
+        <p className="muted loading-line">Yüklənir…</p>
       ) : list.length ? (
         <div className="offer-composer">
           {list.map((t) => (

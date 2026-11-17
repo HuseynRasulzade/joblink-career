@@ -19,7 +19,7 @@ export default function SalaryHistory({ employeeId }: { employeeId: string }) {
       .catch((e) => setError((e as Error).message));
   }, [employeeId]);
   if (error) return <p className="danger-text">{error}</p>;
-  if (!list) return <p className="muted">Yüklənir…</p>;
+  if (!list) return <p className="muted loading-line">Yüklənir…</p>;
   if (!list.length) return <p className="muted">Maaş dəyişikliyi qeydə alınmayıb: hazırkı maaş bütün aylar üçün götürülür.</p>;
   return (
     <div className="offer-composer">

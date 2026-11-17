@@ -250,7 +250,7 @@ export function CompanyDashboard({
   useEffect(() => {
     if (data?.jobsList && !filter.jobId) setJobOptions(data.jobsList);
   }, [data, filter.jobId]);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const t = data.totals;
   const peak = Math.max(1, ...data.days.map((d) => d.count));
   const reports = me?.permissions.includes("reports");
@@ -687,7 +687,7 @@ export function ApprovalsPage({
     load();
     onChange();
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const decidable = data.jobs.filter((job) => job.canDecide);
   const requests = reqData?.requests || [];
   const reqOpen = requests.filter((r) => r.status === "pending" || r.status === "info").length;
@@ -952,7 +952,7 @@ function RequestDetail({ id, onClose, onDecided, onLink, notify, inline = false 
   const content = (
     <>
       {!data ? (
-        <p className="muted">Yüklənir…</p>
+        <p className="muted loading-line">Yüklənir…</p>
       ) : (
         <div className="jd">
           <p className="jd-sub"><b>{data.subject}</b><span className="jd-status">{REQUEST_STATUS[data.status] || data.status}</span></p>
@@ -2267,7 +2267,7 @@ export function CompanyProfilePage({
   useEffect(() => {
     if (data) setDetails(data.details);
   }, [data]);
-  if (!data || !details) return <p className="muted">Yüklənir…</p>;
+  if (!data || !details) return <p className="muted loading-line">Yüklənir…</p>;
   const set = (key: keyof CompanyDetails, value: string) =>
     setDetails({ ...details, [key]: value });
   const fields: [keyof CompanyDetails, string, string?][] = [
@@ -2654,7 +2654,7 @@ export function EmployeesPage({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const todayIso = new Date().toISOString().slice(0, 10);
   const in14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
   const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
@@ -3414,7 +3414,7 @@ const INVOICE_STATE: Record<string, string> = {
 };
 export function BillingPage({ notify }: { notify: Notify }) {
   const [data] = useLoad<Billing>("company/billing", notify);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <div className="kpi-grid">
@@ -3598,7 +3598,7 @@ export function AdminCompanies({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <section className="panel admin-table-card">
       <div className="admin-table-wrap">
@@ -4000,7 +4000,7 @@ export function WorkforcePage({
           </div>
         )}
       </div>
-      {loading && !m && <p className="muted">Yüklənir…</p>}
+      {loading && !m && <p className="muted loading-line">Yüklənir…</p>}
       {m && (
         <>
           <p className="muted">

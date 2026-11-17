@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./joblink.css";
 import "./features.css";
 import "./polish.css";
+import "./landing.css";
 import RegisterServiceWorker from "./RegisterServiceWorker";
 import ClientErrorReporter from "./ClientErrorReporter";
 

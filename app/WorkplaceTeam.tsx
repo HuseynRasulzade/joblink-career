@@ -113,7 +113,7 @@ export default function MyTeam({ employeeId, notify }: { employeeId: string; not
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const pending = data.requests.filter((r) => r.status === "pending");
   const done = data.requests.filter((r) => r.status !== "pending");
   return (

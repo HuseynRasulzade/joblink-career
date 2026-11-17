@@ -83,7 +83,7 @@ export function CompaniesPage({
       ),
     [list, query, withJobs],
   );
-  if (!list) return <p className="muted">Yüklənir…</p>;
+  if (!list) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="companies-page">
       <div className="jobs-toolbar">

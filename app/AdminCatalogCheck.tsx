@@ -66,7 +66,7 @@ export default function AdminCatalogCheck({ notify }: { notify: (message: string
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <div className="kpi-grid">

@@ -68,7 +68,7 @@ export default function LeaveSchedulePanel({ notify }: { notify: Notify }) {
     win.focus();
     win.print();
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const pending = data.entries.filter((e) => e.status === "proposed");
   const withPlan = new Set(data.entries.filter((e) => e.status !== "rejected").map((e) => e.employeeId));
   const without = data.employees.filter((p) => !withPlan.has(p.id));

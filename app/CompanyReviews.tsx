@@ -126,7 +126,7 @@ export function AdminAiUsage({ notify }: { notify: (m: string) => void }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState<AiUsage | null>(null);
   useEffect(() => { request<AiUsage>(`admin/ai-usage?days=${days}`).then(setData).catch((e) => notify((e as Error).message)); }, [days, notify]);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const table = (heads: string[], rows: (string | number)[][]) => (
     <div className="admin-table-wrap"><table className="admin-table"><thead><tr>{heads.map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}{!rows.length && <tr><td colSpan={heads.length}><p className="admin-empty">Məlumat yoxdur.</p></td></tr>}</tbody></table></div>
   );
@@ -163,7 +163,7 @@ type Ops = { errors: { source: string; message: string; where_at: string; count:
 export function AdminOps({ notify }: { notify: (m: string) => void }) {
   const [data, setData] = useState<Ops | null>(null);
   useEffect(() => { request<Ops>("admin/ops").then(setData).catch((e) => notify((e as Error).message)); }, [notify]);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const roleLabel = (r: string) => (r === "company" ? "şirkət" : r === "admin" ? "admin" : "namizəd");
   return (
     <div className="company-page">

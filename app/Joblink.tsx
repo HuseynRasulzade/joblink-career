@@ -131,6 +131,9 @@ import { HIDDEN_HR_PAGES, HR_MODULES, inModule, moduleOf, type HrModule } from "
 import PeopleOps from "./PeopleOps";
 import AtsAnalytics from "./AtsAnalytics";
 import GuidePage from "./GuidePage";
+import Landing from "./Landing";
+import FirstSteps from "./FirstSteps";
+import CommandPalette from "./CommandPalette";
 import GrowthHub from "./GrowthHub";
 import EncryptionPanel from "./EncryptionPanel";
 import ReportsHub from "./ReportsHub";
@@ -1722,6 +1725,7 @@ export default function Joblink() {
 
   if (!signedIn) {
     return localizeTree(
+      <>
       <main className="auth-gate">
         <section className="auth-gate-intro">
           <div className="auth-gate-brand">
@@ -1792,12 +1796,15 @@ export default function Joblink() {
             </div>
           )}
         </section>
-      </main>,
+      </main>
+      <Landing />
+      </>,
     );
   }
 
   return localizeTree(
     <div className="app-shell">
+      <CommandPalette items={navigation.map((n) => ({ id: n.id, label: n.label }))} go={go} />
       <aside className="sidebar">
         <a
           className="brand"
@@ -3063,6 +3070,17 @@ export default function Joblink() {
               )}
               {page === "overview" && (
                 <>
+                  {!sample && (
+                    <FirstSteps
+                      go={go}
+                      steps={[
+                        { label: "Profilinizi doldurun", hint: "Təcrübə, təhsil və bacarıqları yazın (70%+)", done: result.completeness >= 70, page: "profile" },
+                        { label: "CV-ni AI ilə təhlil edin", hint: "Güclü və zəif tərəflərə rəy alın", done: !!report, page: "analysis" },
+                        { label: "Vakansiyanı yadda saxlayın", hint: "Bəyəndiyiniz elanı işarələyin", done: saved.length > 0, page: "jobs" },
+                        { label: "İlk müraciəti göndərin", hint: "Uyğun vakansiyaya bir kliklə müraciət edin", done: applications.length > 0, page: "jobs" },
+                      ]}
+                    />
+                  )}
                   <div className="stats">
                     {[
                       [

@@ -169,7 +169,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
         <PayrollBank month={month} notify={notify} onChanged={load} />
       </div>
     );
-  if (!sheet) return <p className="muted">Yüklənir…</p>;
+  if (!sheet) return <p className="muted loading-line">Yüklənir…</p>;
   const t = sheet.totals;
   const approved = sheet.status === "approved";
   const paidTotal = Math.round(sheet.rows.reduce((sum, r) => sum + r.advances + r.salaryPaid, 0) * 100) / 100;
@@ -738,7 +738,7 @@ function AccountingModal({ month, notify, onClose }: { month: string; notify: No
       notify((error as Error).message);
     }
   }
-  if (!data) return <Modal title="Mühasibat jurnalı" onClose={onClose}><p className="muted">Yüklənir…</p></Modal>;
+  if (!data) return <Modal title="Mühasibat jurnalı" onClose={onClose}><p className="muted loading-line">Yüklənir…</p></Modal>;
   return (
     <Modal title="Mühasibat jurnalı (1C və ya digər proqram üçün)" onClose={onClose}>
       <div className="offer-composer">
@@ -779,7 +779,7 @@ function BenefitsModal({ month, notify, onClose }: { month: string; notify: Noti
   return (
     <Modal title={`Sosial sığorta müavinəti: ${month}`} onClose={onClose}>
       <div className="offer-composer">
-        {!data ? <p className="muted">Yüklənir…</p> : (
+        {!data ? <p className="muted loading-line">Yüklənir…</p> : (
           <>
             <p className="muted">
               {data.payer === "insurer" ? "Müavinəti sığortaçı birbaşa işçiyə ödəyir (md. 17); burada şirkət tərəfindən alınıb-verilən məbləğ izlənir, məsələn şirkət əvvəlcədən ödəyib sonra sığortaçıdan alırsa." : "Müavinəti şirkət ödəyir; sığortaçıdan geri alınan məbləği buraya yazın."}

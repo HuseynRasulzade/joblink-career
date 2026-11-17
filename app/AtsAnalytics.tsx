@@ -67,7 +67,7 @@ export default function AtsAnalytics({ notify }: { notify: Notify }) {
         </select>
         <button type="button" className="secondary" disabled={!r} onClick={exportExcel}><Download size={14} /> Excel</button>
       </div>
-      {!r ? <p className="muted">Yüklənir…</p> : !r.total ? <p className="admin-empty">Bu dövrdə müraciət yoxdur.</p> : (
+      {!r ? <p className="muted loading-line">Yüklənir…</p> : !r.total ? <p className="admin-empty">Bu dövrdə müraciət yoxdur.</p> : (
         <>
           {data?.truncated && <p className="notice" role="status">Çox müraciət var: ən son 4000-i hesablanıb. Dövrü qısaldın.</p>}
           <div className="staff-kpis" style={{ marginBottom: 12 }}>

@@ -76,7 +76,7 @@ export function Performance({ notify }: { notify: Notify }) {
   const [creating, setCreating] = useState(false);
   const [meet, setMeet] = useState("");
   const [importing, setImporting] = useState(false);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const current = data.cycles.find((c) => c.id === data.cycle);
   const person = data.employees.find((p) => p.id === open);
   return (
@@ -252,7 +252,7 @@ export function Training({ notify }: { notify: Notify }) {
   const [edit, setEdit] = useState<Partial<Training> | null>(null);
   const [people, setPeople] = useState<Training | null>(null);
   const [importing, setImporting] = useState(false);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const left = data.budget - data.spent;
   return (
     <div className="company-page">
@@ -380,7 +380,7 @@ export function Shifts({ notify }: { notify: Notify }) {
   const [gridQuery, setGridQuery] = useState("");
   const [gridDept, setGridDept] = useState("");
   const [gridPage, setGridPage] = useState(0);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const days = Array.from({ length: 14 }, (_, i) => addDays(data.from, i));
   // A big company: the grid shows 40 people at a time, found by name or department.
   const GRID_PAGE = 40;
@@ -564,7 +564,7 @@ export function Trips({ notify }: { notify: Notify }) {
   const [normTable, setNormTable] = useState(false);
   const [normSettings, setNormSettings] = useState(false);
   const [importing, setImporting] = useState(false);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const current = open ? data.trips.find((t) => t.id === open.id) || null : null;
   return (
     <div className="company-page">
@@ -677,7 +677,7 @@ function NormTable({ onClose }: { onClose: () => void }) {
   const rows = (data?.foreign || []).filter((r) => !needle || `${r.country} ${r.cities.map((c) => c.name).join(" ")}`.toLocaleLowerCase("az").includes(needle));
   return (
     <Modal title="Ezamiyyə xərclərinin rəsmi normaları" onClose={onClose}>
-      {!data ? <p className="muted">Yüklənir…</p> : (
+      {!data ? <p className="muted loading-line">Yüklənir…</p> : (
         <div className="offer-composer">
           <p className="muted">{data.source}. Bir günlük norma mehmanxana ({Math.round(data.hotelShare * 100)}%) və gündəlik xərcləri (yemək, şəhərdaxili nəqliyyat, rabitə) əhatə edir. Ölkə daxilində mehmanxana sənədi təqdim edilməyəndə mehmanxana hissəsinin {Math.round(data.noReceiptHotelPart * 100)}%-i ödənilir. Yol xərci sənədlərə əsasən ayrıca ödənilir.</p>
           <h4>Azərbaycan daxilində (AZN / gün)</h4>
@@ -724,7 +724,7 @@ function NormSettings({ notify, onClose }: { notify: Notify; onClose: () => void
   }
   return (
     <Modal title="Gündəlik normalar və məzənnə" onClose={onClose}>
-      {!form ? <p className="muted">Yüklənir…</p> : (
+      {!form ? <p className="muted loading-line">Yüklənir…</p> : (
         <div className="offer-composer">
           <p className="muted">Gündəlik boş qalanda təyinat yerinin <b>rəsmi normu</b> işlənir (Azərbaycan daxilində AZN ilə avtomatik). Xarici norma xarici valyutadadır: AZN-ə çevirmək üçün ezamiyyətin başlama gününə Mərkəzi Bankın rəsmi məzənnəsi <b>avtomatik</b> işlənir. Aşağıdakı ümumi normlar yalnız rəsmi cədvəldə tapılmayan təyinat üçündür.</p>
           <div className="fx-official">
@@ -985,7 +985,7 @@ export function SkillMatrix({ notify }: { notify: Notify }) {
       setFound([]);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const cell = (e: string, s: string) => data.cells.find((c) => c.employeeId === e && c.skillId === s) || { level: 0, target: 0 };
   const gaps = data.cells.filter((c) => c.target > c.level).length;
   const set = (employeeId: string, skillId: string, patch: { level?: number; target?: number }) => void run(notify, load, "company/skill-matrix/set", { employeeId, skillId, ...patch });

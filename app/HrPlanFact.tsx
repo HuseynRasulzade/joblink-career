@@ -139,7 +139,7 @@ function Summary({ year, version, go, notify }: { year: string; version: number;
       .catch((e) => notify((e as Error).message));
   }, [year, notify]);
   useEffect(load, [load, version]);
-  if (!trends || !budget) return <p className="muted">Yüklənir…</p>;
+  if (!trends || !budget) return <p className="muted loading-line">Yüklənir…</p>;
   const nowMonth = budget.nowMonth;
   const lastMonth = year === nowMonth.slice(0, 4) ? nowMonth : Number(year) < Number(nowMonth.slice(0, 4)) ? `${year}-12` : `${year}-00`;
   const upTo = (m: string) => m <= lastMonth;

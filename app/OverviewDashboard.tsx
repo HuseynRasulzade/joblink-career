@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import FirstSteps from "./FirstSteps";
 import { ArrowDownRight, ArrowUpRight, BriefcaseBusiness, CalendarClock, Eye, Users } from "lucide-react";
 
 type Overview = {
@@ -227,6 +228,14 @@ export default function OverviewDashboard({ go }: { go: (page: string) => void }
   const delta = t.appsPrev30 > 0 ? Math.round(((t.apps30 - t.appsPrev30) / t.appsPrev30) * 100) : t.apps30 > 0 ? 100 : null;
   return (
     <div className="ov">
+      <FirstSteps
+        go={go}
+        steps={[
+          { label: "İlk vakansiyanı yaradın", hint: "HR AI köməkçi elanı sizinlə birlikdə hazırlayır", done: t.jobs > 0, page: "hr-ai" },
+          { label: "İlk müraciətə baxın", hint: "Namizədlər bölməsində statusu dəyişin", done: t.applications > 0, page: "hr-candidates" },
+          { label: "Müsahibə təyin edin", hint: "Namizədi müsahibəyə dəvət edin", done: t.interviews14 > 0 || t.hired > 0, page: "hr-interviews" },
+        ]}
+      />
       <div className="ov-tiles">
         <Tile tone="teal" icon={<BriefcaseBusiness size={20} />} label="Aktiv vakansiyalar" value={t.jobs} note={`${t.hired} işə qəbul`} />
         <Tile tone="dark" icon={<Users size={20} />} label="Müraciətlər" value={t.applications} delta={delta} spark={data.weeks.map((w) => w.apps)} />

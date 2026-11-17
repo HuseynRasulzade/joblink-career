@@ -20,7 +20,7 @@ export default function AdminAiFeedback({ notify }: { notify: (message: string) 
       })
       .catch((e) => notify((e as Error).message));
   }, [notify]);
-  if (!summary) return <p className="muted">Yüklənir…</p>;
+  if (!summary) return <p className="muted loading-line">Yüklənir…</p>;
   const recs = ["interview", "consider", "reject"];
   return (
     <div className="company-page">

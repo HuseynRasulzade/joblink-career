@@ -76,7 +76,7 @@ export function DocRegistry({ notify }: { notify: Notify }) {
         <input type="search" placeholder="İşçi, sənəd və ya nömrə" value={query} onChange={(e) => setQuery(e.target.value)} />
         <button type="button" className="secondary" onClick={() => setImporting(true)}>Müddətləri Excel-dən yüklə</button>
       </div>
-      {!data ? <p className="muted">Yüklənir…</p> : (
+      {!data ? <p className="muted loading-line">Yüklənir…</p> : (
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead><tr><th>İşçi</th><th>Sənəd</th><th>Nömrə / tarix</th><th>Bitmə tarixi</th><th></th></tr></thead>
@@ -118,7 +118,7 @@ export function Offboarding({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const current = data.cases.find((c) => c.id === open);
   return (
     <div className="company-page">
@@ -271,7 +271,7 @@ export function Assets({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const list = data.assets.filter((a) => `${a.name} ${a.serial} ${a.inventoryNo} ${a.holder} ${a.category}`.toLowerCase().includes(query.trim().toLowerCase()));
   return (
     <div className="company-page">
@@ -391,7 +391,7 @@ export function OrgChart({ notify }: { notify: Notify }) {
       .then((d) => setCompany(d?.company?.name || ""))
       .catch(() => undefined);
   }, []);
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const everyone = data.employees.filter((p) => p.status !== "left");
   const chosen = branchData?.branches.find((b) => b.id === branch);
   // One branch: its people, each placed where his link puts him (department, section, position there).
@@ -449,7 +449,7 @@ export function Referrals({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <div className="section-heading">
@@ -505,7 +505,7 @@ export function ReferenceChecks({ notify }: { notify: Notify }) {
       return false;
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <div className="section-heading">

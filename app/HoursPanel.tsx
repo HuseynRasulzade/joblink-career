@@ -62,7 +62,7 @@ export default function HoursPanel({ notify }: { notify: Notify }) {
         Saat yalnız burada yazılır; əmək haqqı hesablaması onu buradan götürür. İki yol var: <b>gündəlik</b> (giriş-çıxış və ya gün üzrə saat) və <b>ay yekunu</b> (işçi üçün ayda bir rəqəm). Eyni ay üçün gündəlik qeyd varsa yalnız o sayılır, ikisi toplanmır. İş günündə gündəlik normadan (həftəlik saat ÷ 5, bayram qabağı 1 saat az) artıq saat artıq iş, istirahət və bayram günündə bütün saat istirahət günü işi sayılır; gecə saatı ayrıca göstərilir. Gecə əlavəsinin faizi işçi kartındadır. «Ayarlar»da artıq iş təsdiqi açıqdırsa, artıq saatlar imzalanmış əmr (artıq işə cəlb / istirahət günü işə cəlb) və ya təsdiq olmadan əmək haqqına düşmür.
       </p>
       {!data ? (
-        <p className="muted">Yüklənir…</p>
+        <p className="muted loading-line">Yüklənir…</p>
       ) : (
         <div className="admin-table-wrap">
           <table className="admin-table">

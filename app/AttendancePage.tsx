@@ -107,7 +107,7 @@ function AttendanceSheet({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!sheet) return <p className="muted">Yüklənir…</p>;
+  if (!sheet) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <div className="section-heading">
@@ -418,7 +418,7 @@ function ProductionCalendar({ notify }: { notify: Notify }) {
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const total = (key: "calendarDays" | "workDays" | "restDays" | "holidayDays" | "shortDays" | "hours" | "paidHours") => data.months.reduce((sum, m) => sum + m[key], 0);
   const holidays = data.months.flatMap((m) => m.days.filter((d) => d.off && d.off !== "weekend" && d.label));
   return (

@@ -52,7 +52,7 @@ export default function AdminProductionCalendar({ api, notify }: { api: (path: s
     void save(days, `${days.length} gün əlavə olundu.`);
     setRange({ ...range, from: "", to: "", label: "" });
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const mine = new Map(data.days.map((d) => [d.day, d]));
   const unknown = !data.knownYears.includes(year);
   const total = (key: "workDays" | "hours") => data.months.reduce((n, m) => n + m[key], 0);

@@ -610,7 +610,7 @@ export function AssignTestModal({ application, onClose, notify }: { application:
   return (
     <Modal title={`Test göndər — ${application.profile.name}`} onClose={onClose}>
       {list === null ? (
-        <p className="muted">Yüklənir…</p>
+        <p className="muted loading-line">Yüklənir…</p>
       ) : list.length ? (
         <div className="offer-composer">
           <Field label="Test">

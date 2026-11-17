@@ -21,7 +21,7 @@ export default function AdminCompanyPackages({ api, notify }: { api: (path: stri
       notify((e as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   const nf = new Intl.NumberFormat("az");
   return (
     <div className="company-page">

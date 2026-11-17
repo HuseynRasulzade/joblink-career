@@ -73,7 +73,7 @@ export default function WorkplacePage({ notify }: { notify: Notify }) {
       .catch((error) => notifyRef.current((error as Error).message));
   }, []);
   useEffect(load, [load]);
-  if (!places) return <p className="muted">Yüklənir…</p>;
+  if (!places) return <p className="muted loading-line">Yüklənir…</p>;
   const place = places.find((w) => w.id === current);
   return (
     <div className="company-page workplace-page">
@@ -213,7 +213,7 @@ function Payslips({ employeeId, notify }: { employeeId: string; notify: Notify }
       notify((error as Error).message);
     }
   }
-  if (!months) return <p className="muted">Yüklənir…</p>;
+  if (!months) return <p className="muted loading-line">Yüklənir…</p>;
   if (!months.length) return <p className="muted">Hələ təsdiqlənmiş ay yoxdur. Şirkət əmək haqqı cədvəlini təsdiqlədikdən sonra haqq-hesab vərəqəniz burada görünəcək.</p>;
   return (
     <div className="admin-table-wrap">

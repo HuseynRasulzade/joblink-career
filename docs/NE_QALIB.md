@@ -402,3 +402,11 @@ Yoxlanmamış qalan «yoxdur» iddiaları (Davamiyyət → gecikmədən intizam 
 ## 38. İstifadə təlimatı (menyuda «İstifadə təlimatı»)
 
 Namizəd, işəgötürən (həm «İşə qəbul», həm «Kadr» rejimi) və administrator menyusunda «İstifadə təlimatı» bölməsi var (`app/GuidePage.tsx`, məzmun `lib/guide-content.ts`). İstifadəçi növünə görə nişlər: namizəd, işçi (İş yerim), işə qəbul, kadr (HR), administrator (yalnız admin görür). Hər bölmədə addım-addım təlimat, menyuda harada olduğu və ipucu; axtarış bütün növlər üzrə işləyir; rolların cədvəli (`COMPANY_ROLES`) və tez-tez verilən suallar var; çap etmək olar. Dəqiqlik üçün `tests/guide-content.test.mjs` təlimatda adı çəkilən hər menyu bəndinin `app/Joblink.tsx` naviqasiyasında həqiqətən olmasını yoxlayır: menyu adı dəyişsə test pozulur və təlimat da yenilənməlidir. Yeni funksiya əlavə ediləndə `lib/guide-content.ts`-ə də yazın.
+
+## 39. Vizual təkmilləşdirmələr (açılış səhifəsi, ilk addımlar, Ctrl+K, hərəkət)
+
+- **Açılış səhifəsi** (`app/Landing.tsx`, `app/landing.css`): giriş etməyən ziyarətçi giriş formunun altında görür: üç istifadəçi növü, 3 addımda başlamaq, imkanlar, qiymətlər, tez-tez verilən suallar, «Qeydiyyatdan keç» düyməsi (formu göstərir) və alt hissə. Qiymətlər `lib/plans.ts` və `lib/ai-packages.ts`-dən oxunur: paket qiyməti dəyişəndə səhifə özü yenilənir. EN/RU tərcümələri `lib/i18n-landing.ts`-dədir. Yerlidə masaüstü və mobil ölçüdə yoxlandı (üfüqi sürüşmə yoxdur).
+- **«İlk addımlar» kartı** (`app/FirstSteps.tsx`): namizədin ümumi baxışında (profil ≥70%, CV təhlili, yadda saxlama, ilk müraciət) və işəgötürənin ümumi baxışında (ilk vakansiya, ilk müraciət, müsahibə); hamısı bitəndə özü yox olur. Yeni, boş hesab üçün nəzərdə tutulub.
+- **Ctrl+K / Cmd+K sürətli keçid** (`app/CommandPalette.tsx`): menyudakı istənilən bölməni hərf yazaraq açır (Azərbaycan hərflərini diakritiksiz də tapır), ox düymələri və Enter ilə.
+- **Hərəkət:** «Yüklənir…» yazıları parıldayan animasiya alır (`loading-line`), səhifə açılanda yumşaq görünmə, KPI kartlarında hover qalxma; `prefers-reduced-motion` olanda hamısı söndürülür.
+- Hələ edilməyib: yan menyunun açılıb-bağlanan qruplara bölünməsi (Ctrl+K bunun yerinə sürətli keçid verir), vakansiya kartlarında şirkət loqosu, illüstrasiyalar, qaranlıq rejim.

@@ -36,7 +36,7 @@ export function MyPolicies({ employeeId, notify }: { employeeId: string; notify:
       notify((error as Error).message);
     }
   }
-  if (!items) return <p className="muted">Yüklənir…</p>;
+  if (!items) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <p className="muted">Şirkətin daxili əmək qaydaları, siyasətləri və razılıq sənədləri. Mətn dəyişəndə yeni versiya yaranır və yenidən təsdiq istənilir. Razılığı istənilən vaxt geri götürə bilərsiniz.</p>

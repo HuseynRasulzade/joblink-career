@@ -895,7 +895,7 @@ export function HrEventModal({ notify, onClose, onDone }: { notify: Notify; onCl
             (people ? (
               <PeoplePicker people={people} selected={pickedId ? [pickedId] : []} onChange={(ids) => setPickedId(ids.filter((x) => x !== pickedId).pop() || "")} height={240} label="Hadisə hansı işçi ilədir" />
             ) : (
-              <p className="muted">Yüklənir…</p>
+              <p className="muted loading-line">Yüklənir…</p>
             ))}
           {mode === "new" && (
             <div className="form-grid">
@@ -2776,7 +2776,7 @@ function BranchesModal({ notify, onClose, onChanged }: { notify: Notify; onClose
         </button>
       </div>
       <h4>Mövcud filiallar {rows ? `(${rows.length})` : ""}</h4>
-      {!rows && <p className="muted">Yüklənir…</p>}
+      {!rows && <p className="muted loading-line">Yüklənir…</p>}
       {rows && !rows.length && <p className="admin-empty">Hələ filial yoxdur. Yuxarıdan ilk filialı yaradın.</p>}
       {!!rows?.length && (
         <div className="admin-table-wrap">
@@ -3750,7 +3750,7 @@ export function StaffProposals({ notify }: { notify: Notify }) {
       setBusy(false);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <div className="panel">

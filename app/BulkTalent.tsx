@@ -170,7 +170,7 @@ export function TalentPage({ notify, onMessage }: { notify: Notify; onMessage: (
       notify((error as Error).message);
     }
   }
-  if (!data) return <p className="muted">Yüklənir…</p>;
+  if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
       <p className="muted">Namizədləri pipeline kartındakı <Bookmark size={13} /> düyməsi və ya toplu seçim ilə bazaya əlavə edin. Etiket və qeyd yalnız sizin komandaya görünür.</p>

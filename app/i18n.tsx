@@ -4,6 +4,7 @@ import { localizedSkillLabel } from "@/lib/skill-catalog";
 import { RU_UI } from "@/lib/i18n-ru";
 import { EN_EXTRA, RU_EXTRA } from "@/lib/i18n-extra";
 import { EN_MORE, RU_MORE } from "@/lib/i18n-more";
+import { EN_LAND, RU_LAND } from "@/lib/i18n-landing";
 
 export type SiteLanguage = "az" | "en" | "ru";
 let activeLanguage: SiteLanguage = "az";
@@ -953,11 +954,12 @@ export function translate(
   if (!trimmed) return text;
   const translated =
     (language === "ru"
-      ? (RU_UI[trimmed] ?? RU_EXTRA[trimmed] ?? RU_MORE[trimmed])
+      ? (RU_UI[trimmed] ?? RU_EXTRA[trimmed] ?? RU_MORE[trimmed] ?? RU_LAND[trimmed])
       : undefined) ??
     english.get(trimmed) ??
     EN_EXTRA[trimmed] ??
-    EN_MORE[trimmed];
+    EN_MORE[trimmed] ??
+    EN_LAND[trimmed];
   if (translated) return text.replace(trimmed, translated);
   const skillTranslation = localizedSkillLabel(trimmed, "en");
   if (skillTranslation !== trimmed)
