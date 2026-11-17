@@ -14,6 +14,7 @@ export type PlanUnit = {
   rate: number; // share of a full place: 1, 0.75, 0.5 or 0.25
   salaryMin: number; // gross AZN a month; 0 = no band
   salaryMax: number; // 0 = same as the minimum
+  level?: string; // seniority step of the position (Junior, Orta, Böyük, Rəhbər); rows of one position with different levels have their own pay bands
   startMonth?: string; // YYYY-MM the places open (empty = from the start of the plan)
   endMonth?: string; // YYYY-MM the places close (empty = open-ended; a project or temporary place)
 };
@@ -24,6 +25,8 @@ export type PlanPerson = { id: string; name?: string; department: string; sectio
 
 const key = (value: string) => (value || "").toLocaleLowerCase("az").replace(/\s+/g, " ").trim();
 const working = (person: PlanPerson) => person.status !== "left" && person.status !== "removed";
+
+export const LEVELS = ["Junior", "Orta", "Böyük (Senior)", "Rəhbər (Lead)"] as const;
 
 export const normalizeRate = (value: unknown) => {
   const n = Number(value);
@@ -64,7 +67,9 @@ export function assignPeople(units: PlanUnit[], people: PlanPerson[]): Assignmen
       unplaced.push(person);
       continue;
     }
-    const options = units.filter((u) => score(u, person) >= 0).sort((a, b) => score(b, person) - score(a, person));
+    // Among rows of the same fit, the one whose pay band holds the person's pay comes first (the levels of one position).
+    const fits = (u: PlanUnit) => { const band = salaryBand(u); return band && person.gross && person.gross >= band[0] - 0.005 && person.gross <= band[1] + 0.005 ? 1 : 0; };
+    const options = units.filter((u) => score(u, person) >= 0).sort((a, b) => score(b, person) - score(a, person) || fits(b) - fits(a));
     const free = options.find((u) => (byUnit.get(u.id)?.length || 0) < u.planned);
     byUnit.get((free || options[0]).id)!.push(person);
   }

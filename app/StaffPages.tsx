@@ -13,7 +13,7 @@ import { parseShiftSchedule, parseShiftStaff, parseLeavePlan, parseOhsRows, pars
 import { SHEET_TEMPLATES, templateSheets } from "@/lib/sheet-templates";
 import { OTHER_REQUEST, REQUEST_KINDS, orderPrefill, requestKindLabel, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { ATTENDANCE_CODES } from "@/lib/calendar-az";
-import { RATES, RATE_LABEL, type PlanUnit } from "@/lib/staff-plan";
+import { LEVELS, RATES, RATE_LABEL, type PlanUnit } from "@/lib/staff-plan";
 import { createXlsxBook } from "@/lib/xlsx";
 import { linkCodeSheets, type LinkCodeItem } from "@/lib/employee-link";
 import { canonicalOrgName } from "@/lib/org-names";
@@ -2128,6 +2128,30 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
       notify((error as Error).message);
     }
   }
+  async function placePerson(employeeId: string) {
+    try {
+      const result = await request<{ pending?: boolean }>("company/staff/place-person", { employeeId });
+      notify(result.pending ? "Plan kilidlidir: sətir direktorun təsdiqinə göndərildi." : "İşçi ştata yerləşdirildi.");
+      load();
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
+  async function placeAll() {
+    if (!data || !window.confirm(`${data.unplaced.length} işçi üçün ştat sətri açılsın? Hər biri öz departament, şöbə, vəzifə və maaşı ilə yazılacaq.`)) return;
+    let done = 0;
+    const failed: string[] = [];
+    for (const p of data.unplaced) {
+      try {
+        await request("company/staff/place-person", { employeeId: p.id });
+        done += 1;
+      } catch (error) {
+        failed.push(`${p.name}: ${(error as Error).message}`);
+      }
+    }
+    notify(`${done} işçi yerləşdirildi${failed.length ? `; ${failed.length} nəfər yerləşmədi (${failed[0]})` : "."}`);
+    load();
+  }
   async function submitPlan() {
     if (!window.confirm("Plan direktorun təsdiqinə göndərilsin? Təsdiqdən sonra bütün dəyişikliklər direktorun təsdiqi ilə olacaq.")) return;
     try {
@@ -2262,7 +2286,8 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
           </div>
           {!!data.unplaced.length && (
             <div className="staff-unplaced">
-              <b>Ştatda yeri olmayan işçilər ({data.unplaced.length})</b>
+              <b>Ştatda yeri olmayan işçilər ({data.unplaced.length})</b>{" "}
+              {data.unplaced.length > 1 && <button type="button" className="secondary" onClick={() => void placeAll()}>Hamısını yerləşdir</button>}
               <p className="muted">Bu işçilərin departament və vəzifəsinə uyğun ştat sətri yoxdur; ona görə sətirlərdə sayılmırlar. Sətir əlavə edin və ya işçinin vəzifəsini düzəldin.</p>
               <ul>
                 {data.unplaced.map((p) => (
@@ -2270,9 +2295,14 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
                     <span>
                       {p.name} — {p.position || "vəzifəsiz"} <small className="muted">({[p.department, p.section].filter(Boolean).join(" / ") || "departamentsiz"})</small>
                     </span>
-                    <button type="button" className="secondary" onClick={() => setEditing({ department: p.department, section: p.section, position: p.position, planned: 1, rate: 1 })}>
-                      Ştata əlavə et
-                    </button>
+                    <span className="admin-actions">
+                      <button type="button" className="primary" title="İşçinin departament, şöbə, vəzifə və maaşı ilə yeni ştat sətri açılır" onClick={() => void placePerson(p.id)}>
+                        Bir kliklə yerləşdir
+                      </button>
+                      <button type="button" className="secondary" onClick={() => setEditing({ department: p.department, section: p.section, position: p.position, planned: 1, rate: 1 })}>
+                        Əl ilə əlavə et
+                      </button>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -2320,6 +2350,7 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
                         <td>{row.section || "—"}</td>
                         <td>
                           {row.position || "—"}
+                          {row.level && <small className="skill-description">Pillə: {row.level}</small>}
                           {!!row.people.length && (
                             <small className="skill-description">
                               {row.people.map((p, i) => (
@@ -2389,6 +2420,12 @@ export function StaffTable({ notify, onEditEmployee, initialQuery = "" }: { noti
               <OrgNameInput label="Vəzifə" kind="position" names={names} onAdded={remember} value={editing.position || ""} onChange={(position) => setEditing({ ...editing, position })} />
               <Field label="Ştat sayı (neçə nəfər)">
                 <input type="number" min={0} value={planned} onChange={(e) => setEditing({ ...editing, planned: Number(e.target.value) })} />
+              </Field>
+              <Field label="Pillə">
+                <select value={editing.level || ""} onChange={(e) => setEditing({ ...editing, level: e.target.value })}>
+                  <option value="">— pilləsiz —</option>
+                  {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
               </Field>
               <Field label="Ştat dərəcəsi">
                 <select value={editing.rate ?? 1} onChange={(e) => setEditing({ ...editing, rate: Number(e.target.value) })}>
@@ -3308,7 +3345,7 @@ function ShiftFields({ profile, set }: { profile: EmployeeProfile; set: <K exten
 // and the pay band. Every row goes straight to the staff table (the same rows), which shows who fills it and what is free.
 export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: { notify: Notify; year: string; locked: boolean; onChanged: () => void; goStaff: () => void }) {
   const HEAD_OFFICE = "";
-  const blank = { branch: HEAD_OFFICE, department: "", section: "", position: "", rate: 1, planned: 1, salaryMin: "", salaryMax: "", startMonth: "", endMonth: "" };
+  const blank = { branch: HEAD_OFFICE, department: "", section: "", position: "", rate: 1, planned: 1, salaryMin: "", salaryMax: "", startMonth: "", endMonth: "", level: "" };
   const [form, setForm] = useState(blank);
   const [data, setData] = useState<StaffData | null>(null);
   const [made, setMade] = useState<string[]>([]);
@@ -3325,7 +3362,7 @@ export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: {
   const max = Number(form.salaryMax) || 0;
   function edit(r: StaffRow) {
     setEditingId(r.id);
-    setForm({ branch: r.branch || "", department: r.department, section: r.section, position: r.position, rate: r.rate, planned: r.planned, salaryMin: r.salaryMin ? String(r.salaryMin) : "", salaryMax: r.salaryMax && r.salaryMax !== r.salaryMin ? String(r.salaryMax) : "", startMonth: r.startMonth || "", endMonth: r.endMonth || "" });
+    setForm({ branch: r.branch || "", department: r.department, section: r.section, position: r.position, rate: r.rate, planned: r.planned, salaryMin: r.salaryMin ? String(r.salaryMin) : "", salaryMax: r.salaryMax && r.salaryMax !== r.salaryMin ? String(r.salaryMax) : "", startMonth: r.startMonth || "", endMonth: r.endMonth || "", level: r.level || "" });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   async function removeRow(r: StaffRow) {
@@ -3377,6 +3414,13 @@ export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: {
         <OrgNameInput label="Departament" kind="department" names={names} onAdded={remember} value={form.department} onChange={(department) => setForm({ ...form, department, section: "" })} />
         <OrgNameInput label="Şöbə" kind="section" names={names} onAdded={remember} department={form.department} value={form.section} onChange={(section) => setForm({ ...form, section })} />
         <OrgNameInput label="Vəzifə" kind="position" names={names} onAdded={remember} value={form.position} onChange={(position) => setForm({ ...form, position })} />
+        <Field label="Pillə (təcrübə səviyyəsi)">
+          <select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
+            <option value="">— pilləsiz —</option>
+            {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+          </select>
+          <small className="skill-picker-help">Eyni vəzifəyə müxtəlif pillələr üçün ayrı sətir yazılır (məs. Mühasib: Junior 800–1200, Böyük 1800–2600). İşçi maaşına uyğun pilləyə düşür.</small>
+        </Field>
         <Field label="Ştatın növü">
           <select value={form.rate} onChange={(e) => setForm({ ...form, rate: Number(e.target.value) })}>
             {RATES.map((rate) => <option key={rate} value={rate}>{RATE_LABEL[rate]}</option>)}
@@ -3425,7 +3469,7 @@ export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: {
                 <thead><tr><th>Filial</th><th>Departament</th><th>Şöbə</th><th>Vəzifə</th><th>Növ</th><th>Say</th><th>Dövr</th><th>Maaş həddi</th><th>Aylıq xərc*</th><th>İşləyir</th><th>Boş</th><th></th></tr></thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id}><td>{r.branch || "Baş ofis"}</td><td>{r.department || "—"}</td><td>{r.section || "—"}</td><td>{r.position || "—"}</td><td>{RATE_LABEL[r.rate] || "Tam ştat"}</td><td>{r.planned}</td><td>{r.startMonth || r.endMonth ? `${r.startMonth || "…"} – ${r.endMonth || "…"}${r.active === false ? " (aktiv deyil)" : ""}` : "il boyu"}</td><td>{bandText(r)}</td><td>{r.costMax ? (r.costMin && r.costMin !== r.costMax ? `${azn(r.costMin)} – ${azn(r.costMax)}` : azn(r.costMax)) : "—"}</td><td>{r.filled}</td><td>{r.free > 0 ? <b>{r.free}</b> : "—"}</td><td className="admin-actions"><button type="button" onClick={() => edit(r)}>Düzəlt</button><button type="button" aria-label="Sil" onClick={() => void removeRow(r)}><Trash2 size={14} /></button></td></tr>
+                    <tr key={r.id}><td>{r.branch || "Baş ofis"}</td><td>{r.department || "—"}</td><td>{r.section || "—"}</td><td>{r.position || "—"}{r.level ? <small className="skill-description">{r.level}</small> : null}</td><td>{RATE_LABEL[r.rate] || "Tam ştat"}</td><td>{r.planned}</td><td>{r.startMonth || r.endMonth ? `${r.startMonth || "…"} – ${r.endMonth || "…"}${r.active === false ? " (aktiv deyil)" : ""}` : "il boyu"}</td><td>{bandText(r)}</td><td>{r.costMax ? (r.costMin && r.costMin !== r.costMax ? `${azn(r.costMin)} – ${azn(r.costMax)}` : azn(r.costMax)) : "—"}</td><td>{r.filled}</td><td>{r.free > 0 ? <b>{r.free}</b> : "—"}</td><td className="admin-actions"><button type="button" onClick={() => edit(r)}>Düzəlt</button><button type="button" aria-label="Sil" onClick={() => void removeRow(r)}><Trash2 size={14} /></button></td></tr>
                   ))}
                 </tbody>
               </table>
@@ -3448,6 +3492,7 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
   const [startMonth, setStartMonth] = useState("");
   const [endMonth, setEndMonth] = useState("");
   const [proposer, setProposer] = useState("");
+  const [level, setLevel] = useState("");
   const [scenarioRow, setScenarioRow] = useState("");
   const [scenarioN, setScenarioN] = useState(1);
   const [data, setData] = useState<StaffData | null>(null);
@@ -3479,7 +3524,7 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
     setBusy(true);
     try {
       const body =
-        mode === "places" || mode === "proposal" ? { kind: mode, branch, department, section, position, extra, rate, startMonth, endMonth, proposer, salaryMin: Number(salaryMin) || 0, salaryMax: Number(salaryMax) || 0, reason }
+        mode === "places" || mode === "proposal" ? { kind: mode, branch, department, section, position, extra, rate, level, startMonth, endMonth, proposer, salaryMin: Number(salaryMin) || 0, salaryMax: Number(salaryMax) || 0, reason }
         : mode === "band" ? { kind: mode, rowId, salaryMin: Number(salaryMin) || 0, salaryMax: Number(salaryMax) || 0, reason }
         : { kind: mode, employeeId, salary: Number(salary) || 0, reason };
       const r = await request<{ applied?: boolean; pending?: boolean }>("company/staff/exception", body);
@@ -3528,6 +3573,9 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
             <OrgNameInput label="Şöbə" kind="section" names={names} onAdded={remember} department={department} value={section} onChange={setSection} />
             <OrgNameInput label="Vəzifə" kind="position" names={names} onAdded={remember} value={position} onChange={setPosition} />
             <Field label="Əlavə neçə nəfər"><input type="number" min={1} value={extra} onChange={(e) => setExtra(Number(e.target.value))} /></Field>
+            <Field label="Pillə">
+              <select value={level} onChange={(e) => setLevel(e.target.value)}><option value="">— pilləsiz —</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}</select>
+            </Field>
             <Field label="Nə vaxtdan (ay)"><input type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} /></Field>
             <Field label="Nə vaxta qədər (müvəqqəti üçün)"><input type="month" value={endMonth} min={startMonth || undefined} onChange={(e) => setEndMonth(e.target.value)} /></Field>
             {mode === "proposal" && <Field label="Təklif edən rəhbər"><input value={proposer} maxLength={120} onChange={(e) => setProposer(e.target.value)} placeholder="ad, departament" /></Field>}
@@ -3605,6 +3653,96 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
           </table>
         </div>
       ) : <p className="admin-empty">Hələ plandan kənar sorğu yoxdur.</p>}
+    </div>
+  );
+}
+
+
+// ---------- A department head's own page: «Ehtiyac təklifi» ----------
+// The head asks for places for their department (a new row or more places in a row), with a reason. Every proposal goes to the approvals;
+// the sender sees only their own list with the decision.
+type ProposalData = { ownDepartment: string; departments: string[]; positions: string[]; sections: string[]; items: { id: string; subject: string; status: string; decided_by_name: string; note: string; created: string; decided: string }[] };
+export function StaffProposals({ notify }: { notify: Notify }) {
+  const blank = { department: "", section: "", position: "", level: "", extra: 1, rate: 1, startMonth: "", endMonth: "", salaryMin: "", salaryMax: "", reason: "" };
+  const [form, setForm] = useState(blank);
+  const [data, setData] = useState<ProposalData | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback((department = "") => {
+    request<ProposalData>(`company/proposals${department ? `?department=${encodeURIComponent(department)}` : ""}`).then((r) => {
+      setData(r);
+      setForm((f) => (!f.department && r.ownDepartment ? { ...f, department: r.ownDepartment } : f));
+    }).catch((e) => notify((e as Error).message));
+  }, [notify]);
+  useEffect(() => load(form.department), [load, form.department]);
+  async function send() {
+    setBusy(true);
+    try {
+      await request("company/proposals", { ...form, salaryMin: Number(form.salaryMin) || 0, salaryMax: Number(form.salaryMax) || 0 });
+      notify("Təklif göndərildi: qərar çıxanda bildiriş alacaqsınız.");
+      setForm({ ...blank, department: form.department });
+      load(form.department);
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (!data) return <p className="muted">Yüklənir…</p>;
+  return (
+    <div className="company-page">
+      <div className="panel">
+        <h4 style={{ marginTop: 0 }}>Ehtiyac təklifi: departamentiniz üçün yeni yer</h4>
+        <p className="muted">Departamentinizə neçə nəfər, hansı vəzifəyə və nə vaxt lazım olduğunu yazın. Təklif direktorun təsdiqinə gedir; təsdiqlənəndə plana yazılır və yer işə qəbul üçün açılır. Səbəb məcburidir.</p>
+        <div className="form-grid">
+          <Field label="Departament">
+            <select value={form.department} disabled={!!data.ownDepartment} onChange={(e) => setForm({ ...form, department: e.target.value, section: "" })}>
+              <option value="">— seçin —</option>
+              {data.departments.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+            {data.ownDepartment && <small className="skill-picker-help">Siz yalnız öz departamentiniz üçün təklif göndərə bilərsiniz.</small>}
+          </Field>
+          <Field label="Şöbə (istəyə görə)">
+            <select value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value })}>
+              <option value="">— şöbəsiz —</option>
+              {data.sections.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </Field>
+          <Field label="Vəzifə">
+            <input list="proposal-positions" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} placeholder="məs. Mühasib" />
+            <datalist id="proposal-positions">{data.positions.map((p) => <option key={p} value={p} />)}</datalist>
+          </Field>
+          <Field label="Pillə">
+            <select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
+              <option value="">— pilləsiz —</option>
+              {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </Field>
+          <Field label="Neçə nəfər"><input type="number" min={1} value={form.extra} onChange={(e) => setForm({ ...form, extra: Number(e.target.value) })} /></Field>
+          <Field label="Ştatın növü">
+            <select value={form.rate} onChange={(e) => setForm({ ...form, rate: Number(e.target.value) })}>{RATES.map((r) => <option key={r} value={r}>{RATE_LABEL[r]}</option>)}</select>
+          </Field>
+          <Field label="Nə vaxtdan (ay)"><input type="month" value={form.startMonth} onChange={(e) => setForm({ ...form, startMonth: e.target.value })} /></Field>
+          <Field label="Nə vaxta qədər (müvəqqəti üçün)"><input type="month" value={form.endMonth} min={form.startMonth || undefined} onChange={(e) => setForm({ ...form, endMonth: e.target.value })} /></Field>
+          <Field label="Təklif etdiyiniz maaş — minimum (AZN, gross)"><input type="number" min={0} value={form.salaryMin} onChange={(e) => setForm({ ...form, salaryMin: e.target.value })} /></Field>
+          <Field label="Maaş — maksimum (AZN, gross)"><input type="number" min={0} value={form.salaryMax} onChange={(e) => setForm({ ...form, salaryMax: e.target.value })} placeholder="boşdursa minimumla eyni" /></Field>
+          <Field label="Səbəb (məcburi)"><input value={form.reason} maxLength={300} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="məs. yeni layihə, iş yükü artıb, əvəzetmə" /></Field>
+        </div>
+        <p className="muted">Vəzifə artıq planda varsa, maaş yazmaq lazım deyil: mövcud sətrə yer əlavə olunur və onun maaş həddi qalır.</p>
+        <div className="admin-actions"><button type="button" className="primary" disabled={busy} onClick={() => void send()}>Təklifi göndər</button></div>
+      </div>
+      <div className="panel">
+        <h4 style={{ marginTop: 0 }}>Göndərdiyim təkliflər ({data.items.length})</h4>
+        {data.items.length ? (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead><tr><th>Tarix</th><th>Təklif</th><th>Vəziyyət</th><th>Qərar</th></tr></thead>
+              <tbody>
+                {data.items.map((i) => <tr key={i.id}><td>{i.created.slice(0, 10)}</td><td>{i.subject}</td><td>{EXC_STATUS[i.status] || i.status}</td><td>{i.decided_by_name ? `${i.decided_by_name}${i.note ? `: ${i.note}` : ""}` : "—"}</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="admin-empty">Hələ təklif göndərməmisiniz.</p>}
+      </div>
     </div>
   );
 }

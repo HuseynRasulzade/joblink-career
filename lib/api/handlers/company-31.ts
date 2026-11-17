@@ -1,14 +1,15 @@
 // company: handlers of the JobMatch API (moved out of route.ts; the order of the checks is the order of the calls in route.ts).
 import { HttpError, jsonBody, str } from "@/lib/server";
 import { type OrgKind, canonicalOrg, orgNameList } from "@/lib/staff-db";
+import { employeePay } from "@/lib/payroll";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { canonicalOrgName, cleanOrgName } from "@/lib/org-names";
 import { companyAudit } from "@/lib/api-core";
 import { loadPlanData, ok, resolvePosition, saveStaffUnit, staffBandProblem } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
-export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAct" | "db" | "id" | "path" | "planLocked" | "queueApproval" | "request" | "requestUrl" | "requesterName" | "requirePermission" | "unitInput" | "userId">): Promise<Response | undefined> {
-  const { accountRole, canAct, db, id, path, planLocked, queueApproval, request, requestUrl, requesterName, requirePermission, unitInput, userId } = c;
+export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAct" | "db" | "id" | "path" | "planLocked" | "memberRole" | "queueApproval" | "request" | "requestUrl" | "requesterName" | "requirePermission" | "unitInput" | "userId">): Promise<Response | undefined> {
+  const { accountRole, canAct, db, id, memberRole, path, planLocked, queueApproval, request, requestUrl, requesterName, requirePermission, unitInput, userId } = c;
   if (request.method === "POST" && path === "company/staff/request-place") {
     if (accountRole !== "company") throw new HttpError(403, "Bu əməliyyat üçün rolunuzun icazəsi yoxdur.");
     const b = await jsonBody(request);
@@ -68,17 +69,17 @@ export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAc
       return ok({ ok: true, pending: true });
     }
     const plan = await loadPlanData(db, id);
-    let unit: { id: string; branch?: string; department: string; section: string; position: string; planned: number; rate?: number; salaryCents: number; salaryMaxCents?: number; startMonth?: string; endMonth?: string; note: string };
+    let unit: { id: string; branch?: string; department: string; section: string; position: string; planned: number; rate?: number; salaryCents: number; salaryMaxCents?: number; startMonth?: string; endMonth?: string; level?: string; note: string };
     let subject = "";
     if (kind === "places" || kind === "proposal") {
       const input = unitInput(b);
       const proposer = str(b.proposer, 120).trim();
       const extra = Math.max(1, Math.min(1000, Math.round(Number(b.extra) || 0)));
       if (!input.department || !input.position) throw new HttpError(400, "Departamenti və vəzifəni yazın.");
-      const row = plan.units.find((u) => key(u.branch) === key(input.branch) && key(u.department) === key(input.department) && key(u.section) === key(input.section) && key(u.position) === key(input.position));
+      const row = plan.units.find((u) => key(u.branch) === key(input.branch) && key(u.department) === key(input.department) && key(u.section) === key(input.section) && key(u.position) === key(input.position) && key(u.level) === key(input.level));
       unit = row
-        ? { id: row.id, branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned + extra, rate: row.rate, salaryCents: Math.round(row.salaryMin * 100), salaryMaxCents: Math.round(row.salaryMax * 100), startMonth: row.startMonth, endMonth: row.endMonth, note: `${kind === "proposal" ? `Departament təklifi${proposer ? ` (${proposer})` : ""}` : "Plandan kənar"} +${extra}: ${reason}` }
-        : { id: "", branch: input.branch, department: input.department, section: input.section, position: input.position, planned: extra, rate: input.rate, salaryCents: input.salaryCents, salaryMaxCents: input.salaryMaxCents, startMonth: input.startMonth, endMonth: input.endMonth, note: `${kind === "proposal" ? `Departament təklifi${proposer ? ` (${proposer})` : ""}` : "Plandan kənar"}: ${reason}` };
+        ? { id: row.id, branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned + extra, rate: row.rate, salaryCents: Math.round(row.salaryMin * 100), salaryMaxCents: Math.round(row.salaryMax * 100), level: row.level, startMonth: row.startMonth, endMonth: row.endMonth, note: `${kind === "proposal" ? `Departament təklifi${proposer ? ` (${proposer})` : ""}` : "Plandan kənar"} +${extra}: ${reason}` }
+        : { id: "", branch: input.branch, department: input.department, section: input.section, position: input.position, planned: extra, rate: input.rate, salaryCents: input.salaryCents, salaryMaxCents: input.salaryMaxCents, level: input.level, startMonth: input.startMonth, endMonth: input.endMonth, note: `${kind === "proposal" ? `Departament təklifi${proposer ? ` (${proposer})` : ""}` : "Plandan kənar"}: ${reason}` };
       subject = `${kind === "proposal" ? "Departament təklifi" : "Plandan kənar"} +${extra} yer: ${[input.branch, input.department, input.section, input.position].filter(Boolean).join(" / ")} (${reason})`;
     } else if (kind === "band") {
       const row = plan.units.find((u) => u.id === str(b.rowId, 100));
@@ -86,7 +87,7 @@ export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAc
       const min = Math.max(0, Math.round((Number(b.salaryMin) || 0) * 100));
       const max = Math.max(min, Math.round((Number(b.salaryMax) || 0) * 100));
       if (!min && !max) throw new HttpError(400, "Yeni maaş həddini yazın.");
-      unit = { id: row.id, branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned, rate: row.rate, salaryCents: min, salaryMaxCents: max, startMonth: row.startMonth, endMonth: row.endMonth, note: `Maaş həddi artımı: ${reason}` };
+      unit = { id: row.id, branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned, rate: row.rate, salaryCents: min, salaryMaxCents: max, level: row.level, startMonth: row.startMonth, endMonth: row.endMonth, note: `Maaş həddi artımı: ${reason}` };
       subject = `Maaş həddi artımı: ${row.department} / ${row.position}: ${min / 100}–${(max || min) / 100} AZN (${reason})`;
     } else throw new HttpError(400, "Sorğu növü yanlışdır.");
     const problem = await staffBandProblem(db, id, [unit]);
@@ -113,6 +114,78 @@ export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAc
     try { baselinePlanned = base ? Number((JSON.parse(base.data) as { planned?: number }).planned ?? 0) : null; } catch { baselinePlanned = null; }
     return ok({ items: rows.results, canApplyDirectly: canAct("approve-director"), summary: { year, baselinePlanned, baselineAt: base?.created || "", planned: Number(now?.n) || 0, requests: inYear.length, approved: inYear.filter((r) => r.status === "approved").length } });
   }
+  // ---- One click: put an employee who has no place in the staff table into it (a new row for them, with their own pay as the band). ----
+  if (request.method === "POST" && path === "company/staff/place-person") {
+    requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi dəyişə bilər.");
+    const b = await jsonBody(request);
+    const emp = await db.prepare("SELECT name,department,section,position,salary_cents,salary_type,sector FROM company_employees WHERE id=? AND company_id=? AND status IN ('active','leave')").bind(str(b.employeeId, 100), id).first<{ name: string; department: string; section: string; position: string; salary_cents: number; salary_type: string; sector: string }>();
+    if (!emp) throw new HttpError(404, "İşçi tapılmadı.");
+    if (!emp.department || !emp.position) throw new HttpError(400, "Əvvəl işçinin departamentini və vəzifəsini kartda yazın.");
+    const plan = await loadPlanData(db, id);
+    const key = (v: unknown) => String(v || "").trim().toLocaleLowerCase("az");
+    const sameRole = plan.units.find((u) => key(u.department) === key(emp.department) && key(u.position) === key(emp.position));
+    const gross = emp.salary_cents > 0 ? Math.round(employeePay(emp.salary_cents / 100, emp.salary_type === "net" ? "net" : "gross", emp.sector === "public" ? "public" : "private").gross * 100) : 0;
+    // A row of the same department and position (other section or branch) lends its band and level; otherwise the person's own pay is the band.
+    const unit = {
+      id: "",
+      branch: sameRole?.branch || "",
+      department: emp.department,
+      section: emp.section,
+      position: emp.position,
+      planned: 1,
+      rate: sameRole?.rate ?? 1,
+      salaryCents: sameRole ? Math.round(sameRole.salaryMin * 100) : gross,
+      salaryMaxCents: sameRole ? Math.round(sameRole.salaryMax * 100) : gross,
+      level: sameRole?.level || "",
+      note: `Ştatda yeri olmayan işçi üçün açıldı: ${emp.name}`,
+    };
+    const problem = await staffBandProblem(db, id, [unit]);
+    if (problem) throw new HttpError(409, problem);
+    if (await planLocked()) {
+      await queueApproval("headcount", `${unit.department} / ${unit.position}: ${emp.name} üçün 1 ştat`, { unit });
+      return ok({ ok: true, pending: true });
+    }
+    await saveStaffUnit(db, id, "", unit);
+    await companyAudit(db, id, userId, "staff-unit", "", `${emp.name} ştata yerləşdirildi: ${unit.department} / ${unit.position}`);
+    return ok({ ok: true });
+  }
+  // ---- A department head's own page: proposals for places, always sent to the approvals, with the sender's own list. ----
+  if (path === "company/proposals" && accountRole === "company") {
+    if (memberRole === "auditor") throw new HttpError(403, "Auditor təklif göndərə bilməz.");
+    const me = await db.prepare("SELECT department FROM company_members WHERE company_id=? AND user_id=? AND status='active'").bind(id, userId).first<{ department: string }>().catch(() => null);
+    const own = (me?.department || "").trim();
+    if (request.method === "GET") {
+      const department = str(requestUrl.searchParams.get("department"), 120);
+      const [departments, positions, sections, rows] = await Promise.all([
+        orgNameList(db, id, "department"),
+        orgNameList(db, id, "position"),
+        department ? orgNameList(db, id, "section", department) : Promise.resolve([] as string[]),
+        db.prepare("SELECT id,subject,status,decided_by_name,note,created,decided FROM approval_requests WHERE company_id=? AND requested_by=? AND payload LIKE '%\"proposal\"%' ORDER BY created DESC LIMIT 40").bind(id, userId).all<{ id: string; subject: string; status: string; decided_by_name: string; note: string; created: string; decided: string }>(),
+      ]);
+      return ok({ ownDepartment: own, departments: own ? [own] : departments, positions, sections, items: rows.results });
+    }
+    if (request.method === "POST") {
+      const b = await jsonBody(request);
+      const input = unitInput(b);
+      const reason = str(b.reason, 300).trim();
+      if (reason.length < 5) throw new HttpError(400, "Səbəbi yazın (ən azı 5 simvol).");
+      if (!input.department || !input.position) throw new HttpError(400, "Departamenti və vəzifəni seçin.");
+      if (own && input.department.trim().toLocaleLowerCase("az") !== own.toLocaleLowerCase("az")) throw new HttpError(403, `Siz yalnız öz departamentiniz (${own}) üçün təklif göndərə bilərsiniz.`);
+      const extra = Math.max(1, Math.min(1000, Math.round(Number(b.extra) || 0)));
+      const plan = await loadPlanData(db, id);
+      const key = (v: unknown) => String(v || "").trim().toLocaleLowerCase("az");
+      const row = plan.units.find((u) => key(u.branch) === key(input.branch) && key(u.department) === key(input.department) && key(u.section) === key(input.section) && key(u.position) === key(input.position) && key(u.level) === key(input.level));
+      const unit = row
+        ? { id: row.id, branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned + extra, rate: row.rate, salaryCents: Math.round(row.salaryMin * 100), salaryMaxCents: Math.round(row.salaryMax * 100), level: row.level, startMonth: input.startMonth || row.startMonth, endMonth: input.endMonth || row.endMonth, note: `Departament təklifi +${extra}: ${reason}` }
+        : { id: "", branch: input.branch, department: input.department, section: input.section, position: input.position, planned: extra, rate: input.rate, salaryCents: input.salaryCents, salaryMaxCents: input.salaryMaxCents, level: input.level, startMonth: input.startMonth, endMonth: input.endMonth, note: `Departament təklifi: ${reason}` };
+      const problem = await staffBandProblem(db, id, [unit]);
+      if (problem) throw new HttpError(409, problem);
+      const proposer = await requesterName();
+      await queueApproval("headcount", `Departament təklifi +${extra} yer: ${[input.branch, input.department, input.section, input.position].filter(Boolean).join(" / ")} (${reason})`.slice(0, 200), { unit, exception: "proposal", reason, proposer });
+      await companyAudit(db, id, userId, "staff-proposal", unit.id, `${proposer}: ${input.department} / ${input.position} +${extra}`);
+      return ok({ ok: true, pending: true });
+    }
+  }
   if (request.method === "POST" && path === "company/staff/save") {
     requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi dəyişə bilər.");
     const b = await jsonBody(request);
@@ -122,7 +195,7 @@ export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAc
     let unitId = str(b.id, 100);
     // The same branch, department, section and position is one row: saving it again changes that row instead of adding a second one.
     if (!unitId) {
-      const same = (await loadPlanData(db, id)).units.find((u) => [["branch", unit.branch], ["department", unit.department], ["section", unit.section], ["position", unit.position]].every(([k, v]) => String((u as Record<string, unknown>)[k] || "").trim().toLocaleLowerCase("az") === String(v || "").trim().toLocaleLowerCase("az")));
+      const same = (await loadPlanData(db, id)).units.find((u) => [["branch", unit.branch], ["department", unit.department], ["section", unit.section], ["position", unit.position], ["level", unit.level]].every(([k, v]) => String((u as Record<string, unknown>)[k] || "").trim().toLocaleLowerCase("az") === String(v || "").trim().toLocaleLowerCase("az")));
       if (same) unitId = same.id;
     }
     const unitProblem = await staffBandProblem(db, id, [{ ...unit, id: unitId }]);

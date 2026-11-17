@@ -227,3 +227,9 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - **Minimum əmək haqqı:** sətirin minimum maaşı 400 AZN-dən aşağıdırsa plan-fakt xəbərdarlığı çıxır.
 - **Direktor hesabatı:** «Plandan kənar» bölməsində Excel (ştat planı, xülasə, sorğular).
 - **Hələ edilməyib:** vəzifə daxilində maaş pillələri (junior/orta/böyük), ştatsız işçini bir kliklə sətrə bağlamaq, rəhbər üçün ayrıca təklif səhifəsi.
+
+## 24. Rəhbər səhifəsi, maaş pillələri, bir kliklə yerləşdirmə (2026-11-17)
+
+- **«Ehtiyac təklifi» səhifəsi** (Şöbə rəhbəri və digər komanda üzvləri; auditor görmür): departament, şöbə, vəzifə, pillə, neçə nəfər, ştat növü, tarix, maaş və məcburi səbəb. Rəhbər yalnız öz departamenti (Komanda və rollarda yazılmış) üçün göndərə bilər; ştat cədvəlini və maaşları görmür. Təklif həmişə Təsdiqlərə gedir, rəhbər yalnız öz təkliflərini və qərarı görür. Server: `company/proposals`.
+- **Maaş pillələri:** ştat sətrində «Pillə» (Junior, Orta, Böyük, Rəhbər); eyni vəzifəyə müxtəlif pillə ayrı sətir və ayrı maaş həddi ilə yazılır. İşçi maaşı hansı pillənin həddinə düşürsə, ora yerləşir; iki pillənin arasındakı maaş rədd olunur. Migrasiya 0117.
+- **Ştatda yeri olmayan işçi:** «Bir kliklə yerləşdir» (və «Hamısını yerləşdir»): işçinin departament, şöbə, vəzifə və maaşı ilə sətir açılır (eyni vəzifənin başqa sətri varsa onun pilləsi və ştat növü götürülür); plan kilidlidirsə təsdiqə gedir. Departamenti və ya vəzifəsi olmayan işçi üçün əvvəl kartı doldurmaq tələb olunur. Server: `company/staff/place-person`.

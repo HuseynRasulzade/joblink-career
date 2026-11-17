@@ -2472,13 +2472,14 @@ async function route(request: Request) {
     salaryCents: Math.max(0, Math.round((Number(b.salaryMin ?? b.salary) || 0) * 100)),
     salaryMaxCents: Math.max(0, Math.round((Number(b.salaryMax) || 0) * 100)),
     note: str(b.note, 300),
+    level: str(b.level, 40).trim(),
     startMonth: /^\d{4}-(0[1-9]|1[0-2])$/.test(str(b.startMonth, 7)) ? str(b.startMonth, 7) : "",
     endMonth: /^\d{4}-(0[1-9]|1[0-2])$/.test(str(b.endMonth, 7)) ? str(b.endMonth, 7) : "",
   });
   // A vacancy needs a place the plan does not have: an extra place of the row (or a new row) goes to approval.
   // The director's own request is approved on the spot; nobody else can add a place by themselves.
     {
-    const r = await handle_company_31({ accountRole, canAct, db, id, path, planLocked, queueApproval, request, requestUrl, requesterName, requirePermission, unitInput, userId });
+    const r = await handle_company_31({ accountRole, canAct, db, id, memberRole, path, planLocked, queueApproval, request, requestUrl, requesterName, requirePermission, unitInput, userId });
     if (r) return r;
   }
   // ---- Company structure: departments and their sections ----

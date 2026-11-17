@@ -215,7 +215,7 @@ export type RouteCtx = {
   trainingYear: () => string;
   tripRates: (day?: string) => Promise<Partial<Record<NormCurrency, number>>>;
   tripView: (t: TripRow, name: string, expenses: { id: string; label: string; amount_cents: number; day: string; }[]) => { id: string; employeeId: string; name: string; destination: string; purpose: string; start: string; end: string; days: number; daily: number; advance: number; status: string; statusText: string; requestedBy: string; decidedBy: string; expenses: { id: string; label: string; amount: number; day: string; }[]; calc: { perDiem: number; expenses: number; total: number; advance: number; balance: number; }; settled: number; abroad: boolean; manager: { status: string; name: string; note: string; } | null; };
-  unitInput: (b: Record<string, unknown>) => { branch: string; department: string; section: string; position: string; planned: number; rate: number; salaryCents: number; salaryMaxCents: number; note: string; startMonth: string; endMonth: string; };
+  unitInput: (b: Record<string, unknown>) => { branch: string; department: string; section: string; position: string; planned: number; rate: number; salaryCents: number; salaryMaxCents: number; note: string; level: string; startMonth: string; endMonth: string; };
   user: string | null;
   userId: string;
   withEffects: <T extends { id: string; kind: string; status?: string; }>(orders: T[]) => Promise<(T & { effect: { status?: string | undefined; summary?: string | undefined; effectiveDate?: string | undefined; supported: boolean; }; })[]>;

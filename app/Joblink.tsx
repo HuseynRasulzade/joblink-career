@@ -71,7 +71,7 @@ import HrPanel from "./HrPanel";
 import AccountLogin from "./AccountLogin";
 import AdminPanel from "./AdminPanel";
 import AccountSettings from "./AccountSettings";
-import { OrdersRegistry } from "./StaffPages";
+import { OrdersRegistry, StaffProposals } from "./StaffPages";
 import { AttendancePage } from "./AttendancePage";
 import { JobAlerts } from "./JobAlerts";
 import JobsExplorer from "./JobsExplorer";
@@ -164,6 +164,7 @@ const hrNav = [
   { id: "hr-orders", label: "Əmrlər reyestri", icon: FileCheck2 },
   { id: "hr-payroll", label: "Əmək haqqı", icon: Banknote },
   { id: "hr-planfact", label: "Plan və fakt", icon: Target },
+  { id: "hr-proposals", label: "Ehtiyac təklifi", icon: ClipboardList },
   { id: "hr-branches", label: "Filiallar", icon: Network },
   { id: "hr-people-ops", label: "Kadr əməliyyatları", icon: ClipboardList },
   { id: "hr-growth", label: "İnkişaf və kommunikasiya", icon: Sparkles },
@@ -501,6 +502,7 @@ export default function Joblink() {
   const hrVisible = hrNav.filter(
     (item) =>
       !HIDDEN_HR_PAGES.has(item.id) &&
+      !(item.id === "hr-proposals" && companyMe?.role === "auditor") &&
       (!hrNeeds[item.id] ||
       !companyMe ||
       companyMe.permissions.includes(hrNeeds[item.id] as never)),
@@ -2791,6 +2793,7 @@ export default function Joblink() {
               "hr-attendance",
               "hr-payroll",
               "hr-planfact",
+              "hr-proposals",
               "hr-branches",
               "hr-people-ops",
               "hr-growth",
@@ -2839,6 +2842,7 @@ export default function Joblink() {
               {page === "hr-orders" && <OrdersRegistry notify={notify} />}
               {page === "hr-payroll" && <PayrollPage notify={notify} />}
               {page === "hr-planfact" && <HrPlanFact notify={notify} />}
+              {page === "hr-proposals" && <StaffProposals notify={notify} />}
               {page === "hr-branches" && <BranchesPage notify={notify} />}
               {page === "hr-people-ops" && <PeopleOps notify={notify} />}
               {page === "hr-growth" && <GrowthHub notify={notify} />}
