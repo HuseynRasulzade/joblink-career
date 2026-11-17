@@ -43,6 +43,7 @@ import {
   ListChecks,
   MessagesSquare,
   MessageCircle,
+  BookOpen,
   LifeBuoy,
   Inbox,
   UserCheck,
@@ -129,6 +130,7 @@ import PayrollPage from "./PayrollPage";
 import { HIDDEN_HR_PAGES, HR_MODULES, inModule, moduleOf, type HrModule } from "@/lib/hr-modules";
 import PeopleOps from "./PeopleOps";
 import AtsAnalytics from "./AtsAnalytics";
+import GuidePage from "./GuidePage";
 import GrowthHub from "./GrowthHub";
 import EncryptionPanel from "./EncryptionPanel";
 import ReportsHub from "./ReportsHub";
@@ -149,6 +151,7 @@ const candidateNav = [
   { id: "workplace", label: "İş yerim (işçi profili)", icon: Contact },
   { id: "calculator", label: "Kalkulyatorlar", icon: Calculator },
   { id: "packages", label: "Paketlər", icon: CreditCard },
+  { id: "guide", label: "İstifadə təlimatı", icon: BookOpen },
   { id: "support", label: "Dəstək", icon: LifeBuoy },
 ];
 const hrNav = [
@@ -177,6 +180,7 @@ const hrNav = [
   { id: "hr-billing", label: "Hesablar və ödənişlər", icon: Receipt },
   { id: "hr-calculator", label: "Kalkulyatorlar", icon: Calculator },
   { id: "hr-messages", label: "Mesajlar", icon: MessageCircle },
+  { id: "hr-guide", label: "İstifadə təlimatı", icon: BookOpen },
   { id: "hr-support", label: "Dəstək", icon: LifeBuoy },
 ];
 const adminNav = [
@@ -198,6 +202,7 @@ const adminNav = [
   { id: "admin-calendar", label: "İstehsalat təqvimi", icon: CalendarDays },
   { id: "admin-company-ai", label: "İşəgötürən AI paketləri", icon: CreditCard },
   { id: "admin-support", label: "Sorğular və mesajlar", icon: Inbox },
+  { id: "admin-guide", label: "İstifadə təlimatı", icon: BookOpen },
   { id: "admin-reviews", label: "Şirkət rəyləri", icon: UserCheck },
   { id: "admin-ai-usage", label: "AI istifadə və xərc", icon: Sparkles },
   { id: "admin-ops", label: "Xəta jurnalı və məxfilik", icon: ShieldCheck },
@@ -2949,6 +2954,18 @@ export default function Joblink() {
                 </div>
               </section>
               <AssessmentsPage notify={notify} />
+            </>
+          ) : (page === "guide" || page === "hr-guide" || page === "admin-guide") && signedIn ? (
+            <>
+              <section className="page-heading">
+                <div className="heading-row">
+                  <div>
+                    <h1>İstifadə təlimatı</h1>
+                    <p>Platformadan necə istifadə etmək: addım-addım, hər istifadəçi növü üçün</p>
+                  </div>
+                </div>
+              </section>
+              <GuidePage initial={admin ? "admin" : hr ? (hrMode === "ops" ? "ops" : "recruit") : "candidate"} go={go} admin={!!admin} />
             </>
           ) : !admin &&
             signedIn &&

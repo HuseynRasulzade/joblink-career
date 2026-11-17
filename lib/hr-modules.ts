@@ -37,6 +37,7 @@ export const HR_MODULE_OF: Record<string, HrModule | "both"> = {
   "hr-billing": "both",
   "hr-calculator": "both",
   "hr-support": "both",
+  "hr-guide": "both",
 };
 
 export const moduleOf = (id: string): HrModule | "both" => HR_MODULE_OF[id] || "both";
