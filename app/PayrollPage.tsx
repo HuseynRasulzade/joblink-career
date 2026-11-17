@@ -8,6 +8,7 @@ import BranchAllocation from "./BranchAllocation";
 import { payslipHtml } from "@/lib/payslip-html";
 import { SheetImport } from "./StaffPages";
 import { WorkbookButtons, WorkbookImport } from "./PayrollWorkbook";
+import { checkPayroll } from "@/lib/payroll-check";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -68,6 +69,10 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const [accounts, setAccounts] = useState(false);
   const [benefits, setBenefits] = useState(false);
   const [view, setView] = useState<"sheet" | "report" | "bank" | "branches">("sheet");
+  // The month before, to compare with; the table search and the "only unpaid" switch.
+  const [previous, setPrevious] = useState<Row[] | null | undefined>(undefined);
+  const [search, setSearch] = useState("");
+  const [onlyOpen, setOnlyOpen] = useState(false);
   const notifyRef = useRef(notify);
   useEffect(() => {
     notifyRef.current = notify;
@@ -78,6 +83,13 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       .catch((error) => notifyRef.current((error as Error).message));
   }, [month]);
   useEffect(load, [load]);
+  useEffect(() => {
+    setPrevious(undefined);
+    let live = true;
+    // A month with no rows has no sheet to compare with.
+    request<Sheet>(`company/payroll?month=${shift(month, -1)}`).then((r) => { if (live) setPrevious(r.rows.length ? r.rows : null); }).catch(() => { if (live) setPrevious(null); });
+    return () => { live = false; };
+  }, [month]);
   async function act(path: string, body: Record<string, unknown>, done: string) {
     try {
       await request(path, { month, ...body });
@@ -137,6 +149,10 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
   const approved = sheet.status === "approved";
   const paidTotal = Math.round(sheet.rows.reduce((sum, r) => sum + r.advances + r.salaryPaid, 0) * 100) / 100;
   const dueTotal = Math.round((paidTotal + t.outstanding) * 100) / 100;
+  const review = !approved ? checkPayroll(sheet.rows, previous || null) : null;
+  const errorCount = review?.findings.filter((f) => f.level === "error").length || 0;
+  const needle = search.trim().toLocaleLowerCase("az");
+  const visibleRows = sheet.rows.filter((r) => (!needle || `${r.name} ${r.position} ${r.department} ${r.section}`.toLocaleLowerCase("az").includes(needle)) && (!onlyOpen || r.outstanding > 0));
   const paidShare = dueTotal > 0 ? Math.min(100, Math.round((paidTotal / dueTotal) * 100)) : 0;
   return (
     <div className="company-page payroll-page">
@@ -215,6 +231,17 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
           )}
         </details>
       )}
+      {review && (
+        <details className={errorCount ? "plan-state plan-draft" : "plan-state plan-approved"} open={errorCount > 0}>
+          <summary>
+            Təsdiqdən əvvəl yoxlama: {errorCount ? `${errorCount} xəta` : "xəta yoxdur"}, {review.findings.filter((f) => f.level === "warn").length} xəbərdarlıq, {review.findings.filter((f) => f.level === "info").length} məlumat
+            {review.totals.change !== null ? ` · gross əvvəlki aya görə ${review.totals.change > 0 ? "+" : ""}${review.totals.change}% (${azn(review.totals.previousGross || 0)} → ${azn(review.totals.gross)})` : previous === undefined ? " · əvvəlki ay yüklənir…" : " · əvvəlki ayda cədvəl yoxdur"}
+          </summary>
+          {review.findings.length ? (
+            <ul>{review.findings.map((f, i) => <li key={i} className={f.level === "error" ? "danger-text" : undefined}><b>{f.level === "error" ? "Xəta" : f.level === "warn" ? "Diqqət" : "Qeyd"}:</b> {f.name} — {f.text}</li>)}</ul>
+          ) : <p className="muted">Çatışmazlıq tapılmadı.</p>}
+        </details>
+      )}
       <div className="staff-kpis">
         <div className="staff-kpi"><small>Hesablanıb (gross)</small><strong>{azn(t.gross)}</strong><span>{t.employees} işçi · {sheet.workingDays} iş günü</span></div>
         <div className="staff-kpi"><small>Vergi və sığorta (işçi)</small><strong>{azn(t.incomeTax + t.employeeInsurance)}</strong><span>gəlir vergisi {azn(t.incomeTax)}</span></div>
@@ -225,7 +252,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
       </div>
       <div className="admin-actions payroll-actions">
         {!approved && (
-          <button type="button" className="primary" onClick={() => window.confirm(`${monthName(month)} üçün əmək haqqı cədvəli təsdiqlənsin? Hesablama dondurulacaq.`) && void act("company/payroll/approve", {}, "Ay təsdiqləndi.")}>
+          <button type="button" className="primary" onClick={() => window.confirm(`${errorCount ? `DİQQƏT: yoxlamada ${errorCount} xəta var. ` : ""}${monthName(month)} üçün əmək haqqı cədvəli təsdiqlənsin? Hesablama dondurulacaq.`) && void act("company/payroll/approve", {}, "Ay təsdiqləndi.")}>
             Ayı təsdiqlə
           </button>
         )}
@@ -239,6 +266,11 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
             </button>
           </>
         )}
+      </div>
+      <div className="admin-actions" style={{ justifyContent: "flex-start", flexWrap: "wrap", marginBottom: 8 }}>
+        <input aria-label="İşçi axtar" placeholder="İşçi, vəzifə və ya departament axtar" value={search} onChange={(e) => setSearch(e.target.value)} style={{ minWidth: 260 }} />
+        <label className="muted" style={{ display: "inline-flex", gap: 4, alignItems: "center" }}><input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} /> Yalnız qalığı olanlar</label>
+        {(search || onlyOpen) && <span className="muted">{visibleRows.length} / {sheet.rows.length} işçi</span>}
       </div>
       <div className="admin-table-wrap">
         <table className="admin-table payroll-table">
@@ -256,7 +288,7 @@ export default function PayrollPage({ notify }: { notify: Notify }) {
             </tr>
           </thead>
           <tbody>
-            {sheet.rows.map((r) => (
+            {visibleRows.map((r) => (
               <tr key={r.employeeId}>
                 <td>
                   <b>{r.name}</b>

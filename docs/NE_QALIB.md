@@ -287,3 +287,16 @@ Məhdudiyyətlər: kütləvi dəyişiklik indi yalnız departament, şöbə və 
 Rol yoxlaması (auditor və rəhbər): rəhbər heç bir yeni endpoint-ə çıxış almır (403). Auditor xronologiya, dublikat və sorğu profilini görür; maaş müqayisəsi (maaş icazəsi) 403-dür, ixrac faylında maaş və şəxsi sahələr olmur, FİN yoxlaması söndürülür, dəyişdirici alətlər (kütləvi dəyişiklik, sahə/varis idarəsi) görünmür. Qeyd: `requirePermission("salaries")` yol bölməsinə çevrilir, ona görə maaşa bağlı yeni yerlərdə `can(role,"salaries")` birbaşa yoxlanır.
 
 Sürət (company/employees): canlı mühitdə hər D1 sorğusu ~100 ms çəkir (10 sorğu ≈ 1,2 s). Bir-birindən asılı olmayan oxumalar (tapşırıqlar, illik məzuniyyət, ştat planı, baxış jurnalı) indi `rows` ilə eyni anda başlayır. Cavabın məzmunu dəyişməyib (əvvəl/sonra müqayisə edildi). Digər səhifələr (`dashboard` 14, `today` 17, `hr-trends` 11, `hr-report` 10 sorğu) eyni üsulla azaldıla bilər — ölçülməmiş təxmin yox, canlı Server-Timing ilə ölçülüb.
+
+## 31. Əmrlər reyestri və Əmək haqqı: yoxlama və idarəetmə (2026-11)
+
+**Əmrlər reyestri** (`lib/orders-registry.ts`, testli):
+- Sürətli süzgəc düymələri sayla: hamısı, imza gözləyir, 3+ gündür gözləyir, geri qaytarılıb, imzalanıb amma kartda tətbiq gözləyir, təkrarlanan nömrə, imzalanıb.
+- «Gözləmə» sütunu: əmrin son hərəkətindən (yaradılma, təsdiq, geri göndərmə, düzəliş) keçən gün; 3 gündən çox qırmızı. İmzalanmış əmr gözləmir.
+- «Kartda» sütunu: əmr kartı dəyişirsə tətbiq olunub / tətbiq gözləyir / geri qaytarılıb.
+- Təkrarlanan nömrə xəbərdarlığı (eyni ildə eyni nömrə). Bu yoxlama real xəta tapdı: kütləvi dəyişikliyin əmr nömrəsi `KD-tarix-sıra` idi və eyni gündə ikinci dəfə təkrarlanırdı; indi nömrənin sonuna əmrin unikal kodu əlavə olunur.
+- Nömrə/tarix/işçi/gözləmə üzrə sıralama, 50-lik səhifələmə, seçilmişlərin Excel faylı.
+
+**Əmək haqqı** (`lib/payroll-check.ts`, testli): cədvəl təsdiqlənməzdən əvvəl «Təsdiqdən əvvəl yoxlama» paneli — xəta: maaş daxil edilməyib, avans artıqdır, bank üsulu üçün IBAN/kart yoxdur; xəbərdarlıq: heç bir iş günü yoxdur, ödəniləcək sıfırdır, maaş eyni qaldığı halda gross ≥20% dəyişib; məlumat: yeni/çıxan işçi, maaş dəyişikliyi, ödənişsiz gün. Əvvəlki ayın cədvəli ilə müqayisə (cədvəli olmayan ay müqayisə üçün yoxdur sayılır). Təsdiq düyməsi xəta varsa xəbərdarlıq edir (bloklamır). Cədvəldə işçi/vəzifə/departament axtarışı və «yalnız qalığı olanlar» süzgəci.
+
+Bilərəkdən edilməyənlər (təklif): əmrlər üçün avtomatik xatırlatma e-poçtu (imza gözləyənə), əmr şablonlarının redaktəsi, əmrə fayl əlavəsi, əmək haqqında ay kilidləmə tarixi və ay bağlama yoxlama siyahısı, vergi bəyannaməsi üçün birbaşa e-taxes formatı, işçi başına illik gəlir vərəqəsi.

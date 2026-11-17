@@ -14,7 +14,8 @@ import { SHEET_TEMPLATES, templateSheets } from "@/lib/sheet-templates";
 import { OTHER_REQUEST, REQUEST_KINDS, orderPrefill, requestKindLabel, requestProblems, requestWarnings, type RequestData } from "@/lib/requests";
 import { ATTENDANCE_CODES } from "@/lib/calendar-az";
 import { LEVELS, RATES, RATE_LABEL, type PlanUnit } from "@/lib/staff-plan";
-import { createXlsxBook } from "@/lib/xlsx";
+import { createXlsx, createXlsxBook } from "@/lib/xlsx";
+import { duplicateKey, duplicateNumbers, effectWaiting, matchesQuick, waitingDays, type QuickFilter } from "@/lib/orders-registry";
 import { linkCodeSheets, type LinkCodeItem } from "@/lib/employee-link";
 import { canonicalOrgName } from "@/lib/org-names";
 import { splitNames, suggestSections } from "@/lib/section-suggestions";
@@ -369,6 +370,8 @@ export type SavedOrder = {
   signers: SignerState[];
   effect?: { supported: boolean; status?: string; summary?: string; effectiveDate?: string };
 };
+const effectLabel = (o: { status: string; effect?: { supported: boolean; status?: string } }) =>
+  !o.effect?.supported ? "—" : o.effect.status === "applied" ? "Tətbiq olunub" : o.effect.status === "reverted" ? "Geri qaytarılıb" : o.status !== "signed" ? "İmza gözləyir" : "Tətbiq gözləyir";
 const HOLDER = { creator: "Əmri hazırlayan (HR)", head: "Şöbə rəhbəri", director: "Direktor", "": "" } as const;
 const EVENT = { created: "Əmr yaradıldı", approved: "Təsdiqlədi", returned: "Geri göndərdi", edited: "Əmri dəyişdi", signed: "Tam imzalandı" } as Record<string, string>;
 const STATUS_TEXT = (order: SavedOrder) =>
@@ -974,6 +977,45 @@ export function OrdersRegistry({ notify }: { notify: Notify }) {
   useEffect(load, [load]);
   const set = (key: keyof typeof filters, value: string) => setFilters({ ...filters, [key]: value });
   const waiting = rows?.filter((r) => r.status !== "signed").length || 0;
+  // Quick filters, sorting, paging and the selection work on the rows already loaded.
+  const [quick, setQuick] = useState<QuickFilter>("");
+  const [sort, setSort] = useState<{ key: "date" | "number" | "employee" | "wait"; dir: "asc" | "desc" }>({ key: "date", dir: "desc" });
+  const [pageNo, setPageNo] = useState(0);
+  const [picked, setPicked] = useState<string[]>([]);
+  const dupes = useMemo(() => duplicateNumbers(rows || []), [rows]);
+  const nowMs = Date.now();
+  const counts = {
+    "": rows?.length || 0,
+    pending: rows?.filter((r) => r.status === "pending").length || 0,
+    returned: rows?.filter((r) => r.status === "returned").length || 0,
+    signed: rows?.filter((r) => r.status === "signed").length || 0,
+    stale: rows?.filter((r) => matchesQuick(r, "stale", dupes, 3, nowMs)).length || 0,
+    unapplied: rows?.filter((r) => effectWaiting(r)).length || 0,
+    duplicate: rows?.filter((r) => dupes.has(duplicateKey(r))).length || 0,
+  } as Record<QuickFilter, number>;
+  const shown = (rows || []).filter((r) => matchesQuick(r, quick, dupes, 3, nowMs)).sort((a, b) => {
+    const dir = sort.dir === "asc" ? 1 : -1;
+    if (sort.key === "wait") return (waitingDays(a, nowMs) - waitingDays(b, nowMs)) * dir;
+    const va = sort.key === "number" ? a.number : sort.key === "employee" ? a.employee.name : a.date;
+    const vb = sort.key === "number" ? b.number : sort.key === "employee" ? b.employee.name : b.date;
+    return va.localeCompare(vb, "az", { numeric: true }) * dir;
+  });
+  const PAGE = 50;
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE));
+  const pageRows = shown.slice(pageNo * PAGE, pageNo * PAGE + PAGE);
+  useEffect(() => setPageNo(0), [quick, query, sort]);
+  const sortBy = (key: typeof sort.key) => setSort(sort.key === key ? { key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "date" || key === "wait" ? "desc" : "asc" });
+  const arrow = (key: typeof sort.key) => (sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : "");
+  function exportPicked() {
+    const chosen = shown.filter((r) => picked.includes(r.id));
+    const bytes = createXlsx(["№", "Tarix", "Növ", "İşçi", "Departament", "Şöbə", "Status", "Gözləmə (gün)", "Kartda"], chosen.map((r) => [r.number, r.date, ORDER_KINDS.find((k) => k.id === r.kind)?.label.replace(" haqqında əmr", "") || r.kind, r.employee.name, r.employee.department || "", r.employee.section || "", STATUS_TEXT(r), waitingDays(r, nowMs), effectLabel(r)]), "Əmrlər");
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `emrler-secilmis-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
   const [tab, setTab] = useState<"orders" | "requests">("orders");
   const [newRequests, setNewRequests] = useState(0);
   const [event, setEvent] = useState(false);
@@ -1005,6 +1047,14 @@ export function OrdersRegistry({ notify }: { notify: Notify }) {
             <Download size={14} /> Excel hesabatı
           </a>
         </div>
+      </div>
+      <div className="staff-kpis" style={{ marginBottom: 8 }}>
+        {([["", "Hamısı"], ["pending", "İmza gözləyir"], ["stale", "3+ gündür gözləyir"], ["returned", "Geri qaytarılıb"], ["unapplied", "İmzalanıb, kartda tətbiq gözləyir"], ["duplicate", "Təkrarlanan nömrə"], ["signed", "İmzalanıb"]] as [QuickFilter, string][]).map(([key, label]) => (
+          <button key={key || "all"} type="button" aria-pressed={quick === key} className={`staff-kpi${quick === key ? " staff-kpi-warn" : ""}`} style={{ cursor: "pointer", textAlign: "left" }} onClick={() => setQuick(quick === key ? "" : key)}>
+            <small>{label}</small>
+            <strong>{counts[key]}</strong>
+          </button>
+        ))}
       </div>
       <div className="form-grid">
         <Field label="Axtarış (nömrə, işçi, departament)">
@@ -1040,20 +1090,25 @@ export function OrdersRegistry({ notify }: { notify: Notify }) {
         <table className="admin-table">
           <thead>
             <tr>
-              <th>№</th>
-              <th>Tarix</th>
+              <th style={{ width: 28 }}><input type="checkbox" aria-label="Səhifədəkilərin hamısını seç" checked={pageRows.length > 0 && pageRows.every((r) => picked.includes(r.id))} onChange={(e) => setPicked(e.target.checked ? [...new Set([...picked, ...pageRows.map((r) => r.id)])] : picked.filter((id) => !pageRows.some((r) => r.id === id)))} /></th>
+              <th><button type="button" className="text-button" onClick={() => sortBy("number")}>№{arrow("number")}</button></th>
+              <th><button type="button" className="text-button" onClick={() => sortBy("date")}>Tarix{arrow("date")}</button></th>
               <th>Növ</th>
-              <th>İşçi</th>
+              <th><button type="button" className="text-button" onClick={() => sortBy("employee")}>İşçi{arrow("employee")}</button></th>
               <th>Departament / Şöbə</th>
               <th>Status</th>
+              <th><button type="button" className="text-button" onClick={() => sortBy("wait")}>Gözləmə{arrow("wait")}</button></th>
+              <th>Kartda</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {(rows || []).map((row) => (
+            {pageRows.map((row) => (
               <tr key={row.id}>
+                <td><input type="checkbox" aria-label={`${row.number} nömrəli əmri seç`} checked={picked.includes(row.id)} onChange={(e) => setPicked(e.target.checked ? [...picked, row.id] : picked.filter((id) => id !== row.id))} /></td>
                 <td>
                   <b>{row.number}</b>
+                  {dupes.has(duplicateKey(row)) && <small className="danger-text">bu il eyni nömrə təkrarlanır</small>}
                 </td>
                 <td>{row.date}</td>
                 <td>{ORDER_KINDS.find((k) => k.id === row.kind)?.label.replace(" haqqında əmr", "")}</td>
@@ -1063,6 +1118,8 @@ export function OrdersRegistry({ notify }: { notify: Notify }) {
                   {row.employee.section && <small className="skill-description">{row.employee.section}</small>}
                 </td>
                 <td>{STATUS_TEXT(row)}</td>
+                <td className={waitingDays(row, nowMs) >= 3 ? "danger-text" : undefined}>{row.status === "signed" ? "—" : `${waitingDays(row, nowMs)} gün`}</td>
+                <td>{effectLabel(row)}</td>
                 <td className="admin-actions">
                   <button type="button" onClick={() => setOpen(row)}>
                     Aç
@@ -1072,7 +1129,7 @@ export function OrdersRegistry({ notify }: { notify: Notify }) {
             ))}
             {rows && !rows.length && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={10}>
                   <p className="admin-empty">Əmr yoxdur. Əmri işçi kartından yaradın (İşçilər → Düzəlt → Əmr sənədləri).</p>
                 </td>
               </tr>
@@ -1080,6 +1137,12 @@ export function OrdersRegistry({ notify }: { notify: Notify }) {
           </tbody>
         </table>
       </div>
+      {(picked.length > 0 || pages > 1) && (
+        <div className="admin-actions" style={{ justifyContent: "flex-start", marginTop: 8 }}>
+          {picked.length > 0 && (<><b>{picked.length} seçilib:</b><button type="button" className="secondary" onClick={exportPicked}>Excel</button><button type="button" className="text-button" onClick={() => setPicked([])}>Seçimi ləğv et</button></>)}
+          {pages > 1 && (<><button type="button" className="secondary" disabled={pageNo === 0} onClick={() => setPageNo(pageNo - 1)}>← Əvvəlki</button><span className="muted">{pageNo + 1} / {pages} ({shown.length} əmr)</span><button type="button" className="secondary" disabled={pageNo >= pages - 1} onClick={() => setPageNo(pageNo + 1)}>Növbəti →</button></>)}
+        </div>
+      )}
       {open && !editing && (
         <Modal title={`Əmr № ${open.number}: ${open.employee.name}`} onClose={() => setOpen(null)}>
           <div className="offer-composer">

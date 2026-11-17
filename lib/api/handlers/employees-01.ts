@@ -105,7 +105,7 @@ export async function handle_employees_01(c: Pick<RouteCtx, "accountRole" | "aft
           const input = { newDepartment: department, newSection: moveSection ? section : "", from: date, basis: str(b.basis, 300) || "Kütləvi dəyişiklik" };
           const orderId = crypto.randomUUID();
           const now = new Date().toISOString();
-          const number = `KD-${date.replace(/-/g, "")}-${result.length + 1}`;
+          const number = `KD-${date.replace(/-/g, "")}-${orderId.slice(0, 4).toUpperCase()}`;
           await db.prepare("INSERT INTO employee_orders(id,company_id,employee_id,kind,number,order_date,input,signers,status,holder,history,created_by,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(orderId, id, p.id, "transfer", number, date, JSON.stringify(input), "[]", "signed", "", JSON.stringify([{ at: now, by: actor, action: "Kütləvi dəyişiklik" }]), userId, now, now).run();
           await afterSigned({ id: orderId, employeeId: p.id, kind: "transfer", number, input });
           // The old section belongs to the old department: without a new section the card is left with none.
