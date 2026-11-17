@@ -107,6 +107,11 @@ export default function ApplicantsTable({
                       <span>
                         <b>{a.profile.name}</b>
                         <small>{a.profile.title || "—"}{a.profile.code && <> · <span className="person-code">{a.profile.code}</span></>}</small>
+                        {a.duplicate && (a.duplicate.previouslyRejected || a.duplicate.otherVacancies > 0 || a.duplicate.sameContactAs.length > 0) && (
+                          <small className={a.duplicate.previouslyRejected ? "danger-text" : "skill-description"} title="Eyni namizədin şirkətinizdəki digər müraciətləri">
+                            {[a.duplicate.previouslyRejected ? `əvvəl ${a.duplicate.previouslyRejected} vakansiyada rədd edilib` : "", a.duplicate.otherVacancies > 0 ? `digər ${a.duplicate.otherVacancies} vakansiyaya da müraciət edib` : "", a.duplicate.sameContactAs.length ? `eyni əlaqə məlumatı: ${a.duplicate.sameContactAs.join(", ")}` : ""].filter(Boolean).join(" · ")}
+                          </small>
+                        )}
                       </span>
                     </button>
                   </td>

@@ -188,13 +188,14 @@ export async function handle_hr_04(c: Pick<RouteCtx, "INTERVIEW_COLUMNS" | "acco
     const rows = await db
       .prepare(
         `SELECT i.application_id,i.job_id,COALESCE(json_extract(j.data,'$.title'),'') AS job_title,COALESCE(c.name,'') AS candidate,
-          COALESCE(a.status,'') AS application_status,i.scheduled_at,i.status,i.rating,i.feedback,i.decision
+          COALESCE(a.status,'') AS application_status,i.scheduled_at,i.status,i.rating,i.feedback,i.decision,i.scores
         FROM interviews i JOIN jobs j ON j.id=i.job_id LEFT JOIN accounts c ON c.id=i.candidate_id LEFT JOIN applications a ON a.id=i.application_id
         WHERE i.company_id=? AND i.job_id IN (SELECT value FROM json_each(?)) ORDER BY i.scheduled_at LIMIT 2000`,
       )
       .bind(id, JSON.stringify(jobIds))
       .all<FeedbackRow>();
-    return ok({ jobs: compareInterviews(rows.results) });
+    const list = await db.prepare("SELECT id,label,weight FROM interview_criteria WHERE company_id=? ORDER BY position,created").bind(id).all<{ id: string; label: string; weight: number }>().then((r) => (r.results.length ? r.results : DEFAULT_CRITERIA)).catch(() => DEFAULT_CRITERIA);
+    return ok({ jobs: compareInterviews(rows.results, list) });
   }
   if (request.method === "POST" && path === "hr/interviews/invite") {
     const b = await jsonBody(request);

@@ -322,6 +322,7 @@ type ComparisonRow = {
   reject: number;
   lastDecision: string;
   lastFeedback: string;
+  criteria?: { id: string; label: string; average: number; count: number }[];
 };
 type ComparisonJob = { jobId: string; jobTitle: string; candidates: ComparisonRow[] };
 function FeedbackComparison({ notify }: { notify: Notify }) {
@@ -382,7 +383,7 @@ function FeedbackComparison({ notify }: { notify: Notify }) {
                     <tr key={c.applicationId}>
                       <td><strong>{c.candidate || "Namizəd"}</strong></td>
                       <td>{c.interviews}</td>
-                      <td>{c.rated ? `${c.average} / 5` : "—"}</td>
+                      <td>{c.rated ? `${c.average} / 5` : "—"}{(c.criteria || []).length > 0 && <small className="skill-description">{(c.criteria || []).map((x) => `${x.label}: ${x.average}`).join(" · ")}</small>}</td>
                       <td>{c.ratings.join(", ") || "—"}</td>
                       <td>
                         {c.rated ? `Davam ${c.advance} · Gözlə ${c.hold} · Rədd ${c.reject}` : "—"}

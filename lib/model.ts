@@ -241,7 +241,7 @@ export type Application = {
   job?: Job;
   auto?: boolean;
   stage?: string;
-  duplicate?: { otherVacancies: number; sameContactAs: string[] } | null;
+  duplicate?: { otherVacancies: number; sameContactAs: string[]; previouslyRejected?: number } | null;
   events?: {
     type: string;
     from_value: string;

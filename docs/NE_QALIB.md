@@ -376,3 +376,7 @@ Qeyd: 32-ci bölmədəki kimi, menyu və koda baxışa əsaslanır (məsələn �
 - **Dayanmış namizəd xatırlatması** (`lib/ats-digest.ts`): çərşənbə axşamı və cümə (UTC) HR icazəsi olanlara şirkət gələn qutusunda bildiriş: 7+ gün hərəkətsiz namizəd sayı. Cron-a və `admin/run-digests` (`atsNotes`) cavabına qoşulub.
 
 Qeydlər: 34-cü bölmədə «müsahibə xatırlatması yoxdur» deməmişdim, lakin «işə qəbul müddəti» və «avtomatik cavab» yoxdur demişdim — ikisi də indi var. Hələ yoxdur: qara siyahı/təkrar müraciət xəbərdarlığı (hüquqi baxış tələb edir), namizəd məlumatının saxlama müddəti və silmə, istedad bazasının avtomatik yenilənməsi, video link yaratma, mərhələdə SLA-nın vakansiya üzrə ayrıca təyini.
+
+**Əlavə (35-ci bölmənin davamı):**
+- **Rəylərin müqayisəsində skorkart:** Müsahibələr → «Rəylərin müqayisəsi» cədvəlində hər namizədin orta balının altında kriteriyalar üzrə orta bal (məs. «Texniki bilik: 5 · Ünsiyyət: 4») görünür. Yalnız skorkartla qiymətlənmiş müsahibələr sayılır. Yerlidə brauzerdə yoxlandı.
+- **Təkrar müraciət xəbərdarlığı:** Namizədlər cədvəlində adın altında kiçik qeyd: «əvvəl N vakansiyada rədd edilib» (qırmızı), «digər N vakansiyaya da müraciət edib», «eyni əlaqə məlumatı: …». Bu məlumat serverdə əvvəldən hesablanırdı, lakin heç yerdə göstərilmirdi. Məntiq testlə yoxlanıb; yerli demo məlumatında təkrar namizəd olmadığı üçün brauzerdə qeyd görünmədi. Bu «qara siyahı» deyil: yalnız məlumatdır, qərarı işə qəbul edən verir.

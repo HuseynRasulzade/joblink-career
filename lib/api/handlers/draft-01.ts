@@ -476,6 +476,7 @@ mode may only be "Ofisdə", "Hibrid", "Uzaqdan" or empty. type may only be "Tam 
           name: String(p.name || ""),
           email: String(p.email || ""),
           phone: String(p.phone || ""),
+          status: String(r.status || ""),
         };
       }),
     );

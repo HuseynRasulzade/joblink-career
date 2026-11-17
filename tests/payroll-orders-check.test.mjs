@@ -119,3 +119,23 @@ test("atsDigestText: silent when nobody waits", () => {
   const t = atsDigestText({ stale: 4, oldestDays: 12, unanswered: 2 });
   assert.ok(t.body.includes("4 namizəd") && t.body.includes("12 gün") && t.body.includes("2 nəfərin"));
 });
+
+import { compareInterviews } from "../lib/interview-compare.ts";
+test("interview comparison carries the average of each scored criterion", () => {
+  const row = (scores, rating) => ({ application_id: "a", job_id: "j", job_title: "J", candidate: "C", application_status: "Müsahibə", scheduled_at: "2026-11-01T10:00:00Z", status: "completed", rating, feedback: "", decision: "advance", scores: JSON.stringify(scores) });
+  const out = compareInterviews([row({ x: 5, y: 3 }, 4), row({ x: 3 }, 3)], [{ id: "x", label: "Bilik" }, { id: "y", label: "Ünsiyyət" }, { id: "z", label: "Boş" }]);
+  const c = out[0].candidates[0];
+  assert.deepEqual(c.criteria.map((k) => [k.label, k.average, k.count]), [["Bilik", 4, 2], ["Ünsiyyət", 3, 1]]);
+});
+
+import { findDuplicates } from "../lib/duplicates.ts";
+test("duplicates: a candidate turned down for another vacancy is flagged", () => {
+  const d = findDuplicates([
+    { id: "1", candidateId: "c", jobId: "j1", name: "A", email: "a@x.az", phone: "", status: "Uyğun deyil" },
+    { id: "2", candidateId: "c", jobId: "j2", name: "A", email: "a@x.az", phone: "", status: "Göndərildi" },
+    { id: "3", candidateId: "d", jobId: "j2", name: "B", email: "b@x.az", phone: "", status: "Göndərildi" },
+  ]);
+  assert.equal(d["2"].previouslyRejected, 1);
+  assert.equal(d["1"].previouslyRejected, 0);
+  assert.equal(d["3"], undefined);
+});
