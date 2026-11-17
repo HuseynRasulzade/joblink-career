@@ -380,3 +380,16 @@ Qeydlər: 34-cü bölmədə «müsahibə xatırlatması yoxdur» deməmişdim, l
 **Əlavə (35-ci bölmənin davamı):**
 - **Rəylərin müqayisəsində skorkart:** Müsahibələr → «Rəylərin müqayisəsi» cədvəlində hər namizədin orta balının altında kriteriyalar üzrə orta bal (məs. «Texniki bilik: 5 · Ünsiyyət: 4») görünür. Yalnız skorkartla qiymətlənmiş müsahibələr sayılır. Yerlidə brauzerdə yoxlandı.
 - **Təkrar müraciət xəbərdarlığı:** Namizədlər cədvəlində adın altında kiçik qeyd: «əvvəl N vakansiyada rədd edilib» (qırmızı), «digər N vakansiyaya da müraciət edib», «eyni əlaqə məlumatı: …». Bu məlumat serverdə əvvəldən hesablanırdı, lakin heç yerdə göstərilmirdi. Məntiq testlə yoxlanıb; yerli demo məlumatında təkrar namizəd olmadığı üçün brauzerdə qeyd görünmədi. Bu «qara siyahı» deyil: yalnız məlumatdır, qərarı işə qəbul edən verir.
+
+## 36. Düzəlişlər: 32 və 34-cü bölmələrdəki yanlış «yoxdur» iddiaları (kodla yoxlandı)
+
+32-ci bölməni yazanda bəzi bölmələri yalnız menyudan qiymətləndirmişdim. Sonradan kodla yoxlayanda aşağıdakılar yanlış çıxdı; onlar **artıq mövcuddur** və təkliflər siyahısından çıxarılmalıdır:
+- **Kalkulyatorlar:** nəticəni Excel-ə atmaq və çap etmək var (`HrCalculators` daxilində `Export` konteksti, `createXlsx`, çap). Həqiqətən çatışmayan: nəticənin hesabda yadda saxlanması/paylaşılması (kalkulyatordan əmr hazırlamaq 33-cü bölmədə əlavə olundu).
+- **Kadr əməliyyatları → İşdən çıxma:** çıxış müsahibəsi (`company/offboarding/interview`), yoxlama siyahısı, əmlak qaytarma və proses bağlama var. Çatışmayan: vəzifəyə görə fərqli yoxlama siyahısı şablonları (hazır siyahı bir dənədir, `lib/onboarding.ts`).
+- **Plan və fakt:** planın təqdimi, təsdiqi, yenidən açılması və illik vəziyyəti (`company/plan-fact/state|submit|reopen`) var. «İlin bağlanması» deyilən çatışmazlıq yalnız növbəti ilə **avtomatik köçürmə sihirbazıdır**, bağlamanın özü yox.
+- **İnkişaf və kommunikasiya:** performans qiymətindən maaş artımı təklifi var; çatışmayan yalnız çoxlu işçi üçün toplu «artım dalğası» təsdiqidir.
+- **İşə qəbul tərəfində** (34-cü bölmə): müsahibə xatırlatması (`runInterviewReminders`) əvvəldən var idi; «işə qəbul müddəti» və «avtomatik cavab» yox idi, 35-ci bölmədə əlavə olundu.
+
+Yoxlanmamış qalan «yoxdur» iddiaları (Davamiyyət → gecikmədən intizam əmrinə keçid, Komanda → icazə tarixçəsi ekranı, Dəstək → təcililik/SLA): koddan bir baxışla göründüyü qədərdir, brauzerdə təsdiqlənməyib.
+
+**Niyə hesab-fakturanın çap/PDF formasını bilərəkdən yazmadım:** rəsmi hesab-faktura satıcının hüquqi rekvizitlərini (VÖEN, bank, imza) və ƏDV qaydalarını tələb edir; bu rekvizitlər mənə məlum deyil və yanlış rekvizitli «rəsmi» sənəd yaratmaq riskli olardı. Platformanın hüquqi məlumatları verilərsə edilə bilər.
