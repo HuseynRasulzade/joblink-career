@@ -305,3 +305,31 @@ Bilərəkdən edilməyənlər (təklif): əmrlər üçün avtomatik xatırlatma 
 - **Gözləyən əmrlər üçün xatırlatma:** `lib/order-digest.ts` — bazar ertəsi və cümə axşamı (UTC) əmr icazəsi olan şəxslərə şirkət gələn qutusunda (və e-poçt ayarlanıbsa e-poçtla) bildiriş: 3 gündən çox imza gözləyən və geri qaytarılmış əmrlər. Heç nə yoxdursa göndərilmir. Cron-a (`worker/index.ts`) və `admin/run-digests` cavabına (`orderNotes`, `force` ilə hər gün) qoşulub. Təsdiq: yerlidə `force` ilə 1 bildiriş yarandı; real e-poçt çatdırılması yoxlanmayıb.
 - **Əmək haqqında ay bağlama siyahısı:** yoxlama panelində — əvvəlki ay təsdiqlənib, vergi parametrləri təsdiqlənib, yoxlamada xəta yoxdur, hər işçinin maaşı var.
 - **İllik yekun:** `company/payroll/annual?year=` (maaş icazəsi tələb edir, baxış jurnalına yazılır) təsdiqlənmiş ayların işçi üzrə gross, gəlir vergisi, işçi sığortası və net məbləğini verir; «İllik yekun (XLSX)» düyməsi iki vərəqli fayl yükləyir. Təsdiqlənməmiş aylar daxil edilmir və bu bildirilir. Rəsmi e-taxes bəyannamə formatı deyil.
+
+## 32. Qalan menyu bölmələri: boşluqlar və təkliflər (2026-11)
+
+Qeyd: bu siyahı menyu və koda baxışa əsaslanır (hər bölmənin düymələri, endpoint-ləri, testləri), hər bölmənin brauzerdə tam gəzilməsinə yox. Heç bir maddə hələ icra olunmayıb. «Boşluq» = mövcud olanda çatışmayan, «Təklif» = əlavə dəyər.
+
+**Plan və fakt** (artıq geniş işləndi) — Boşluq: planın illik bağlanması və növbəti ilə köçürmə sihirbazı; büdcə (AZN) ilə işçi sayının eyni ekranda uzlaşması. Təklif: ssenari müqayisəsi («+5 nəfər olsa fond nə qədər»).
+
+**Ehtiyac təklifi** — Boşluq: rəhbərin təklifi rədd/təsdiq olunanda bildirişin real e-poçtla çatması yoxlanmayıb; təklifə əlavə fayl/əsaslandırma sənədi yoxdur. Təklif: təsdiq olunan təklifdən bir kliklə vakansiya yaratmaq; təklifin statusunun rəhbərə izlənməsi.
+
+**Filiallar** — Boşluq: filialın bağlanması/birləşdirilməsi (işçilərin köçürülməsi ilə); filial üzrə plan-fakt. Təklif: filial xəritəsi, filial üzrə ayrıca əmək haqqı fondu hesabatı (bölgü var, hesabat yoxdur).
+
+**Kadr əməliyyatları** (məzuniyyət qrafiki, sənəd reyestri, işdən çıxma, aktivlər, sxem, tövsiyə, rəy yoxlaması, ad günləri, əməyin mühafizəsi, qaydalar, saxlama müddəti) — Boşluq: işdən çıxmada «çıxış müsahibəsi» anketi və avtomatik yoxlama siyahısının icra izləməsi; sənəd reyestrində son tarix xatırlatmasının e-poçtla çatması yoxlanmayıb; əməyin mühafizəsi qeydlərinə fayl əlavəsi yoxdur. Təklif: onboarding yoxlama siyahısı şablonları (vəzifəyə görə), işçi köçürməsində aktivlərin avtomatik qaytarma tələbi.
+
+**İnkişaf və kommunikasiya** (performans, bacarıq, təlim, növbə, ezamiyyət, elan/sorğu) — Boşluq: performans dövrü nəticəsinin maaş artımı təklifinə bağlanması var, amma toplu «artım dalğası» təsdiqi yoxdur; təlim büdcəsi ilə plan-fakt əlaqəsi yoxdur; sorğu nəticələrində departament kəsimi yalnız eNPS-də var. Təklif: 9-box (performans × potensial) və varislik planı ilə əlaqə (İşçilər → Varislik artıq var); təlimdən sonra bacarıq səviyyəsinin avtomatik təklifi.
+
+**Davamiyyət** — Boşluq: giriş-çıxış üçün cihaz/terminal inteqrasiyası yoxdur (yalnız əl ilə, Excel və geolokasiya); ay bağlama (davamiyyətin kilidlənməsi) əmək haqqı təsdiqindən ayrı idarə olunmur; gecikmə üçün intizam əmrinə birbaşa keçid yoxdur. Təklif: davamiyyət ayını təsdiqlədikdən sonra kilid və dəyişiklik üçün səbəbli sorğu; rəhbər görünüşündə həftəlik gecikmə xülasəsi.
+
+**Komanda və rollar** — Boşluq: rolların dəyişməsinin tarixçəsi (kim kimə hansı icazəni nə vaxt verdi) ayrıca ekran kimi yoxdur (jurnalda var); müvəqqəti icazə (məs. məzuniyyətdə əvəzedici üçün tarix aralığı) yoxdur; admin 2FA məcburi deyil. Təklif: «icazələrin icmalı» — hər istifadəçinin nəyi görə biləcəyini bir cədvəldə göstərmək; icazə yeniləmə xatırlatması (ildə bir dəfə).
+
+**Şirkət məlumatları** — Boşluq: məlumat dəyişikliyi sorğusu və təsdiq axını var, lakin sənəd versiyalarının (nizamnamə, VÖEN sənədi) tarixçəsi və müddət bitmə xatırlatması yoxdur. Təklif: şirkət profilinin tamlıq göstəricisi; şifrələmə açarının ehtiyat nüsxəsi və bərpa addımlarının ekranda izahı (açar itərsə şəxsi məlumatlar bərpa olunmur).
+
+**Hesablar və ödənişlər** — Boşluq: hesab-fakturalar cədvəl və XLSX ilə verilir; fakturanın çap/PDF forması və ödəniş xatırlatmasının real e-poçtla çatması yoxlanmayıb; paket yeniləməsi üçün avtomatik ödəniş yoxdur (ABB müqaviləsindən asılıdır). Təklif: istifadə (AI kredit, vakansiya sayı) və limit göstəricisi eyni ekranda; illik ödənişə keçid təklifi.
+
+**Kalkulyatorlar** — 13 kalkulyator var. Boşluq: nəticələrin saxlanması/paylaşılması və Excel-ə atılması yoxdur; kalkulyator nəticəsindən birbaşa əmr və ya kart dəyişikliyi başlatmaq mümkün deyil (məs. maaş hesabından «maaş dəyişikliyi əmri»). Təklif: «işçiyə tətbiq et» düyməsi; ildə bir dəfə vergi parametrlərinin yenilənməsinə dair mühasib təsdiqi ilə eyni mexanizm.
+
+**Dəstək** — Boşluq: müraciətin təcililik/kateqoriyası, SLA və cavab müddəti göstəricisi yoxdur; şirkət tərəfdə müraciət tarixçəsində axtarış yoxdur. Təklif: tez-tez verilən suallar bölməsi və müraciət yaratmazdan əvvəl avtomatik təkliflər.
+
+**Hamısına aid, qərar tələb edənlər:** CSP-nin məcburi rejimi, admin 2FA-nın məcburiliyi, real e-poçt çatdırılmasının canlıda yoxlanması (göndərici provayderi və açarı lazımdır), ABB ödəniş müqaviləsi, hüquqçu baxışı, əsl istifadəçilərlə pilot, açıq buraxılışdan əvvəl bütün ZZ-TEST və test məlumatlarının silinməsi.
