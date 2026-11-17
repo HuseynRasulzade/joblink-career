@@ -123,10 +123,10 @@ export async function handle_fit_review_01(c: Pick<RouteCtx, "accountRole" | "ai
     const pool = await db
       .prepare(
         `SELECT p.user_id,p.data,
-          EXISTS(SELECT 1 FROM applications ap WHERE ap.job_id=? AND ap.candidate_id=p.user_id) AS applied
+          EXISTS(SELECT 1 FROM applications ap WHERE ap.job_id=? AND ap.candidate_id=p.user_id AND ap.status<>'Geri götürülüb') AS applied
         FROM profiles p LEFT JOIN accounts a ON a.id=p.user_id
         WHERE COALESCE(a.status,'active')='active' AND COALESCE(a.role,'candidate')='candidate'
-          AND (p.active='1' OR EXISTS(SELECT 1 FROM applications ap WHERE ap.job_id=? AND ap.candidate_id=p.user_id))
+          AND (p.active='1' OR EXISTS(SELECT 1 FROM applications ap WHERE ap.job_id=? AND ap.candidate_id=p.user_id AND ap.status<>'Geri götürülüb'))
         LIMIT 300`,
       )
       .bind(job.id, job.id)

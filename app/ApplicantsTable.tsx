@@ -128,7 +128,7 @@ export default function ApplicantsTable({
                         {rating ? <span className={`apt-ai ${rating.recommendation}`}>AI · {AI_WORD[rating.recommendation] || "Nəzərə al"}</span> : <span className="apt-ai lite">AI sıra</span>}
                       </button>
                     ) : (
-                      <span className="muted">AI hələ sıralamayıb</span>
+                      <span className="muted">{done ? "Müraciət geri götürülüb" : "AI hələ sıralamayıb"}</span>
                     )}
                   </td>
                   <td className="apt-actions">
