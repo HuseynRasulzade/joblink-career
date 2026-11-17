@@ -214,3 +214,16 @@ Menyuda **Filiallar** (Kadr rejimi). Bir işçi bir neçə filialda işləyə bi
 - «Plan və fakt → Plandan kənar»: üç növ sorğu, hamısında **səbəb məcburidir**: (1) plandan kənar işçi yeri (mövcud sətrə +N və ya yeni sətir), (2) ştat sətrinin maaş həddi artımı, (3) bir işçinin maaşının həddən kənara qaldırılması.
 - Direktor (yeri/həddi) dərhal tətbiq edir, qalanlar üçün sorğu **Təsdiqlər** bölməsinə gedir; işçi maaş artımı həmişə təsdiqlə olur (təsdiq maaş həddini yoxlamır, istisna məhz budur; hədd də artırılmasa işçi ştat cədvəlində «həddən yuxarı» görünür). Bütün sorğular (tətbiq olunanlar da) bölmənin siyahısında saxlanır. Server: `company/staff/exception`, `company/staff/exceptions`.
 - Say və maaş həddi rədd mesajları bu bölməyə yönəldir.
+
+## 23. Plan və faktın genişlənməsi (2026-11-17)
+
+- **Yerlərin tarixi:** ştat sətrində «nə vaxtdan» və «nə vaxta qədər» (ay). Plan xətti hər ay həmin ayda açıq yerlərin cəmidir (pilləli); gələcəkdə açılan yerə hələ işə qəbul olmur, müddəti bitmiş (layihə) yerə də. Migrasiya 0116.
+- **Xərc:** hər sətirdə və cəmdə aylıq plan xərci (maaş həddi + işəgötürən payları, bu ay açıq yerlər üzrə) və faktiki işçilərin xərci.
+- **Departament təklifi:** «Plandan kənar» bölməsində ayrıca növ; kim təklif edib qeyddə qalır, təsdiq/tətbiq eynidir. **Qeyd:** rəhbərin öz giriş səhifəsi yoxdur, təklifi HR yazır.
+- **İlkin və yenilənmiş plan:** ilin ilk təsdiqində «ilkin» plan saxlanır (`plan_snapshots`), hər təsdiqdə «yenilənmiş» yenilənir; bölmədə ilkin plan, hazırkı plan və bu il plandan kənar sorğu sayı göstərilir.
+- **Ssenari:** sətir və say seçilir, aylıq/illik əlavə xərc göstərilir.
+- **Proqnoz:** növbəti 3 ayda gözlənilən çıxışlar (təyin olunmuş çıxış tarixi və ya müddətli müqavilənin sonu) və yerin orta dolma müddəti (vakansiyadan işçi kartına qədər).
+- **Həftəlik xülasə:** bazar ertəsi direktor icazəli şəxslərə (daxili bildiriş və e-poçt) plandan ≥5% kənarlaşma və gözləyən sorğular; hər şey qaydasındadırsa göndərilmir (`lib/plan-digest.ts`, mövcud gündəlik cron).
+- **Minimum əmək haqqı:** sətirin minimum maaşı 400 AZN-dən aşağıdırsa plan-fakt xəbərdarlığı çıxır.
+- **Direktor hesabatı:** «Plandan kənar» bölməsində Excel (ştat planı, xülasə, sorğular).
+- **Hələ edilməyib:** vəzifə daxilində maaş pillələri (junior/orta/böyük), ştatsız işçini bir kliklə sətrə bağlamaq, rəhbər üçün ayrıca təklif səhifəsi.

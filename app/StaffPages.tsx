@@ -2069,14 +2069,14 @@ export function EmployeeProfilePanel({ employeeId, name, initial, birthDateHint,
 
 // ---------- Staff table ----------
 type StaffPerson = { id: string; name: string; gross?: number | null; outside?: "" | "below" | "above" };
-type StaffRow = PlanUnit & { note: string; filled: number; free: number; fte: number; budget: number; people: StaffPerson[] };
+type StaffRow = PlanUnit & { note: string; filled: number; free: number; fte: number; budget: number; people: StaffPerson[]; active?: boolean; costMin?: number; costMax?: number };
 type StaffDepartment = { department: string; planned: number; filled: number; free: number; fte: number; budget: number; unplaced: number; units: number; openVacancies: number };
 type Unplaced = { id: string; name: string; department: string; section: string; position: string };
 type StaffData = {
   rows: StaffRow[];
   departments: StaffDepartment[];
   unplaced: Unplaced[];
-  total: { planned: number; filled: number; fte: number; budget: number; unplaced: number; payroll: number };
+  total: { planned: number; filled: number; fte: number; budget: number; unplaced: number; payroll: number; planCostMin?: number; planCostMax?: number; factCost?: number };
   pending: { id: string; subject: string; requested_by_name: string; created: string }[];
   mismatches?: number;
   locked?: boolean;
@@ -3308,7 +3308,7 @@ function ShiftFields({ profile, set }: { profile: EmployeeProfile; set: <K exten
 // and the pay band. Every row goes straight to the staff table (the same rows), which shows who fills it and what is free.
 export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: { notify: Notify; year: string; locked: boolean; onChanged: () => void; goStaff: () => void }) {
   const HEAD_OFFICE = "";
-  const blank = { branch: HEAD_OFFICE, department: "", section: "", position: "", rate: 1, planned: 1, salaryMin: "", salaryMax: "" };
+  const blank = { branch: HEAD_OFFICE, department: "", section: "", position: "", rate: 1, planned: 1, salaryMin: "", salaryMax: "", startMonth: "", endMonth: "" };
   const [form, setForm] = useState(blank);
   const [data, setData] = useState<StaffData | null>(null);
   const [made, setMade] = useState<string[]>([]);
@@ -3325,7 +3325,7 @@ export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: {
   const max = Number(form.salaryMax) || 0;
   function edit(r: StaffRow) {
     setEditingId(r.id);
-    setForm({ branch: r.branch || "", department: r.department, section: r.section, position: r.position, rate: r.rate, planned: r.planned, salaryMin: r.salaryMin ? String(r.salaryMin) : "", salaryMax: r.salaryMax && r.salaryMax !== r.salaryMin ? String(r.salaryMax) : "" });
+    setForm({ branch: r.branch || "", department: r.department, section: r.section, position: r.position, rate: r.rate, planned: r.planned, salaryMin: r.salaryMin ? String(r.salaryMin) : "", salaryMax: r.salaryMax && r.salaryMax !== r.salaryMin ? String(r.salaryMax) : "", startMonth: r.startMonth || "", endMonth: r.endMonth || "" });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   async function removeRow(r: StaffRow) {
@@ -3385,6 +3385,14 @@ export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: {
         <Field label="İşçi sayı (neçə nəfər)">
           <input type="number" min={1} value={form.planned} onChange={(e) => setForm({ ...form, planned: Number(e.target.value) })} />
         </Field>
+        <Field label="Yer nə vaxtdan açılır (ay)">
+          <input type="month" value={form.startMonth} onChange={(e) => setForm({ ...form, startMonth: e.target.value })} />
+          <small className="skill-picker-help">Boş = planın əvvəlindən. Gələcək ay yazılsa, yer o ayadək işə qəbul üçün açıq olmur və plan xəttində o aydan görünür.</small>
+        </Field>
+        <Field label="Nə vaxta qədər (müvəqqəti yer üçün)">
+          <input type="month" value={form.endMonth} min={form.startMonth || undefined} onChange={(e) => setForm({ ...form, endMonth: e.target.value })} />
+          <small className="skill-picker-help">Boş = müddətsiz. Layihə yeri üçün son ayı yazın: müddət bitəndən sonra yer yeni işçiyə açıq olmur.</small>
+        </Field>
         <Field label="Maaş həddi — minimum (AZN, gross)">
           <input type="number" min={0} value={form.salaryMin} onChange={(e) => setForm({ ...form, salaryMin: e.target.value })} />
         </Field>
@@ -3404,13 +3412,20 @@ export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: {
       {total && (
         <>
           <h5 style={{ marginBottom: 4 }}>Plandakı sətirlər ({rows.length}) · cəmi {total.planned} nəfər, {num(total.fte)} tam ştat vahidi{total.budget ? `, aylıq həddi ${azn(total.budget)}` : ""}</h5>
+          {!!total.planCostMax && (
+            <p className="muted">
+              *Aylıq xərc = maaş həddi + işəgötürənin sosial, işsizlik və tibbi payları (bu ay açıq yerlər üzrə). Plan: <b>{total.planCostMin && total.planCostMin !== total.planCostMax ? `${azn(total.planCostMin)} – ${azn(total.planCostMax)}` : azn(total.planCostMax)}</b>
+              {" "}· faktiki işçilər üzrə: <b>{azn(total.factCost || 0)}</b>
+              {total.planCostMax > 0 && total.factCost !== undefined ? ` (${total.factCost <= total.planCostMax ? `planın ${azn(total.planCostMax - total.factCost)} altında` : `plan həddindən ${azn(total.factCost - total.planCostMax)} yuxarı`})` : ""}.
+            </p>
+          )}
           {rows.length ? (
             <div className="admin-table-wrap">
               <table className="admin-table staff-table">
-                <thead><tr><th>Filial</th><th>Departament</th><th>Şöbə</th><th>Vəzifə</th><th>Növ</th><th>Say</th><th>Maaş həddi</th><th>İşləyir</th><th>Boş</th><th></th></tr></thead>
+                <thead><tr><th>Filial</th><th>Departament</th><th>Şöbə</th><th>Vəzifə</th><th>Növ</th><th>Say</th><th>Dövr</th><th>Maaş həddi</th><th>Aylıq xərc*</th><th>İşləyir</th><th>Boş</th><th></th></tr></thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id}><td>{r.branch || "Baş ofis"}</td><td>{r.department || "—"}</td><td>{r.section || "—"}</td><td>{r.position || "—"}</td><td>{RATE_LABEL[r.rate] || "Tam ştat"}</td><td>{r.planned}</td><td>{bandText(r)}</td><td>{r.filled}</td><td>{r.free > 0 ? <b>{r.free}</b> : "—"}</td><td className="admin-actions"><button type="button" onClick={() => edit(r)}>Düzəlt</button><button type="button" aria-label="Sil" onClick={() => void removeRow(r)}><Trash2 size={14} /></button></td></tr>
+                    <tr key={r.id}><td>{r.branch || "Baş ofis"}</td><td>{r.department || "—"}</td><td>{r.section || "—"}</td><td>{r.position || "—"}</td><td>{RATE_LABEL[r.rate] || "Tam ştat"}</td><td>{r.planned}</td><td>{r.startMonth || r.endMonth ? `${r.startMonth || "…"} – ${r.endMonth || "…"}${r.active === false ? " (aktiv deyil)" : ""}` : "il boyu"}</td><td>{bandText(r)}</td><td>{r.costMax ? (r.costMin && r.costMin !== r.costMax ? `${azn(r.costMin)} – ${azn(r.costMax)}` : azn(r.costMax)) : "—"}</td><td>{r.filled}</td><td>{r.free > 0 ? <b>{r.free}</b> : "—"}</td><td className="admin-actions"><button type="button" onClick={() => edit(r)}>Düzəlt</button><button type="button" aria-label="Sil" onClick={() => void removeRow(r)}><Trash2 size={14} /></button></td></tr>
                   ))}
                 </tbody>
               </table>
@@ -3428,7 +3443,13 @@ export function StaffPlanBuilder({ notify, year, locked, onChanged, goStaff }: {
 type ExceptionItem = { id: string; kind: string; subject: string; status: string; requested_by_name: string; decided_by_name: string; note: string; created: string; decided: string };
 const EXC_STATUS: Record<string, string> = { pending: "Təsdiq gözləyir", approved: "Təsdiqlənib / tətbiq olunub", rejected: "Rədd edilib", returned: "Geri qaytarılıb", cancelled: "Ləğv edilib" };
 export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApprovals: () => void }) {
-  const [mode, setMode] = useState<"places" | "band" | "employee-salary">("places");
+  const [mode, setMode] = useState<"places" | "proposal" | "band" | "employee-salary">("places");
+  const [summary, setSummary] = useState<{ year: string; baselinePlanned: number | null; baselineAt: string; planned: number; requests: number; approved: number } | null>(null);
+  const [startMonth, setStartMonth] = useState("");
+  const [endMonth, setEndMonth] = useState("");
+  const [proposer, setProposer] = useState("");
+  const [scenarioRow, setScenarioRow] = useState("");
+  const [scenarioN, setScenarioN] = useState(1);
   const [data, setData] = useState<StaffData | null>(null);
   const [items, setItems] = useState<ExceptionItem[]>([]);
   const [direct, setDirect] = useState(false);
@@ -3448,7 +3469,7 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
   const { names, remember } = useOrgNames();
   const load = useCallback(() => {
     request<StaffData>("company/staff").then(setData).catch((e) => notify((e as Error).message));
-    request<{ items: ExceptionItem[]; canApplyDirectly: boolean }>("company/staff/exceptions").then((r) => { setItems(r.items); setDirect(r.canApplyDirectly); }).catch(() => undefined);
+    request<{ items: ExceptionItem[]; canApplyDirectly: boolean; summary?: typeof summary }>("company/staff/exceptions").then((r) => { setItems(r.items); setDirect(r.canApplyDirectly); setSummary(r.summary || null); }).catch(() => undefined);
   }, [notify]);
   useEffect(load, [load]);
   const rows = data?.rows || [];
@@ -3458,12 +3479,12 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
     setBusy(true);
     try {
       const body =
-        mode === "places" ? { kind: mode, branch, department, section, position, extra, rate, salaryMin: Number(salaryMin) || 0, salaryMax: Number(salaryMax) || 0, reason }
+        mode === "places" || mode === "proposal" ? { kind: mode, branch, department, section, position, extra, rate, startMonth, endMonth, proposer, salaryMin: Number(salaryMin) || 0, salaryMax: Number(salaryMax) || 0, reason }
         : mode === "band" ? { kind: mode, rowId, salaryMin: Number(salaryMin) || 0, salaryMax: Number(salaryMax) || 0, reason }
         : { kind: mode, employeeId, salary: Number(salary) || 0, reason };
       const r = await request<{ applied?: boolean; pending?: boolean }>("company/staff/exception", body);
       notify(r.applied ? "Plandan kənar dəyişiklik tətbiq olundu və siyahıya yazıldı." : "Sorğu direktorun təsdiqinə göndərildi.");
-      if (mode === "places") { remember("department", department); remember("section", section); remember("position", position); }
+      if (mode === "places" || mode === "proposal") { remember("department", department); remember("section", section); remember("position", position); }
       setReason(""); setSalary(""); setExtra(1);
       load();
     } catch (error) {
@@ -3472,8 +3493,18 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
       setBusy(false);
     }
   }
+  function downloadReport() {
+    const money = (v: number) => Math.round((v || 0) * 100) / 100;
+    const sheets = [
+      { name: "Ştat planı", headers: ["Filial", "Departament", "Şöbə", "Vəzifə", "Ştat növü", "Say", "Başlanğıc", "Son", "Maaş min", "Maaş max", "İşləyir", "Boş", "Aylıq xərc (maks.)"], rows: rows.map((r) => [r.branch || "Baş ofis", r.department, r.section, r.position, RATE_LABEL[r.rate] || "Tam ştat", r.planned, r.startMonth || "", r.endMonth || "", money(r.salaryMin), money(r.salaryMax || r.salaryMin), r.filled, Math.max(0, r.free), money(r.costMax || 0)]) },
+      { name: "Xülasə", headers: ["Göstərici", "Dəyər"], rows: [["İlkin plan (nəfər)", summary?.baselinePlanned ?? ""], ["Hazırkı plan (nəfər)", summary?.planned ?? data?.total.planned ?? 0], ["Faktiki işçi", data?.total.filled ?? 0], ["Plan xərci (aylıq, maks.)", money(data?.total.planCostMax || 0)], ["Faktiki xərc (aylıq)", money(data?.total.factCost || 0)], ["Plandan kənar sorğu (bu il)", summary?.requests ?? 0], ["Tətbiq/təsdiq olunan", summary?.approved ?? 0]] },
+      { name: "Plandan kənar sorğular", headers: ["Tarix", "Sorğu", "Göndərən", "Vəziyyət", "Qərar"], rows: items.map((i) => [i.created.slice(0, 10), i.subject, i.requested_by_name, EXC_STATUS[i.status] || i.status, i.decided_by_name ? `${i.decided_by_name}${i.note ? `: ${i.note}` : ""}` : ""]) },
+    ];
+    downloadBlob(createXlsxBook(sheets), `plan-fakt-hesabat-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
   const tabs: { id: typeof mode; label: string; hint: string }[] = [
     { id: "places", label: "Plandan kənar işçi yeri", hint: "Planda olmayan və ya planı aşan işçi götürmək lazımdır (layihə, təcili ehtiyac). Yer plana əlavə olunur." },
+    { id: "proposal", label: "Departament təklifi", hint: "Departament rəhbərinin il üçün yer ehtiyacı (HR rəhbərdən yığıb bura yazır). Təklif təsdiqlənəndə plana yazılır; kim təklif edib, qeyddə qalır." },
     { id: "band", label: "Maaş həddi artımı", hint: "Ştat sətrinin maaş həddi artırılır; həmin vəzifədəki hamı üçün keçərlidir." },
     { id: "employee-salary", label: "İşçinin maaş artımı", hint: "Bir işçinin maaşı ştat həddindən kənara qaldırılır. Təsdiqlər bölməsində təsdiqlənir; hədd də artırılmasa, işçi cədvəldə «həddən yuxarı» görünəcək." },
   ];
@@ -3487,7 +3518,7 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
       </div>
       <p className="muted">{active.hint}</p>
       <div className="form-grid">
-        {mode === "places" && (
+        {(mode === "places" || mode === "proposal") && (
           <>
             <Field label="Filial">
               <input list="exc-branch-names" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Baş ofis (boş buraxın)" />
@@ -3497,6 +3528,9 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
             <OrgNameInput label="Şöbə" kind="section" names={names} onAdded={remember} department={department} value={section} onChange={setSection} />
             <OrgNameInput label="Vəzifə" kind="position" names={names} onAdded={remember} value={position} onChange={setPosition} />
             <Field label="Əlavə neçə nəfər"><input type="number" min={1} value={extra} onChange={(e) => setExtra(Number(e.target.value))} /></Field>
+            <Field label="Nə vaxtdan (ay)"><input type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} /></Field>
+            <Field label="Nə vaxta qədər (müvəqqəti üçün)"><input type="month" value={endMonth} min={startMonth || undefined} onChange={(e) => setEndMonth(e.target.value)} /></Field>
+            {mode === "proposal" && <Field label="Təklif edən rəhbər"><input value={proposer} maxLength={120} onChange={(e) => setProposer(e.target.value)} placeholder="ad, departament" /></Field>}
             <Field label="Ştatın növü (yeni sətir üçün)">
               <select value={rate} onChange={(e) => setRate(Number(e.target.value))}>{RATES.map((r) => <option key={r} value={r}>{RATE_LABEL[r]}</option>)}</select>
             </Field>
@@ -3532,6 +3566,31 @@ export function StaffExceptions({ notify, goApprovals }: { notify: Notify; goApp
       <div className="admin-actions">
         <button type="button" className="primary" disabled={busy} onClick={() => void send()}>{direct && mode !== "employee-salary" ? "Tətbiq et" : "Təsdiqə göndər"}</button>
         <button type="button" className="secondary" onClick={goApprovals}>Təsdiqlərə keç</button>
+      </div>
+      {summary && (
+        <div className="staff-kpis" style={{ marginTop: 12 }}>
+          <Kpi label={`${summary.year}: ilkin plan`} value={summary.baselinePlanned === null ? "—" : String(summary.baselinePlanned)} hint={summary.baselineAt ? `təsdiq: ${summary.baselineAt.slice(0, 10)}` : "plan hələ təsdiqlənməyib"} />
+          <Kpi label="Hazırkı plan" value={String(summary.planned)} hint={summary.baselinePlanned === null ? "" : `ilkin plandan ${summary.planned - summary.baselinePlanned >= 0 ? "+" : ""}${summary.planned - summary.baselinePlanned}`} tone={summary.baselinePlanned !== null && summary.planned > summary.baselinePlanned ? "warn" : undefined} />
+          <Kpi label="Plandan kənar sorğu (bu il)" value={String(summary.requests)} hint={`${summary.approved} tətbiq/təsdiq`} />
+        </div>
+      )}
+      <h5 style={{ marginBottom: 4 }}>Ssenari: əlavə işçi götürsək, xərc nə qədər artar?</h5>
+      <div className="admin-actions" style={{ flexWrap: "wrap" }}>
+        <select value={scenarioRow} onChange={(e) => setScenarioRow(e.target.value)} aria-label="Ştat sətri">
+          <option value="">— sətir seçin —</option>
+          {rows.filter((r) => r.costMax).map((r) => <option key={r.id} value={r.id}>{[r.branch || "Baş ofis", r.department, r.position].filter(Boolean).join(" / ")}</option>)}
+        </select>
+        <input type="number" min={1} value={scenarioN} onChange={(e) => setScenarioN(Number(e.target.value))} style={{ width: 90 }} aria-label="Neçə nəfər" />
+        {(() => {
+          const r = rows.find((x) => x.id === scenarioRow);
+          if (!r || !r.costMax || !r.planned) return <span className="muted">Aylıq və illik əlavə xərc burada görünəcək (maaş həddinin yuxarı sərhədi + işəgötürən payları).</span>;
+          const per = r.costMax / (r.planned * (r.rate || 1));
+          const month = per * (r.rate || 1) * Math.max(1, scenarioN);
+          return <b>+{azn(Math.round(month))} / ay · +{azn(Math.round(month * 12))} / il</b>;
+        })()}
+      </div>
+      <div className="admin-actions">
+        <button type="button" className="secondary" onClick={downloadReport}><FileSpreadsheet size={15} /> Direktor hesabatı (Excel)</button>
       </div>
       <h5 style={{ marginBottom: 4 }}>Plandan kənar sorğular ({items.length})</h5>
       {items.length ? (

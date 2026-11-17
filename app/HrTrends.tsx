@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 
 type Notify = (message: string) => void;
 type Series = { month: string; headcount: number; joined: number; left: number; turnover: number };
-type Data = { targets: Record<string, number>; canPlan: boolean; series: Series[]; forecast: { month: string; headcount: number }[]; planFact: { department: string; planned: number; filled: number; unplaced: number; units: number }[]; alerts: { level: "red" | "amber"; text: string }[]; planned: number; filled: number };
+type Data = { targets: Record<string, number>; canPlan: boolean; series: Series[]; forecast: { month: string; headcount: number }[]; planFact: { department: string; planned: number; filled: number; unplaced: number; units: number }[]; alerts: { level: "red" | "amber"; text: string }[]; planned: number; filled: number; expectedExits?: { month: string; count: number }[]; avgFillDays?: number | null };
 
 const W = 640, H = 220, PAD = 36;
 // Headcount line with the forecast dashed, joiners and leavers as bars below: plain SVG, no library.
@@ -123,6 +123,12 @@ export default function HrTrends({ notify, editable = false, onOpenPlan }: { not
         <div className="panel" style={{ flex: "1 1 140px" }}><small className="muted">Bu ay dövriyyə</small><div style={{ fontSize: 22, fontWeight: 700 }}>{last?.turnover ?? 0}%</div></div>
         <div className="panel" style={{ flex: "1 1 140px" }}><small className="muted">3 aya proqnoz</small><div style={{ fontSize: 22, fontWeight: 700 }}>{data.forecast[data.forecast.length - 1]?.headcount ?? "—"}</div></div>
       </div>
+      {(data.expectedExits?.some((e) => e.count > 0) || data.avgFillDays != null) && (
+        <div className="panel">
+          {data.expectedExits?.some((e) => e.count > 0) && <p style={{ margin: "0 0 6px" }}><b>Gözlənilən çıxışlar (müqavilə bitməsi və ya təyin olunmuş çıxış tarixi):</b> {data.expectedExits.filter((e) => e.count > 0).map((e) => `${e.month}: ${e.count} nəfər`).join(" · ")}. Bu yerlər üçün əvvəlcədən vakansiya açmaq olar.</p>}
+          {data.avgFillDays != null && <p style={{ margin: 0 }}><b>Yerin orta dolma müddəti:</b> {data.avgFillDays} gün (vakansiya açılandan işçi kartı yaranana qədər). Yeni yer üçün işə qəbul tarixini buna görə planlayın.</p>}
+        </div>
+      )}
       <div className="panel"><Chart series={data.series} forecast={data.forecast} targets={data.targets} /></div>
       {data.canPlan && editable && (
         <div className="panel">

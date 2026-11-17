@@ -813,6 +813,13 @@
       "when": 1800903600000,
       "tag": "0115_server_errors",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "6",
+      "when": 1800990000000,
+      "tag": "0116_plan_dates_snapshots",
+      "breakpoints": true
     }
   ]
 }

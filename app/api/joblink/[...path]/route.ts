@@ -43,7 +43,7 @@ import { statusAfter, type ApplicationFlowEvent } from "@/lib/application-flow";
 import { daysOff, monthDays, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
 import { normalizeFlow, startFlow, type FlowEvent, type FlowHolder, type FlowSigner, type FlowState } from "@/lib/order-flow";
 
-import { assignPeople, bandConflicts, normalizeRate, summarize, type PlanPerson } from "@/lib/staff-plan";
+import { assignPeople, bandConflicts, normalizeRate, summarize, unitActive, type PlanPerson } from "@/lib/staff-plan";
 
 import { REQUEST_KINDS } from "@/lib/requests";
 
@@ -1947,6 +1947,14 @@ async function route(request: Request) {
   };
   const setYearPlan = async (year: string, status: "draft" | "pending" | "approved", by: string) => {
     await db.prepare("INSERT INTO plan_year_state(company_id,year,status,updated_by,updated) VALUES(?,?,?,?,?) ON CONFLICT(company_id,year) DO UPDATE SET status=excluded.status,updated_by=excluded.updated_by,updated=excluded.updated").bind(id, year, status, by, new Date().toISOString()).run();
+    // The first approval of a year keeps the BASELINE (what was planned); every approval refreshes the revised plan next to it.
+    if (status === "approved") {
+      const units = await db.prepare("SELECT branch,department,section,position,planned,rate,salary_cents,salary_max_cents,start_month,end_month FROM staff_units WHERE company_id=?").bind(id).all<{ planned: number }>();
+      const data = JSON.stringify({ planned: units.results.reduce((sum, u) => sum + Number(u.planned || 0), 0), units: units.results });
+      const at = new Date().toISOString();
+      await db.prepare("INSERT OR IGNORE INTO plan_snapshots(company_id,year,kind,data,created) VALUES(?,?,'baseline',?,?)").bind(id, year, data, at).run().catch(() => {});
+      await db.prepare("INSERT INTO plan_snapshots(company_id,year,kind,data,created) VALUES(?,?,'revised',?,?) ON CONFLICT(company_id,year,kind) DO UPDATE SET data=excluded.data,created=excluded.created").bind(id, year, data, at).run().catch(() => {});
+    }
   };
   const assertYearOpen = async (year: string) => {
     const st = await yearPlanState(year);
@@ -2420,14 +2428,30 @@ async function route(request: Request) {
         list.map((p) => ({ id: p.id, name: (p as PlanPerson & { name: string }).name, gross: mayPay ? p.gross || 0 : null, outside: conflicts.get(p.id) || "" })),
       );
     const noteBy = new Map(plan.units.map((u) => [u.id, u.note]));
-    const rows = summary.rows.map((row) => ({ ...row, note: noteBy.get(row.id) || "", people: placedBy.get(row.id) || [] }));
+    // What the places cost the employer a month (gross plus the employer's own contributions), in this month's open places.
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const employerCost = (gross: number) => (gross > 0 ? employeePay(gross, "gross", "private").employerCost : 0);
+    const rows = summary.rows.map((row) => {
+      const active = unitActive(row, thisMonth);
+      const share = row.planned * (row.rate || 1);
+      const hi = row.salaryMax || row.salaryMin;
+      return {
+        ...row,
+        note: noteBy.get(row.id) || "",
+        people: placedBy.get(row.id) || [],
+        active,
+        costMin: active ? Math.round(employerCost(row.salaryMin) * share) : 0,
+        costMax: active ? Math.round(employerCost(hi) * share) : 0,
+      };
+    });
+    const factCost = Math.round(plan.people.reduce((sum, p) => sum + employerCost(p.gross || 0), 0));
     const departments = summary.departments.map((d) => ({ ...d, openVacancies: openBy.get(d.department.toLocaleLowerCase("az")) || 0 }));
     const payroll = plan.people.reduce((sum, p) => sum + (p.gross || 0), 0);
     return {
       rows,
       departments,
       unplaced: summary.unplaced.map((p) => ({ id: p.id, name: (p as PlanPerson & { name: string }).name, department: p.department, section: p.section, position: p.position })),
-      total: { ...summary.total, payroll: Math.round(payroll * 100) / 100 },
+      total: { ...summary.total, payroll: Math.round(payroll * 100) / 100, planCostMin: rows.reduce((a, r) => a + r.costMin, 0), planCostMax: rows.reduce((a, r) => a + r.costMax, 0), factCost },
       pending: pending.results,
       mismatches: conflicts.size,
       locked: await planLocked(),
@@ -2448,6 +2472,8 @@ async function route(request: Request) {
     salaryCents: Math.max(0, Math.round((Number(b.salaryMin ?? b.salary) || 0) * 100)),
     salaryMaxCents: Math.max(0, Math.round((Number(b.salaryMax) || 0) * 100)),
     note: str(b.note, 300),
+    startMonth: /^\d{4}-(0[1-9]|1[0-2])$/.test(str(b.startMonth, 7)) ? str(b.startMonth, 7) : "",
+    endMonth: /^\d{4}-(0[1-9]|1[0-2])$/.test(str(b.endMonth, 7)) ? str(b.endMonth, 7) : "",
   });
   // A vacancy needs a place the plan does not have: an extra place of the row (or a new row) goes to approval.
   // The director's own request is approved on the spot; nobody else can add a place by themselves.

@@ -14,7 +14,12 @@ export type PlanUnit = {
   rate: number; // share of a full place: 1, 0.75, 0.5 or 0.25
   salaryMin: number; // gross AZN a month; 0 = no band
   salaryMax: number; // 0 = same as the minimum
+  startMonth?: string; // YYYY-MM the places open (empty = from the start of the plan)
+  endMonth?: string; // YYYY-MM the places close (empty = open-ended; a project or temporary place)
 };
+
+// Is the row's place open in this month (YYYY-MM)?
+export const unitActive = (unit: Pick<PlanUnit, "startMonth" | "endMonth">, month: string) => (!unit.startMonth || unit.startMonth <= month) && (!unit.endMonth || month <= unit.endMonth);
 export type PlanPerson = { id: string; name?: string; department: string; section: string; position: string; status?: string; gross?: number; branches?: string[] };
 
 const key = (value: string) => (value || "").toLocaleLowerCase("az").replace(/\s+/g, " ").trim();
@@ -155,12 +160,17 @@ export function conflictMessage(conflicts: BandConflict[]): string {
 }
 
 // A new person may only be taken on when the staff table has a free place for the position. A company with no staff rows yet is not limited; once it has rows, a position the table does not name is refused. Returns the message, or "" when there is room.
-export function placeProblem(units: PlanUnit[], people: PlanPerson[], candidate: PlanPerson): string {
+export function placeProblem(units: PlanUnit[], people: PlanPerson[], candidate: PlanPerson, month = new Date().toISOString().slice(0, 7)): string {
   if (!candidate.position || !candidate.department) return "";
   const named = units.filter((u) => u.position && key(u.position) === key(candidate.position) && key(u.department) === key(candidate.department));
   // Once the staff table has rows, a position it does not name has no place at all.
   if (!named.length) return units.length ? `Ştat cədvəlində “${candidate.position}” (${candidate.department}) vəzifəsi yoxdur. Plana əlavə etmək üçün «Plan və fakt → İşçi sayı planı», plandan kənar ehtiyac üçün «Plandan kənar» bölməsindən istifadə edin.` : "";
-  const rows = named.filter((u) => score(u, candidate) >= 0);
+  const fitting = named.filter((u) => score(u, candidate) >= 0);
+  const rows = fitting.filter((u) => unitActive(u, month));
+  if (fitting.length && !rows.length) {
+    const next = fitting.map((u) => u.startMonth || "").filter((m) => m && m > month).sort()[0];
+    return `Ştat cədvəlində “${candidate.position}” (${candidate.department}) yeri ${next ? `${next} ayından açılır` : "artıq bağlanıb (müddəti bitib)"}. Plandan kənar ehtiyac üçün «Plandan kənar» bölməsindən istifadə edin.`;
+  }
   const label = `“${candidate.position}” (${candidate.department})`;
   if (!rows.length) return `Ştat cədvəlində ${label} vəzifəsi belə şöbə və ya filial üçün planlaşdırılmayıb. Əvvəl ştat cədvəlinə uyğun sətir əlavə edin.`;
   const { byUnit } = assignPeople(units, people.filter((p) => p.id !== candidate.id));

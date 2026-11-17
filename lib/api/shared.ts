@@ -179,7 +179,7 @@ export async function resolvePosition(db: D1Database, companyId: string, input: 
   return { name, original, matched: null, requested: "new" };
 }
 
-export type StaffInput = { branch?: string; department: string; section: string; position: string; planned: number; salaryCents: number; note: string; rate?: number; salaryMaxCents?: number };
+export type StaffInput = { branch?: string; department: string; section: string; position: string; planned: number; salaryCents: number; note: string; rate?: number; salaryMaxCents?: number; startMonth?: string; endMonth?: string };
 
 export async function ensureBranch(db: D1Database, companyId: string, raw: string): Promise<string> {
   const name = String(raw || "").trim().slice(0, 120);
@@ -211,8 +211,8 @@ export async function saveStaffUnit(
   const now = new Date().toISOString();
   if (unitId) {
     const result = await db
-      .prepare("UPDATE staff_units SET branch=?,department=?,section=?,position=?,planned=?,rate=?,salary_cents=?,salary_max_cents=?,note=?,updated=? WHERE id=? AND company_id=?")
-      .bind(unit.branch || "", unit.department, unit.section, unit.position, unit.planned, rate, unit.salaryCents, salaryMaxCents, unit.note, now, unitId, companyId)
+      .prepare("UPDATE staff_units SET branch=?,department=?,section=?,position=?,planned=?,rate=?,salary_cents=?,salary_max_cents=?,note=?,start_month=?,end_month=?,updated=? WHERE id=? AND company_id=?")
+      .bind(unit.branch || "", unit.department, unit.section, unit.position, unit.planned, rate, unit.salaryCents, salaryMaxCents, unit.note, unit.startMonth || "", unit.endMonth || "", now, unitId, companyId)
       .run();
     if (!result.meta.changes) throw new HttpError(404, "Ştat sətri tapılmadı.");
     return unitId;
@@ -221,8 +221,8 @@ export async function saveStaffUnit(
   if (Number(count?.n) >= 1000) throw new HttpError(409, "Ştat cədvəlində ən çox 1000 sətir ola bilər.");
   const created = crypto.randomUUID();
   await db
-    .prepare("INSERT INTO staff_units(id,company_id,branch,department,section,position,planned,rate,salary_cents,salary_max_cents,note,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(created, companyId, unit.branch || "", unit.department, unit.section, unit.position, unit.planned, rate, unit.salaryCents, salaryMaxCents, unit.note, now)
+    .prepare("INSERT INTO staff_units(id,company_id,branch,department,section,position,planned,rate,salary_cents,salary_max_cents,note,start_month,end_month,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(created, companyId, unit.branch || "", unit.department, unit.section, unit.position, unit.planned, rate, unit.salaryCents, salaryMaxCents, unit.note, unit.startMonth || "", unit.endMonth || "", now)
     .run();
   return created;
 }
@@ -230,9 +230,9 @@ export async function saveStaffUnit(
 export async function loadPlanData(db: D1Database, companyId: string) {
   const [units, people] = await Promise.all([
     db
-      .prepare("SELECT id,branch,department,section,position,planned,rate,salary_cents,salary_max_cents,note FROM staff_units WHERE company_id=? ORDER BY branch,department,section,position")
+      .prepare("SELECT id,branch,department,section,position,planned,rate,salary_cents,salary_max_cents,note,start_month,end_month FROM staff_units WHERE company_id=? ORDER BY branch,department,section,position")
       .bind(companyId)
-      .all<{ id: string; branch: string; department: string; section: string; position: string; planned: number; rate: number; salary_cents: number; salary_max_cents: number; note: string }>(),
+      .all<{ id: string; branch: string; department: string; section: string; position: string; planned: number; rate: number; salary_cents: number; salary_max_cents: number; start_month: string; end_month: string; note: string }>(),
     db
       .prepare("SELECT id,name,department,section,position,status,salary_cents,salary_type,sector,profile FROM company_employees WHERE company_id=? AND status IN ('active','leave')")
       .bind(companyId)
@@ -250,6 +250,8 @@ export async function loadPlanData(db: D1Database, companyId: string) {
     salaryMin: u.salary_cents / 100,
     salaryMax: Math.max(u.salary_cents, u.salary_max_cents || 0) / 100,
     note: u.note,
+    startMonth: u.start_month || "",
+    endMonth: u.end_month || "",
   }));
   // The branches each person works in (a row of a branch takes only people of that branch).
   const linkRows = (await db.prepare("SELECT l.employee_id,b.name FROM employee_branches l JOIN branches b ON b.id=l.branch_id WHERE l.company_id=?").bind(companyId).all<{ employee_id: string; name: string }>().catch(() => ({ results: [] as { employee_id: string; name: string }[] }))).results;

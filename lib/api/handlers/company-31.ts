@@ -68,24 +68,25 @@ export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAc
       return ok({ ok: true, pending: true });
     }
     const plan = await loadPlanData(db, id);
-    let unit: { id: string; branch?: string; department: string; section: string; position: string; planned: number; rate?: number; salaryCents: number; salaryMaxCents?: number; note: string };
+    let unit: { id: string; branch?: string; department: string; section: string; position: string; planned: number; rate?: number; salaryCents: number; salaryMaxCents?: number; startMonth?: string; endMonth?: string; note: string };
     let subject = "";
-    if (kind === "places") {
+    if (kind === "places" || kind === "proposal") {
       const input = unitInput(b);
+      const proposer = str(b.proposer, 120).trim();
       const extra = Math.max(1, Math.min(1000, Math.round(Number(b.extra) || 0)));
       if (!input.department || !input.position) throw new HttpError(400, "Departamenti və vəzifəni yazın.");
       const row = plan.units.find((u) => key(u.branch) === key(input.branch) && key(u.department) === key(input.department) && key(u.section) === key(input.section) && key(u.position) === key(input.position));
       unit = row
-        ? { id: row.id, branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned + extra, rate: row.rate, salaryCents: Math.round(row.salaryMin * 100), salaryMaxCents: Math.round(row.salaryMax * 100), note: `Plandan kənar +${extra}: ${reason}` }
-        : { id: "", branch: input.branch, department: input.department, section: input.section, position: input.position, planned: extra, rate: input.rate, salaryCents: input.salaryCents, salaryMaxCents: input.salaryMaxCents, note: `Plandan kənar: ${reason}` };
-      subject = `Plandan kənar +${extra} yer: ${[input.branch, input.department, input.section, input.position].filter(Boolean).join(" / ")} (${reason})`;
+        ? { id: row.id, branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned + extra, rate: row.rate, salaryCents: Math.round(row.salaryMin * 100), salaryMaxCents: Math.round(row.salaryMax * 100), startMonth: row.startMonth, endMonth: row.endMonth, note: `${kind === "proposal" ? `Departament təklifi${proposer ? ` (${proposer})` : ""}` : "Plandan kənar"} +${extra}: ${reason}` }
+        : { id: "", branch: input.branch, department: input.department, section: input.section, position: input.position, planned: extra, rate: input.rate, salaryCents: input.salaryCents, salaryMaxCents: input.salaryMaxCents, startMonth: input.startMonth, endMonth: input.endMonth, note: `${kind === "proposal" ? `Departament təklifi${proposer ? ` (${proposer})` : ""}` : "Plandan kənar"}: ${reason}` };
+      subject = `${kind === "proposal" ? "Departament təklifi" : "Plandan kənar"} +${extra} yer: ${[input.branch, input.department, input.section, input.position].filter(Boolean).join(" / ")} (${reason})`;
     } else if (kind === "band") {
       const row = plan.units.find((u) => u.id === str(b.rowId, 100));
       if (!row) throw new HttpError(404, "Ştat sətri tapılmadı.");
       const min = Math.max(0, Math.round((Number(b.salaryMin) || 0) * 100));
       const max = Math.max(min, Math.round((Number(b.salaryMax) || 0) * 100));
       if (!min && !max) throw new HttpError(400, "Yeni maaş həddini yazın.");
-      unit = { id: row.id, branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned, rate: row.rate, salaryCents: min, salaryMaxCents: max, note: `Maaş həddi artımı: ${reason}` };
+      unit = { id: row.id, branch: row.branch, department: row.department, section: row.section, position: row.position, planned: row.planned, rate: row.rate, salaryCents: min, salaryMaxCents: max, startMonth: row.startMonth, endMonth: row.endMonth, note: `Maaş həddi artımı: ${reason}` };
       subject = `Maaş həddi artımı: ${row.department} / ${row.position}: ${min / 100}–${(max || min) / 100} AZN (${reason})`;
     } else throw new HttpError(400, "Sorğu növü yanlışdır.");
     const problem = await staffBandProblem(db, id, [unit]);
@@ -103,7 +104,14 @@ export async function handle_company_31(c: Pick<RouteCtx, "accountRole" | "canAc
   if (request.method === "GET" && path === "company/staff/exceptions") {
     requirePermission("salaries", "Plandan kənar sorğuları yalnız HR, direktor və hesab sahibi görə bilər.");
     const rows = await db.prepare("SELECT id,kind,subject,status,requested_by_name,decided_by_name,note,created,decided FROM approval_requests WHERE company_id=? AND payload LIKE '%\"exception\"%' ORDER BY created DESC LIMIT 60").bind(id).all<{ id: string; kind: string; subject: string; status: string; requested_by_name: string; decided_by_name: string; note: string; created: string; decided: string }>();
-    return ok({ items: rows.results, canApplyDirectly: canAct("approve-director") });
+    // Plan accuracy: the baseline of the year (what was first approved) against the places now, and how many out-of-plan requests were made.
+    const year = new Date().getFullYear().toString();
+    const base = await db.prepare("SELECT data,created FROM plan_snapshots WHERE company_id=? AND year=? AND kind='baseline'").bind(id, year).first<{ data: string; created: string }>().catch(() => null);
+    const now = await db.prepare("SELECT COALESCE(SUM(planned),0) AS n FROM staff_units WHERE company_id=?").bind(id).first<{ n: number }>();
+    const inYear = rows.results.filter((r) => r.created.startsWith(year));
+    let baselinePlanned: number | null = null;
+    try { baselinePlanned = base ? Number((JSON.parse(base.data) as { planned?: number }).planned ?? 0) : null; } catch { baselinePlanned = null; }
+    return ok({ items: rows.results, canApplyDirectly: canAct("approve-director"), summary: { year, baselinePlanned, baselineAt: base?.created || "", planned: Number(now?.n) || 0, requests: inYear.length, approved: inYear.filter((r) => r.status === "approved").length } });
   }
   if (request.method === "POST" && path === "company/staff/save") {
     requirePermission("salaries", "Ştat cədvəlini yalnız HR, direktor və hesab sahibi dəyişə bilər.");

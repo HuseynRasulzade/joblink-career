@@ -7,7 +7,8 @@ import { companyAudit } from "@/lib/api-core";
 import { forecast, monthSeries, planFactAlerts, targetAlerts } from "@/lib/hr-trends";
 import { normalizeDocType } from "@/lib/employee-docs";
 import { paymentDate } from "@/lib/payroll-calc";
-import { summarize } from "@/lib/staff-plan";
+import { summarize, unitActive } from "@/lib/staff-plan";
+import { MINIMUM_WAGE } from "@/lib/payroll-calc";
 import { loadPlanData, ok } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
@@ -200,12 +201,23 @@ export async function handle_company_33(c: Pick<RouteCtx, "AWAY_CODES" | "EMPLOY
     // The plan line of the chart is the headcount of the APPROVED staff plan (budget) of each year: the staff table's total number of places.
     // A year whose plan is not approved has no plan line (nothing is typed by hand any more).
     const targets: Record<string, number> = {};
-    const plannedTotal = fact.departments.reduce((sum, d) => sum + d.planned, 0);
     const thisYear = new Date().getFullYear();
+    // Each month counts the places open in it (a row may start later or end earlier: a project or a temporary place).
     for (const y of [thisYear - 1, thisYear, thisYear + 1])
-      if ((await yearPlanState(String(y))).status === "approved") for (let m = 1; m <= 12; m++) targets[`${y}-${String(m).padStart(2, "0")}`] = plannedTotal;
+      if ((await yearPlanState(String(y))).status === "approved")
+        for (let m = 1; m <= 12; m++) {
+          const month = `${y}-${String(m).padStart(2, "0")}`;
+          targets[month] = plan.units.filter((u) => unitActive(u, month)).reduce((sum, u) => sum + u.planned, 0);
+        }
+    // Who is expected to leave in the next three months (a set end date or the end of a fixed-term contract), and how long a place has taken to fill.
+    const horizon = Array.from({ length: 3 }, (_, i) => { const d = new Date(`${today.slice(0, 7)}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + i + 1); return d.toISOString().slice(0, 7); });
+    const leaving = (await db.prepare("SELECT end_date,contract_end FROM company_employees WHERE company_id=? AND status IN ('active','leave')").bind(id).all<{ end_date: string; contract_end: string }>()).results;
+    const expectedExits = horizon.map((month) => ({ month, count: leaving.filter((r) => (r.end_date || r.contract_end || "").slice(0, 7) === month && (r.end_date || r.contract_end) > today).length }));
+    const fill = await db.prepare("SELECT AVG(julianday(substr(e.created,1,10))-julianday(substr(j.created,1,10))) AS days, COUNT(*) AS n FROM company_employees e JOIN jobs j ON j.id=e.job_id WHERE e.company_id=? AND e.source='hired'").bind(id).first<{ days: number | null; n: number }>().catch(() => null);
+    const avgFillDays = fill && Number(fill.n) > 0 && fill.days !== null ? Math.max(0, Math.round(Number(fill.days))) : null;
+    const lowPay = plan.units.filter((u) => u.salaryMax > 0 && u.salaryMin > 0 && u.salaryMin < MINIMUM_WAGE).map((u) => ({ level: "amber" as const, text: `“${u.position || u.department}” ştat sətrinin minimum maaşı (${u.salaryMin} AZN) ölkə minimumundan (${MINIMUM_WAGE} AZN) aşağıdır.` }));
     const units = new Map(fact.departments.map((d) => [d.department, d.units]));
-    return ok({ series, forecast: forecast(series, 3, 6), planFact: planFact.map((r) => ({ ...r, units: units.get(r.department) || 0 })), alerts: [...targetAlerts(series, targets), ...planFactAlerts(planFact)], planned: fact.total.planned, filled: fact.total.filled, targets, canPlan: canAct("staff") });
+    return ok({ series, forecast: forecast(series, 3, 6), planFact: planFact.map((r) => ({ ...r, units: units.get(r.department) || 0 })), alerts: [...targetAlerts(series, targets), ...planFactAlerts(planFact), ...lowPay], expectedExits, avgFillDays, planned: fact.total.planned, filled: fact.total.filled, targets, canPlan: canAct("staff") });
   }
   if (request.method === "POST" && path === "company/hr-trends/targets") {
     requirePermission("salaries", "Plan hədəfini yalnız ştat planı icazəsi olan şəxs yaza bilər.");
