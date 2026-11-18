@@ -173,6 +173,32 @@ async function sendVerification(request: Request, userId: string, email: string)
   await sendAuthMail(email, "JobMatch: e-poçtunuzu təsdiqləyin", `E-poçt ünvanınızı təsdiqləmək üçün linkə keçin (3 gün qüvvədədir):\n${new URL(request.url).origin}/#verify=${token}\n\nBu sorğunu siz etməmisinizsə, məktuba məhəl qoymayın.`);
 }
 
+
+// A new account is confirmed with a 6-digit code sent to its e-mail. The code is stored hashed for 15 minutes; a "pending" mark
+// (no expiry) keeps the account from signing in until the code is entered. Without a mailer nothing is pending, so nobody is locked out.
+const codeEnabled = () => { const settings = runtime(); return mailConfigured(settings) || settings.DEV_MAIL_LOG === "1"; };
+async function issueCode(userId: string, email: string) {
+  const db = await store();
+  const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0");
+  await db.batch([
+    db.prepare("DELETE FROM auth_tokens WHERE user_id=? AND kind IN ('code','pending')").bind(userId),
+    db.prepare("INSERT INTO auth_tokens(id,user_id,kind,expires) VALUES(?,?,?,?)").bind(await hash(`${userId}:${code}`), userId, "code", now() + 900),
+    db.prepare("INSERT INTO auth_tokens(id,user_id,kind,expires) VALUES(?,?,?,?)").bind(await hash(`pending:${userId}`), userId, "pending", 4102444800),
+  ]);
+  await sendAuthMail(email, `JobMatch: təsdiq kodunuz ${code}`, `E-poçt təsdiq kodunuz: ${code}\n\nKod 15 dəqiqə qüvvədədir. Onu heç kimlə bölüşməyin.\nBu sorğunu siz etməmisinizsə, məktuba məhəl qoymayın.`);
+}
+async function isPending(userId: string) {
+  const db = await store();
+  return !!(await db.prepare("SELECT 1 FROM auth_tokens WHERE user_id=? AND kind='pending'").bind(userId).first());
+}
+// At most 5 wrong guesses per code; a new code resets the count.
+async function codeAttempt(userId: string) {
+  const db = await store();
+  const expiry = (Math.floor(now() / 900) + 1) * 900;
+  const row = await db.prepare("INSERT INTO auth_limits(id,count,expires) VALUES(?,1,?) ON CONFLICT(id) DO UPDATE SET count=count+1 RETURNING count").bind(await hash(`codetry:${userId}:${expiry}`), expiry).first<{ count: number }>();
+  if ((row?.count || 0) > 5) throw new HttpError(429, "Çox yanlış cəhd. Yeni kod istəyin və bir az sonra yenidən cəhd edin.");
+}
+
 // A current authenticator code, or one unused backup code (spent when used).
 async function secondFactorOk(db: D1Database, userId: string, row: { secret: string; backup_codes: string }, code: string) {
   const given = code.trim().toLowerCase();
@@ -291,6 +317,30 @@ export async function authRoute(request: Request, path: string) {
       db.prepare("DELETE FROM auth_tokens WHERE user_id=?").bind(userId),
     ]);
     return response({ ok: true });
+  }
+  if (kind === "verify-code" || kind === "resend-code") {
+    await limit(request, kind, kind === "verify-code" ? 20 : 6);
+    const body = await jsonBody(request);
+    const email = normalizeEmail(body.email);
+    const account = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      ? await db.prepare("SELECT p.user_id,COALESCE(a.role,'candidate') AS role FROM password_accounts p LEFT JOIN accounts a ON a.id=p.user_id WHERE p.email=?").bind(email).first<{ user_id: string; role: string }>()
+      : null;
+    if (kind === "resend-code") {
+      // Same answer whether or not the address has an account that is waiting for a code.
+      if (account && (await isPending(account.user_id))) await issueCode(account.user_id, email);
+      return response({ ok: true });
+    }
+    const bad = new HttpError(400, "Kod yanlışdır və ya vaxtı bitib. Yeni kod istəyə bilərsiniz.");
+    const given = str(body.code, 10).replace(/\s/g, "");
+    if (!account || !/^\d{6}$/.test(given)) throw bad;
+    await codeAttempt(account.user_id);
+    const found = await db.prepare("DELETE FROM auth_tokens WHERE id=? AND kind='code' AND expires>? RETURNING user_id").bind(await hash(`${account.user_id}:${given}`), now()).first();
+    if (!found) throw bad;
+    await db.batch([
+      db.prepare("UPDATE password_accounts SET verified=1 WHERE user_id=?").bind(account.user_id),
+      db.prepare("DELETE FROM auth_tokens WHERE user_id=? AND kind IN ('code','pending')").bind(account.user_id),
+    ]);
+    return response({ ok: true, role: account.role }, [await issueSession(account.user_id, request)]);
   }
   if (kind === "verify") {
     await limit(request, "verify", 20);
@@ -500,6 +550,10 @@ export async function authRoute(request: Request, path: string) {
     } catch {
       throw new HttpError(409, "Bu e-poçtla hesab artıq mövcuddur.");
     }
+    if (codeEnabled()) {
+      await issueCode(userId, email);
+      return response({ ok: true, name, role, needsCode: true, email }, [], 201);
+    }
     await sendVerification(request, userId, email);
     return response({ ok: true, name, role }, [await issueSession(userId, request)], 201);
   }
@@ -516,6 +570,11 @@ export async function authRoute(request: Request, path: string) {
   }
   if (account.status === "suspended")
     throw new HttpError(403, "Bu hesab administrator tərəfindən dayandırılıb.");
+  // An account that never entered its e-mail code gets a fresh code instead of a session.
+  if (await isPending(account.user_id)) {
+    await issueCode(account.user_id, email);
+    return response({ error: "E-poçtunuz hələ təsdiqlənməyib. Ünvanınıza yeni kod göndərildi.", needsCode: true, email }, [], 403);
+  }
   const second = await db.prepare("SELECT secret,backup_codes FROM totp_secrets WHERE user_id=? AND enabled=1").bind(account.user_id).first<{ secret: string; backup_codes: string }>();
   if (second) {
     const code = str(body.code, 20);

@@ -17,7 +17,8 @@ export default function AccountLogin({
   mode?: { want: "login" | "register"; n: number };
 }) {
   // "forgot" asks for a reset link by e-mail; "reset" sets the new password from that link.
-  const [view, setView] = useState<"" | "forgot" | "reset">(resetToken ? "reset" : "");
+  const [view, setView] = useState<"" | "forgot" | "reset" | "verify">(resetToken ? "reset" : "");
+  const [verifyCode, setVerifyCode] = useState("");
   const [code, setCode] = useState("");
   const [twoFactor, setTwoFactor] = useState(false);
   const [info, setInfo] = useState("");
@@ -98,6 +99,11 @@ export default function AccountLogin({
     setInfo("");
     setBusy(true);
     try {
+      if (view === "verify") {
+        const done = (await post("verify-code", { email, code: verifyCode })) as { role?: "candidate" | "company" | "admin" };
+        await onComplete(done.role || role);
+        return;
+      }
       if (view === "forgot") {
         await post("forgot", { email });
         setInfo("Bu e-poçtla hesab varsa, şifrəni yeniləmək üçün link göndərildi. Qutunuzu (və spam qovluğunu) yoxlayın.");
@@ -110,6 +116,18 @@ export default function AccountLogin({
         setView("");
         onResetDone?.();
       }
+    } catch (caught) {
+      setError((caught as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function resend() {
+    setError("");
+    setBusy(true);
+    try {
+      await post("resend-code", { email });
+      setInfo("Yeni kod göndərildi. Qutunuzu (və spam qovluğunu) yoxlayın.");
     } catch (caught) {
       setError((caught as Error).message);
     } finally {
@@ -144,10 +162,18 @@ export default function AccountLogin({
       );
       const body = (await response.json()) as {
         error?: string;
+        needsCode?: boolean;
         twoFactor?: boolean;
         role?: "candidate" | "company" | "admin";
       };
       if (body.twoFactor) setTwoFactor(true);
+      if (body.needsCode) {
+        // The account waits for the e-mailed code: show the code step instead of signing in.
+        setVerifyCode("");
+        setInfo(register ? "Təsdiq kodu e-poçt ünvanınıza göndərildi. 6 rəqəmli kodu yazın." : body.error || "");
+        setView("verify");
+        return;
+      }
       if (!response.ok) throw new Error(body.error || "Giriş tamamlanmadı.");
       await onComplete(body.role || role);
     } catch (caught) {
@@ -172,7 +198,7 @@ export default function AccountLogin({
         <LockKeyhole size={28} />
       </div>
       <h3>
-        {register ? "JobMatch hesabınızı yaradın" : "Hesabınıza daxil olun"}
+        {view === "verify" ? "E-poçtunuzu təsdiqləyin" : register ? "JobMatch hesabınızı yaradın" : "Hesabınıza daxil olun"}
       </h3>
       <p>
         E-poçt və şifrənizlə istənilən müasir brauzerdən daxil ola bilərsiniz.
@@ -189,7 +215,11 @@ export default function AccountLogin({
             void submitSpecial();
           }}
         >
-          {view === "forgot" ? (
+          {view === "verify" ? (
+            <Field label={`E-poçt təsdiq kodu (${email})`}>
+              <input inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" required maxLength={6} value={verifyCode} onChange={(event) => setVerifyCode(event.target.value.replace(/\D/g, ""))} />
+            </Field>
+          ) : view === "forgot" ? (
             <Field label="E-poçt">
               <input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} />
             </Field>
@@ -206,8 +236,9 @@ export default function AccountLogin({
           {info && <div className="notice" role="status">{info}</div>}
           {error && <div className="notice error" role="alert">{error}</div>}
           <button className="primary wide" disabled={busy}>
-            {busy ? "Gözləyin…" : view === "forgot" ? "Sıfırlama linki göndər" : "Şifrəni yenilə"}
+            {busy ? "Gözləyin…" : view === "verify" ? "Təsdiq et" : view === "forgot" ? "Sıfırlama linki göndər" : "Şifrəni yenilə"}
           </button>
+          {view === "verify" && <button type="button" className="text-button" disabled={busy} onClick={() => void resend()}>Kodu yenidən göndər</button>}
           <button type="button" className="text-button" onClick={() => { setView(""); setError(""); setInfo(""); }}>Girişə qayıt</button>
         </form>
       ) : (
