@@ -5,7 +5,7 @@ import { RU_UI } from "@/lib/i18n-ru";
 import { EN_EXTRA, RU_EXTRA } from "@/lib/i18n-extra";
 import { EN_MORE, RU_MORE } from "@/lib/i18n-more";
 import { EN_LAND, RU_LAND } from "@/lib/i18n-landing";
-import { EN_PAGES, RU_PAGES } from "@/lib/i18n-pages";
+import { EN_PAGES, RU_PAGES, translatePattern } from "@/lib/i18n-pages";
 
 export type SiteLanguage = "az" | "en" | "ru";
 let activeLanguage: SiteLanguage = "az";
@@ -963,6 +963,8 @@ export function translate(
     EN_LAND[trimmed] ??
     EN_PAGES[trimmed];
   if (translated) return text.replace(trimmed, translated);
+  const patterned = translatePattern(text, language === "ru" ? "ru" : "en", (phrase) => translate(phrase, language));
+  if (patterned) return patterned;
   const skillTranslation = localizedSkillLabel(trimmed, "en");
   if (skillTranslation !== trimmed)
     return text.replace(trimmed, skillTranslation);
