@@ -9,6 +9,7 @@ import {
   publicVacancy,
   siteUrl,
 } from "@/lib/seo";
+import PublicShell from "../PublicShell";
 
 export const dynamic = "force-dynamic";
 
@@ -55,39 +56,42 @@ export default async function JobPage({ params, searchParams }: Params) {
   const job = await load(id);
   if (!job) notFound();
   const origin = siteUrl(runtime().SITE_URL);
+  const salary = job.minSalary || job.maxSalary ? [job.minSalary, job.maxSalary].filter(Boolean).map((n) => Number(n).toLocaleString("az-AZ")).join("–") + " AZN" : "";
   return (
-    <main className="seo-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jobPostingJsonLd(job, origin)) }} />
-      <p>
-        <a href="/jobs">← Bütün vakansiyalar</a>
-      </p>
-      <h1>{job.title}</h1>
-      <p>
-        <b>{job.company}</b> · {job.city}
-        {job.mode ? ` · ${job.mode}` : ""}
-        {job.type ? ` · ${job.type}` : ""}
-      </p>
-      {(job.minSalary || job.maxSalary) && (
-        <p>Maaş: {[job.minSalary, job.maxSalary].filter(Boolean).join(" – ")} AZN</p>
-      )}
-      {job.deadline && <p>Son tarix: {job.deadline}</p>}
-      <h2>İşin təsviri</h2>
-      <p className="seo-text">{job.description}</p>
-      {job.requirements && (
-        <>
-          <h2>Tələblər</h2>
-          <p className="seo-text">{job.requirements}</p>
-        </>
-      )}
-      <p>
-        Vakansiyaya müraciət etmək üçün hesab lazımdır: qeydiyyatdan keçin və ya daxil olun, vakansiya özü açılacaq.
-      </p>
-      <p>
-        <a className="seo-apply" href={applyLink(job.id, src, true)}>
-          Qeydiyyatdan keç və müraciət et
-        </a>{" "}
-        <a href={applyLink(job.id, src, false)}>Hesabım var — daxil ol</a>
-      </p>
-    </main>
+    <PublicShell>
+      <main className="pj-main pj-detail">
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jobPostingJsonLd(job, origin)) }} />
+        <p><a className="gate-link" href="/jobs">← Bütün vakansiyalar</a></p>
+        <article className="job-tile pj-article">
+          <div className="job-tile-top">
+            <span className="job-tile-mark">{job.company.trim().slice(0, 1).toLocaleUpperCase("az")}</span>
+            <div>
+              <h1>{job.title}</h1>
+              <small>{job.company}</small>
+            </div>
+          </div>
+          <ul className="job-tile-meta">
+            {job.city && <li>{job.city}</li>}
+            {job.mode && <li>{job.mode}</li>}
+            {job.type && <li>{job.type}</li>}
+            {job.deadline && <li>Son tarix: {job.deadline}</li>}
+          </ul>
+          {salary && <p className="job-tile-salary">{salary}</p>}
+          <h2>İşin təsviri</h2>
+          <p className="seo-text">{job.description}</p>
+          {job.requirements && (
+            <>
+              <h2>Tələblər</h2>
+              <p className="seo-text">{job.requirements}</p>
+            </>
+          )}
+          <p className="pj-note">Vakansiyaya müraciət etmək üçün hesab lazımdır: qeydiyyatdan keçin və ya daxil olun, vakansiya özü açılacaq.</p>
+          <p className="pj-actions">
+            <a className="pj-cta" href={applyLink(job.id, src, true)}>Qeydiyyatdan keç və müraciət et</a>
+            <a className="gate-link" href={applyLink(job.id, src, false)}>Hesabım var — daxil ol</a>
+          </p>
+        </article>
+      </main>
+    </PublicShell>
   );
 }

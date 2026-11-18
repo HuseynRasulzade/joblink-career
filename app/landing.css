@@ -365,3 +365,63 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .landing .landing-tabs button.on { background: linear-gradient(135deg, #ff8a4c, #e5501f) !important; color: #fff !important; box-shadow: 0 4px 14px rgba(229, 80, 31, 0.4) !important; }
 .landing .lc-seg button { background: transparent !important; color: #e8cdbd !important; box-shadow: none !important; border: 0 !important; }
 .landing .lc-seg button.on { background: linear-gradient(135deg, #ff8a4c, #e5501f) !important; color: #fff !important; }
+
+/* ---- open vacancy pages (/jobs, /jobs/ID) in the dark style ---- */
+.pj { min-height: 100vh; background: radial-gradient(ellipse at 70% 0%, rgba(232, 100, 44, 0.3), transparent 50%), linear-gradient(180deg, #2a0f0b 0%, #170908 40%, #140807 100%); color: #f6e6dc; }
+.pj-nav { position: sticky; top: 0; }
+.pj-nav .gate-nav-btn { text-decoration: none; }
+.pj-main { max-width: 1180px; margin: 0 auto; padding: clamp(28px, 5vw, 64px) clamp(16px, 4vw, 40px) 64px; background: none; }
+.pj-hero { text-align: center; margin-bottom: 36px; }
+.pj-eyebrow { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 2px; padding: 5px 14px; border-radius: 999px; background: rgba(255, 138, 76, 0.16); color: #ffb48a; margin: 0 0 14px; }
+.pj-hero h1 { color: #fff; font-size: clamp(32px, 5vw, 56px); line-height: 1.05; letter-spacing: -1.5px; margin: 0 0 14px; }
+.pj-lead { color: #d8bfb0; font-size: 18px; max-width: 640px; margin: 0 auto 18px; line-height: 1.55; }
+.pj-cta { display: inline-block; padding: 13px 26px; border-radius: 999px; font-weight: 800; color: #fff !important; text-decoration: none; background: linear-gradient(135deg, #ff8a4c, #e5501f); box-shadow: 0 10px 26px rgba(229, 80, 31, 0.4); }
+.pj-grid { margin-top: 8px; }
+.pj-grid .job-tile-top h3 a { color: #fff; text-decoration: none; }
+.pj-grid .job-tile-top h3 a:hover { color: #ffb48a; }
+.pj-desc { margin: 0; color: #d8bfb0; font-size: 14px; line-height: 1.5; }
+.pj-grid .job-tile-apply { text-align: center; text-decoration: none; display: block; }
+.pj-empty { text-align: center; color: #d8bfb0; padding: 40px 0; }
+.pj-article { max-width: 860px; margin: 0 auto; padding: clamp(22px, 4vw, 40px); }
+.pj-article h1 { color: #fff; font-size: clamp(26px, 4vw, 38px); margin: 0 0 2px; letter-spacing: -1px; }
+.pj-article h2 { color: #fff; font-size: 19px; margin: 16px 0 4px; }
+.pj-article .seo-text { color: #e2cbbd; white-space: pre-line; line-height: 1.65; margin: 0; }
+.pj-note { color: #d8bfb0; font-size: 14px; margin: 14px 0 0; }
+.pj-actions { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin: 6px 0 0; }
+.pj-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 24px clamp(16px, 5vw, 56px); background: #0c0504; color: #d8bfb0; }
+.pj-footer a { color: #ffb48a; }
+.pj-footer .gate-nav-brand { font-size: 20px; }
+@media (max-width: 900px) { .pj-nav nav { display: none; } }
+.pj-detail > p { max-width: 860px; margin-left: auto; margin-right: auto; }
+
+/* ---- the open calculators page in the dark style ---- */
+.pc { background: radial-gradient(ellipse at 70% 0%, rgba(232, 100, 44, 0.3), transparent 50%), linear-gradient(180deg, #2a0f0b 0%, #170908 40%, #140807 100%); color: #f6e6dc; }
+.pc .pc-eyebrow { background: rgba(255, 138, 76, 0.16); color: #ffb48a; }
+.pc .pc-hero h1 { color: #fff; }
+.pc .pc-lead { color: #d8bfb0; }
+.pc .pc-chips li { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.18); color: #ffd2b0; backdrop-filter: blur(8px); }
+.pc .calc-page, .pc .calc-page * { color-scheme: dark; }
+.pc [role="tab"] { background: rgba(255, 255, 255, 0.08) !important; color: #f1d9cc !important; border: 1px solid rgba(255, 255, 255, 0.18) !important; box-shadow: none !important; }
+.pc [role="tab"][aria-selected="true"] { background: linear-gradient(135deg, #ff8a4c, #e5501f) !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 6px 18px rgba(229, 80, 31, 0.4) !important; }
+.pc .panel, .pc .calc-result, .pc section.panel { background: rgba(255, 255, 255, 0.07) !important; border: 1px solid rgba(255, 255, 255, 0.16) !important; color: #f6e6dc; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 16px 44px rgba(0, 0, 0, 0.3) !important; }
+.pc .panel h3, .pc .panel h4, .pc .panel b, .pc .panel strong, .pc h3 { color: #fff; }
+.pc .panel p, .pc .panel li, .pc .panel label, .pc .panel span, .pc .panel td, .pc .panel th, .pc .panel small, .pc .field span, .pc .muted, .pc .fine-print { color: #e2cbbd; }
+.pc .panel input, .pc .panel select, .pc .panel textarea, .pc input, .pc select, .pc textarea { background: rgba(0, 0, 0, 0.35) !important; color: #fff !important; border: 1.5px solid rgba(255, 255, 255, 0.26) !important; }
+.pc .panel input:focus, .pc .panel select:focus { border-color: #ff8a4c !important; outline: none; }
+.pc select option { background: #2a0f0b; color: #fff; }
+.pc .admin-table td, .pc .admin-table th { border-color: rgba(255, 255, 255, 0.14) !important; background: transparent !important; color: #f6e6dc; }
+.pc .calc-strong td { background: rgba(255, 138, 76, 0.18) !important; color: #ffb48a; font-weight: 800; }
+.pc .primary { background: linear-gradient(135deg, #ff8a4c, #e5501f) !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 10px 24px rgba(229, 80, 31, 0.32); }
+.pc .secondary, .pc .ghost { background: rgba(255, 255, 255, 0.08) !important; color: #ffe4d2 !important; border: 1px solid rgba(255, 255, 255, 0.24) !important; }
+.pc .lc-sg summary { color: #ffb48a; }
+.pc .super-gross { background: rgba(0, 0, 0, 0.25); border-color: rgba(255, 255, 255, 0.16); }
+.pc .sg-bar { background: rgba(255, 255, 255, 0.12); }
+.pc .sg-total { border-top-color: #ffb48a; }
+.pc .demo-tag { background: rgba(255, 255, 255, 0.14); color: #ffd2b0; }
+.pc-faq details { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); }
+.pc-faq summary, .pc-faq h2 { color: #fff; }
+.pc-faq p { color: #d8bfb0; }
+.pc-footer { background: #0c0504; color: #d8bfb0; }
+.pc-footer a { color: #ffb48a; }
+.pc-promo { background: linear-gradient(135deg, #7a2410, #c8431c 60%, #ff7a3c); }
+.pc-promo-btn { color: #b93a16; }

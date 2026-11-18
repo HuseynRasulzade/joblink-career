@@ -8,12 +8,14 @@ import { PUBLIC_FAQ as FAQ } from "@/lib/public-faq";
 export default function PublicCalculators() {
   return (
     <div className="pc">
-      <header className="pc-bar">
-        <a className="pc-logo" href="/">jobmatch<span>✳</span></a>
-        <nav>
+      <header className="gate-nav solid pj-nav">
+        <a className="gate-nav-brand" href="/">jobmatch<span>✳</span></a>
+        <nav aria-label="Bölmələr">
           <a href="/jobs">Vakansiyalar</a>
-          <a className="pc-cta-link" href="/">Pulsuz hesab aç <ArrowRight size={15} /></a>
+          <a href="/kalkulyatorlar">Kalkulyatorlar</a>
+          <a href="/#qiymetler">Qiymətlər</a>
         </nav>
+        <a className="gate-nav-btn" href="/">Daxil ol / Qeydiyyat</a>
       </header>
       <section className="pc-hero">
         <p className="pc-eyebrow">PULSUZ · QEYDİYYATSIZ</p>
