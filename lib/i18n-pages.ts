@@ -2078,7 +2078,15 @@ Kadr modulu istəyə görə: +150 ₼ / ay + ƏDV|HR module optional: +150 ₼ /
 Kadr modulu|HR module|Кадровый модуль
 Kadr modulunu əlavə et|Add the HR module|Добавить кадровый модуль
 Kadr modulunu söndür|Turn off the HR module|Отключить кадровый модуль
-Qiymətlər ƏDV-siz göstərilir, hesab-fakturaya 18% ƏDV əlavə olunur.|Prices are shown without VAT; 18% VAT is added to the invoice.|Цены указаны без НДС; в счёт добавляется 18% НДС.`;
+Qiymətlər ƏDV-siz göstərilir, hesab-fakturaya 18% ƏDV əlavə olunur.|Prices are shown without VAT; 18% VAT is added to the invoice.|Цены указаны без НДС; в счёт добавляется 18% НДС.
+Kadr paketi (AI-siz)|HR package (without AI)|Кадровый пакет (без ИИ)
+AI paketi (istəyə görə)|AI package (optional)|ИИ-пакет (по желанию)
+Kadr paketi|HR package|Кадровый пакет
+Kadr paketini aktivləşdir|Activate the HR package|Активировать кадровый пакет
+Kadr paketini söndür|Turn off the HR package|Отключить кадровый пакет
+Kadr modulu (işçilər, əmrlər, əmək haqqı, davamiyyət) sizin şirkətdə pulsuzdur: platformaya erkən qoşulduğunuz üçün ayrıca ödəniş tələb olunmur.|The HR module (employees, orders, payroll, attendance) is free in your company: no separate payment is required because you joined the platform early.|Кадровый модуль (сотрудники, приказы, зарплата, посещаемость) в вашей компании бесплатный: отдельная оплата не требуется, так как вы присоединились к платформе раньше.
+AI istəməyən şirkət üçün: bütün platforma (işə qəbul və Kadr: işçilər, əmrlər, əmək haqqı, davamiyyət, hesabatlar) AI paketi olmadan işləyir. AI-ni istəsəniz, aşağıdakı AI paketlərindən birini də seçin.|For a company that does not want AI: the whole platform (recruitment and HR: employees, orders, payroll, attendance, reports) works without an AI package. If you want AI, also choose one of the AI packages below.|Для компании, которой ИИ не нужен: вся платформа (подбор и кадры: сотрудники, приказы, зарплата, посещаемость, отчёты) работает без ИИ-пакета. Если нужен ИИ, дополнительно выберите один из ИИ-пакетов ниже.
+Kadr modulu aktiv deyil. «Paketlər» bölməsindən 150 ₼ + ƏDV ilə aktivləşdirin.|The HR module is not active. Activate it in “Packages” for 150 ₼ + VAT.|Кадровый модуль не активен. Активируйте его в разделе «Пакеты» за 150 ₼ + НДС.`;
 const EN: Record<string, string> = {};
 const RU: Record<string, string> = {};
 for (const line of LINES.split("\n")) {

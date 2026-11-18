@@ -45,6 +45,7 @@ import SalaryHistory from "./SalaryHistory";
 import { BulkLinkCodes, EmployeeLinkPanel, EmployeePayPanel, EmployeeProfilePanel, OrderMaker, OrgNameInput, SheetImport, StaffTable, useOrgNames } from "./StaffPages";
 
 export type CompanyMe = {
+  hrModuleActive?: boolean;
   company: { id: string; name: string } | null;
   role: string;
   roleLabel: string;
@@ -3440,6 +3441,7 @@ const INVOICE_STATE: Record<string, string> = {
 type AiAccount = {
   month: string;
   hrModule: boolean;
+  hrFree?: boolean;
   hrModulePriceAzn: number;
   vatPercent: number;
   current: { id: string; name: string; priceAzn: number; fullPerMonth: number; rankPerMonth: number };
@@ -3507,7 +3509,23 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
           {bar(data.monthly.rank, c.rankPerMonth)}
         </div>
       </div>
-      <h4 style={{ margin: "16px 0 8px" }}>Paketi dəyiş</h4>
+      <h4 style={{ margin: "16px 0 8px" }}>Kadr paketi (AI-siz)</h4>
+      {data.hrFree ? (
+        <p className="muted fine-print">Kadr modulu (işçilər, əmrlər, əmək haqqı, davamiyyət) sizin şirkətdə pulsuzdur: platformaya erkən qoşulduğunuz üçün ayrıca ödəniş tələb olunmur.</p>
+      ) : (
+        <div className="panel" style={{ margin: 0, padding: 12, borderColor: data.hrModule ? "#2aa595" : undefined }}>
+          <b>Kadr paketi</b>
+          <div>{`${data.hrModulePriceAzn} ₼/ay + ${vat}% ƏDV`}</div>
+          <small className="muted" style={{ display: "block" }}>{`Aylıq cəmi: ${data.hrModulePriceAzn} ₼ + ${vat}% ƏDV = ${withVat(data.hrModulePriceAzn).toFixed(2)} ₼`}</small>
+          <small className="muted" style={{ display: "block", margin: "6px 0" }}>AI istəməyən şirkət üçün: bütün platforma (işə qəbul və Kadr: işçilər, əmrlər, əmək haqqı, davamiyyət, hesabatlar) AI paketi olmadan işləyir. AI-ni istəsəniz, aşağıdakı AI paketlərindən birini də seçin.</small>
+          {data.hrModule ? (
+            <button type="button" className="secondary" disabled={busy} onClick={() => act("company/ai-plan/change", { planId: c.id, hrModule: false }, "Kadr paketi söndürülsün? Ödənilmiş məbləğ geri qaytarılmır, Kadr bölmələri bağlanır.")}>Kadr paketini söndür</button>
+          ) : (
+            <button type="button" className="primary" disabled={busy} onClick={() => act("company/ai-plan/change", { planId: c.id, hrModule: true }, `Kadr paketi seçilsin? ${data.hrModulePriceAzn} ₼ + ${vat}% ƏDV = ${withVat(data.hrModulePriceAzn).toFixed(2)} ₼ hesab-faktura yaranacaq.`)}>Kadr paketini aktivləşdir</button>
+          )}
+        </div>
+      )}
+      <h4 style={{ margin: "16px 0 8px" }}>AI paketi (istəyə görə)</h4>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
         {data.packages.map((p) => {
           const wantHr = hrPick[p.id] ?? data.hrModule;
@@ -3522,10 +3540,12 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
               <b>{p.name}</b>
               <div>{p.priceAzn ? `${p.priceAzn} ₼/ay + ${vat}% ƏDV` : "Pulsuz"}</div>
               <small className="muted">{p.fullPerMonth} tam analiz · {p.rankPerMonth} reytinq</small>
+              {!data.hrFree && (
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "10px 0 4px", fontSize: 13, cursor: "pointer" }}>
                 <input type="checkbox" checked={wantHr} disabled={busy} onChange={(e) => setHrPick({ ...hrPick, [p.id]: e.target.checked })} style={{ marginTop: 3 }} />
                 <span><b>Kadr modulu</b> <small className="muted">{`+${data.hrModulePriceAzn} ₼/ay + ${vat}% ƏDV (işçilər, əmrlər, əmək haqqı, davamiyyət)`}</small></span>
               </label>
+              )}
               {totalNet > 0 && (
                 <small className="muted" style={{ display: "block" }}>
                   {`Aylıq cəmi: ${totalNet} ₼ + ${vat}% ƏDV = ${withVat(totalNet).toFixed(2)} ₼`}

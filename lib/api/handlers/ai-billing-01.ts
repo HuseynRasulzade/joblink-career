@@ -1,7 +1,7 @@
 // ai-billing: the company chooses its AI package and buys extra analyses itself. Every paid change makes an open invoice
 // (price + 18% VAT) that appears in «Hesablar və ödənişlər»; the payment is recorded there (bank transfer), there is no card gateway yet.
 import { HttpError, jsonBody, str } from "@/lib/server";
-import { AI_TOPUPS, COMPANY_AI_PACKAGES, HR_MODULE_PRICE_AZN, monthKey, packageById, topupById } from "@/lib/ai-packages";
+import { AI_TOPUPS, COMPANY_AI_PACKAGES, HR_MODULE_PRICE_AZN, hrModuleOpen, monthKey, packageById, topupById } from "@/lib/ai-packages";
 import { companyAudit } from "@/lib/api-core";
 import { ok } from "@/lib/api/shared";
 import { PACKAGE_VAT_PERCENT, grossCents, withVatAzn } from "@/lib/vat";
@@ -31,8 +31,8 @@ export async function handle_ai_billing_01(c: Pick<RouteCtx, "accountRole" | "ai
       .bind(id)
       .all<{ id: string; pack_id: string; full_count: number; rank_count: number; price_cents: number; invoice_id: string; created: string }>()
       .catch(() => ({ results: [] as { id: string; pack_id: string; full_count: number; rank_count: number; price_cents: number; invoice_id: string; created: string }[] }));
-    const hrRow = await db.prepare("SELECT hr_module FROM company_ai_plans WHERE company_id=?").bind(id).first<{ hr_module: number }>().catch(() => null);
-    return ok({ month: monthKey(), hrModule: !!hrRow?.hr_module, hrModulePriceAzn: HR_MODULE_PRICE_AZN, vatPercent: PACKAGE_VAT_PERCENT, current: q.pkg, used: q.used, monthly: q.monthly, credits: q.credits, left: q.left, packages: COMPANY_AI_PACKAGES, topupPacks: AI_TOPUPS, purchases: topups.results });
+    const hrRow = await db.prepare("SELECT a.created,p.hr_module FROM accounts a LEFT JOIN company_ai_plans p ON p.company_id=a.id WHERE a.id=?").bind(id).first<{ created: string; hr_module: number | null }>().catch(() => null);
+    return ok({ month: monthKey(), hrModule: !!hrRow?.hr_module, hrFree: !!hrRow && !hrRow.hr_module && hrModuleOpen(hrRow.created, false), hrModulePriceAzn: HR_MODULE_PRICE_AZN, vatPercent: PACKAGE_VAT_PERCENT, current: q.pkg, used: q.used, monthly: q.monthly, credits: q.credits, left: q.left, packages: COMPANY_AI_PACKAGES, topupPacks: AI_TOPUPS, purchases: topups.results });
   }
 
   if (request.method === "POST" && path === "company/ai-plan/change") {

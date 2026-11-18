@@ -1,4 +1,5 @@
 // misc: handlers of the JobMatch API (moved out of route.ts; the order of the checks is the order of the calls in route.ts).
+import { hrModuleOpen } from "@/lib/ai-packages";
 import { COMPANY_ROLES, GRANTABLE, INVITABLE_ROLES, INVITE_DAYS, type JobApproval, PERMISSION_GROUPS, PERMISSION_INFO, can, canDecide, inviteExpired, normalizeGrants, pendingStep, permissionsOf, roleLabel } from "@/lib/company";
 import { HttpError, jsonBody, runtime, str } from "@/lib/server";
 import { type MemberFigures, groupTotals, snapshotTotals, turnoverPercent } from "@/lib/company-group";
@@ -68,7 +69,13 @@ export async function handle_misc_02(c: Pick<RouteCtx, "accountRole" | "canAct" 
         ),
       ),
     ).length;
+    const hrRow = await db
+      .prepare("SELECT a.created,p.hr_module FROM accounts a LEFT JOIN company_ai_plans p ON p.company_id=a.id WHERE a.id=?")
+      .bind(id)
+      .first<{ created: string; hr_module: number | null }>()
+      .catch(() => null);
     return ok({
+      hrModuleActive: hrRow ? hrModuleOpen(hrRow.created, !!hrRow.hr_module) : true,
       company,
       role: memberRole,
       roleLabel: roleLabel(memberRole),

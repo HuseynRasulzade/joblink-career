@@ -26,6 +26,12 @@ export const COST_SHARES = { vat: 0, payment: 0.025, running: 0.025 };
 
 // The HR (Kadr) module is offered on top of any AI package for a fixed monthly price (without VAT).
 export const HR_MODULE_PRICE_AZN = 150;
+// Companies registered before this day keep the HR (Kadr) module free; companies registered from this day on need it as a package.
+export const HR_MODULE_REQUIRED_FROM = "2026-11-19T00:00:00.000Z";
+// The HR module is open when it was bought, or when the company is older than the rule.
+export const hrModuleOpen = (companyCreated: string, hrModule: boolean) => hrModule || !companyCreated || companyCreated < HR_MODULE_REQUIRED_FROM;
+// API areas of the HR module (running the staff); recruitment areas stay open for everybody.
+export const HR_MODULE_API = /^company\/(payroll|employees|staff|shifts|trips|orders|hours|attendance|leave-schedule|offboarding|performance|training|assets|skill-matrix|succession|employee-tasks|employee-docs|doc-registry|ohs|plan-fact|branches|budget-plan|hr-expenses|one-on-ones|celebrations|policies)(\/|$)/;
 
 export const worstCaseCost = (p: CompanyAiPackage) => p.fullPerMonth * FULL_COST_AZN + p.rankPerMonth * RANK_COST_AZN;
 // The net profit share when the whole quota is used on OpenAI.

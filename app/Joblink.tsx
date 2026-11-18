@@ -516,6 +516,16 @@ export default function Joblink() {
     const m = moduleOf(page);
     if (hr && m !== "both") setHrMode(m);
   }, [page, hr]);
+  // A company registered after the HR module became a package reaches the Kadr sections only once it is bought: it is taken to «Paketlər».
+  useEffect(() => {
+    if (!hr || !companyMe || companyMe.hrModuleActive !== false) return;
+    if (page.startsWith("hr-") && page !== "hr-packages" && moduleOf(page) === "ops") {
+      setPage("hr-packages");
+      window.location.hash = "hr-packages";
+      notify("Kadr modulu aktiv deyil. «Paketlər» bölməsindən 150 ₼ + ƏDV ilə aktivləşdirin.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyMe, page, hr]);
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("joblink.hrMode");

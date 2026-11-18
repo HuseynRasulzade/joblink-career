@@ -37,7 +37,7 @@ import { pickSigners, sameName } from "@/lib/order-signers";
 
 import { ORDER_KINDS, signedOrderNotice } from "@/lib/orders";
 
-import { packageById, monthKey, quotaLeft } from "@/lib/ai-packages";
+import { HR_MODULE_API, hrModuleOpen, packageById, monthKey, quotaLeft } from "@/lib/ai-packages";
 
 import { statusAfter, type ApplicationFlowEvent } from "@/lib/application-flow";
 import { daysOff, monthDays, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
@@ -787,6 +787,10 @@ async function route(request: Request) {
     throw new HttpError(403, "Bu əməliyyat iş axtaran hesabı üçündür.");
   if (accountRole !== "company" && companyPaths.has(path))
     throw new HttpError(403, "Bu əməliyyat şirkət hesabı üçündür.");
+  if (accountRole === "company" && HR_MODULE_API.test(path)) {
+    const row = await db.prepare("SELECT a.created,p.hr_module FROM accounts a LEFT JOIN company_ai_plans p ON p.company_id=a.id WHERE a.id=?").bind(id).first<{ created: string; hr_module: number | null }>().catch(() => null);
+    if (row && !hrModuleOpen(row.created, !!row.hr_module)) throw new HttpError(402, "Kadr modulu aktiv deyil. «Paketlər» bölməsindən 150 ₼ + ƏDV ilə aktivləşdirin.");
+  }
     {
     const r = await handle_misc_02({ accountRole, canAct, db, id, memberGrants, memberRole, path, request, requirePermission, userId });
     if (r) return r;
