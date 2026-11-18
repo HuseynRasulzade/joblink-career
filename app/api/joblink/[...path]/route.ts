@@ -714,6 +714,7 @@ async function route(request: Request) {
     "plan/me",
     "plan/subscribe",
     "plan/checkout",
+    "plan/request",
     "plan/checkout/status",
     "pay/sandbox",
     "pay/sandbox/decide",
@@ -2681,7 +2682,7 @@ async function route(request: Request) {
   };
   // Step 1: the buyer chose a package; an order is made and the address of the bank's page is returned.
     {
-    const r = await handle_plan_02({ activatePaidOrder, billingEnforced, customSkillLabels, db, id, path, payOrder, paymentProvider, request, requestUrl });
+    const r = await handle_plan_02({ accountRole, activatePaidOrder, billingEnforced, customSkillLabels, db, id, path, payOrder, paymentProvider, request, requestUrl });
     if (r) return r;
   }
     {

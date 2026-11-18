@@ -199,7 +199,10 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
                 sub ? <button className="secondary" disabled={busy} onClick={() => run(() => call("plan/subscribe", { planId: p.id }), "Cari müddət bitəndən sonra paketsiz rejimə keçəcəksiniz.")}>Paketsiz rejimə keç</button> : null
               ) : (
                 data.paymentsOpen === false ? (
-                  <span className="muted">Ödəniş tezliklə aktiv olacaq</span>
+                  <div className="plan-actions">
+                    <button className="primary" disabled={busy} onClick={() => void run(() => call("plan/request", { planId: p.id }), "Sorğunuz göndərildi. Komanda paketi aktivləşdirəcək, cavab «Dəstək» bölməsində görünəcək.")}>Paketi seç</button>
+                    <small className="muted">Bank ödənişi hələ qoşulmayıb: sorğu göndərilir, paket komanda tərəfindən aktivləşdirilir.</small>
+                  </div>
                 ) : (
                 <div className="plan-actions">
                   <button className="primary" disabled={busy} onClick={() => void payAtBank(p)}>Bank səhifəsində ödə</button>

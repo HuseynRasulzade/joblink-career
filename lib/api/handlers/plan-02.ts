@@ -10,11 +10,11 @@ import { checkoutFor, paymentsOpen } from "@/lib/payments";
 import { cleanCvText } from "@/lib/cv-text";
 import { quiet } from "@/lib/quiet";
 import { rateJobs, readMatching } from "@/lib/api-matching";
-import { OPEN_JOBS_SQL, Row, normalizedJobRecord, ok } from "@/lib/api/shared";
+import { OPEN_JOBS_SQL, Row, createSupportThread, normalizedJobRecord, ok } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
-export async function handle_plan_02(c: Pick<RouteCtx, "activatePaidOrder" | "billingEnforced" | "customSkillLabels" | "db" | "id" | "path" | "payOrder" | "paymentProvider" | "request" | "requestUrl">): Promise<Response | undefined> {
-  const { activatePaidOrder, billingEnforced, customSkillLabels, db, id, path, payOrder, paymentProvider, request, requestUrl } = c;
+export async function handle_plan_02(c: Pick<RouteCtx, "accountRole" | "activatePaidOrder" | "billingEnforced" | "customSkillLabels" | "db" | "id" | "path" | "payOrder" | "paymentProvider" | "request" | "requestUrl">): Promise<Response | undefined> {
+  const { accountRole, activatePaidOrder, billingEnforced, customSkillLabels, db, id, path, payOrder, paymentProvider, request, requestUrl } = c;
   if (request.method === "POST" && path === "plan/checkout") {
     const b = await jsonBody(request);
     const plan = planById(str(b.planId, 30));
@@ -33,6 +33,24 @@ export async function handle_plan_02(c: Pick<RouteCtx, "activatePaidOrder" | "bi
       .bind(orderId, id, plan.id, plan.priceAzn * 100, bank.name, started.providerRef, b.autoRenew === true ? 1 : 0, at, at)
       .run();
     return ok({ orderId, url: started.url, bank: bank.name }, 201);
+  }
+  // While the bank payment is not connected, a package is chosen by a request that reaches the admin inbox; the admin switches it on.
+  if (request.method === "POST" && path === "plan/request") {
+    const b = await jsonBody(request);
+    const plan = planById(str(b.planId, 30));
+    if (!plan || plan.priceAzn <= 0) throw new HttpError(400, "Ödənişli paket seçin.");
+    const subject = `Paket sorğusu: ${plan.name}`;
+    const open = await db.prepare("SELECT id FROM support_threads WHERE user_id=? AND subject=? AND status IN ('new','read','in_progress') LIMIT 1").bind(id, subject).first<{ id: string }>();
+    if (open) return ok({ ok: true, id: open.id, existing: true });
+    const threadId = await createSupportThread(db, {
+      userId: id,
+      role: accountRole,
+      topic: "billing",
+      subject,
+      body: `${plan.name} paketini (${plan.priceAzn} AZN / 30 gün) seçmək istəyirəm. Bank ödənişi hələ qoşulmayıb; paketi aktivləşdirmək üçün mənimlə əlaqə saxlayın.`,
+      meta: { planId: plan.id },
+    });
+    return ok({ ok: true, id: threadId }, 201);
   }
   if (request.method === "GET" && path === "pay/sandbox") {
     const order = await payOrder(str(requestUrl.searchParams.get("order"), 100));

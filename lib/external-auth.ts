@@ -141,15 +141,22 @@ async function issueSession(userId: string, request?: Request) {
 
 // E-mail for account security (reset and verification links). Without a mailer nothing is sent;
 // DEV_MAIL_LOG=1 prints the message for local checks.
-async function sendAuthMail(to: string, subject: string, text: string) {
+async function sendAuthMail(to: string, subject: string, text: string): Promise<boolean> {
   const settings = runtime();
   if (mailConfigured(settings)) {
     try {
       await sendMail(settings, { to, subject, text });
+      return true;
     } catch {
       /* the link can be requested again */
+      return false;
     }
-  } else if (settings.DEV_MAIL_LOG === "1") console.log(`[mail] to=${to} subject=${subject}\n${text}`);
+  }
+  if (settings.DEV_MAIL_LOG === "1") {
+    console.log(`[mail] to=${to} subject=${subject}\n${text}`);
+    return true;
+  }
+  return false;
 }
 
 // One-time links are stored hashed and expire; only the e-mailed token opens them.
@@ -177,7 +184,7 @@ async function sendVerification(request: Request, userId: string, email: string)
 // A new account is confirmed with a 6-digit code sent to its e-mail. The code is stored hashed for 15 minutes; a "pending" mark
 // (no expiry) keeps the account from signing in until the code is entered. Without a mailer nothing is pending, so nobody is locked out.
 const codeEnabled = () => { const settings = runtime(); return mailConfigured(settings) || settings.DEV_MAIL_LOG === "1"; };
-async function issueCode(userId: string, email: string) {
+async function issueCode(userId: string, email: string): Promise<boolean> {
   const db = await store();
   const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0");
   await db.batch([
@@ -185,7 +192,10 @@ async function issueCode(userId: string, email: string) {
     db.prepare("INSERT INTO auth_tokens(id,user_id,kind,expires) VALUES(?,?,?,?)").bind(await hash(`${userId}:${code}`), userId, "code", now() + 900),
     db.prepare("INSERT INTO auth_tokens(id,user_id,kind,expires) VALUES(?,?,?,?)").bind(await hash(`pending:${userId}`), userId, "pending", 4102444800),
   ]);
-  await sendAuthMail(email, `JobMatch: təsdiq kodunuz ${code}`, `E-poçt təsdiq kodunuz: ${code}\n\nKod 15 dəqiqə qüvvədədir. Onu heç kimlə bölüşməyin.\nBu sorğunu siz etməmisinizsə, məktuba məhəl qoymayın.`);
+  const sent = await sendAuthMail(email, `JobMatch: təsdiq kodunuz ${code}`, `E-poçt təsdiq kodunuz: ${code}\n\nKod 15 dəqiqə qüvvədədir. Onu heç kimlə bölüşməyin.\nBu sorğunu siz etməmisinizsə, məktuba məhəl qoymayın.`);
+  // The provider refused the message: nobody may be locked out by a code that never arrives, so the account is not left pending.
+  if (!sent) await db.prepare("DELETE FROM auth_tokens WHERE user_id=? AND kind IN ('code','pending')").bind(userId).run();
+  return sent;
 }
 async function isPending(userId: string) {
   const db = await store();
@@ -550,8 +560,7 @@ export async function authRoute(request: Request, path: string) {
     } catch {
       throw new HttpError(409, "Bu e-poçtla hesab artıq mövcuddur.");
     }
-    if (codeEnabled()) {
-      await issueCode(userId, email);
+    if (codeEnabled() && (await issueCode(userId, email))) {
       return response({ ok: true, name, role, needsCode: true, email }, [], 201);
     }
     await sendVerification(request, userId, email);
@@ -571,8 +580,7 @@ export async function authRoute(request: Request, path: string) {
   if (account.status === "suspended")
     throw new HttpError(403, "Bu hesab administrator tərəfindən dayandırılıb.");
   // An account that never entered its e-mail code gets a fresh code instead of a session.
-  if (await isPending(account.user_id)) {
-    await issueCode(account.user_id, email);
+  if ((await isPending(account.user_id)) && (await issueCode(account.user_id, email))) {
     return response({ error: "E-poçtunuz hələ təsdiqlənməyib. Ünvanınıza yeni kod göndərildi.", needsCode: true, email }, [], 403);
   }
   const second = await db.prepare("SELECT secret,backup_codes FROM totp_secrets WHERE user_id=? AND enabled=1").bind(account.user_id).first<{ secret: string; backup_codes: string }>();

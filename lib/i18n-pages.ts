@@ -2051,7 +2051,22 @@ Başqa vəzifəyə, departamentə, şöbəyə və ya filiala keçirmə (maaş d�
 Başqa vəzifəyə, departamentə, şöbəyə və ya filiala keçirmə haqqında əmr (maaş dəyişikliyi ilə birgə də ola bilər)|Order on transfer to another position, department, section or branch (may come with a salary change)|Приказ о переводе на другую должность, в другой департамент, отдел или филиал (может сопровождаться изменением зарплаты)
 Hər sətirdə bir dövr: 2020-01-01 – 2022-06-30|One period per line: 2020-01-01 – 2022-06-30|Один период на строку: 2020-01-01 – 2022-06-30
 Təsvir çox qısadır|The description is too short|Описание слишком короткое
-Çox illik təcrübəsi olan mühasib: uçot, hesabatlar, vergi bəyannamələri.|Accountant with years of experience: bookkeeping, reports, tax returns.|Бухгалтер с многолетним опытом: учёт, отчёты, налоговые декларации.`;
+Çox illik təcrübəsi olan mühasib: uçot, hesabatlar, vergi bəyannamələri.|Accountant with years of experience: bookkeeping, reports, tax returns.|Бухгалтер с многолетним опытом: учёт, отчёты, налоговые декларации.
+Paketi seç|Choose package|Выбрать пакет
+Bank ödənişi hələ qoşulmayıb: sorğu göndərilir, paket komanda tərəfindən aktivləşdirilir.|Bank payment is not connected yet: a request is sent and the team activates the package.|Банковская оплата ещё не подключена: отправляется заявка, пакет активирует команда.
+Sorğunuz göndərildi. Komanda paketi aktivləşdirəcək, cavab «Dəstək» bölməsində görünəcək.|Your request was sent. The team will activate the package; the answer will appear in “Support”.|Заявка отправлена. Команда активирует пакет, ответ появится в разделе «Поддержка».
+İstifadəçi paket seçib.|The user has chosen a package.|Пользователь выбрал пакет.
+Paketi 30 gün aktivləşdir|Activate the package for 30 days|Активировать пакет на 30 дней
+Paket 30 gün üçün aktivləşdirildi.|The package was activated for 30 days.|Пакет активирован на 30 дней.
+E-poçt təsdiq kodu (|E-mail verification code (|Код подтверждения e-mail (
+E-poçtunuzu təsdiqləyin|Confirm your e-mail|Подтвердите ваш e-mail
+Təsdiq kodu e-poçt ünvanınıza göndərildi. 6 rəqəmli kodu yazın.|A verification code was sent to your e-mail address. Enter the 6-digit code.|Код подтверждения отправлен на ваш e-mail. Введите 6-значный код.
+Təsdiq et|Confirm|Подтвердить
+Kodu yenidən göndər|Send the code again|Отправить код ещё раз
+Yeni kod göndərildi. Qutunuzu (və spam qovluğunu) yoxlayın.|A new code was sent. Check your inbox (and the spam folder).|Новый код отправлен. Проверьте почту (и папку «Спам»).
+Kod yanlışdır və ya vaxtı bitib. Yeni kod istəyə bilərsiniz.|The code is wrong or has expired. You can ask for a new code.|Код неверный или срок его действия истёк. Вы можете запросить новый код.
+Çox yanlış cəhd. Yeni kod istəyin və bir az sonra yenidən cəhd edin.|Too many wrong attempts. Ask for a new code and try again a little later.|Слишком много неверных попыток. Запросите новый код и повторите чуть позже.
+E-poçtunuz hələ təsdiqlənməyib. Ünvanınıza yeni kod göndərildi.|Your e-mail is not confirmed yet. A new code was sent to your address.|Ваш e-mail ещё не подтверждён. На ваш адрес отправлен новый код.`;
 const EN: Record<string, string> = {};
 const RU: Record<string, string> = {};
 for (const line of LINES.split("\n")) {

@@ -238,6 +238,12 @@ export default function SupportPage({
             <div className="messages-heading">
               <Inbox size={18} /> <strong>{active.subject}</strong> <StatusChip status={active.status} />
             </div>
+            {admin && (() => { try { return !!(JSON.parse(active.meta || "{}") as { planId?: string }).planId && active.status !== "done"; } catch { return false; } })() && (
+              <div className="notice" role="status">
+                {t("İstifadəçi paket seçib.")}{" "}
+                <button type="button" className="primary" disabled={busy} onClick={() => { setBusy(true); request("admin/support/grant-plan", { id: active.id }).then(() => { notify(t("Paket 30 gün üçün aktivləşdirildi.")); return open(active); }).catch((e: Error) => notify(e.message)).finally(() => setBusy(false)); }}>{t("Paketi 30 gün aktivləşdir")}</button>
+              </div>
+            )}
             <div className="chat-messages">
               {messages.map((m) => (
                 <div key={m.id} className={`chat-message ${(admin ? m.author_role === "admin" : m.author_role !== "admin") ? "user" : "assistant"}`}>

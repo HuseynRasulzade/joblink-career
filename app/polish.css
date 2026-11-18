@@ -354,3 +354,6 @@ html[data-theme="dark"] .no-invert, html[data-theme="dark"] .vacancy-company-mar
   background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='96' height='72' viewBox='0 0 96 72' fill='none'><rect x='10' y='22' width='76' height='44' rx='8' fill='%23e3f1ee' stroke='%2395b3a1' stroke-width='2'/><path d='M10 30a8 8 0 0 1 8-8h18l8 8h34a8 8 0 0 1 8 8' stroke='%2395b3a1' stroke-width='2'/><circle cx='48' cy='46' r='9' fill='%23fff' stroke='%232aa595' stroke-width='2'/><path d='M44 46h8M48 42v8' stroke='%232aa595' stroke-width='2' stroke-linecap='round'/><circle cx='80' cy='14' r='3' fill='%23e2a93b'/><circle cx='16' cy='10' r='2' fill='%232aa595'/></svg>") center / contain no-repeat;
 }
 .empty:not(:has(> svg))::before { margin-bottom: 0; }
+
+/* Qaranlıq rejimdə qəsdən tünd/rəngli kartlar (ümumi baxış) çevrilmir: valideyn çevrilməsi ilə birlikdə orijinal rəngləri qalır. */
+html[data-theme="dark"] .ov-dark, html[data-theme="dark"] .ov-teal, html[data-theme="dark"] .admin-hero, html[data-theme="dark"] .discovery-banner, html[data-theme="dark"] .profile-cover { filter: invert(1) hue-rotate(180deg); }

@@ -8,6 +8,7 @@ import { SUPPORT_STATUSES } from "@/lib/support-topics";
 import { createXlsx } from "@/lib/xlsx";
 import { notify, readCustomEducation } from "@/lib/api-core";
 import { quiet } from "@/lib/quiet";
+import { planById } from "@/lib/plans";
 import { readMatching } from "@/lib/api-matching";
 import { summarizeAiUsage } from "@/lib/ai-cost";
 import { ok } from "@/lib/api/shared";
@@ -212,6 +213,26 @@ export async function handle_admin_02(c: Pick<RouteCtx, "db" | "id" | "path" | "
         link: "companies",
       });
       return ok({ ok: true });
+    }
+  // A package request in the inbox: the admin switches the chosen package on for 30 days (no payment is taken here).
+  if (request.method === "POST" && path === "admin/support/grant-plan") {
+      const body = await jsonBody(request);
+      const thread = await db.prepare("SELECT user_id,meta FROM support_threads WHERE id=?").bind(str(body.id, 100)).first<{ user_id: string; meta: string }>();
+      if (!thread) throw new HttpError(404, "Sorğu tapılmadı.");
+      let planId = "";
+      try { planId = String((JSON.parse(thread.meta || "{}") as { planId?: string }).planId || ""); } catch { /* no plan in the request */ }
+      const plan = planById(planId);
+      if (!plan || plan.priceAzn <= 0) throw new HttpError(400, "Bu sorğuda paket yoxdur.");
+      const now = new Date();
+      const at = now.toISOString();
+      const end = new Date(now.getTime() + 30 * 86400000).toISOString();
+      await db.batch([
+        db.prepare("UPDATE subscriptions SET status='expired',auto_renew=0,period_end=?,updated=? WHERE account_id=? AND status IN ('active','cancelled')").bind(at, at, thread.user_id),
+        db.prepare("INSERT INTO subscriptions(id,account_id,plan_id,status,period_start,period_end,auto_renew,method_id,created,updated) VALUES(?,?,?,'active',?,?,0,'',?,?)").bind(crypto.randomUUID(), thread.user_id, plan.id, at, end, at, at),
+        db.prepare("UPDATE support_threads SET status='done',updated=? WHERE id=?").bind(at, str(body.id, 100)),
+        db.prepare("INSERT INTO support_messages(id,thread_id,author_id,author_role,body,created) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), str(body.id, 100), id, "admin", `${plan.name} paketi 30 gün üçün aktivləşdirildi. İndi «Paketlər» bölməsində görə bilərsiniz.`, at),
+      ]);
+      return ok({ ok: true, plan: plan.id, until: end });
     }
   if (request.method === "POST" && path === "admin/support/status") {
       const body = await jsonBody(request);
