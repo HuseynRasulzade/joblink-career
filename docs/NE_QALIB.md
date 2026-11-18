@@ -591,7 +591,7 @@ Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), 
 
 - **Hero:** parlaq kürənin yerinə istifadəçinin göndərdiyi istinad şəklindən kəsilmiş dəbilqəli fiqur (`public/hero-figure.webp`; mənbə şəkil kiçik olduğundan EDSR süni intellekt modeli ilə 4 dəfə böyüdülüb, səs-küy təmizlənib, kənarları yumşaq maskalanıb). Orijinal yüksək ölçülü fayl olsa əvəz edilə bilər.
 - **Axtarış:** hero-da «Vəzifə, şirkət, bacarıq + şəhər» axtarışı və sürətli çiplər; `/jobs?q=&city=` açıq vakansiya səhifəsində süzgəc kimi işləyir (vəzifə, şirkət, şəhər, format, növ, kateqoriya, tələblər üzrə).
-- **Telefon:** yuxarı menyuda qulaqlıq işarəsi ilə nömrə (`tel:` linki), telefonda yalnız işarə; «Əlaqə» bölməsi və footer. Nömrə `lib/contact.ts`-dədir və **yer tutucudur**: açıqlamadan əvvəl real nömrə yazılmalıdır.
+- **Telefon:** yuxarı menyuda qulaqlıq işarəsi ilə nömrə (`tel:` linki), telefonda yalnız işarə; «Əlaqə» bölməsi və footer. Nömrə (`+994 55 478 25 81`) və e-poçt `lib/contact.ts`-dədir.
 - **Yeni bölmələr:** «Sürətli keçidlər» (vakansiyalar, kalkulyator, CV təhlili, şirkət kimi başla, qiymətlər, suallar), vakansiyalarda format süzgəci (Uzaqdan/Hibrid/Ofisdə/Tam ştat/Yarım ştat), «Əlaqə» kartı; aşağıdakı bloklar görünəndə yumşaq açılır (hərəkət azaldılmışsa söndürülür).
 - Yeni mətnlər 3 dildədir (`lib/i18n-pages.ts`).
 
