@@ -448,3 +448,10 @@ Vakansiya kartlarında şirkət loqosu (loqo yüklənir, amma namizədə göstə
 - İnvestor təqdimatında sarı qutulu yerlər doldurulmalıdır: tarix, bazar rəqəmləri (mənbə ilə), rəqiblərin adları, nəticələr (real istifadəçi, pilot, ödəyən müştəri), komanda, tələb olunan məbləğ və istifadə bölgüsü, əlaqə.
 - Reklam təqdimatında sayt ünvanı və əlaqə məlumatı yenilənməlidir; qiymətlər təqdimatdan əvvəl təsdiqlənməlidir.
 - «İstifadə təlimatı» (`lib/guide-content.ts`) əl ilə yazılır: yeni funksiya əlavə edəndə təlimatı da yeniləmək lazımdır (menyu adı dəyişsə test pozulur).
+
+## 41. Rol/icazə tarixçəsi və kalkulyator nəticəsini saxlamaq
+
+- `company/team/history` (yalnız "team" icazəsi): rol, dəvət, dayandırma, silmə və davamiyyət kilidinin açılması hadisələri. «Komanda və rollar» səhifəsində «Rol və icazə tarixçəsi» paneli.
+- `company/calc-saves` (GET/POST), `company/calc-saves/delete`: kalkulyator nəticəsi «Hesabda saxla» ilə saxlanır (maks. 300), «Saxlanmış hesablamalar» panelində açılır/silinir. Miqrasiya 0125.
+- Maaş kalkulyatoru tabı hələ `Result` komponentini işlətmir, ona görə orada saxlama düyməsi yoxdur.
+- Hələ edilməyib (xarici/hüquqi giriş lazımdır): video link, terminal inteqrasiyası, hesab-faktura çapı (satıcı rekvizitləri), istedad bazasına toplu e-poçt (razılıq + real göndərmə), namizəd məlumatının silinməsi (saxlama siyasəti hüquqi qərardır).

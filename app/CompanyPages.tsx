@@ -2094,7 +2094,31 @@ export function TeamPage({
           )}
         </section>
       )}
+      {team?.canManage && <TeamHistory />}
     </div>
+  );
+}
+
+// Who gave which role or permission to whom, and when (read from the company journal).
+const TEAM_EVENT_LABEL: Record<string, string> = { "member-invited": "dəvət göndərildi", "member-joined": "dəvəti qəbul etdi", "member-left": "komandadan ayrıldı", "member-role": "rol / icazə dəyişdi", "member-invite-resent": "dəvət təkrar göndərildi", "member-suspended": "hesab dayandırıldı", "member-reactivated": "hesab bərpa edildi", "member-removed": "komandadan çıxarıldı", "attendance-unlock": "davamiyyət kilidi açıldı" };
+function TeamHistory() {
+  const [events, setEvents] = useState<{ action: string; target: string; detail: string; created: string; actor: string }[] | null>(null);
+  useEffect(() => {
+    request<{ events: { action: string; target: string; detail: string; created: string; actor: string }[] }>("company/team/history").then((r) => setEvents(r.events)).catch(() => setEvents([]));
+  }, []);
+  return (
+    <section className="panel">
+      <h3>Rol və icazə tarixçəsi</h3>
+      <p className="muted">Kim kimə hansı rolu və ya icazəni nə vaxt verib, dəvət göndərib və ya komandadan çıxarıb.</p>
+      {events === null ? <p className="muted loading-line">Yüklənir…</p> : events.length ? (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead><tr><th>Tarix</th><th>Kim</th><th>Nə</th><th>Kimə</th><th>Təfərrüat</th></tr></thead>
+            <tbody>{events.map((e, i) => <tr key={i}><td>{e.created.slice(0, 16).replace("T", " ")}</td><td>{e.actor || "—"}</td><td>{TEAM_EVENT_LABEL[e.action] || e.action}</td><td>{e.target || "—"}</td><td>{e.detail || "—"}</td></tr>)}</tbody>
+          </table>
+        </div>
+      ) : <p className="admin-empty">Hələ qeyd yoxdur.</p>}
+    </section>
   );
 }
 const AUDIT_LABELS: Record<string, string> = {

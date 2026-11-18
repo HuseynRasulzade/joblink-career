@@ -130,6 +130,7 @@ import { handle_employees_01 } from "@/lib/api/handlers/employees-01";
 import { handle_attendance_01 } from "@/lib/api/handlers/attendance-01";
 import { handle_interviews_02 } from "@/lib/api/handlers/interviews-02";
 import { handle_ats_01 } from "@/lib/api/handlers/ats-01";
+import { handle_team_01 } from "@/lib/api/handlers/team-01";
 import { lockedProblem } from "@/lib/attendance-lock";
 import { activeGrants } from "@/lib/grants-expiry";
 import { handle_company_34 } from "@/lib/api/handlers/company-34";
@@ -2542,6 +2543,10 @@ async function route(request: Request) {
   }
   {
     const r = await handle_ats_01({ accountRole, db, id, memberRole, path, request, requestUrl });
+    if (r) return r;
+  }
+  {
+    const r = await handle_team_01({ accountRole, db, id, path, request, requestUrl, requirePermission, userId });
     if (r) return r;
   }
     {

@@ -1,6 +1,6 @@
 "use client";
 import type { Loose } from "@/lib/loose";
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as hr from "@/lib/hr-calc";
 import { calculateFromGross } from "@/lib/salary";
 import { SalaryCalculator } from "./SalaryCalculator";
@@ -40,6 +40,8 @@ const yearsSince = (start?: string) => (start ? Math.max(0, Math.round(((Date.no
 // What the result panel needs to print or save the calculation.
 type ExportContext = { title: string; employee: string; inputs: () => [string, string][] };
 const Export = createContext<ExportContext>({ title: "", employee: "", inputs: () => [] });
+// Only the employer area may keep a calculation on the account.
+const EmployerMode = createContext<{ employer: boolean; saved: () => void; tell: (message: string) => void }>({ employer: false, saved: () => undefined, tell: () => undefined });
 const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 function exportLines(ctx: ExportContext, rows: [string, ReactNode, boolean?][], articles: string[], notes: string[]) {
@@ -126,9 +128,23 @@ function Check({ label, value, onChange }: { label: string; value: boolean; onCh
 }
 function Result({ rows, articles, notes }: { rows: [string, ReactNode, boolean?][]; articles: string[]; notes: string[] }) {
   const ctx = useContext(Export);
+  const mode = useContext(EmployerMode);
+  async function keep() {
+    const { inputs, results, basis } = exportLines(ctx, rows, articles, notes);
+    try {
+      const response = await fetch("/api/joblink/company/calc-saves", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: ctx.title, employee: ctx.employee, inputs, results, basis }) });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(body.error || "Saxlanmadı.");
+      mode.tell("Hesablama saxlanıldı: səhifənin altında «Saxlanmış hesablamalar»da görünür.");
+      mode.saved();
+    } catch (error) {
+      mode.tell((error as Error).message);
+    }
+  }
   return (
     <section className="panel calc-result">
       <div className="admin-actions calc-export">
+        {mode.employer && <button type="button" className="primary" onClick={() => void keep()}>Hesabda saxla</button>}
         <button type="button" className="secondary" onClick={() => printPage(ctx, rows, articles, notes)}>Çap et / PDF</button>
         <button type="button" className="secondary" onClick={() => saveXlsx(ctx, rows, articles, notes)}>Excel (.xlsx)</button>
       </div>
@@ -737,7 +753,9 @@ export function HrCalculators({
     .filter((e) => !needle || `${e.name} ${e.position} ${e.department}`.toLocaleLowerCase("az").includes(needle))
     .sort((a, b) => a.name.localeCompare(b.name, "az"))
     .slice(0, 12);
+  const [savedVersion, setSavedVersion] = useState(0);
   return (
+    <EmployerMode.Provider value={{ employer, saved: () => setSavedVersion((n) => n + 1), tell }}>
     <div className="hr-calcs">
       {employer && !!employees.length && (
         <section className="panel calc-employee">
@@ -833,6 +851,56 @@ export function HrCalculators({
         Hesablamalar məlumat xarakterlidir; kollektiv/əmək müqaviləsi qanundan yüksək şərtlər nəzərdə tuta bilər. Rəsmi
         sənədləşmədən əvvəl mühasib və ya hüquqşünasla yoxlayın.
       </p>
+      {employer && <SavedCalcs version={savedVersion} tell={tell} />}
     </div>
+    </EmployerMode.Provider>
+  );
+}
+
+type SavedCalc = { id: string; title: string; employee: string; inputs: [string, string][]; results: [string, string][]; basis: string; created: string };
+// Calculations the HR team kept on the account: who it was for, what was entered and what came out.
+function SavedCalcs({ version, tell }: { version: number; tell: (message: string) => void }) {
+  const [items, setItems] = useState<SavedCalc[] | null>(null);
+  const [open, setOpen] = useState("");
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    fetch("/api/joblink/company/calc-saves", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ items: SavedCalc[] }>) : { items: [] as SavedCalc[] }))
+      .then((d) => setItems(d.items))
+      .catch(() => setItems([]));
+  }, [version, reload]);
+  async function remove(id: string) {
+    if (!window.confirm("Saxlanmış hesablama silinsin?")) return;
+    const r = await fetch("/api/joblink/company/calc-saves/delete", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    if (!r.ok) return tell("Silinmədi.");
+    setReload((n) => n + 1);
+  }
+  if (!items || !items.length) return null;
+  return (
+    <section className="panel">
+      <h3>Saxlanmış hesablamalar ({items.length})</h3>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead><tr><th>Tarix</th><th>Hesablama</th><th>İşçi</th><th /></tr></thead>
+          <tbody>
+            {items.map((c) => (
+              <Fragment key={c.id}>
+                <tr><td>{c.created.slice(0, 10).split("-").reverse().join(".")}</td><td>{c.title}</td><td>{c.employee || "—"}</td>
+                  <td className="admin-actions"><button type="button" onClick={() => setOpen(open === c.id ? "" : c.id)}>{open === c.id ? "Bağla" : "Aç"}</button><button type="button" aria-label="Sil" onClick={() => void remove(c.id)}>Sil</button></td></tr>
+                {open === c.id && (
+                  <tr><td colSpan={4}>
+                    <div className="row" style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+                      <div><b>Daxil edilən</b><table className="admin-table"><tbody>{c.inputs.map(([k, v], i) => <tr key={i}><td>{k}</td><td>{v}</td></tr>)}</tbody></table></div>
+                      <div><b>Nəticə</b><table className="admin-table"><tbody>{c.results.map(([k, v], i) => <tr key={i}><td>{k}</td><td>{v}</td></tr>)}</tbody></table></div>
+                    </div>
+                    {c.basis && <p className="muted fine-print">Əsas: {c.basis}</p>}
+                  </td></tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
