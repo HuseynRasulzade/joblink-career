@@ -6,7 +6,7 @@ import { companyDetailsInput } from "@/lib/company";
 import { readCustomEducation } from "@/lib/api-core";
 import { sampleJobs } from "@/lib/model";
 import { summarizeRatings } from "@/lib/reviews";
-import { DEMO_JOBS_WHEN_EMPTY, OPEN_JOBS_SQL, Row, logError, normalizedJobRecord, ok, publicJob, searchEscoSkills, verifiedCompanyIds } from "@/lib/api/shared";
+import { DEMO_JOBS_WHEN_EMPTY, OPEN_JOBS_SQL, Row, logError, normalizedJobRecord, ok, publicJob, searchEscoSkills, verifiedCompanyIds, companyIdsWithLogo } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
 export async function handle_certifications_01(c: Pick<RouteCtx, "customCerts" | "customSkillLabels" | "customSkills" | "customTitles" | "db" | "path" | "request" | "requestUrl" | "user">): Promise<Response | undefined> {
@@ -254,10 +254,11 @@ export async function handle_certifications_01(c: Pick<RouteCtx, "customCerts" |
           .prepare(`${OPEN_JOBS_SQL} ORDER BY j.created DESC LIMIT 200`)
           .all<Row>();
     const none = Promise.resolve(null);
-    const [jobRows, verifiedOwners, profileRow, appRows, eventRows, savedRows, account] =
+    const [jobRows, verifiedOwners, logoOwners, profileRow, appRows, eventRows, savedRows, account] =
       await Promise.all([
         jobsQuery,
         verifiedCompanyIds(db),
+        companyIdsWithLogo(db),
         user
           ? db.prepare("SELECT data FROM profiles WHERE user_id = ?").bind(user).first<Row>()
           : none,
@@ -339,7 +340,7 @@ export async function handle_certifications_01(c: Pick<RouteCtx, "customCerts" |
           const job = publicJob(
             normalizedJobRecord(JSON.parse(r.data), customSkillLabels),
           );
-          return { ...job, companyVerified: verifiedOwners.has(job.owner) };
+          return { ...job, companyVerified: verifiedOwners.has(job.owner), companyLogo: logoOwners.has(job.owner) };
         }),
         ...DEMO_JOBS_WHEN_EMPTY(jobRows.results.length).map((job) =>
           normalizedJobRecord(job, customSkillLabels),

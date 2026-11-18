@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono, Inter } from "next/font/google";
 import "./joblink.css";
 import "./features.css";
 import "./polish.css";
@@ -17,6 +17,8 @@ const inter = Inter({
   subsets: ["latin", "latin-ext"],
   display: "swap",
 });
+
+const fraunces = Fraunces({ variable: "--font-serif", subsets: ["latin", "latin-ext"], display: "swap" });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -46,7 +48,7 @@ export default function RootLayout({
   return (
     <html lang="az">
       <body
-        className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${fraunces.variable} ${inter.variable} ${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
         <noscript>

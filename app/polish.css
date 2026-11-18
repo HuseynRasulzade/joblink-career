@@ -333,3 +333,24 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 .od-person.has-photo { justify-content: flex-start; padding-left: 60px; text-align: left; }
 .od-person.has-photo .od-body { align-items: flex-start; }
 .od-person.has-photo .emp-avatar { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); flex: none; }
+
+/* Qaranlıq rejim: səhifə CSS ilə çevrilir, şəkillər geri çevrilir (köhnə sərt rənglər üçün ən etibarlı yol). */
+html[data-theme="dark"] { background: #fff; filter: invert(0.9) hue-rotate(180deg); color-scheme: dark; }
+html[data-theme="dark"] img, html[data-theme="dark"] video, html[data-theme="dark"] canvas, html[data-theme="dark"] iframe,
+html[data-theme="dark"] .no-invert, html[data-theme="dark"] .vacancy-company-mark img { filter: invert(1) hue-rotate(180deg); }
+.theme-toggle { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; border: 1px solid #cfdcda; background: #fff; color: #31484c; cursor: pointer; }
+.theme-toggle:hover { background: #eef5f3; }
+@media print { html[data-theme="dark"] { filter: none; background: #fff; } html[data-theme="dark"] img { filter: none; } }
+
+/* Başlıqlarda marka serif şrifti (açılış səhifəsi və səhifə başlıqları). */
+.landing h2, .landing h3, .page-heading h1, .page-heading h2, .heading-row h1, .heading-row h2, .section-heading h2, .first-steps-head h2, .auth-gate h1, .auth-gate-hero h1 {
+  font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+  letter-spacing: -0.01em;
+}
+
+/* Boş vəziyyət: kiçik illüstrasiya (cədvəl və siyahılarda məlumat olmayanda). */
+.admin-empty::before, .empty:not(:has(> svg))::before {
+  content: ""; display: block; width: 96px; height: 72px; margin: 0 auto 10px;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='96' height='72' viewBox='0 0 96 72' fill='none'><rect x='10' y='22' width='76' height='44' rx='8' fill='%23e3f1ee' stroke='%2395b3a1' stroke-width='2'/><path d='M10 30a8 8 0 0 1 8-8h18l8 8h34a8 8 0 0 1 8 8' stroke='%2395b3a1' stroke-width='2'/><circle cx='48' cy='46' r='9' fill='%23fff' stroke='%232aa595' stroke-width='2'/><path d='M44 46h8M48 42v8' stroke='%232aa595' stroke-width='2' stroke-linecap='round'/><circle cx='80' cy='14' r='3' fill='%23e2a93b'/><circle cx='16' cy='10' r='2' fill='%232aa595'/></svg>") center / contain no-repeat;
+}
+.empty:not(:has(> svg))::before { margin-bottom: 0; }

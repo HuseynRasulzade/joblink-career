@@ -132,6 +132,7 @@ import PeopleOps from "./PeopleOps";
 import AtsAnalytics from "./AtsAnalytics";
 import GuidePage from "./GuidePage";
 import Landing from "./Landing";
+import ThemeToggle from "./ThemeToggle";
 import FirstSteps from "./FirstSteps";
 import CommandPalette from "./CommandPalette";
 import { groupNav } from "@/lib/nav-groups";
@@ -1381,7 +1382,10 @@ export default function Joblink() {
                   onClick={() => openJob(j)}
                   className={`company-mark ${j.company.includes("Kapital") ? "red" : j.company.includes("PASHA") ? "blue" : "mint"}`}
                 >
-                  {j.company.includes("Caspian") ? "cf" : j.company.slice(0, 1)}
+                  {j.companyLogo && j.owner ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={`/api/joblink/companies/logo?id=${encodeURIComponent(j.owner)}`} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain", background: "#fff", borderRadius: "inherit" }} />
+                  ) : j.company.includes("Caspian") ? "cf" : j.company.slice(0, 1)}
                 </button>
                 <div className="job-title">
                   <button
@@ -1974,6 +1978,7 @@ export default function Joblink() {
             <strong>{label}</strong>
           </div>
           <div className="topbar-right">
+            <ThemeToggle />
             {signedIn && !admin && <NotificationBell go={go} />}
             <span className="today">
               {formatDate(new Date(), language, { month: "long" })}
@@ -2141,7 +2146,12 @@ export default function Joblink() {
               <div className="job-detail">
                 <header className="vacancy-company">
                   <div className="vacancy-company-mark" aria-hidden="true">
-                    {job.company.trim().slice(0, 1).toLocaleUpperCase("az")}
+                    {job.companyLogo && job.owner ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`/api/joblink/companies/logo?id=${encodeURIComponent(job.owner)}`} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", background: "#fff", borderRadius: "inherit" }} />
+                    ) : (
+                      job.company.trim().slice(0, 1).toLocaleUpperCase("az")
+                    )}
                   </div>
                   <div>
                     <h3>

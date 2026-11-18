@@ -26,11 +26,16 @@ const lines = (text: string) =>
     .filter(Boolean);
 const money = (j: Job) => (j.minSalary || j.maxSalary ? `${j.minSalary.toLocaleString("fr-FR")}–${j.maxSalary.toLocaleString("fr-FR")} AZN` : "Razılaşma ilə");
 
-function Mark({ company, size = 44 }: { company: string; size?: number }) {
+function Mark({ company, size = 44, logoOf }: { company: string; size?: number; logoOf?: string }) {
   const h = hue(company);
   return (
-    <span className="jx-mark" style={{ width: size, height: size, background: `hsl(${h} 55% 92%)`, color: `hsl(${h} 45% 30%)`, fontSize: size * 0.45 }} aria-hidden="true">
-      {company.trim().slice(0, 1).toLocaleUpperCase("az")}
+    <span className="jx-mark" style={{ width: size, height: size, background: logoOf ? "#fff" : `hsl(${h} 55% 92%)`, color: `hsl(${h} 45% 30%)`, fontSize: size * 0.45, overflow: "hidden" }} aria-hidden="true">
+      {logoOf ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={`/api/joblink/companies/logo?id=${encodeURIComponent(logoOf)}`} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+      ) : (
+        company.trim().slice(0, 1).toLocaleUpperCase("az")
+      )}
     </span>
   );
 }
@@ -259,7 +264,7 @@ export default function JobsExplorer({
             jobs.map((j) => (
               <article key={j.id} className={`jx-card ${selected?.id === j.id ? "active" : ""}`}>
                 <button type="button" className="jx-card-main" aria-label={`${j.title}, ${j.company}`} aria-current={selected?.id === j.id} onClick={() => pick(j)}>
-                  <Mark company={j.company} />
+                  <Mark company={j.company} logoOf={j.companyLogo ? j.owner : undefined} />
                   <span className="jx-card-text">
                     <b>{j.title}</b>
                     <small>
@@ -301,7 +306,7 @@ export default function JobsExplorer({
             <div className="jx-banner" style={{ background: `linear-gradient(120deg, hsl(${hue(selected.company)} 45% 82%), hsl(${(hue(selected.company) + 50) % 360} 50% 90%))` }} />
             <div className="jx-detail-body">
               <div className="jx-detail-logo">
-                <Mark company={selected.company} size={64} />
+                <Mark company={selected.company} size={64} logoOf={selected.companyLogo ? selected.owner : undefined} />
               </div>
               <div className="jx-detail-top">
                 <div>

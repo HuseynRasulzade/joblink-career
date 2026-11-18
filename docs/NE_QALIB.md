@@ -472,3 +472,10 @@ Vakansiya kartlarında şirkət loqosu (loqo yüklənir, amma namizədə göstə
 - **«Vakansiya aç» (ştat boş yerindən):** HR köməkçisi sorğunu avtomatik doldurur, layihə yaranır, sahələr doldurulub yayımlandıqda elan «published» oldu (yerlidə). Ştat planında yer yoxdursa server düzgün rədd edir («Ştat planında yer yoxdur»).
 - **Slaydlar:** 26 slayd 1920×1080 ölçüdə render olunub baxıldı; taşma yoxdur. Tapılan qüsur: tünd-yaşıl fonlu slaydlarda kart başlıqları (MƏBLƏĞ, NAMİZƏD…) oxunmurdu — hər iki təqdimatda düzəldildi və yenidən dərc olundu. Şrift (Fraunces/DM Sans) sandbox-da yoxdur, ona görə şrift görünüşü yoxlanmadı.
 - Hələ edilməyib: qaranlıq rejim, vakansiya kartında loqo, illüstrasiyalar, serif başlıqlar.
+
+## 44. Vizual (C) bəndləri
+
+- **Qaranlıq rejim:** yuxarı panelda ay/günəş düyməsi (`app/ThemeToggle.tsx`); seçim brauzerdə yadda qalır. Texnika: səhifə CSS `filter: invert(.9) hue-rotate(180deg)` ilə çevrilir, şəkillər geri çevrilir (`app/polish.css`) — köhnə CSS-dəki sərt rənglər üçün ən etibarlı yol, amma real qaranlıq palitra deyil (rənglər təxminidir). Çap zamanı söndürülür. İşəgötürən «Əmrlər reyestri» səhifəsində baxıldı; bütün səhifələr gəzilmədi.
+- **Vakansiya kartında loqo:** server vakansiyaya `companyLogo` bayrağı əlavə edir (`companyIdsWithLogo`), kart/siyahı/detal başlığı ictimai `companies/logo` ünvanından şəkli göstərir; loqo yoxdursa hərf qalır. Yerlidə 1×1 test şəkli ilə yoxlandı (4 şəkil göründü), test şəkli sonra silindi.
+- **Boş vəziyyət illüstrasiyası:** `.admin-empty` və ikonsuz `.empty` bloklarında CSS ilə kiçik şəkil. Brauzerdə ayrıca baxılmadı.
+- **Serif başlıqlar:** Fraunces şrifti (`--font-serif`) açılış səhifəsi və səhifə başlıqlarında. Sandbox-da şrift yoxdur, ona görə yalnız CSS tətbiqi, görünüşü canlıda yoxlamaq lazımdır.

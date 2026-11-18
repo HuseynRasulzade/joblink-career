@@ -206,6 +206,8 @@ export type Job = {
   reasonNote?: string;
   // Set by the server when the owning company passed document verification.
   companyVerified?: boolean;
+  // Set by the server when the owning company uploaded a logo (shown on the vacancy card).
+  companyLogo?: boolean;
   // A vacancy listed from another site: candidates apply there, not here.
   external?: { source: string; url: string };
   // The department and section of the employer's staff table that the place belongs to.

@@ -64,6 +64,14 @@ export const OPEN_JOBS_SQL = `SELECT j.* FROM jobs j LEFT JOIN accounts a ON a.i
   WHERE j.status='published' AND COALESCE(a.status,'active')='active'
   AND (COALESCE(json_extract(j.data,'$.deadline'),'')='' OR json_extract(j.data,'$.deadline')>=date('now'))`;
 
+// Companies that uploaded a logo: vacancies of these show it (public endpoint companies/logo).
+export async function companyIdsWithLogo(db: D1Database): Promise<Set<string>> {
+  const rows = await db
+    .prepare("SELECT company_id FROM company_profiles WHERE COALESCE(logo_data,'')<>''")
+    .all<{ company_id: string }>()
+    .catch(() => ({ results: [] as { company_id: string }[] }));
+  return new Set(rows.results.map((r) => r.company_id));
+}
 export async function verifiedCompanyIds(db: D1Database): Promise<Set<string>> {
   const rows = await db
     .prepare(
