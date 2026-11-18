@@ -1800,7 +1800,7 @@ export default function Joblink() {
             <div className="gate-orbit two" />
             <div className="gate-figure">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/hero-figure.webp" alt="" width={560} height={792} decoding="async" fetchPriority="high" />
+              <img src="/hero-figure.webp?v=2" alt="" width={560} height={792} decoding="async" fetchPriority="high" />
               <span className="gate-ring" />
               <span className="gate-badge">✳</span>
             </div>
