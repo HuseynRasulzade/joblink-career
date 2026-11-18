@@ -488,3 +488,9 @@ Vakansiya kartlarında şirkət loqosu (loqo yüklənir, amma namizədə göstə
 - **Dəstək prioriteti:** sorğu yaradanda «Təcili» qutusu (meta.priority), adminin siyahısında nişan və təcili açıq sorğular birinci; SLA sətrində təcili hədəf 4 saat, 24 saatlıq ümumi hədəf. Prioritet avtomatik deyil, istifadəçi seçir.
 - **Açılış səhifəsində qiymət kartları:** hər paket üçün ad, qiymət və daxil olanlar (namizəd paketləri `lib/plans.ts`-dən, şirkət paketləri kvotalarla); EN/RU tərcümələri əlavə olundu.
 - **Tərcümə:** `lib/i18n-pages.ts` ≈ 610 ifadəyə çatdı (kalkulyator sahələri daxil); Azərbaycanca qalan sətirlər (HR səhifələri üzrə cəmi): 2557 → ≈1170. Qalanı uzun izah cümlələri və verilənlərdir.
+
+## 46. Açılış səhifəsinin yenidən dizaynı və kalkulyator bölməsi
+
+- `app/Landing.tsx` + `app/landing.css`: mərkəzləşdirilmiş bölmə başlıqları, ikonlu rol və imkan kartları, addım kartları, iş axtaran/şirkət **sekməli** qiymət kartları («Ən çox seçilən» nişanı, «Paketi seç» düyməsi, hər paketin tərkibi), tünd-yaşıl yekun çağırış zolağı.
+- **Yeni «Kalkulyatorlar» bölməsi** (qiymətlərin aşağısında): işləyən maaş kalkulyatoru (gross/net, sektor; `lib/salary.ts` ilə platformadakı eyni hesab), 8 kalkulyatorun siyahısı və «Bütün kalkulyatorlardan istifadə et» düyməsi. Hesab məlumat xarakterlidir; işçi kartındakı güzəştlər burada yoxdur.
+- Yoxlandı: masaüstü və 390 px mobil (üfüqi sürüşmə yoxdur), AZ və EN, kalkulyatorda net 3000 → gross 3 605,69. RU və qaranlıq rejimdə bu səhifəyə baxılmadı. Şrift sandbox-da yoxdur (serif ehtiyat şrift görünür), real görünüşü canlıda yoxlamaq lazımdır.
