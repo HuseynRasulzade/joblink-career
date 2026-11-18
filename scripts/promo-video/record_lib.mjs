@@ -15,7 +15,7 @@ export async function ctx(browser,{login,record=true,name}){
 export async function glide(p,x,y,steps=28){ await p.mouse.move(x,y,{steps}); }
 export async function click(p,loc,{pause=350}={}){ const el=typeof loc==='string'?p.locator(loc).first():loc.first(); await el.scrollIntoViewIfNeeded().catch(()=>{}); const b=await el.boundingBox({timeout:6000}).catch(e=>{throw new Error('box fail: '+(typeof loc==='string'?loc:String(loc))+' '+e.message.split('\n')[0])}); if(!b) throw new Error('no box for '+loc); await glide(p,b.x+b.width/2,b.y+b.height/2); await p.waitForTimeout(pause); await p.mouse.down(); await p.waitForTimeout(80); await p.mouse.up(); await p.waitForTimeout(pause); }
 export async function type(p,loc,text,delay=70){ const el=typeof loc==='string'?p.locator(loc).first():loc.first(); await click(p,el,{pause:200}); await p.keyboard.type(text,{delay}); }
-export async function finish({c,p,t0,startMark},name){
+export async function finish({c,p,t0,startMark}){
   const v=p.video(); await c.close(); const path=await v.path(); return {path,trim:(startMark-t0)/1000};
 }
 export {chromium};

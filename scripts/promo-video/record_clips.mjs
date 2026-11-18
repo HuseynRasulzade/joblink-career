@@ -1,8 +1,7 @@
-import {chromium,ctx,click,type,glide,URL} from './record_lib.mjs';
+import {chromium,ctx,click,type,URL} from './record_lib.mjs';
 import fs from 'fs';
 const which=process.argv[2];
 const b=await chromium.launch();
-const out={};
 async function done(name,o,startMark){const v=o.p.video();await o.c.close();const path=await v.path();fs.copyFileSync(path,`/tmp/promo2/clips/${name}.webm`);fs.writeFileSync(`/tmp/promo2/clips/${name}.json`,JSON.stringify({trim:(startMark-o.t0)/1000}));console.log(name,'trim',(startMark-o.t0)/1000);}
 const flows={
  async gate(){ const o=await ctx(b,{name:'gate'}); const {p}=o;
