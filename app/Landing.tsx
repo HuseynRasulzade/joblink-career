@@ -262,13 +262,12 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
         {audience === "seeker" ? (
           <>
             <p className="landing-note">Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir (+18% ƏDV əlavə olunur). Paketsiz istifadə pulsuzdur.</p>
-            <div className="landing-plans cols3">
+            <div className="landing-plans cols6">
               {PLANS.map((p) => (
                 <article className={`landing-card plan-card${p.id === "plus-7" ? " popular" : ""}`} key={p.id}>
                   {p.id === "plus-7" && <span className="plan-badge">Ən çox seçilən</span>}
                   <span className="landing-tag">{p.name}</span>
                   <p className="landing-price">{p.priceAzn ? <>{p.priceAzn}<small>{" ₼ / ay + 18% ƏDV"}</small></> : "Pulsuz"}</p>
-                  <p className="plan-summary">{p.summary}</p>
                   <ul className="landing-checks">{p.features.map((f) => <li key={f}><Check size={15} />{f}</li>)}</ul>
                   <button type="button" className={p.id === "plus-7" ? "primary" : "secondary"} onClick={signup}>{p.priceAzn ? "Paketi seç" : "Pulsuz başla"}</button>
                 </article>
