@@ -1,6 +1,7 @@
 "use client";
 import { COMPANY_AI_PACKAGES } from "@/lib/ai-packages";
 import { PLANS } from "@/lib/plans";
+import { localizeTree } from "./i18n";
 
 // The public page under the sign-in: what the platform is, for whom, how it starts, what it costs.
 const ROLES = [
@@ -28,7 +29,7 @@ const azn = (n: number) => `${n.toLocaleString("az-AZ")} ₼`;
 export default function Landing() {
   const candidatePlans = PLANS.filter((p) => p.priceAzn > 0);
   const top = (id: string) => { const el = document.querySelector(".auth-gate-panel"); el?.scrollIntoView({ behavior: "smooth", block: "center" }); void id; };
-  return (
+  return localizeTree(
     <div className="landing">
       <section className="landing-block">
         <p className="landing-eyebrow">KİMLƏR ÜÇÜN</p>
@@ -93,6 +94,6 @@ export default function Landing() {
         <span>jobmatch<span className="star">✳</span></span>
         <span><a href="/terms" target="_blank" rel="noreferrer">İstifadə şərtləri</a> · <a href="/privacy" target="_blank" rel="noreferrer">Məxfilik siyasəti</a></span>
       </footer>
-    </div>
+    </div>,
   );
 }

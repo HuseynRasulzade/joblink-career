@@ -455,3 +455,11 @@ Vakansiya kartlarında şirkət loqosu (loqo yüklənir, amma namizədə göstə
 - `company/calc-saves` (GET/POST), `company/calc-saves/delete`: kalkulyator nəticəsi «Hesabda saxla» ilə saxlanır (maks. 300), «Saxlanmış hesablamalar» panelində açılır/silinir. Miqrasiya 0125.
 - Maaş kalkulyatoru tabı hələ `Result` komponentini işlətmir, ona görə orada saxlama düyməsi yoxdur.
 - Hələ edilməyib (xarici/hüquqi giriş lazımdır): video link, terminal inteqrasiyası, hesab-faktura çapı (satıcı rekvizitləri), istedad bazasına toplu e-poçt (razılıq + real göndərmə), namizəd məlumatının silinməsi (saxlama siyasəti hüquqi qərardır).
+
+## 42. Brauzer yoxlaması (D bəndi) — nəticələr
+
+- **Rəhbər və auditor:** hər menyu bəndi gəzildi (rəhbər 25, auditor 28 səhifə), JS xətası yoxdur. Tapılan xəta: auditor üçün «Plan və fakt» və «Filiallar» menyuda görünürdü, amma server 403 verirdi və səhifə sonsuz «Yüklənir…» qalırdı; menyu indi «salaries» icazəsinə bağlıdır (düzəldildi, yenidən yoxlandı). Rəhbərdə bəzi fon sorğuları 403 qaytarır (today, inbox, calc-saves…), amma səhifə sınmır.
+- **EN/RU:** açılış səhifəsi tərcümə olunmurdu (`localizeTree` komponentin içinə girmir) — düzəldildi, EN/RU-da yoxlandı (yalnız plan adları AZ qalır). Menyu başlıqları və yeni bölmə adları tərcümə cədvəlinə əlavə olundu. **Hələ də AZ:** yeni səhifələrin (Hesabatlar, İşçilər, Komanda və rollar, Əmrlər reyestri, Əmək haqqı və s.) məzmunu böyük hissədə tərcümə olunmayıb: bu səhifə komponentləri `localizeTree`/`translate` işlətmir və cədvəldə cümlələr yoxdur. Bu ayrıca böyük tərcümə işidir.
+- **Kalkulyatordan əmr:** pəncərə açıldı, direktor adı yazıldı, əmr yaradıldı, imzaya göndərildi və təsdiqlə «imzalandı» oldu (yerlidə). Yerli işçinin maaşı kalkulyator məbləği ilə eyni olduğu üçün kart dəyişmədi («Kartda dəyişiklik yoxdur») — real dəyişiklik halı ayrıca sınanmayıb.
+- **«Vakansiya aç»-dan elanın tam yaradılması:** yoxlanmayıb.
+- **Bölmə 32-dəki iddialar:** davamiyyətdən intizama keçid — həqiqətən yoxdur; icazə tarixçəsi — indi var (bölmə 41); dəstək SLA-sı — qismən var (adminə ilk cavab müddəti, cavabsız sayı), hədəf müddət/prioritet yoxdur.

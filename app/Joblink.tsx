@@ -494,8 +494,8 @@ export default function Joblink() {
     "hr-orders": "orders",
     "hr-attendance": "attendance",
     "hr-payroll": "payroll",
-    "hr-planfact": "payroll",
-    "hr-branches": "payroll",
+    "hr-planfact": "salaries",
+    "hr-branches": "salaries",
     "hr-people-ops": "employees",
     "hr-growth": "employees",
   };
