@@ -1706,7 +1706,7 @@ export default function Joblink() {
         <div
           className="score-ring"
           style={{
-            background: `conic-gradient(from 220deg,#73ac92 ${(pendingCv ? 0 : result.score) * 3.6}deg,#edf2ef 0)`,
+            background: `conic-gradient(from 220deg,var(--ring-fg,#73ac92) ${(pendingCv ? 0 : result.score) * 3.6}deg,var(--ring-bg,#edf2ef) 0)`,
           }}
         >
           <div>

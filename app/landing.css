@@ -248,7 +248,7 @@
 .auth-gate-intro .auth-gate-role-note { margin-top: 22px; background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); color: #ffeadd; max-width: 560px; }
 .auth-gate-panel { border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 252, 250, 0.94); box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5); align-self: center; }
 .auth-gate { background: linear-gradient(160deg, #1b0a09, #3a1410 50%, #140807); align-items: stretch; }
-.auth-gate-panel .primary, .auth-gate-panel button.primary { background: linear-gradient(135deg, #ff8a4c, #e5501f); border-color: #e5501f; color: #fff; box-shadow: 0 10px 24px rgba(229, 80, 31, 0.35); }
+.auth-gate-panel .primary, .auth-gate-panel button.primary { background: linear-gradient(135deg, #d94c18, #b53713); border-color: #e5501f; color: #fff; box-shadow: 0 10px 24px rgba(229, 80, 31, 0.35); }
 .auth-gate-panel a, .auth-gate-panel .link-button { color: #c4421a; }
 @keyframes gate-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
 @keyframes gate-pulse { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; } }
@@ -285,16 +285,16 @@ html { scroll-behavior: smooth; }
 .landing-card p, .role-card p, .landing-step p, .landing .plan-card .plan-summary, .landing-faq p, .landing-calc-list li small, .lc-note { color: #d8bfb0; }
 .landing-tag { color: #ffb48a; }
 .landing-icon { background: linear-gradient(145deg, rgba(255, 138, 76, 0.28), rgba(229, 80, 31, 0.22)); color: #ffd2b0; }
-.landing-num { background: linear-gradient(135deg, #ff8a4c, #e5501f); }
+.landing-num { background: linear-gradient(135deg, #d94c18, #b53713); }
 .landing-price, .landing .plan-card .landing-price { color: #ff9a5c; }
 .landing .plan-card .landing-price small { color: #d8bfb0; }
 .landing-checks svg { color: #ff9a5c; }
 .landing .plan-card.popular { border: 2px solid #ff8a4c; box-shadow: 0 18px 54px rgba(255, 110, 50, 0.3); }
-.plan-badge { background: linear-gradient(135deg, #ff8a4c, #e5501f); }
+.plan-badge { background: linear-gradient(135deg, #d94c18, #b53713); }
 .landing-tabs { background: rgba(255, 255, 255, 0.1); }
 .landing-tabs button { color: #e8cdbd; }
-.landing-tabs button.on { background: linear-gradient(135deg, #ff8a4c, #e5501f); color: #fff; box-shadow: 0 4px 14px rgba(229, 80, 31, 0.4); }
-.landing .primary { background: linear-gradient(135deg, #ff8a4c, #e5501f); border-color: transparent; color: #fff; box-shadow: 0 10px 24px rgba(229, 80, 31, 0.32); }
+.landing-tabs button.on { background: linear-gradient(135deg, #d94c18, #b53713); color: #fff; box-shadow: 0 4px 14px rgba(229, 80, 31, 0.4); }
+.landing .primary { background: linear-gradient(135deg, #d94c18, #b53713); border-color: transparent; color: #fff; box-shadow: 0 10px 24px rgba(229, 80, 31, 0.32); }
 .landing .secondary { background: rgba(255, 255, 255, 0.08); color: #ffe4d2; border: 1px solid rgba(255, 255, 255, 0.24); }
 .landing .ghost { color: #ffd2b0; }
 .landing-faq details[open] { border-color: #ff8a4c; }
@@ -303,7 +303,7 @@ html { scroll-behavior: smooth; }
 .lc-inputs input { background: rgba(0, 0, 0, 0.3); border-color: rgba(255, 255, 255, 0.22); color: #fff; }
 .lc-seg { background: rgba(255, 255, 255, 0.1); }
 .lc-seg button { color: #e8cdbd; }
-.lc-seg button.on { background: linear-gradient(135deg, #ff8a4c, #e5501f); color: #fff; }
+.lc-seg button.on { background: linear-gradient(135deg, #d94c18, #b53713); color: #fff; }
 .lc-rows div { border-bottom-color: rgba(255, 255, 255, 0.16); }
 .lc-rows dt, .lc-employer span { color: #d8bfb0; }
 .lc-rows dd { color: #fff; }
@@ -335,7 +335,7 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .job-tile-meta li { font-size: 13px; padding: 4px 11px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); color: #ffe4d2; }
 .job-tile-skills li { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.2); color: #e2cbbd; }
 .job-tile-salary { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #ff9a5c !important; }
-.job-tile-apply { margin-top: auto; padding: 11px; border-radius: 12px; border: 0; font-weight: 700; cursor: pointer; color: #fff; background: linear-gradient(135deg, #ff8a4c, #e5501f); }
+.job-tile-apply { margin-top: auto; padding: 11px; border-radius: 12px; border: 0; font-weight: 700; cursor: pointer; color: #fff; background: linear-gradient(135deg, #d94c18, #b53713); }
 .gate-link { color: #ffb48a; font-weight: 700; text-decoration: none; }
 @media (max-width: 1000px) { .landing-jobs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .landing-jobs { grid-template-columns: 1fr; } }
@@ -349,7 +349,7 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .gate-nav nav a:hover { background: rgba(255, 255, 255, 0.12); }
 .gate-nav-auth { position: relative; }
 .gate-nav-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.12); color: #fff; font-weight: 700; cursor: pointer; backdrop-filter: blur(8px); }
-.gate-nav-btn:hover { background: linear-gradient(135deg, #ff8a4c, #e5501f); border-color: transparent; }
+.gate-nav-btn:hover { background: linear-gradient(135deg, #d94c18, #b53713); border-color: transparent; }
 .gate-nav-menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 260px; padding: 8px; border-radius: 16px; background: rgba(32, 12, 9, 0.96); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); backdrop-filter: blur(16px); }
 .gate-nav-menu button { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; padding: 12px 14px; border: 0; border-radius: 12px; background: transparent; color: #fff; cursor: pointer; }
 .gate-nav-menu button:hover { background: rgba(255, 138, 76, 0.2); }
@@ -362,9 +362,9 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .landing .lc-inputs input { background: rgba(0, 0, 0, 0.35) !important; color: #fff !important; border: 1.5px solid rgba(255, 255, 255, 0.28) !important; }
 .landing .lc-inputs input:focus { border-color: #ff8a4c !important; outline: none; }
 .landing .landing-tabs button { background: transparent !important; color: #e8cdbd !important; box-shadow: none !important; border: 0 !important; }
-.landing .landing-tabs button.on { background: linear-gradient(135deg, #ff8a4c, #e5501f) !important; color: #fff !important; box-shadow: 0 4px 14px rgba(229, 80, 31, 0.4) !important; }
+.landing .landing-tabs button.on { background: linear-gradient(135deg, #d94c18, #b53713) !important; color: #fff !important; box-shadow: 0 4px 14px rgba(229, 80, 31, 0.4) !important; }
 .landing .lc-seg button { background: transparent !important; color: #e8cdbd !important; box-shadow: none !important; border: 0 !important; }
-.landing .lc-seg button.on { background: linear-gradient(135deg, #ff8a4c, #e5501f) !important; color: #fff !important; }
+.landing .lc-seg button.on { background: linear-gradient(135deg, #d94c18, #b53713) !important; color: #fff !important; }
 
 /* ---- open vacancy pages (/jobs, /jobs/ID) in the dark style ---- */
 .pj { min-height: 100vh; background: radial-gradient(ellipse at 70% 0%, rgba(232, 100, 44, 0.3), transparent 50%), linear-gradient(180deg, #2a0f0b 0%, #170908 40%, #140807 100%); color: #f6e6dc; }
@@ -375,7 +375,7 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .pj-eyebrow { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 2px; padding: 5px 14px; border-radius: 999px; background: rgba(255, 138, 76, 0.16); color: #ffb48a; margin: 0 0 14px; }
 .pj-hero h1 { color: #fff; font-size: clamp(32px, 5vw, 56px); line-height: 1.05; letter-spacing: -1.5px; margin: 0 0 14px; }
 .pj-lead { color: #d8bfb0; font-size: 18px; max-width: 640px; margin: 0 auto 18px; line-height: 1.55; }
-.pj-cta { display: inline-block; padding: 13px 26px; border-radius: 999px; font-weight: 800; color: #fff !important; text-decoration: none; background: linear-gradient(135deg, #ff8a4c, #e5501f); box-shadow: 0 10px 26px rgba(229, 80, 31, 0.4); }
+.pj-cta { display: inline-block; padding: 13px 26px; border-radius: 999px; font-weight: 800; color: #fff !important; text-decoration: none; background: linear-gradient(135deg, #d94c18, #b53713); box-shadow: 0 10px 26px rgba(229, 80, 31, 0.4); }
 .pj-grid { margin-top: 8px; }
 .pj-grid .job-tile-top h3 a { color: #fff; text-decoration: none; }
 .pj-grid .job-tile-top h3 a:hover { color: #ffb48a; }
@@ -402,7 +402,7 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .pc .pc-chips li { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.18); color: #ffd2b0; backdrop-filter: blur(8px); }
 .pc .calc-page, .pc .calc-page * { color-scheme: dark; }
 .pc [role="tab"] { background: rgba(255, 255, 255, 0.08) !important; color: #f1d9cc !important; border: 1px solid rgba(255, 255, 255, 0.18) !important; box-shadow: none !important; }
-.pc [role="tab"][aria-selected="true"] { background: linear-gradient(135deg, #ff8a4c, #e5501f) !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 6px 18px rgba(229, 80, 31, 0.4) !important; }
+.pc [role="tab"][aria-selected="true"] { background: linear-gradient(135deg, #d94c18, #b53713) !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 6px 18px rgba(229, 80, 31, 0.4) !important; }
 .pc .panel, .pc .calc-result, .pc section.panel { background: rgba(255, 255, 255, 0.07) !important; border: 1px solid rgba(255, 255, 255, 0.16) !important; color: #f6e6dc; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 16px 44px rgba(0, 0, 0, 0.3) !important; }
 .pc .panel h3, .pc .panel h4, .pc .panel b, .pc .panel strong, .pc h3 { color: #fff; }
 .pc .panel p, .pc .panel li, .pc .panel label, .pc .panel span, .pc .panel td, .pc .panel th, .pc .panel small, .pc .field span, .pc .muted, .pc .fine-print { color: #e2cbbd; }
@@ -411,7 +411,7 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .pc select option { background: #2a0f0b; color: #fff; }
 .pc .admin-table td, .pc .admin-table th { border-color: rgba(255, 255, 255, 0.14) !important; background: transparent !important; color: #f6e6dc; }
 .pc .calc-strong td { background: rgba(255, 138, 76, 0.18) !important; color: #ffb48a; font-weight: 800; }
-.pc .primary { background: linear-gradient(135deg, #ff8a4c, #e5501f) !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 10px 24px rgba(229, 80, 31, 0.32); }
+.pc .primary { background: linear-gradient(135deg, #d94c18, #b53713) !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 10px 24px rgba(229, 80, 31, 0.32); }
 .pc .secondary, .pc .ghost { background: rgba(255, 255, 255, 0.08) !important; color: #ffe4d2 !important; border: 1px solid rgba(255, 255, 255, 0.24) !important; }
 .pc .lc-sg summary { color: #ffb48a; }
 .pc .super-gross { background: rgba(0, 0, 0, 0.25); border-color: rgba(255, 255, 255, 0.16); }
@@ -447,7 +447,7 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .lg-tools { display: flex; gap: 10px; align-items: center; }
 .lg-lang { display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.08); }
 .lg-lang button { border: 0; background: transparent; color: #f6e0d2; font-weight: 700; padding: 8px 14px; cursor: pointer; }
-.lg-lang button.on { background: linear-gradient(135deg, #ff8a4c, #e5501f); color: #fff; }
+.lg-lang button.on { background: linear-gradient(135deg, #d94c18, #b53713); color: #fff; }
 .lg-print { border: 1px solid rgba(255, 255, 255, 0.28); background: rgba(255, 255, 255, 0.08); color: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
 .lg-print:hover { background: rgba(255, 255, 255, 0.16); }
 .lg-summary { padding: 20px 24px; border-radius: 18px; border: 1px solid rgba(255, 154, 92, 0.35); background: linear-gradient(135deg, rgba(255, 138, 76, 0.16), rgba(255, 255, 255, 0.05)); backdrop-filter: blur(10px); margin-bottom: 28px; }
@@ -463,7 +463,7 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .lg-toc p a { color: #ff9a5c; font-weight: 700; }
 .lg-text section { scroll-margin-top: 90px; padding: 22px 26px; margin-bottom: 14px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.05); }
 .lg-text h2 { margin: 0 0 12px; color: #fff; font-size: 20px; display: flex; gap: 12px; align-items: center; }
-.lg-text h2 span { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #ff8a4c, #e5501f); color: #fff; font-size: 14px; }
+.lg-text h2 span { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #d94c18, #b53713); color: #fff; font-size: 14px; }
 .lg-text p { margin: 0 0 10px; line-height: 1.7; color: #ecd9cc; }
 .lg-text p:last-child { margin-bottom: 0; }
 .lg-foot { text-align: center; padding-top: 10px; }

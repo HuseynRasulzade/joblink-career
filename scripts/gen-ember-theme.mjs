@@ -64,12 +64,18 @@ function parseColorFunction(node) {
 const isTealHue = (h, s) => s >= 0.18 && h >= 158 && h <= 205;
 
 // Surfaces: light panels become glass, tinted chips become translucent accent chips, teal solids become orange solids.
-function mapSurface(c, state) {
+function mapSurface(c, state, opaque = false) {
   if (c.a < 0.05) return null;
   const { h, s, l } = hslOf(c);
   const neutral = s < 0.18;
   const teal = isTealHue(h, s);
   const k = c.a;
+  // Floating layers (dialogs, menus, sticky bars) must hide what is behind them: solid dark colours instead of glass.
+  if (opaque && l >= 0.88 && c.a >= 0.9) {
+    if (neutral) return state ? "#2a1612" : "#1f0e0b";
+    if (teal || (h >= 55 && h < 120)) return "#3a1a10";
+    return hsla(h, 0.4, 0.2, 1);
+  }
   if (l >= 0.88) {
     if (neutral || (h >= 120 && h < 158 && s < 0.45)) return rgba(255, 255, 255, (state ? 0.12 : l >= 0.97 ? 0.06 : 0.045) * k);
     if (teal || (h >= 55 && h < 120)) return rgba(255, 138, 76, (state ? 0.22 : 0.15) * k);
@@ -89,8 +95,8 @@ function mapText(c) {
   const { h, s, l } = hslOf(c);
   if (l >= 0.85) return null;
   const neutral = s < 0.18;
-  if (isTealHue(h, s) || (h >= 130 && h < 158 && s < 0.5)) return hsla(22, 1, l < 0.62 ? 0.77 : 0.82, c.a);
-  if (neutral) return l < 0.62 ? hsla(24, 0.4, clamp(0.94 - l * 0.32, 0.7, 0.95), c.a) : null;
+  if (isTealHue(h, s) || (h >= 130 && h < 158 && s < 0.5)) return hsla(22, 1, l < 0.62 ? 0.9 : 0.93, c.a);
+  if (neutral) return l < 0.8 ? hsla(24, 0.4, clamp(0.95 - l * 0.3, 0.72, 0.95), c.a) : null;
   return l < 0.7 ? hsla(h, Math.min(s, 0.9), 0.74, c.a) : null;
 }
 function mapLine(c) {
@@ -122,11 +128,11 @@ const ROLE = (prop) => {
   return null;
 };
 
-function mapValue(value, role, state) {
+function mapValue(value, role, state, opaque) {
   const parsed = valueParser(value);
   let changed = false;
   const mapColor = (c) => {
-    if (role === "surface") return mapSurface(c, state);
+    if (role === "surface") return mapSurface(c, state, opaque);
     if (role === "text") return mapText(c);
     if (role === "line") return mapLine(c);
     if (role === "shadow") return mapShadow(c);
@@ -171,6 +177,7 @@ function mapValue(value, role, state) {
   return changed ? parsed.toString() : null;
 }
 
+const FLOATING = /modal|dialog|popover|dropdown|menu|toast|tooltip|drawer|sheet|overlay|popup|suggest|combo|score-ring/i;
 const STATE = /:hover|:focus|:active|\.on\b|\.active\b|\.selected\b|\.open\b|\[aria-(pressed|selected|current|expanded)/;
 
 function prefixSelectors(rule) {
@@ -190,12 +197,13 @@ function emit(nodes, chain, lines) {
       const selectors = prefixSelectors(node);
       if (!selectors.length) continue;
       const state = node.selectors.some((s) => STATE.test(s));
+      const floating = FLOATING.test(node.selector) || node.some((d) => d.type === "decl" && ((d.prop === "position" && /^(fixed|sticky)$/.test(d.value.trim())) || (d.prop === "z-index" && Number(d.value) >= 20)));
       const decls = [];
       node.walkDecls((d) => {
         if (d.parent !== node) return;
         const role = ROLE(d.prop.toLowerCase());
         if (!role) return;
-        const mapped = mapValue(d.value, role, state);
+        const mapped = mapValue(d.value, role, state, floating);
         if (mapped) decls.push(`${d.prop}: ${mapped}${d.important ? " !important" : ""}`);
       });
       if (!decls.length) continue;

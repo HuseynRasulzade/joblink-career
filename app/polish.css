@@ -72,7 +72,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--teal); }
 .nav-item:hover { background: #f1f6f5; }
 
 /* Üst panel: tünd mətn linkləri və dil seçimi daha səliqəli */
-.topbar { backdrop-filter: saturate(1.4) blur(10px); }
+.topbar { backdrop-filter: saturate(1.4) blur(10px); position: relative; z-index: 40; }
 .topbar select {
   padding: 5px 8px;
   border-radius: 8px;
