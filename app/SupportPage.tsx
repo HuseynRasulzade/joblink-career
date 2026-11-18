@@ -50,6 +50,7 @@ function StatusChip({ status }: { status: string }) {
 
 // Complaints, suggestions and other requests. Users see only their own
 // requests and their status; the admin sees every request (admin mode).
+const SUPPORT_TARGET_HOURS = 24;
 export default function SupportPage({
   admin = false,
   role = "candidate",
@@ -150,6 +151,8 @@ export default function SupportPage({
         {admin && sla && (
           <p className="muted fine-print" title="Son 30 gündə açılan sorğular üzrə">
             İlk cavab: orta {sla.avgFirstReplyHours === null ? "—" : `${sla.avgFirstReplyHours} saat`} · cavabsız {sla.unanswered}{sla.oldestWaitingHours !== null ? ` (ən köhnəsi ${Math.round(sla.oldestWaitingHours)} saat)` : ""}
+            {` · hədəf: ilk cavab ${SUPPORT_TARGET_HOURS} saat`}
+            {sla.oldestWaitingHours !== null && sla.oldestWaitingHours > SUPPORT_TARGET_HOURS ? <b style={{ color: "#a04a1c" }}> · hədəf aşılıb: cavabsız sorğu var</b> : sla.avgFirstReplyHours !== null && sla.avgFirstReplyHours > SUPPORT_TARGET_HOURS ? <b style={{ color: "#a04a1c" }}> · orta müddət hədəfdən çoxdur</b> : null}
           </p>
         )}
         {admin && (

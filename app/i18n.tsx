@@ -5,6 +5,7 @@ import { RU_UI } from "@/lib/i18n-ru";
 import { EN_EXTRA, RU_EXTRA } from "@/lib/i18n-extra";
 import { EN_MORE, RU_MORE } from "@/lib/i18n-more";
 import { EN_LAND, RU_LAND } from "@/lib/i18n-landing";
+import { EN_PAGES, RU_PAGES } from "@/lib/i18n-pages";
 
 export type SiteLanguage = "az" | "en" | "ru";
 let activeLanguage: SiteLanguage = "az";
@@ -954,12 +955,13 @@ export function translate(
   if (!trimmed) return text;
   const translated =
     (language === "ru"
-      ? (RU_UI[trimmed] ?? RU_EXTRA[trimmed] ?? RU_MORE[trimmed] ?? RU_LAND[trimmed])
+      ? (RU_UI[trimmed] ?? RU_EXTRA[trimmed] ?? RU_MORE[trimmed] ?? RU_LAND[trimmed] ?? RU_PAGES[trimmed])
       : undefined) ??
     english.get(trimmed) ??
     EN_EXTRA[trimmed] ??
     EN_MORE[trimmed] ??
-    EN_LAND[trimmed];
+    EN_LAND[trimmed] ??
+    EN_PAGES[trimmed];
   if (translated) return text.replace(trimmed, translated);
   const skillTranslation = localizedSkillLabel(trimmed, "en");
   if (skillTranslation !== trimmed)
@@ -1041,4 +1043,46 @@ export function localizeTree(
   )
     changes.value = original.children;
   return cloneElement(node, changes);
+}
+
+// Page components that do not translate their own output are translated here, after they render: every text node
+// and the placeholder/title/aria-label of every element under `root` goes through the same tables. Returns a stop function.
+export function observeTranslations(root: HTMLElement, language: SiteLanguage): () => void {
+  if (language === "az") return () => undefined;
+  const skip = "script,style,textarea,input,code,pre,[data-no-translate]";
+  const fixText = (node: Text) => {
+    const parent = node.parentElement;
+    if (!parent || parent.closest(skip)) return;
+    const value = node.nodeValue || "";
+    if (!value.trim()) return;
+    const next = translate(value, language);
+    if (next !== value) node.nodeValue = next;
+  };
+  const fixAttrs = (el: Element) => {
+    for (const attr of ["placeholder", "title", "aria-label"]) {
+      const value = el.getAttribute(attr);
+      if (!value) continue;
+      const next = translate(value, language);
+      if (next !== value) el.setAttribute(attr, next);
+    }
+  };
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) return fixText(node as Text);
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const el = node as Element;
+    if (el.closest("[data-no-translate]")) return;
+    fixAttrs(el);
+    for (const child of Array.from(el.childNodes)) walk(child);
+  };
+  walk(root);
+  const observer = new MutationObserver((records) => {
+    observer.disconnect();
+    for (const r of records) {
+      if (r.type === "characterData") fixText(r.target as Text);
+      else r.addedNodes.forEach(walk);
+    }
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
+  });
+  observer.observe(root, { childList: true, subtree: true, characterData: true });
+  return () => observer.disconnect();
 }

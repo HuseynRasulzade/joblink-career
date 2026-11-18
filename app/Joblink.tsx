@@ -140,7 +140,7 @@ import EncryptionPanel from "./EncryptionPanel";
 import ReportsHub from "./ReportsHub";
 import { FitReviewPanel } from "./FitReview";
 import PackagesPage from "./PackagesPage";
-import { localizeTree, setSiteLanguage } from "./i18n";
+import { localizeTree, observeTranslations, setSiteLanguage } from "./i18n";
 import { googleMapsSearchUrl } from "@/lib/maps";
 const candidateNav = [
   { id: "overview", label: "Ümumi baxış", icon: LayoutDashboard },
@@ -992,6 +992,11 @@ export default function Joblink() {
     const saved = localStorage.getItem("joblink-language");
     if (saved === "en" || saved === "ru") setLanguage(saved);
   }, []);
+  useEffect(() => {
+    // Pages that do not translate themselves are translated in the DOM (see observeTranslations).
+    const root = document.getElementById("root-translate") || document.body;
+    return observeTranslations(root, language);
+  }, [language, signedIn]);
   useEffect(() => {
     document.documentElement.lang = language;
     document.title =

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Field, Modal } from "./components";
-import { SheetImport } from "./StaffPages";
+import { OrderMaker, SheetImport } from "./StaffPages";
 
 type Notify = (message: string) => void;
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -30,6 +30,20 @@ export default function HoursPanel({ notify }: { notify: Notify }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [data, setData] = useState<Data | null>(null);
   const [edit, setEdit] = useState<Person | null>(null);
+  // A disciplinary order drawn up from the lateness record (the basis is filled from the journal).
+  const [discipline, setDiscipline] = useState<{ person: Person; employee: Parameters<typeof OrderMaker>[0]["employee"]; basis: string } | null>(null);
+  async function openDiscipline(p: Person) {
+    try {
+      const list = await request<{ employees: { id: string; name: string; position: string; department: string; section?: string; startDate: string; salary: number | null; salaryType?: "gross" | "net"; probationEnd?: string; endDate?: string }[] }>("company/employees");
+      const e = list.employees.find((x) => x.id === p.id);
+      if (!e) return notify("İşçi kartı tapılmadı.");
+      const late = p.entries.filter((x) => x.late);
+      const basis = `Davamiyyət jurnalı (${month}): ${late.length} gün gecikmə, cəmi ${late.reduce((t, x) => t + x.late, 0)} dəqiqə (${late.slice(0, 6).map((x) => dmy(x.day)).join(", ")}${late.length > 6 ? "…" : ""}).`;
+      setDiscipline({ person: p, basis, employee: { id: e.id, name: e.name, position: e.position, department: e.department, section: e.section || "", startDate: e.startDate, salary: e.salary, salaryType: e.salaryType || "gross", probationEnd: e.probationEnd || "", endDate: e.endDate || "" } });
+    } catch (error) {
+      notify((error as Error).message);
+    }
+  }
   const [importing, setImporting] = useState(false);
   const [setup, setSetup] = useState(false);
   const [journal, setJournal] = useState(false);
@@ -81,13 +95,24 @@ export default function HoursPanel({ notify }: { notify: Notify }) {
                   <td>{(p.mode === "month" ? p.total?.night : p.summary.night) || "—"}</td>
                   <td>{p.entries.filter((e) => e.late).length ? `${p.entries.filter((e) => e.late).length} gün / ${p.entries.reduce((t, e) => t + e.late, 0)} dəq` : "—"}</td>
                   <td>{p.missing.length ? <span title={p.missing.join(", ")}>{p.missing.length}</span> : "—"}</td>
-                  <td className="admin-actions"><button type="button" onClick={() => setEdit(p)}>Gündəlik</button><button type="button" className="ghost" onClick={() => setMonthEdit(p)}>Ay yekunu</button></td>
+                  <td className="admin-actions"><button type="button" onClick={() => setEdit(p)}>Gündəlik</button><button type="button" className="ghost" onClick={() => setMonthEdit(p)}>Ay yekunu</button>{p.entries.some((e) => e.late) && <button type="button" className="ghost" title="Gecikmə qeydlərindən intizam əmri hazırla" onClick={() => void openDiscipline(p)}>İntizam əmri</button>}</td>
                 </tr>
               ))}
               {!data.employees.length && <tr><td colSpan={10}><p className="admin-empty">İşçi yoxdur.</p></td></tr>}
             </tbody>
           </table>
         </div>
+      )}
+      {discipline && (
+        <Modal title={`İntizam əmri: ${discipline.person.name}`} onClose={() => setDiscipline(null)}>
+          <OrderMaker
+            employee={discipline.employee}
+            notify={notify}
+            initialKind="discipline"
+            prefill={{ requestId: "", kind: "discipline", from: new Date().toISOString().slice(0, 10), to: "", quantity: "", vacationKind: "", basis: discipline.basis }}
+            onSaved={() => { setDiscipline(null); notify("Əmr hazırlandı: «Əmrlər reyestri» bölməsində imza prosesini izləyin."); }}
+          />
+        </Modal>
       )}
       {edit && data && <DayHours month={month} person={edit} days={data.days} notify={notify} onClose={() => setEdit(null)} onSaved={load} />}
       {setup && data && <ClockSettings settings={data.settings} notify={notify} onClose={() => setSetup(false)} onSaved={load} />}

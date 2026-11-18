@@ -463,3 +463,12 @@ Vakansiya kartlarında şirkət loqosu (loqo yüklənir, amma namizədə göstə
 - **Kalkulyatordan əmr:** pəncərə açıldı, direktor adı yazıldı, əmr yaradıldı, imzaya göndərildi və təsdiqlə «imzalandı» oldu (yerlidə). Yerli işçinin maaşı kalkulyator məbləği ilə eyni olduğu üçün kart dəyişmədi («Kartda dəyişiklik yoxdur») — real dəyişiklik halı ayrıca sınanmayıb.
 - **«Vakansiya aç»-dan elanın tam yaradılması:** yoxlanmayıb.
 - **Bölmə 32-dəki iddialar:** davamiyyətdən intizama keçid — həqiqətən yoxdur; icazə tarixçəsi — indi var (bölmə 41); dəstək SLA-sı — qismən var (adminə ilk cavab müddəti, cavabsız sayı), hədəf müddət/prioritet yoxdur.
+
+## 43. Tərcümə, intizam keçidi, dəstək hədəfi, slayd düzəlişi
+
+- **EN/RU:** səhifə komponentləri üçün DOM səviyyəsində tərcümə (`observeTranslations` in `app/i18n.tsx`, `Joblink.tsx`-də effekt) və yeni cədvəl `lib/i18n-pages.ts` (≈450 ifadə: hesabat adları, əmr növləri, rollar, kalkulyator etiketləri, menyu təlimatı). Brauzerdə ölçüldü: EN/RU-da Azərbaycanca qalan sətirlər 2557-dən 1193-ə düşdü (-53%). Qalanlar: uzun izah cümlələri, kalkulyator sahə adları, istifadə təlimatının mətni (yalnız AZ), verilənlər (adlar, tarixlər). Yeni ifadə əlavə etmək üçün `lib/i18n-pages.ts`-ə `az|en|ru` sətri yazın.
+- **Davamiyyətdən intizam əmri:** «Davamiyyət → Saat uçotu»nda gecikməsi olan işçinin sırasında «İntizam əmri» düyməsi; əmr pəncərəsi əsas hissəsi jurnaldan (gün sayı, dəqiqə, tarixlər) dolu açılır. Yerlidə yoxlandı: əmr yaradıldı, bazada `discipline` növü və əsas mətni var.
+- **Dəstək SLA hədəfi:** adminin dəstək səhifəsində ilk cavab hədəfi (24 saat) və aşılanda xəbərdarlıq. Prioritet sahəsi yoxdur.
+- **«Vakansiya aç» (ştat boş yerindən):** HR köməkçisi sorğunu avtomatik doldurur, layihə yaranır, sahələr doldurulub yayımlandıqda elan «published» oldu (yerlidə). Ştat planında yer yoxdursa server düzgün rədd edir («Ştat planında yer yoxdur»).
+- **Slaydlar:** 26 slayd 1920×1080 ölçüdə render olunub baxıldı; taşma yoxdur. Tapılan qüsur: tünd-yaşıl fonlu slaydlarda kart başlıqları (MƏBLƏĞ, NAMİZƏD…) oxunmurdu — hər iki təqdimatda düzəldildi və yenidən dərc olundu. Şrift (Fraunces/DM Sans) sandbox-da yoxdur, ona görə şrift görünüşü yoxlanmadı.
+- Hələ edilməyib: qaranlıq rejim, vakansiya kartında loqo, illüstrasiyalar, serif başlıqlar.
