@@ -1797,9 +1797,11 @@ export default function Joblink() {
             <div className="gate-glow" />
             <div className="gate-orbit one" />
             <div className="gate-orbit two" />
-            <div className="gate-orb">
+            <div className="gate-figure">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/hero-figure.webp" alt="" width={408} height={486} decoding="async" fetchPriority="high" />
               <span className="gate-ring" />
-              <span className="gate-core">✳</span>
+              <span className="gate-badge">✳</span>
             </div>
             <div className="gate-card gate-card-match">
               <small>Nümunə: uyğunluq balı</small>
@@ -1833,6 +1835,25 @@ export default function Joblink() {
               tapın. Şirkət kimi vakansiyalar yaradın və uyğun namizədləri idarə
               edin.
             </p>
+            <form className="gate-search" action="/jobs" method="get" role="search">
+              <Search size={18} aria-hidden="true" />
+              <input name="q" type="search" placeholder="Vəzifə, şirkət və ya bacarıq" aria-label="Vakansiya axtarışı" maxLength={80} />
+              <select name="city" aria-label="Şəhər" defaultValue="">
+                <option value="">Bütün şəhərlər</option>
+                <option value="Bakı">Bakı</option>
+                <option value="Sumqayıt">Sumqayıt</option>
+                <option value="Gəncə">Gəncə</option>
+                <option value="Uzaqdan">Uzaqdan</option>
+              </select>
+              <button type="submit" className="gate-search-go">Axtar</button>
+            </form>
+            <div className="gate-chips" aria-label="Sürətli axtarış">
+              <a href="/jobs?q=Uzaqdan">Uzaqdan</a>
+              <a href="/jobs?q=Tam+ştat">Tam ştat</a>
+              <a href="/jobs?q=Mühasib">Mühasib</a>
+              <a href="/jobs?q=Satış">Satış</a>
+              <a href="/kalkulyatorlar">Maaş kalkulyatoru</a>
+            </div>
             <div className="auth-gate-role-note">
               <UserRound size={20} />
               <span>

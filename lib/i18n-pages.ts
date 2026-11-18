@@ -2090,7 +2090,53 @@ Kadr modulu aktiv deyil. «Paketlər» bölməsindən 150 ₼ + ƏDV ilə aktivl
 Sizin şirkətdə pulsuzdur (platformaya erkən qoşulduğunuz üçün)|Free in your company (because you joined the platform early)|Бесплатно в вашей компании (вы присоединились к платформе раньше)
 Kadr modulu sizdə pulsuzdur.|The HR module is free for you.|Кадровый модуль для вас бесплатный.
 Kadr ilə birlikdə istifadə et|Use together with HR|Использовать вместе с кадровым модулем
-✓ Kadr ilə birlikdə istifadə olunur|✓ Used together with HR|✓ Используется вместе с кадровым модулем`;
+✓ Kadr ilə birlikdə istifadə olunur|✓ Used together with HR|✓ Используется вместе с кадровым модулем
+SÜRƏTLİ KEÇİDLƏR|QUICK LINKS|БЫСТРЫЕ ССЫЛКИ
+İstədiyiniz yerə bir kliklə|Anywhere in one click|В нужное место в один клик
+Açıq vakansiyalar|Open vacancies|Открытые вакансии
+Şəhər, maaş və iş formatı üzrə axtarın|Search by city, salary and work format|Ищите по городу, зарплате и формату работы
+Maaş kalkulyatoru|Salary calculator|Калькулятор зарплаты
+Gross ↔ net, məzuniyyət, ixtisar, haqq-hesab|Gross ↔ net, vacation, redundancy, payslip|Gross ↔ net, отпуск, сокращение, расчётный листок
+AI ilə CV təhlili|CV analysis with AI|Анализ резюме с ИИ
+Güclü və zəif tərəfləri bir dəqiqəyə görün|See strengths and weaknesses in a minute|Увидьте сильные и слабые стороны за минуту
+Şirkət kimi başla|Start as a company|Начать как компания
+Vakansiya yaradın, namizədləri idarə edin|Create vacancies, manage candidates|Создавайте вакансии, управляйте кандидатами
+Paketlər və qiymətlər|Packages and prices|Пакеты и цены
+ƏDV-siz qiymətlər, istədiyiniz paketi seçin|Prices without VAT, choose the package you need|Цены без НДС, выберите нужный пакет
+Tez-tez verilən suallar|Frequently asked questions|Часто задаваемые вопросы
+Qeydiyyat, ödəniş və məxfilik haqqında|About sign-up, payment and privacy|О регистрации, оплате и конфиденциальности
+Hamısı|All|Все
+Uzaqdan|Remote|Удалённо
+Hibrid|Hybrid|Гибрид
+Ofisdə|In office|В офисе
+Tam ştat|Full time|Полная занятость
+Yarım ştat|Part time|Частичная занятость
+Bu süzgəclə vakansiya yoxdur. Başqa seçim edin.|No vacancies for this filter. Choose another.|Нет вакансий по этому фильтру. Выберите другой.
+Vakansiya süzgəci|Vacancy filter|Фильтр вакансий
+ƏLAQƏ|CONTACT|КОНТАКТЫ
+Sualınız var? Bizimlə danışın|Have a question? Talk to us|Есть вопрос? Поговорите с нами
+Qeydiyyatdan əvvəl və ya sonra komandamız yardıma hazırdır.|Before or after sign-up, our team is ready to help.|До или после регистрации наша команда готова помочь.
+Telefon|Phone|Телефон
+İş saatları|Working hours|Часы работы
+B.e.–Cümə, 09:00–18:00|Mon–Fri, 09:00–18:00|Пн–Пт, 09:00–18:00
+Hesab sahibləri üçün|For account holders|Для владельцев аккаунтов
+Hesabdan «Dəstək» bölməsinə yazın|Write in the «Support» section of your account|Напишите в разделе «Поддержка» в аккаунте
+Zəng et|Call|Позвонить
+Əlaqə|Contact|Контакты
+Vəzifə, şirkət və ya bacarıq|Position, company or skill|Должность, компания или навык
+Vakansiya axtarışı|Vacancy search|Поиск вакансий
+Bütün şəhərlər|All cities|Все города
+Şəhər|City|Город
+Axtar|Search|Найти
+Sürətli axtarış|Quick search|Быстрый поиск
+Mühasib|Accountant|Бухгалтер
+Satış|Sales|Продажи
+Bakı|Baku|Баку
+Sumqayıt|Sumgait|Сумгайт
+Gəncə|Ganja|Гянджа
+Axtarışa uyğun vakansiya tapılmadı. Başqa söz yoxlayın.|No vacancies matched your search. Try another word.|По запросу вакансий не найдено. Попробуйте другое слово.
+Vakansiyalar|Vacancies|Вакансии
+Kalkulyatorlar|Calculators|Калькуляторы`;
 const EN: Record<string, string> = {};
 const RU: Record<string, string> = {};
 for (const line of LINES.split("\n")) {

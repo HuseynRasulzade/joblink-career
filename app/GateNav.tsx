@@ -1,5 +1,6 @@
 "use client";
-import { ChevronDown, LogIn, UserPlus } from "lucide-react";
+import { ChevronDown, Headset, LogIn, UserPlus } from "lucide-react";
+import { CONTACT } from "@/lib/contact";
 import { useEffect, useRef, useState } from "react";
 import { localizeTree } from "./i18n";
 
@@ -9,6 +10,7 @@ const LINKS = [
   { href: "#qiymetler", label: "Qiymətlər" },
   { href: "/kalkulyatorlar", label: "Kalkulyatorlar" },
   { href: "#suallar", label: "Suallar" },
+  { href: "#elaqe", label: "Əlaqə" },
 ];
 
 // The top menu of the public page: sections of the page and one «Daxil ol» button that offers sign-in or registration.
@@ -36,6 +38,7 @@ export default function GateNav({ onAuth, language, onLanguage }: { onAuth: (wan
         ))}
       </nav>
       <div className="gate-nav-right">
+      <a className="gate-nav-phone" href={`tel:${CONTACT.phoneHref}`} aria-label={`Zəng et: ${CONTACT.phone}`}><Headset size={17} /><span>{CONTACT.phone}</span></a>
       <select className="gate-nav-lang" aria-label="Language / Dil" value={language} onChange={(e) => onLanguage(e.target.value as "az" | "en" | "ru")}>
         <option value="az">AZ</option>
         <option value="en">EN</option>

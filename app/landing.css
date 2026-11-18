@@ -480,3 +480,69 @@ img.job-tile-mark { background: #fff; padding: 4px; }
   .lg-text section, .lg-summary { background: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
   .lg-body { display: block; }
 }
+
+/* ---- landing additions: hero figure, search, phone, quick links, contact, reveal ---- */
+.gate-figure { position: absolute; left: 50%; top: 42%; width: clamp(190px, 27vmin, 330px); transform: translate(-50%, -50%); animation: gate-orb-float 7s ease-in-out infinite; }
+.gate-figure img { display: block; width: 100%; height: auto; -webkit-mask-image: radial-gradient(ellipse 50% 52% at 50% 46%, #000 55%, transparent 98%); mask-image: radial-gradient(ellipse 50% 52% at 50% 46%, #000 55%, transparent 98%); }
+.gate-figure::before { content: ""; position: absolute; inset: -12%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 120, 60, 0.5), transparent 65%); z-index: -1; }
+.gate-figure .gate-ring { position: absolute; inset: -9% -14% -4%; border-radius: 50%; border: 2px solid rgba(255, 220, 190, 0.5); border-left-color: transparent; border-bottom-color: transparent; animation: gate-spin 16s linear infinite; }
+.gate-badge { position: absolute; right: -4%; bottom: 14%; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: #fff; font-size: 22px; background: linear-gradient(135deg, #d94c18, #b53713); box-shadow: 0 0 30px rgba(255, 110, 50, 0.6); }
+.gate-search { display: flex; align-items: center; gap: 8px; max-width: 640px; margin: 22px 0 12px; padding: 8px 8px 8px 16px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.28); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); color: #ffe4d2; }
+.gate-search input, .gate-search select { background: transparent !important; border: 0 !important; color: #fff !important; outline: none; min-width: 0; font-size: 15px; box-shadow: none !important; }
+.gate-search input { flex: 1; }
+.gate-search input::placeholder { color: rgba(255, 228, 210, 0.7); }
+.gate-search select { max-width: 150px; border-left: 1px solid rgba(255, 255, 255, 0.25) !important; border-radius: 0 !important; padding-left: 12px; }
+.gate-search select option { background: #1c0c0a; color: #f6e6dc; }
+.gate-search:focus-within { border-color: #ff8a4c; box-shadow: 0 0 0 3px rgba(255, 138, 76, 0.25); }
+.gate-search-go { border: 0; border-radius: 999px; padding: 11px 22px; font-weight: 800; color: #fff; cursor: pointer; background: linear-gradient(135deg, #d94c18, #b53713); }
+.gate-chips { display: flex; flex-wrap: wrap; gap: 8px; max-width: 640px; margin: 0 0 6px; }
+.gate-chips a { padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #ffe4d2; text-decoration: none; border: 1px dashed rgba(255, 255, 255, 0.4); transition: background 0.15s, border-color 0.15s, transform 0.15s; }
+.gate-chips a:hover { background: rgba(255, 138, 76, 0.25); border-color: #ff8a4c; transform: translateY(-2px); }
+.gate-nav-right { display: flex; align-items: center; gap: 10px; }
+.gate-nav-phone { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; color: #ffe4d2; text-decoration: none; font-weight: 700; font-size: 14px; white-space: nowrap; transition: background 0.15s; }
+.gate-nav-phone:hover { background: rgba(255, 255, 255, 0.12); }
+.gate-nav-phone svg { color: #ff9a5c; }
+@media (max-width: 1180px) { .gate-nav-phone span { display: none; } .gate-nav-phone { padding: 10px; } }
+@media (max-width: 1000px) { .gate-search { flex-wrap: wrap; border-radius: 22px; } .gate-search select { max-width: none; border-left: 0 !important; } }
+.pj-search { margin: 18px auto 14px; }
+.job-filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 0 22px; }
+.job-filters button { padding: 8px 16px; border-radius: 999px; font-weight: 700; font-size: 14px; color: #ffe4d2; cursor: pointer; background: rgba(255, 255, 255, 0.08); border: 1px dashed rgba(255, 255, 255, 0.4); transition: background 0.15s, transform 0.15s; }
+.job-filters button:hover { transform: translateY(-2px); background: rgba(255, 138, 76, 0.22); }
+.job-filters button.on { background: linear-gradient(135deg, #d94c18, #b53713); border: 1px solid transparent; color: #fff; }
+.qlinks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.qlink { position: relative; display: flex; align-items: center; gap: 14px; padding: 20px; text-align: left; border-radius: 18px; text-decoration: none; cursor: pointer; color: #f6e6dc; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s; }
+.qlink:hover { transform: translateY(-4px); border-color: rgba(255, 150, 90, 0.55); background: rgba(255, 138, 76, 0.12); box-shadow: 0 18px 44px rgba(232, 100, 44, 0.25); }
+.qlink .landing-icon { margin: 0; flex: none; }
+.qlink-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.qlink-text b { color: #fff; font-size: 16px; }
+.qlink-text small { color: #d8bfb0; font-size: 13.5px; line-height: 1.35; }
+.qlink-arrow { flex: none; color: #ff9a5c; transition: transform 0.2s; }
+.qlink:hover .qlink-arrow { transform: translate(3px, -3px); }
+@media (max-width: 900px) { .qlinks { grid-template-columns: 1fr; } }
+.contact-card { display: grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap: 22px; align-items: center; padding: 26px 30px; border-radius: 22px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28); }
+.contact-phone, .contact-meta { display: flex; align-items: center; gap: 14px; text-decoration: none; color: #f6e6dc; }
+.contact-phone b { font-size: clamp(20px, 2.6vw, 28px); letter-spacing: -0.5px; color: #fff; }
+.contact-phone small, .contact-meta small { display: block; color: #d8bfb0; font-size: 12.5px; }
+.contact-meta b { color: #fff; font-size: 15px; }
+.contact-phone .landing-icon, .contact-meta .landing-icon { margin: 0; flex: none; }
+.contact-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.contact-actions .primary, .contact-actions .secondary { display: inline-flex; align-items: center; text-decoration: none; padding: 12px 20px; border-radius: 999px; font-weight: 700; cursor: pointer; }
+@media (max-width: 1100px) { .contact-card { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 640px) { .contact-card { grid-template-columns: 1fr; padding: 22px; } }
+.landing-footer-links a { color: #ffb48a; }
+.reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.6s ease var(--d, 0ms), transform 0.6s ease var(--d, 0ms); }
+.reveal.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } .gate-figure { animation: none; } }
+@media (max-width: 1000px) {
+  .gate-stage { display: block !important; position: relative; inset: auto; height: 250px; margin-top: 64px; }
+  .gate-stage .gate-card, .gate-stage .gate-orbit { display: none; }
+  .gate-figure { width: 190px; top: 50%; }
+  .gate-copy { padding-top: 6px !important; }
+}
+@media (max-width: 560px) {
+  .gate-nav { gap: 8px; padding: 10px 14px; }
+  .gate-nav-btn { white-space: nowrap; padding: 9px 14px; }
+  .gate-nav-brand { font-size: 22px; }
+  .gate-nav-phone { padding: 8px; }
+}
+@media (max-width: 560px) { .gate-search input { flex: 1 1 100%; padding: 6px 0; } .gate-search select { flex: 1; } .gate-search-go { flex: none; } }

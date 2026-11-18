@@ -586,3 +586,11 @@ Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), 
 - `app/ember.css` **avtomatik yaranır**: `node scripts/gen-ember-theme.mjs` açıq stil fayllarını oxuyur və hər rəngi rolu üzrə (fon, mətn, xətt, kölgə, qrafik pilləsi) ember palitrasına çevirir. Yeni komponent əlavə edəndən sonra bu əmri işlədin və faylı commit edin.
 - Əllə yazılan hissə `app/ember-base.css`-dir (dəyişənlər, forma sahələri, düymələr, yan menyu, kartlar, komponentlərin içində birbaşa yazılmış rənglər). Çap zamanı tünd tema tətbiq olunmur (`@media screen`).
 - **Oxunaqlıq yoxlaması:** hər üç paneldə (işəgötürən 29, namizəd 14, admin 24 səhifə) və yazı sahələrində avtomatik kontrast ölçüldü (mətn rəngi ilə həqiqi fon, şəffaf qatlar toplanaraq; WCAG 4,5:1, böyük yazı 3:1). Tapılan zəif yerlər düzəldildi: narıncı düymə/nişanlarda yazı ağ, açıq tonlu hüceyrələrdə (təqvim, davamiyyət, növbə) tünd yazı, uçan qatlar (bildiriş, pəncərə, menyu) şəffaf yox, tam qeyri-şəffaf; açılış səhifəsində narıncı düymələr tündləşdirildi.
+
+## 58. Giriş səhifəsi: dəbilqəli fiqur, axtarış, telefon, keçidlər
+
+- **Hero:** parlaq kürənin yerinə istifadəçinin göndərdiyi istinad şəklindən kəsilmiş dəbilqəli fiqur (`public/hero-figure.webp`; mənbə şəkil kiçikdir, 3 dəfə böyüdülüb, kənarları yumşaq maskalanıb). Orijinal yüksək ölçülü fayl olsa əvəz edilə bilər.
+- **Axtarış:** hero-da «Vəzifə, şirkət, bacarıq + şəhər» axtarışı və sürətli çiplər; `/jobs?q=&city=` açıq vakansiya səhifəsində süzgəc kimi işləyir (vəzifə, şirkət, şəhər, format, növ, kateqoriya, tələblər üzrə).
+- **Telefon:** yuxarı menyuda qulaqlıq işarəsi ilə nömrə (`tel:` linki), telefonda yalnız işarə; «Əlaqə» bölməsi və footer. Nömrə `lib/contact.ts`-dədir və **yer tutucudur**: açıqlamadan əvvəl real nömrə yazılmalıdır.
+- **Yeni bölmələr:** «Sürətli keçidlər» (vakansiyalar, kalkulyator, CV təhlili, şirkət kimi başla, qiymətlər, suallar), vakansiyalarda format süzgəci (Uzaqdan/Hibrid/Ofisdə/Tam ştat/Yarım ştat), «Əlaqə» kartı; aşağıdakı bloklar görünəndə yumşaq açılır (hərəkət azaldılmışsa söndürülür).
+- Yeni mətnlər 3 dildədir (`lib/i18n-pages.ts`).

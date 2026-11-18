@@ -1,13 +1,23 @@
 "use client";
 import { COMPANY_AI_PACKAGES, HR_MODULE_BUNDLE_PRICE_AZN, HR_MODULE_PRICE_AZN } from "@/lib/ai-packages";
 import { PLANS } from "@/lib/plans";
-import { useEffect, useState } from "react";
-import { Briefcase, CalendarClock, Calculator, ChartNoAxesColumn, Check, FileSpreadsheet, Languages, Lock, Network, Plane, Scale, Sparkles, Users, UserSearch, Wallet } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowUpRight, Briefcase, Building2, CalendarClock, Calculator, ChartNoAxesColumn, Check, FileSpreadsheet, Headset, HelpCircle, Languages, Lock, Mail, Network, Phone, Plane, Scale, Sparkles, Tag, Users, UserSearch, Wallet } from "lucide-react";
+import { CONTACT } from "@/lib/contact";
 import { calculateFromGross, calculateFromNet, type Sector } from "@/lib/salary";
 import SuperGross from "./SuperGross";
 import { localizeTree } from "./i18n";
 
 // The public page under the sign-in: what the platform is, for whom, how it starts, what it costs.
+const QLINKS: { title: string; text: string; icon: typeof Briefcase; href?: string }[] = [
+  { title: "Açıq vakansiyalar", text: "Şəhər, maaş və iş formatı üzrə axtarın", icon: Briefcase, href: "/jobs" },
+  { title: "Maaş kalkulyatoru", text: "Gross ↔ net, məzuniyyət, ixtisar, haqq-hesab", icon: Calculator, href: "/kalkulyatorlar" },
+  { title: "AI ilə CV təhlili", text: "Güclü və zəif tərəfləri bir dəqiqəyə görün", icon: Sparkles },
+  { title: "Şirkət kimi başla", text: "Vakansiya yaradın, namizədləri idarə edin", icon: Building2 },
+  { title: "Paketlər və qiymətlər", text: "ƏDV-siz qiymətlər, istədiyiniz paketi seçin", icon: Tag, href: "#qiymetler" },
+  { title: "Tez-tez verilən suallar", text: "Qeydiyyat, ödəniş və məxfilik haqqında", icon: HelpCircle, href: "#suallar" },
+];
+
 const ROLES = [
   { tag: "İŞ AXTARANLAR", title: "İş tapın", text: "CV analizi, uyğunluq balı, bir kliklə müraciət və hər mərhələnin izlənməsi.", points: ["AI ilə CV təhlili və tövsiyələr", "Vakansiyaya uyğunluq faizi", "13 kalkulyator: maaş, məzuniyyət, müavinət"] },
   { tag: "İŞƏ QƏBUL", title: "Namizəd seçin", text: "Elandan təklifə qədər bütün proses bir yerdə.", points: ["AI ilə vakansiya hazırlamaq", "Namizəd qıfı və müsahibə skorkartı", "Test, təklif məktubu, analitika"] },
@@ -96,15 +106,18 @@ const salaryText = (j: PublicJob) => (j.minSalary || j.maxSalary ? `${j.minSalar
 // Real open vacancies when there are any, the platform's sample vacancies otherwise (marked «Nümunə»).
 function JobsShowcase({ onAuth }: { onAuth: (want: "login" | "register") => void }) {
   const [jobs, setJobs] = useState<PublicJob[] | null>(null);
+  const [filter, setFilter] = useState("");
   useEffect(() => {
     let alive = true;
     fetch("/api/joblink/state", { cache: "no-store" })
       .then((r) => (r.ok ? (r.json() as Promise<{ jobs?: PublicJob[] }>) : Promise.resolve({ jobs: [] as PublicJob[] })))
-      .then((d) => { if (alive) setJobs((d.jobs || []).filter((j) => !(j as { external?: unknown }).external).slice(0, 6)); })
+      .then((d) => { if (alive) setJobs((d.jobs || []).filter((j) => !(j as { external?: unknown }).external).slice(0, 18)); })
       .catch(() => { if (alive) setJobs([]); });
     return () => { alive = false; };
   }, []);
   if (jobs && !jobs.length) return null;
+  const chips = ["Uzaqdan", "Hibrid", "Ofisdə", "Tam ştat", "Yarım ştat"];
+  const shown = jobs ? jobs.filter((j) => !filter || [j.mode, j.type].some((v) => (v || "").toLocaleLowerCase("az").includes(filter.toLocaleLowerCase("az")))).slice(0, 6) : null;
   return (
     <section className="landing-block" id="vakansiyalar">
       <header className="landing-head">
@@ -112,8 +125,13 @@ function JobsShowcase({ onAuth }: { onAuth: (want: "login" | "register") => void
         <h2>Elanlar bu formatda görünür</h2>
         <p className="landing-lead">Namizəd vakansiyanı filtrlərlə tapır, uyğunluq balını görür və bir kliklə müraciət edir. İşəgötürən elanı AI köməkçi ilə hazırlayır.</p>
       </header>
+      <div className="job-filters" role="group" aria-label="Vakansiya süzgəci">
+        <button type="button" className={!filter ? "on" : ""} aria-pressed={!filter} onClick={() => setFilter("")}>Hamısı</button>
+        {chips.map((c) => <button type="button" key={c} className={filter === c ? "on" : ""} aria-pressed={filter === c} onClick={() => setFilter(filter === c ? "" : c)}>{c}</button>)}
+      </div>
+      {shown && !shown.length && <p className="landing-note">Bu süzgəclə vakansiya yoxdur. Başqa seçim edin.</p>}
       <div className="landing-jobs">
-        {(jobs || Array.from({ length: 3 }, () => null)).map((j, i) =>
+        {(shown || Array.from({ length: 3 }, () => null)).map((j, i) =>
           j ? (
             <article className="job-tile" key={j.id}>
               <div className="job-tile-top">
@@ -151,8 +169,38 @@ function JobsShowcase({ onAuth }: { onAuth: (want: "login" | "register") => void
 export default function Landing({ onAuth }: { onAuth: (want: "login" | "register") => void }) {
   const [audience, setAudience] = useState<"seeker" | "company">("seeker");
   const signup = () => onAuth("register");
+  const root = useRef<HTMLDivElement>(null);
+  // Gentle reveal: blocks below the fold fade and slide in as they are scrolled to.
+  useEffect(() => {
+    const node = root.current;
+    if (!node || typeof IntersectionObserver === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const io = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: 0.12 });
+    const timer = window.setTimeout(() => {
+      node.querySelectorAll<HTMLElement>(".landing-card, .landing-step, .landing-features li, .job-tile, .qlink, .landing-head, .contact-card").forEach((el, i) => {
+        if (el.getBoundingClientRect().top < window.innerHeight) return;
+        el.style.setProperty("--d", `${(i % 4) * 70}ms`);
+        el.classList.add("reveal");
+        io.observe(el);
+      });
+    }, 400);
+    return () => { window.clearTimeout(timer); io.disconnect(); };
+  }, []);
   return localizeTree(
-    <div className="landing">
+    <div className="landing" ref={root}>
+      <section className="landing-block" id="kecidler">
+        <header className="landing-head">
+          <p className="landing-eyebrow">SÜRƏTLİ KEÇİDLƏR</p>
+          <h2>İstədiyiniz yerə bir kliklə</h2>
+        </header>
+        <div className="qlinks">
+          {QLINKS.map((q) => {
+            const Icon = q.icon;
+            const inner = (<><span className="landing-icon"><Icon size={22} /></span><span className="qlink-text"><b>{q.title}</b><small>{q.text}</small></span><ArrowUpRight className="qlink-arrow" size={18} /></>);
+            return q.href ? <a className="qlink" key={q.title} href={q.href}>{inner}</a> : <button type="button" className="qlink" key={q.title} onClick={signup}>{inner}</button>;
+          })}
+        </div>
+      </section>
+
       <section className="landing-block" id="kimler">
         <header className="landing-head">
           <p className="landing-eyebrow">KİMLƏR ÜÇÜN</p>
@@ -286,6 +334,20 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
         </div>
       </section>
 
+      <section className="landing-block" id="elaqe">
+        <header className="landing-head">
+          <p className="landing-eyebrow">ƏLAQƏ</p>
+          <h2>Sualınız var? Bizimlə danışın</h2>
+          <p className="landing-lead">Qeydiyyatdan əvvəl və ya sonra komandamız yardıma hazırdır.</p>
+        </header>
+        <div className="contact-card">
+          <a className="contact-phone" href={`tel:${CONTACT.phoneHref}`}><span className="landing-icon"><Phone size={22} /></span><span><small>Telefon</small><b>{CONTACT.phone}</b></span></a>
+          <div className="contact-meta"><span className="landing-icon sm"><Headset size={18} /></span><span><small>İş saatları</small><b>{CONTACT.hours}</b></span></div>
+          <div className="contact-meta"><span className="landing-icon sm"><Mail size={18} /></span><span><small>Hesab sahibləri üçün</small><b>Hesabdan «Dəstək» bölməsinə yazın</b></span></div>
+          <div className="contact-actions"><a className="primary" href={`tel:${CONTACT.phoneHref}`}>Zəng et</a><button type="button" className="secondary" onClick={signup}>Qeydiyyatdan keç</button></div>
+        </div>
+      </section>
+
       <section className="landing-band">
         <h2>Bu gün pulsuz başlayın</h2>
         <p>Hesab açın, profilinizi və ya şirkətinizi qurun, ilk nəticəni bu gün alın.</p>
@@ -294,6 +356,7 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
 
       <footer className="landing-footer">
         <span>jobmatch<span className="star">✳</span></span>
+        <span className="landing-footer-links"><a href="/jobs">Vakansiyalar</a> · <a href="/kalkulyatorlar">Kalkulyatorlar</a> · <a href="#qiymetler">Qiymətlər</a> · <a href={`tel:${CONTACT.phoneHref}`}>{CONTACT.phone}</a></span>
         <span><a href="/terms" target="_blank" rel="noreferrer">İstifadə şərtləri</a> · <a href="/privacy" target="_blank" rel="noreferrer">Məxfilik siyasəti</a></span>
       </footer>
     </div>,
