@@ -16,7 +16,18 @@ type Thread = {
   user_role?: string;
   last_message: string | null;
   unread_replies?: number;
+  meta?: string;
+  created?: string;
 };
+// A request marked urgent by its author (stored in the thread meta); the target for the first answer is shorter.
+const isUrgent = (thread: Thread) => {
+  try {
+    return (JSON.parse(thread.meta || "{}") as { priority?: string }).priority === "high";
+  } catch {
+    return false;
+  }
+};
+const URGENT_TARGET_HOURS = 4;
 type Message = { id: string; author_role: string; body: string; created: string; attachment_name?: string };
 type Attachment = { name: string; type: string; data: string };
 function pickFile(event: React.ChangeEvent<HTMLInputElement>, onPick: (file: Attachment) => void, notify: (m: string) => void) {
@@ -67,7 +78,7 @@ export default function SupportPage({
   const [active, setActive] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ topic: "suggestion", subject: "", body: "" });
+  const [form, setForm] = useState({ topic: "suggestion", subject: "", body: "", urgent: false });
   const [reply, setReply] = useState("");
   const [formFile, setFormFile] = useState<Attachment | null>(null);
   const [replyFile, setReplyFile] = useState<Attachment | null>(null);
@@ -108,10 +119,10 @@ export default function SupportPage({
     event.preventDefault();
     setBusy(true);
     try {
-      await request("support/create", { ...form, attachment: formFile || undefined });
+      await request("support/create", { topic: form.topic, subject: form.subject, body: form.body, meta: { priority: form.urgent ? "high" : "normal" }, attachment: formFile || undefined });
       setFormFile(null);
       notify(t("Sorğunuz göndərildi. Statusunu bu bölmədə izləyə bilərsiniz."));
-      setForm({ topic: "suggestion", subject: "", body: "" });
+      setForm({ topic: "suggestion", subject: "", body: "", urgent: false });
       setCreating(false);
       await load();
     } catch (error) {
@@ -137,9 +148,11 @@ export default function SupportPage({
     }
   }
 
-  const visible = threads.filter(
-    (thread) => (!filter.status || thread.status === filter.status) && (!filter.topic || thread.topic === filter.topic),
-  );
+  // Urgent requests that are still open come first.
+  const visible = threads
+    .filter((thread) => (!filter.status || thread.status === filter.status) && (!filter.topic || thread.topic === filter.topic))
+    .sort((a, b) => Number(isUrgent(b) && b.status !== "closed") - Number(isUrgent(a) && a.status !== "closed"));
+  const urgentLate = threads.filter((x) => isUrgent(x) && x.status === "new" && x.created && Date.now() - Date.parse(x.created) > URGENT_TARGET_HOURS * 3600000).length;
   return (
     <div className="messages-page support-page">
       <aside className="conversation-list">
@@ -151,7 +164,8 @@ export default function SupportPage({
         {admin && sla && (
           <p className="muted fine-print" title="Son 30 gündə açılan sorğular üzrə">
             İlk cavab: orta {sla.avgFirstReplyHours === null ? "—" : `${sla.avgFirstReplyHours} saat`} · cavabsız {sla.unanswered}{sla.oldestWaitingHours !== null ? ` (ən köhnəsi ${Math.round(sla.oldestWaitingHours)} saat)` : ""}
-            {` · hədəf: ilk cavab ${SUPPORT_TARGET_HOURS} saat`}
+            {` · hədəf: ilk cavab ${SUPPORT_TARGET_HOURS} saat (təcili: ${URGENT_TARGET_HOURS} saat)`}
+            {urgentLate > 0 ? <b style={{ color: "#a04a1c" }}> · təcili cavabsız: {urgentLate}</b> : null}
             {sla.oldestWaitingHours !== null && sla.oldestWaitingHours > SUPPORT_TARGET_HOURS ? <b style={{ color: "#a04a1c" }}> · hədəf aşılıb: cavabsız sorğu var</b> : sla.avgFirstReplyHours !== null && sla.avgFirstReplyHours > SUPPORT_TARGET_HOURS ? <b style={{ color: "#a04a1c" }}> · orta müddət hədəfdən çoxdur</b> : null}
           </p>
         )}
@@ -175,6 +189,7 @@ export default function SupportPage({
                   {thread.subject}
                   {!admin && Number(thread.unread_replies) > 0 && <span className="unread-dot">{thread.unread_replies}</span>}
                   {admin && thread.status === "new" && <span className="unread-dot">•</span>}
+                  {isUrgent(thread) && <span className="demo-tag" style={{ background: "#fde8d6", color: "#a04a1c" }}>{t("Təcili")}</span>}
                 </strong>
                 <small>
                   {t(supportTopicLabel(thread.topic))}
@@ -206,6 +221,9 @@ export default function SupportPage({
             <label className="field">
               <span>{t("Mesaj")}</span>
               <textarea required rows={6} maxLength={4000} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
+            </label>
+            <label className="checkline">
+              <input type="checkbox" checked={form.urgent} onChange={(e) => setForm({ ...form, urgent: e.target.checked })} /> {t("Təcili: iş dayanıb və ya məlumat itir")}
             </label>
             <label className="field">
               <span>{t("Fayl əlavə et (PDF və ya şəkil, 500 KB-a qədər, istəyə bağlı)")}</span>

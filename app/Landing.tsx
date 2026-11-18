@@ -27,7 +27,6 @@ const FAQ = [
 const azn = (n: number) => `${n.toLocaleString("az-AZ")} ₼`;
 
 export default function Landing() {
-  const candidatePlans = PLANS.filter((p) => p.priceAzn > 0);
   const top = (id: string) => { const el = document.querySelector(".auth-gate-panel"); el?.scrollIntoView({ behavior: "smooth", block: "center" }); void id; };
   return localizeTree(
     <div className="landing">
@@ -66,19 +65,33 @@ export default function Landing() {
       <section className="landing-block tint">
         <p className="landing-eyebrow">QİYMƏTLƏR</p>
         <h2>Pulsuz başlayın, ehtiyac artdıqca paket seçin</h2>
-        <div className="landing-grid two">
-          <article className="landing-card">
-            <span className="landing-tag">İŞ AXTARANLAR · AYLIQ</span>
-            <p className="landing-price">0–{Math.max(...candidatePlans.map((p) => p.priceAzn))} ₼</p>
-            <p>Paketsiz istifadə pulsuzdur.</p>
-            <ul>{candidatePlans.map((p) => <li key={p.id}>{p.name}: {azn(p.priceAzn)}</li>)}</ul>
-          </article>
-          <article className="landing-card">
-            <span className="landing-tag">ŞİRKƏTLƏR · AYLIQ, ƏDV DAXİL</span>
-            <p className="landing-price">0–{Math.max(...COMPANY_AI_PACKAGES.map((p) => p.priceAzn))} ₼</p>
-            <p>AI paketi aylıq təhlil və sıralama sayını müəyyən edir.</p>
-            <ul>{COMPANY_AI_PACKAGES.map((p) => <li key={p.id}>{p.name}: {p.priceAzn ? azn(p.priceAzn) : "pulsuz"}</li>)}</ul>
-          </article>
+        <h3 className="landing-sub">İş axtaranlar üçün paketlər</h3>
+        <p className="landing-note">Aylıq ödəniş. Paketsiz istifadə pulsuzdur.</p>
+        <div className="landing-plans cols3">
+          {PLANS.map((p) => (
+            <article className="landing-card plan-card" key={p.id}>
+              <span className="landing-tag">{p.name}</span>
+              <p className="landing-price">{p.priceAzn ? azn(p.priceAzn) : "Pulsuz"}</p>
+              <p className="plan-summary">{p.summary}</p>
+              <ul>{p.features.map((f) => <li key={f}>{f}</li>)}</ul>
+            </article>
+          ))}
+        </div>
+        <h3 className="landing-sub">Şirkətlər üçün AI paketləri</h3>
+        <p className="landing-note">Aylıq ödəniş, ƏDV daxil. Ştat, əmrlər, əmək haqqı və bütün HR alətləri hər paketə daxildir; paket yalnız AI analizinin sayını müəyyən edir. Limit bitəndə əlavə analiz paketi almaq olar.</p>
+        <div className="landing-plans cols5">
+          {COMPANY_AI_PACKAGES.map((p) => (
+            <article className="landing-card plan-card" key={p.id}>
+              <span className="landing-tag">{p.name}</span>
+              <p className="landing-price">{p.priceAzn ? azn(p.priceAzn) : "Pulsuz"}</p>
+              <ul>
+                <li><b>{p.fullPerMonth}</b> tam CV analizi / ay</li>
+                <li><b>{p.rankPerMonth}</b> AI reytinqi / ay</li>
+                <li>Bütün HR alətləri</li>
+                <li>Əlavə analiz paketi alıla bilər</li>
+              </ul>
+            </article>
+          ))}
         </div>
       </section>
 

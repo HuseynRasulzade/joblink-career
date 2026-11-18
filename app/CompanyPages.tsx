@@ -12,6 +12,7 @@ import {
   UserPlus,
   Users,
   XCircle,
+  Sparkles,
 } from "lucide-react";
 import { REJECTION_NOTE_TEMPLATES, waitingLabel } from "@/lib/review-queue";
 import {
@@ -3436,11 +3437,114 @@ const INVOICE_STATE: Record<string, string> = {
   overdue: "Gecikir",
   cancelled: "Ləğv edilib",
 };
+type AiAccount = {
+  month: string;
+  current: { id: string; name: string; priceAzn: number; fullPerMonth: number; rankPerMonth: number };
+  used: { full: number; rank: number };
+  monthly: { full: number; rank: number };
+  credits: { full: number; rank: number };
+  left: { full: number; rank: number };
+  packages: { id: string; name: string; priceAzn: number; fullPerMonth: number; rankPerMonth: number }[];
+  topupPacks: { id: string; name: string; priceAzn: number; full: number; rank: number }[];
+  purchases: { id: string; pack_id: string; full_count: number; rank_count: number; price_cents: number; created: string }[];
+};
+// The company's AI package: what is left this month, switching the package and buying extra analyses (each paid step makes an invoice below).
+function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () => void }) {
+  const [data, reload] = useLoad<AiAccount>("company/ai-account", notify);
+  const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const bar = (left: number, total: number) => (
+    <div style={{ height: 8, borderRadius: 6, background: "#e3ece8", overflow: "hidden", marginTop: 4 }}>
+      <div style={{ width: `${total ? Math.max(0, Math.min(100, (left / total) * 100)) : 0}%`, height: "100%", background: left / Math.max(1, total) < 0.15 ? "#d9822b" : "#2aa595" }} />
+    </div>
+  );
+  async function act(path: string, body: unknown, confirmText: string) {
+    if (!window.confirm(confirmText)) return;
+    setBusy(true);
+    try {
+      const r = await request<{ message: string }>(path, body);
+      notify(r.message);
+      reload();
+      onChanged();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const c = data.current;
+  return (
+    <section className="panel">
+      <div className="section-heading">
+        <h3>
+          <Sparkles size={18} /> AI paketi və əlavə analiz
+        </h3>
+        <small className="muted">{data.month}</small>
+      </div>
+      <p className="muted fine-print">Aktiv paket: <b>{c.name}</b>{c.priceAzn ? ` · ${c.priceAzn} ₼/ay (ƏDV daxil)` : " · pulsuz"}. Ödənişli dəyişiklik hesab-faktura yaradır; ödəniş bank köçürməsi ilə aşağıdakı «Hesab-fakturalar»da qeyd olunur.</p>
+      <div className="kpi-grid">
+        <div className="kpi">
+          <small>Tam CV analizi: qalıb</small>
+          <strong>{data.left.full}</strong>
+          <span className="muted">aylıq {data.monthly.full}/{c.fullPerMonth}{data.credits.full ? ` + əlavə ${data.credits.full}` : ""}</span>
+          {bar(data.monthly.full, c.fullPerMonth)}
+        </div>
+        <div className="kpi">
+          <small>AI reytinqi: qalıb</small>
+          <strong>{data.left.rank}</strong>
+          <span className="muted">aylıq {data.monthly.rank}/{c.rankPerMonth}{data.credits.rank ? ` + əlavə ${data.credits.rank}` : ""}</span>
+          {bar(data.monthly.rank, c.rankPerMonth)}
+        </div>
+      </div>
+      <h4 style={{ margin: "16px 0 8px" }}>Paketi dəyiş</h4>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
+        {data.packages.map((p) => (
+          <div key={p.id} className="panel" style={{ margin: 0, padding: 12, borderColor: p.id === c.id ? "#2aa595" : undefined }}>
+            <b>{p.name}</b>
+            <div>{p.priceAzn ? `${p.priceAzn} ₼/ay` : "Pulsuz"}</div>
+            <small className="muted">{p.fullPerMonth} tam analiz · {p.rankPerMonth} reytinq</small>
+            <div style={{ marginTop: 8 }}>
+              {p.id === c.id ? (
+                <span className="demo-tag">Aktiv</span>
+              ) : (
+                <button type="button" className={p.priceAzn > c.priceAzn ? "primary" : "secondary"} disabled={busy} onClick={() => act("company/ai-plan/change", { planId: p.id }, p.priceAzn > c.priceAzn ? `«${p.name}» paketinə keçilsin? ${p.priceAzn} ₼ (ƏDV daxil) hesab-faktura yaranacaq.` : `«${p.name}» paketinə keçilsin? Aylıq limit azalır, ödənilmiş məbləğ geri qaytarılmır.`)}>
+                  {p.priceAzn > c.priceAzn ? "Yüksəlt" : "Keç"}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <h4 style={{ margin: "16px 0 8px" }}>Əlavə analiz al</h4>
+      <p className="muted fine-print">Aylıq limit bitəndə istifadə olunur; müddəti bitmir.</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+        {data.topupPacks.map((t) => (
+          <div key={t.id} className="panel" style={{ margin: 0, padding: 12 }}>
+            <b>{t.name}</b>
+            <div>{t.priceAzn} ₼ <small className="muted">(ƏDV daxil)</small></div>
+            <small className="muted">+{t.full} tam analiz · +{t.rank} reytinq</small>
+            <div style={{ marginTop: 8 }}>
+              <button type="button" className="secondary" disabled={busy} onClick={() => act("company/ai-topup", { packId: t.id }, `«${t.name}» alınsın? ${t.priceAzn} ₼ (ƏDV daxil) hesab-faktura yaranacaq, analizlər dərhal əlavə olunur.`)}>
+                Al
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {data.purchases.length > 0 && (
+        <p className="muted fine-print" style={{ marginTop: 10 }}>
+          Son alışlar: {data.purchases.slice(0, 5).map((x) => `${x.created.slice(0, 10)} · +${x.full_count}/+${x.rank_count} · ${(x.price_cents / 100).toFixed(2)} ₼`).join("  |  ")}
+        </p>
+      )}
+    </section>
+  );
+}
 export function BillingPage({ notify }: { notify: Notify }) {
-  const [data] = useLoad<Billing>("company/billing", notify);
+  const [data, reloadBilling] = useLoad<Billing>("company/billing", notify);
   if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
+      <AiAccountPanel notify={notify} onChanged={reloadBilling} />
       <div className="kpi-grid">
         <div className="kpi">
           <small>Hesablanıb</small>

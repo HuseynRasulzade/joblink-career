@@ -80,3 +80,15 @@
 .nav-group-head { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 14px 6px; margin-top: 6px; background: none; border: none; cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: #7b8e8a; text-align: left; }
 .nav-group-head:hover { color: #147b70; }
 .nav-group-head i { font-style: normal; font-size: 16px; line-height: 1; }
+
+.landing-sub { font-size: 24px; margin: 40px 0 4px; }
+.landing-note { color: #55696d; margin: 0 0 16px; max-width: 900px; font-size: 15px; }
+.landing-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+.plan-card { padding: 22px; }
+.plan-card .landing-price { font-size: 32px; }
+.plan-card .plan-summary { font-size: 14px; color: #55696d; margin: 0 0 6px; }
+.plan-card ul { font-size: 14.5px; line-height: 1.55; }
+.landing-plans.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.landing-plans.cols5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .landing-plans.cols5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .landing-plans.cols3, .landing-plans.cols5 { grid-template-columns: 1fr; } }

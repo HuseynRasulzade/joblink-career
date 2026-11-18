@@ -32,3 +32,15 @@ export const worstCaseNetShare = (p: CompanyAiPackage) =>
 export const monthKey = (at = new Date()) => at.toISOString().slice(0, 7);
 export type AiUsage = { full: number; rank: number };
 export const quotaLeft = (p: CompanyAiPackage, used: AiUsage) => ({ full: Math.max(0, p.fullPerMonth - used.full), rank: Math.max(0, p.rankPerMonth - used.rank) });
+
+// Extra analyses bought on top of the monthly package. They do not expire; they are used only after the month's quota is spent.
+// The price keeps at least a 25% net profit in the worst case (all spent on OpenAI), like the medium package.
+export type AiTopup = { id: string; name: string; priceAzn: number; full: number; rank: number };
+export const AI_TOPUPS: AiTopup[] = [
+  { id: "t-small", name: "Kiçik əlavə paket", priceAzn: 12, full: 200, rank: 1500 },
+  { id: "t-medium", name: "Orta əlavə paket", priceAzn: 59, full: 1000, rank: 7000 },
+  { id: "t-large", name: "Böyük əlavə paket", priceAzn: 169, full: 3000, rank: 20000 },
+];
+export const topupById = (id: string) => AI_TOPUPS.find((t) => t.id === id) || null;
+export const topupNetShare = (t: AiTopup) =>
+  (t.priceAzn * (1 - COST_SHARES.vat - COST_SHARES.payment - COST_SHARES.running) - (t.full * FULL_COST_AZN + t.rank * RANK_COST_AZN)) / t.priceAzn;

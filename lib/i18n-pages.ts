@@ -447,7 +447,177 @@ Digər gözləyən təsdiqlər|Other pending approvals|Другие ожидаю
 Ezamiyyət sorğuları|Business trip requests|Запросы на командировки
 Çatışmayanlar:|Missing:|Не хватает:
 Şəxsi məlumatların şifrələnməsi|Personal data encryption|Шифрование личных данных
-Rəhbər|Lead|Руководитель`;
+Rəhbər|Lead|Руководитель
+AI paketi və əlavə analiz|AI package and extra analyses|ИИ-пакет и дополнительные анализы
+Tam CV analizi: qalıb|Full CV analysis: left|Полный анализ резюме: осталось
+AI reytinqi: qalıb|AI ranking: left|ИИ-рейтинг: осталось
+Paketi dəyiş|Change package|Сменить пакет
+Əlavə analiz al|Buy extra analyses|Купить дополнительные анализы
+Yüksəlt|Upgrade|Повысить
+Keç|Switch|Перейти
+Al|Buy|Купить
+Aktiv|Active|Активен
+Aylıq limit bitəndə istifadə olunur; müddəti bitmir.|Used when the monthly limit runs out; it does not expire.|Используется, когда месячный лимит исчерпан; срок не ограничен.
+Kiçik əlavə paket|Small extra pack|Малый дополнительный пакет
+Orta əlavə paket|Medium extra pack|Средний дополнительный пакет
+Böyük əlavə paket|Large extra pack|Большой дополнительный пакет
+Pulsuz|Free|Бесплатный
+Başlanğıc|Starter|Стартовый
+Standart|Standard|Стандарт
+Peşəkar|Professional|Профессиональный
+Böyük|Large|Большой
+Təcili|Urgent|Срочно
+Təcili: iş dayanıb və ya məlumat itir|Urgent: work has stopped or data is being lost|Срочно: работа остановлена или данные теряются
+Mövzu|Topic|Тема
+Başlıq|Title|Заголовок
+Mesaj|Message|Сообщение
+Məzuniyyət müddəti və məzuniyyət pulu|Vacation length and vacation pay|Продолжительность отпуска и отпускные
+Əmək stajı (il)|Length of service (years)|Трудовой стаж (лет)
+İşçinin yaşı|Employee's age|Возраст сотрудника
+Qadın / təkbaşına böyüdən ata / övladlığa götürən|Woman / single father / adoptive parent|Женщина / отец-одиночка / усыновитель
+Əlilliyi olan uşaq var|Has a child with a disability|Есть ребёнок с инвалидностью
+Zərərli şərait əlavəsi (gün)|Harmful-conditions extra (days)|Дополнение за вредные условия (дней)
+Verilən gün (boş = hüquq qədər)|Days granted (empty = full entitlement)|Предоставляемые дни (пусто = по праву)
+Staja görə əlavə|Extra for service|Дополнение за стаж
+Uşaqlı qadın/təkvalideynə görə əlavə|Extra for a woman with children / single parent|Дополнение для женщины с детьми / одинокого родителя
+Zərərli şəraitə görə əlavə|Extra for harmful conditions|Дополнение за вредные условия
+Cəmi məzuniyyət hüququ|Total vacation entitlement|Всего права на отпуск
+Hesablanan gün sayı|Calculated number of days|Рассчитанное количество дней
+Bayram günləri (sayılmır)|Holidays (not counted)|Праздничные дни (не считаются)
+Məzuniyyətin son günü|Last day of vacation|Последний день отпуска
+İşə çıxış tarixi|Return-to-work date|Дата выхода на работу
+Məzuniyyət pulu|Vacation pay|Отпускные
+Ən geci ödəniş tarixi|Latest payment date|Крайний срок выплаты
+Əsas məzuniyyət təqvim günü ilə sayılır.|The main vacation is counted in calendar days.|Основной отпуск считается в календарных днях.
+İşə qəbul tarixi|Hire date|Дата приёма на работу
+İşdən çıxma tarixi|Termination date|Дата увольнения
+İllik əsas məzuniyyət (gün)|Annual main vacation (days)|Ежегодный основной отпуск (дней)
+Artıq istifadə edilən gün|Days already used|Уже использованные дни
+Tam iş ili|Full working year|Полный рабочий год
+Yarımçıq ilin günü|Days of the incomplete year|Дни неполного года
+İstifadə edilən|Used|Использовано
+İstifadə edilməyən|Unused|Не использовано
+Bir günlük məbləğ|One-day amount|Сумма за один день
+Orta əmək haqqı (ezamiyyət, donor günü, məhkəmə və s.)|Average salary (business trip, donor day, court, etc.)|Средняя зарплата (командировка, день донора, суд и т. д.)
+Əvvəlki 2 ayın əmək haqqı cəmi (AZN)|Salary total of the previous 2 months (AZN)|Сумма зарплаты за предыдущие 2 месяца (AZN)
+O aylardakı iş günü sayı|Working days in those months|Количество рабочих дней в эти месяцы
+Sonuncu bir günlük əmək haqqı|Last one-day salary|Последняя однодневная зарплата
+Bir günlük orta əmək haqqı|Average one-day salary|Средняя однодневная зарплата
+Ödəniləcək məbləğ|Amount to pay|Сумма к выплате
+İxtisar, işdənçıxarma müavinəti və xəbərdarlıq|Redundancy, severance pay and notice|Сокращение, выходное пособие и уведомление
+İşəgötürəndə əmək stajı (il)|Service with the employer (years)|Стаж у работодателя (лет)
+Orta aylıq əmək haqqı (AZN)|Average monthly salary (AZN)|Средняя месячная зарплата (AZN)
+Xitam əsası|Ground for termination|Основание прекращения
+Müəssisənin ləğvi|Liquidation of the enterprise|Ликвидация предприятия
+Digər əsas|Other ground|Другое основание
+Xəbərdarlıq müddəti|Notice period|Срок уведомления
+Müavinət əmsalı|Benefit coefficient|Коэффициент пособия
+İşdənçıxarma müavinəti (minimum)|Severance pay (minimum)|Выходное пособие (минимум)
+İşçi ərizə verərsə: ən tez xitam|If the employee applies: earliest termination|Если сотрудник подаст заявление: самое раннее прекращение
+Sınaq müddətinin həddi|Probation period limit|Предел испытательного срока
+Aylıq maaş (gross)|Monthly salary (gross)|Месячная зарплата (gross)
+Son ayda işlənmiş gün|Days worked in the last month|Отработанные дни в последнем месяце
+İstifadə edilməmiş əsas məzuniyyət (gün)|Unused main vacation (days)|Неиспользованный основной отпуск (дней)
+Bir günlük məzuniyyət məbləği|One-day vacation amount|Сумма отпуска за один день
+İşdənçıxarma müavinəti|Severance pay|Выходное пособие
+Qeyri-neft özəl|Non-oil private|Ненефтяной частный
+Dövlət / neft-qaz|State / oil and gas|Государственный / нефтегазовый
+Vergiyə cəlb olunan cəmi (gross)|Total taxable (gross)|Всего облагаемого (gross)
+Ələ keçən (net)|Take-home (net)|На руки (net)
+Ödəniləcək cəmi|Total to pay|Всего к выплате
+Bayram və qeyri-iş günü|Holiday and non-working day|Праздничный и нерабочий день
+İş saatı (8 saat × iş günü)|Working hours (8 h × working days)|Рабочие часы (8 ч × рабочие дни)
+Gözlənilən doğuş tarixi|Expected birth date|Ожидаемая дата родов
+Faktiki doğuş tarixi (məlumdursa)|Actual birth date (if known)|Фактическая дата родов (если известна)
+Çətin doğuş|Difficult birth|Сложные роды
+İki və daha çox uşaq|Two or more children|Двое и более детей
+Doğuşdan əvvəl|Before birth|До родов
+Doğuşdan sonra|After birth|После родов
+İşə çıxış|Return to work|Выход на работу
+Ata üçün ödənişli məzuniyyət|Paid leave for the father|Оплачиваемый отпуск для отца
+Hamiləlik və doğuş müavinəti|Pregnancy and maternity benefit|Пособие по беременности и родам
+Xəstəliyin başlanğıcı|Start of illness|Начало болезни
+Xəstəlik dövrü|Illness period|Период болезни
+Müavinət|Benefit|Пособие
+Dövr sayı|Number of periods|Количество периодов
+Cəmi staj|Total service|Общий стаж
+Məzuniyyətə görə əlavə gün|Extra days for leave|Дополнительные дни за отпуск
+İş vaxtından artıq, istirahət günü, gecə işi və boşdayanma|Overtime, rest-day work, night work and downtime|Сверхурочные, работа в выходные, ночные и простой
+Aylıq iş vaxtı norması (saat)|Monthly working-time norm (hours)|Месячная норма рабочего времени (часы)
+İş vaxtından artıq saat|Overtime hours|Сверхурочные часы
+İstirahət/bayram günü işlənən saat|Hours worked on rest/holidays|Часы, отработанные в выходные/праздники
+Gecə saatı (22:00–06:00)|Night hours (22:00–06:00)|Ночные часы (22:00–06:00)
+Gecə əlavəsi (%) — müqavilədə|Night supplement (%) — in the contract|Ночная надбавка (%) — по договору
+Saatlıq maaş|Hourly pay|Почасовая оплата
+Gündəlik maaş|Daily pay|Дневная оплата
+İş vaxtından artıq iş (2 qat)|Overtime (double)|Сверхурочная работа (в двойном размере)
+Gecə işinə əlavə|Night-work supplement|Надбавка за ночную работу
+Boşdayanma (2/3)|Downtime (2/3)|Простой (2/3)
+Tutulmaların həddi və yarımçıq ay|Deduction limit and incomplete month|Предел удержаний и неполный месяц
+İşçiyə verilməli əmək haqqı (AZN)|Salary due to the employee (AZN)|Зарплата к выдаче сотруднику (AZN)
+İcra sənədləri (50%)|Enforcement documents (50%)|Исполнительные документы (50%)
+Tutulma faizi (boş = qanunun həddi qədər)|Deduction rate (empty = legal limit)|Процент удержания (пусто = по закону)
+İşlənmiş iş günü|Working days worked|Отработанные рабочие дни
+Qanunun həddi (maksimum)|Legal limit (maximum)|Предел по закону (максимум)
+Tətbiq olunan faiz|Applied rate|Применяемый процент
+Tutulan məbləğ|Deducted amount|Удержанная сумма
+İşçidə qalmalı|Must remain with the employee|Должно остаться у сотрудника
+Yarımçıq ay üçün əmək haqqı|Salary for the incomplete month|Зарплата за неполный месяц
+Hesabla|Calculate|Рассчитать
+Yeni dövr|New period|Новый период
+Yeni əmr|New order|Новый приказ
+Rəhbər (Lead)|Lead|Руководитель
+İşçi profili kodları|Employee profile codes|Коды профиля сотрудника
+Şəxsi məlumatları Excel-dən|Personal data from Excel|Личные данные из Excel
+Aylıq fond: gross|Monthly fund: gross|Месячный фонд: gross
+Maaşı ştat həddindən kənar|Salary outside the staff limit|Зарплата вне лимита штата
+Ştat cədvəli (Plan və fakt bölməsində) ↗|Staff schedule (in Plan vs actual) ↗|Штатное расписание (в разделе «План и факт») ↗
+Qalan məzuniyyət|Remaining vacation|Остаток отпуска
+Sınaq:|Probation:|Испытательный:
+Planlaşdırılıb|Planned|Запланировано
+Planı olmayan işçi|Employee without a plan|Сотрудник без плана
+Tarixlər|Dates|Даты
+Bu il üçün hələ məzuniyyət planlaşdırılmayıb.|No vacation has been planned for this year yet.|На этот год отпуск ещё не запланирован.
+Planı olmayanlar:|Without a plan:|Без плана:
+Sənəd|Document|Документ
+Xərc|Expense|Расход
+Gecə|Night|Ночь
+Toplu qeyd (məzuniyyət, xəstəlik…)|Bulk mark (vacation, sickness…)|Массовая отметка (отпуск, болезнь…)
+İşlənib (gün)|Worked (days)|Отработано (дней)
+Saat: faktiki / ödənilən|Hours: actual / paid|Часы: фактические / оплаченные
+Məzuniyyət və s.|Vacation, etc.|Отпуск и т. д.
+Qeyri-iş günü|Non-working day|Нерабочий день
+İş günü (məsələn, işlək şənbə)|Working day (e.g. working Saturday)|Рабочий день (например, рабочая суббота)
+Qısaldılmış gün (7 saat, haqq tam)|Shortened day (7 hours, full pay)|Сокращённый день (7 часов, оплата полная)
+Şirkət təqviminə əlavə et|Add to the company calendar|Добавить в календарь компании
+Real xərc (ödənilib)|Actual expense (paid)|Фактический расход (оплачено)
+Gözləyən / təxmini|Pending / estimated|Ожидаемый / ориентировочный
+İcra (real)|Execution (actual)|Исполнение (факт)
+Sifarişdə|On order|В заказе
+Ştat cədvəlinə keç ↗|Go to the staff schedule ↗|Перейти к штатному расписанию ↗
+Adı dəyiş|Rename|Переименовать
+iş sizi gözləyir|work is waiting for you|вас ждёт работа
+Müsahibələr (14 gün)|Interviews (14 days)|Собеседования (14 дней)
+təyin olunmuş|scheduled|назначено
+Vakansiya baxışları|Vacancy views|Просмотры вакансий
+Müraciət dinamikası|Application trend|Динамика заявок
+həftəsi|week|неделя
+Vakansiya baxışı|Vacancy views|Просмотр вакансии
+Kollektiv göstəriciləri|Workforce indicators|Показатели коллектива
+İşçilərə keç ↗|Go to employees ↗|Перейти к сотрудникам ↗
+son 4 həftə|last 4 weeks|последние 4 недели
+Departamentlər üzrə işçilər|Employees by department|Сотрудники по департаментам
+Təkrar yayımlandı|Republished|Опубликовано повторно
+İştirakçılar|Participants|Участники
+Namizəd:|Candidate:|Кандидат:
+Ləğv edildi|Cancelled|Отменено
+Rəy:|Feedback:|Отзыв:
+Bütün iştirakçılar|All participants|Все участники
+İşə qəbul qıfı|Hiring funnel|Воронка найма
+Mərhələdə keçən müddət (median)|Time in stage (median)|Время на этапе (медиана)
+Ölçü sayı|Sample size|Размер выборки
+Dayanmış namizəd|Stalled candidate|Застрявший кандидат
+Namizəd niyə rədd edilib|Why the candidate was rejected|Почему кандидат отклонён`;
 const EN: Record<string, string> = {};
 const RU: Record<string, string> = {};
 for (const line of LINES.split("\n")) {

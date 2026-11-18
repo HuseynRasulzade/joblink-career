@@ -883,6 +883,13 @@
       "when": 1801767600000,
       "tag": "0125_calc_saves",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "6",
+      "when": 1801854000000,
+      "tag": "0126_company_ai_credits",
+      "breakpoints": true
     }
   ]
 }

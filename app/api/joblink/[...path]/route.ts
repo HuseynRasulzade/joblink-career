@@ -131,6 +131,7 @@ import { handle_attendance_01 } from "@/lib/api/handlers/attendance-01";
 import { handle_interviews_02 } from "@/lib/api/handlers/interviews-02";
 import { handle_ats_01 } from "@/lib/api/handlers/ats-01";
 import { handle_team_01 } from "@/lib/api/handlers/team-01";
+import { handle_ai_billing_01 } from "@/lib/api/handlers/ai-billing-01";
 import { lockedProblem } from "@/lib/attendance-lock";
 import { activeGrants } from "@/lib/grants-expiry";
 import { handle_company_34 } from "@/lib/api/handlers/company-34";
@@ -300,10 +301,18 @@ async function route(request: Request) {
       .first<{ full_used: number; rank_used: number }>()
       .catch(() => null);
     const used = { full: row?.full_used || 0, rank: row?.rank_used || 0 };
-    return { pkg, used, left: quotaLeft(pkg, used) };
+    // Extra analyses bought on top of the package are used after the month's quota.
+    const credit = await db.prepare("SELECT full_left,rank_left FROM company_ai_credits WHERE company_id=?").bind(id).first<{ full_left: number; rank_left: number }>().catch(() => null);
+    const credits = { full: credit?.full_left || 0, rank: credit?.rank_left || 0 };
+    const monthly = quotaLeft(pkg, used);
+    return { pkg, used, credits, monthly, left: { full: monthly.full + credits.full, rank: monthly.rank + credits.rank } };
   };
   const chargeAi = async (kind: "full" | "rank", count: number) => {
     if (count <= 0) return;
+    // The part above the month's quota is taken from the bought extra analyses.
+    const before = await aiQuota();
+    const monthlyLeft = kind === "full" ? before.monthly.full : before.monthly.rank;
+    const overflow = Math.max(0, count - monthlyLeft);
     await db
       .prepare(
         `INSERT INTO company_ai_usage(company_id,month,full_used,rank_used) VALUES(?,?,?,?)
@@ -312,6 +321,12 @@ async function route(request: Request) {
       .bind(id, monthKey(), kind === "full" ? count : 0, kind === "rank" ? count : 0)
       .run()
       .catch((error) => quiet("route-best-effort", error));
+    if (overflow > 0)
+      await db
+        .prepare(kind === "full" ? "UPDATE company_ai_credits SET full_left=MAX(0,full_left-?),updated=? WHERE company_id=?" : "UPDATE company_ai_credits SET rank_left=MAX(0,rank_left-?),updated=? WHERE company_id=?")
+        .bind(overflow, new Date().toISOString(), id)
+        .run()
+        .catch((error) => quiet("route-best-effort", error));
   };
   // The application follows what happens to it (an interview falls through, a «reject» opinion, a new application is opened).
   const syncApplicationStatus = async (applicationId: string, event: ApplicationFlowEvent, actorId: string, actorRole: string) => {
@@ -2547,6 +2562,10 @@ async function route(request: Request) {
   }
   {
     const r = await handle_team_01({ accountRole, db, id, path, request, requestUrl, requirePermission, userId });
+    if (r) return r;
+  }
+  {
+    const r = await handle_ai_billing_01({ accountRole, aiQuota, db, id, path, request, requirePermission, userId });
     if (r) return r;
   }
     {

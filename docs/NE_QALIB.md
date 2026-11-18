@@ -479,3 +479,12 @@ Vakansiya kartlarında şirkət loqosu (loqo yüklənir, amma namizədə göstə
 - **Vakansiya kartında loqo:** server vakansiyaya `companyLogo` bayrağı əlavə edir (`companyIdsWithLogo`), kart/siyahı/detal başlığı ictimai `companies/logo` ünvanından şəkli göstərir; loqo yoxdursa hərf qalır. Yerlidə 1×1 test şəkli ilə yoxlandı (4 şəkil göründü), test şəkli sonra silindi.
 - **Boş vəziyyət illüstrasiyası:** `.admin-empty` və ikonsuz `.empty` bloklarında CSS ilə kiçik şəkil. Brauzerdə ayrıca baxılmadı.
 - **Serif başlıqlar:** Fraunces şrifti (`--font-serif`) açılış səhifəsi və səhifə başlıqlarında. Sandbox-da şrift yoxdur, ona görə yalnız CSS tətbiqi, görünüşü canlıda yoxlamaq lazımdır.
+
+## 45. Hesab bölməsi: AI paketi, əlavə analiz, dəstək prioriteti, qiymət kartları
+
+- **Şirkətin öz AI paketi** («Hesablar və ödənişlər» səhifəsinin yuxarısı, `AiAccountPanel`): qalan tam analiz/reytinq (aylıq + əlavə), paketləri dəyişmək (Yüksəlt / Keç) və əlavə analiz paketi almaq (Kiçik 12 ₼, Orta 59 ₼, Böyük 169 ₼; qiymətlər ən pis halda ≥25% xalis mənfəət üçün hesablanıb, `lib/ai-packages.ts`). Endpointlər: `GET company/ai-account`, `POST company/ai-plan/change`, `POST company/ai-topup` (`lib/api/handlers/ai-billing-01.ts`, icazə «billing»). Miqrasiya 0126 (`company_ai_credits`, `company_ai_topups`).
+- **Ödəniş məntiqi:** kart şlüzü yoxdur. Yüksəliş və əlavə paket **açıq hesab-faktura** yaradır (ƏDV 18% daxil, 7 gün), paket/analizlər dərhal aktivləşir; ödəniş bank köçürməsi ilə admin tərəfindən qeyd olunur. Aşağı paketə keçid dərhal olur, geri ödəniş yoxdur. **Aylıq yenilənmə üçün avtomatik hesab-faktura yoxdur** (yalnız dəyişiklik anında); bu hələ qərar tələb edir.
+- **Əlavə analiz istifadəsi:** aylıq limit bitəndən sonra əlavə balansdan çıxılır (`chargeAi` in route.ts). Bu hissə yalnız kod oxunuşu və arifmetika ilə yazılıb; real AI sorğusu ilə limit aşımı yerlidə sınanmayıb.
+- **Dəstək prioriteti:** sorğu yaradanda «Təcili» qutusu (meta.priority), adminin siyahısında nişan və təcili açıq sorğular birinci; SLA sətrində təcili hədəf 4 saat, 24 saatlıq ümumi hədəf. Prioritet avtomatik deyil, istifadəçi seçir.
+- **Açılış səhifəsində qiymət kartları:** hər paket üçün ad, qiymət və daxil olanlar (namizəd paketləri `lib/plans.ts`-dən, şirkət paketləri kvotalarla); EN/RU tərcümələri əlavə olundu.
+- **Tərcümə:** `lib/i18n-pages.ts` ≈ 610 ifadəyə çatdı (kalkulyator sahələri daxil); Azərbaycanca qalan sətirlər (HR səhifələri üzrə cəmi): 2557 → ≈1170. Qalanı uzun izah cümlələri və verilənlərdir.
