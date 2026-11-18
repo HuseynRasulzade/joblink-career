@@ -2137,7 +2137,15 @@ Sumqayıt|Sumgait|Сумгайт
 Gəncə|Ganja|Гянджа
 Axtarışa uyğun vakansiya tapılmadı. Başqa söz yoxlayın.|No vacancies matched your search. Try another word.|По запросу вакансий не найдено. Попробуйте другое слово.
 Vakansiyalar|Vacancies|Вакансии
-Kalkulyatorlar|Calculators|Калькуляторы`;
+Kalkulyatorlar|Calculators|Калькуляторы
+Nümunə: müraciət dinamikası|Sample: application trend|Пример: динамика откликов
+Nümunə: namizəd mərhələləri|Sample: candidate stages|Пример: этапы кандидатов
+Nümunə: işə qəbul sürəti|Sample: hiring speed|Пример: скорость найма
+son 12 həftə|last 12 weeks|последние 12 недель
+gündən-günə sürətlənir|speeding up day by day|ускоряется день за днём
+Sütun qrafiki|Bar chart|Столбчатая диаграмма
+Dairəvi qrafik|Donut chart|Круговая диаграмма
+Xətt qrafiki|Line chart|Линейный график`;
 const EN: Record<string, string> = {};
 const RU: Record<string, string> = {};
 for (const line of LINES.split("\n")) {

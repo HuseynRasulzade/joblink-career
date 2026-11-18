@@ -557,3 +557,31 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 
 .landing-credit { flex-basis: 100%; margin: 6px 0 0; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.12); text-align: center; font-size: 13px; letter-spacing: 0.4px; color: #d8bfb0; }
 .landing-credit b { color: #ffb48a; }
+
+/* sample charts around the hero figure */
+.gate-card-bars { right: 6%; top: 40%; width: 250px; animation: gate-float 9s ease-in-out infinite; }
+.gate-card-donut { right: 4%; top: 66%; width: 250px; animation: gate-float 8s ease-in-out infinite reverse; }
+.gate-card-line { left: 26%; top: 13%; width: 236px; animation: gate-float 10s ease-in-out infinite; }
+.gate-card-bars small, .gate-card-donut small, .gate-card-line small { margin-bottom: 8px; }
+.gc-bars { display: block; width: 100%; height: 74px; }
+.gc-bars rect { fill: url(#none); fill: #ff8a4c; opacity: 0.9; transform-box: fill-box; transform-origin: bottom; transform: scaleY(0); animation: gc-grow 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+.gc-bars rect:nth-child(odd) { fill: #ffb48a; }
+.gc-bars rect:last-child { fill: #fff; }
+@keyframes gc-grow { to { transform: scaleY(1); } }
+.gc-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; color: #f1d4c4; }
+.gc-foot b { font-size: 16px; color: #fff; }
+.gc-donut-row { display: flex; align-items: center; gap: 16px; }
+.gc-donut { width: 84px; height: 84px; flex: none; }
+.gc-seg { opacity: 0; animation: gc-fade 0.6s ease forwards; }
+@keyframes gc-fade { to { opacity: 1; } }
+.gc-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: 13px; color: #fff; }
+.gc-legend li { display: flex; align-items: center; gap: 8px; }
+.gc-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.gc-line { display: block; width: 100%; height: 76px; overflow: visible; }
+.gc-stroke { stroke-dasharray: 1; stroke-dashoffset: 1; animation: gc-draw 1.6s 0.5s ease forwards; }
+@keyframes gc-draw { to { stroke-dashoffset: 0; } }
+.gc-area { opacity: 0; animation: gc-fade 0.8s 1.4s ease forwards; }
+.gc-dot { opacity: 0; animation: gc-fade 0.4s 2s ease forwards; filter: drop-shadow(0 0 6px rgba(255, 190, 140, 0.9)); }
+@media (max-width: 1500px) { .gate-card-line { display: none; } }
+@media (max-width: 1240px) { .gate-card-bars, .gate-card-donut { display: none; } }
+@media (prefers-reduced-motion: reduce) { .gc-bars rect { transform: none; animation: none; } .gc-seg, .gc-area, .gc-dot { opacity: 1; animation: none; } .gc-stroke { stroke-dashoffset: 0; animation: none; } }

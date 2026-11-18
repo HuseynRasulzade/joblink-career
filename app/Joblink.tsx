@@ -136,6 +136,7 @@ import PeopleOps from "./PeopleOps";
 import AtsAnalytics from "./AtsAnalytics";
 import GuidePage from "./GuidePage";
 import Landing from "./Landing";
+import GateCharts from "./GateCharts";
 import GateNav from "./GateNav";
 import ThemeToggle from "./ThemeToggle";
 import FirstSteps from "./FirstSteps";
@@ -1817,6 +1818,7 @@ export default function Joblink() {
                 <li>Təklif</li>
               </ol>
             </div>
+            <GateCharts />
             <div className="gate-card gate-card-facts">
               <div><strong>3</strong><small>istifadəçi növü</small></div>
               <div><strong>13</strong><small>kalkulyator</small></div>
