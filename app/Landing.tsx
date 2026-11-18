@@ -357,6 +357,7 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
         <span>jobmatch<span className="star">✳</span></span>
         <span className="landing-footer-links"><a href="/jobs">Vakansiyalar</a> · <a href="/kalkulyatorlar">Kalkulyatorlar</a> · <a href="#qiymetler">Qiymətlər</a> · <a href={`tel:${CONTACT.phoneHref}`}>{CONTACT.phone}</a> · <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></span>
         <span><a href="/terms" target="_blank" rel="noreferrer">İstifadə şərtləri</a> · <a href="/privacy" target="_blank" rel="noreferrer">Məxfilik siyasəti</a></span>
+        <p className="landing-credit">JobMatch by <b>Digilabs</b></p>
       </footer>
     </div>,
   );

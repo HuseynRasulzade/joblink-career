@@ -52,6 +52,7 @@ export default function PublicCalculators() {
       <footer className="pc-footer">
         <span className="pc-logo">jobmatch<span>✳</span></span>
         <span><a href="/terms">İstifadə şərtləri</a> · <a href="/privacy">Məxfilik siyasəti</a></span>
+        <p className="landing-credit">JobMatch by <b>Digilabs</b></p>
       </footer>
     </div>
   );
