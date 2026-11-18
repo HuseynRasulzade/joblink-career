@@ -27,7 +27,6 @@ const FAQ = [
   { q: "Hesablamalar qanuna uyğundurmu?", a: "Əmək haqqı, vergi, sığorta, məzuniyyət və ezamiyyət hesabları Azərbaycan Əmək və Vergi Məcəlləsinə əsaslanır. Hesablamalar məlumat xarakterlidir; rəsmi sənədləşmədən əvvəl mühasib yoxlamalıdır." },
   { q: "Mövcud məlumatı necə köçürürəm?", a: "İşçilər, ştat, davamiyyət və digər bölmələrdə Excel idxalı var: nümunə faylı yükləyin, doldurun, geri yükləyin." },
 ];
-const azn = (n: number) => `${n.toLocaleString("az-AZ")} ₼`;
 
 const ROLE_ICONS = [UserSearch, Briefcase, Users];
 const FEATURE_ICONS = [Sparkles, CalendarClock, Scale, Wallet, Plane, FileSpreadsheet, Lock, Languages];
