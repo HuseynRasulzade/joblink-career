@@ -11,13 +11,18 @@ export const LEGAL_UPDATED = { az: "18 noyabr 2026", en: "18 November 2026", ru:
 const L = <T,>(lang: LegalLang, az: T, en: T, ru: T): T => (lang === "en" ? en : lang === "ru" ? ru : az);
 
 export function privacyDoc(op: Operator, lang: LegalLang): LegalDoc {
-  const who = op.name || L(lang, "[operatorun adı daxil edilməlidir]", "[operator name to be entered]", "[укажите название оператора]");
-  const mail = op.email || L(lang, "[e-poçt daxil edilməlidir]", "[e-mail to be entered]", "[укажите e-mail]");
+  const who = op.name || "Digilabs";
+  const mail = op.email || "info@digilabs.az";
   const voen = op.voen ? L(lang, `, VÖEN ${op.voen}`, `, tax ID ${op.voen}`, `, VÖEN ${op.voen}`) : "";
   const addr = op.address ? L(lang, `, ünvan: ${op.address}`, `, address: ${op.address}`, `, адрес: ${op.address}`) : "";
   const az: LegalSection[] = [
     { title: "Bu siyasət nə haqqındadır", body: [
       "Bu siyasət JobMatch platformasının (sayt və onun bütün bölmələri) şəxsi məlumatları necə topladığını, nə üçün işlətdiyini, kimlərlə paylaşdığını və necə qoruduğunu izah edir. Siyasət hesab yaratmamış ziyarətçilərə, iş axtaranlara, işəgötürənlərə və işəgötürənin platformada qeydə aldığı işçilərə şamil olunur.",
+    ] },
+    { title: "Hüquqi çərçivə və prinsiplər", body: [
+      "Bu siyasət Azərbaycan Respublikasının «Fərdi məlumatlar haqqında» Qanununa (11 may 2010-cu il, № 998-IIIQ), «İnformasiya, informasiyalaşdırma və informasiyanın mühafizəsi haqqında» Qanununa və digər qüvvədə olan qaydalara uyğun hazırlanıb.",
+      "Platformadan Avropa İqtisadi Məkanında və Böyük Britaniyada istifadə edənlər üçün Ümumi Məlumatların Qorunması Qaydasının (GDPR) əsas prinsiplərini bütün istifadəçilərimiz üçün eyni qaydada tətbiq etməyi öhdəmizə götürürük: qanunilik, ədalətlilik və şəffaflıq; məqsədlə məhdudlaşma; məlumatın minimallaşdırılması; dəqiqlik; saxlama müddətinin məhdudlaşdırılması; bütövlük və məxfilik; hesabatlılıq.",
+      "Bu yanaşma o deməkdir ki, yalnız lazım olan məlumatı toplayırıq, onu açıq şəkildə izah etdiyimiz məqsədlər üçün işlədirik və sizə öz məlumatlarınız üzərində real nəzarət veririk.",
     ] },
     { title: "Operator (məlumatlara cavabdeh tərəf)", body: [
       `Platformanın operatoru: ${who}${voen}${addr}. Əlaqə: ${mail}.`,
@@ -57,8 +62,17 @@ export function privacyDoc(op: Operator, lang: LegalLang): LegalDoc {
       "Qanunun tələb etdiyi hallarda məlumat səlahiyyətli dövlət orqanlarına verilə bilər.",
       "Məlumatlarınız satılmır və reklam məqsədilə üçüncü tərəflərə ötürülmür.",
     ] },
+    { title: "Xidmət təminatçıları (alt-emalçılar)", body: [
+      "Cloudflare, Inc. — hostinq (Workers), verilənlər bazası (D1) və Turnstile robot yoxlaması. Məlumat: platformanın bütün məlumatları (şifrələnmiş rabitə ilə). Yer: qlobal şəbəkə.",
+      "Resend — e-poçt göndərilməsi. Məlumat: e-poçt ünvanı və məktubun məzmunu (təsdiq kodu, şifrə bərpası, bildirişlər).",
+      "OpenAI və ya DeepSeek — süni intellekt funksiyaları. Məlumat: yalnız həmin əməliyyat üçün lazım olan mətn (məsələn, CV mətni və vakansiya təsviri). Bu təminatçılar göndərilən məlumatı öz modellərini öyrətmək üçün işlətməməlidir; bunu müqavilə şərtləri ilə məhdudlaşdırmağa çalışırıq.",
+      "Ödəniş xidməti — onlayn ödəniş hazırda aktiv deyil. Aktivləşdikdə bu siyahı yenilənəcək; bank kartı məlumatları platformada saxlanmır, ödəniş təminatçısı tərəfindən emal olunur.",
+      "Siyahı dəyişdikdə (yeni təminatçı əlavə olunduqda) bu səhifə yenilənir.",
+    ] },
     { title: "Başqa ölkələrə ötürülmə", body: [
-      "Hostinq və AI təminatçılarının serverləri Azərbaycandan kənarda yerləşə bilər. Bu halda məlumat yalnız xidməti göstərmək üçün və təminatçılarla bağlanmış məxfilik şərtləri çərçivəsində ötürülür.",
+      "Hostinq, e-poçt və AI təminatçılarının serverləri Azərbaycandan, Avropa İqtisadi Məkanından və Böyük Britaniyadan kənarda (məsələn, ABŞ-da və ya qlobal şəbəkədə) yerləşə bilər.",
+      "Belə ötürmələr yalnız xidməti göstərmək üçün və təminatçıların məlumat emalı şərtləri (DPA), Avropa Komissiyasının standart müqavilə maddələri (SCC) və ya adekvatlıq qərarı kimi müvafiq mühafizə mexanizmlərinə əsaslanaraq həyata keçirilir.",
+      `Təminatçıların tətbiq etdiyi mexanizm barədə məlumat almaq istəsəniz ${mail} ünvanına yazın.`,
     ] },
     { title: "Saxlama müddəti", body: [
       "Məlumatlar hesabınız aktiv olduğu müddətdə saxlanır. Hesabı sildikdə şəxsi məlumatlarınız silinir.",
@@ -66,25 +80,43 @@ export function privacyDoc(op: Operator, lang: LegalLang): LegalDoc {
       "Təsdiqlənməmiş e-poçt kodları və bərpa linkləri qısa müddətdən sonra etibarsız olur.",
     ] },
     { title: "Sizin hüquqlarınız", body: [
-      "Azərbaycan Respublikasının «Fərdi məlumatlar haqqında» Qanununa uyğun olaraq: məlumatlarınıza baxmaq, düzəltdirmək, silinməsini və ya emalın məhdudlaşdırılmasını tələb etmək, razılığı geri götürmək və emala etiraz etmək hüququnuz var.",
-      `Hesab ayarlarından məlumatlarınızı yükləyə və hesabı silə bilərsiniz. Digər sorğular üçün ${mail} ünvanına yazın; sorğuya qanunla müəyyən müddətdə cavab veririk.`,
-      "Hüquqlarınızın pozulduğunu düşünsəniz, səlahiyyətli dövlət orqanına və ya məhkəməyə müraciət edə bilərsiniz.",
+      "Azərbaycan Respublikasının «Fərdi məlumatlar haqqında» Qanununa və (tətbiq olunduqda) GDPR-a uyğun olaraq aşağıdakı hüquqlara malikdirsiniz:",
+      "Giriş: sizin haqqınızda hansı məlumatların işləndiyini öyrənmək və surətini almaq. Düzəliş: yanlış və ya natamam məlumatın düzəldilməsi. Silmə: məlumatın silinməsini tələb etmək («unudulmaq hüququ»), qanunla saxlanması tələb olunan hallar istisna olmaqla. Məhdudlaşdırma: mübahisə zamanı emalın dayandırılması.",
+      "Köçürülmə: məlumatlarınızı strukturlaşdırılmış, maşınla oxunan formatda almaq (hesab ayarlarından yükləyə bilərsiniz). Etiraz: qanuni maraq əsasında edilən emala etiraz etmək. Razılığın geri götürülməsi: istənilən vaxt, əvvəlki emalın qanuniliyinə təsir etmədən.",
+      "Avtomatlaşdırılmış qərarlar: sizin üçün hüquqi və ya oxşar əhəmiyyətli nəticə doğuran qərarlar yalnız avtomatik emal ilə verilmir; uyğunluq balı və AI nəticələri yardımçıdır. İstəsəniz insan tərəfindən yenidən baxılmasını tələb edə bilərsiniz.",
+      `Sorğu üçün ${mail} ünvanına yazın (mövzu: «Məxfilik»). Şəxsiyyətinizi yoxlamaq üçün əlavə məlumat istəyə bilərik. Sorğuya əsassız gecikmədən, ən geci 30 gün ərzində cavab veririk; bu xidmət pulsuzdur (aşkar əsassız və ya həddindən çox təkrarlanan sorğular istisna).`,
+      "Hüquqlarınızın pozulduğunu düşünsəniz, öncə bizə yazın; razı qalmasanız, səlahiyyətli dövlət orqanına (Azərbaycanda müvafiq icra hakimiyyəti orqanına, Avropa İqtisadi Məkanında və Böyük Britaniyada isə yerli məlumatların mühafizəsi nəzarət orqanına) və ya məhkəməyə müraciət edə bilərsiniz.",
     ] },
-    { title: "Təhlükəsizlik", body: [
-      "Şifrələr yalnız təhlükəsiz hash şəklində saxlanır; giriş cəhdləri və təsdiq kodu cəhdləri məhdudlaşdırılır; robot yoxlaması və iki mərhələli giriş (autentifikator tətbiqi və ehtiyat kodlar) mövcuddur; rabitə HTTPS ilə qorunur; aktiv sessiyalara hesab ayarlarından baxıb bağlaya bilərsiniz.",
-      "Heç bir sistem tam risksiz deyil. Məlumatlarınıza icazəsiz çıxış aşkar olunarsa, qanunun tələb etdiyi qaydada təsirə məruz qalan şəxsləri və lazım gələrsə səlahiyyətli orqanı məlumatlandırırıq. Şübhəli hal görsəniz bizə dərhal yazın.",
+    { title: "Təhlükəsizlik və pozuntu hallarında tədbirlər", body: [
+      "Texniki tədbirlər: şifrələr yalnız təhlükəsiz hash şəklində saxlanır; giriş və təsdiq kodu cəhdləri məhdudlaşdırılır; robot yoxlaması və iki mərhələli giriş (autentifikator tətbiqi və ehtiyat kodlar) mövcuddur; rabitə HTTPS ilə qorunur; aktiv sessiyalara hesab ayarlarından baxıb bağlaya bilərsiniz; işəgötürən şəxsi məlumat sahələrinin şifrələnməsini aktivləşdirə bilər.",
+      "Təşkilati tədbirlər: məlumata çıxış rollar üzrə məhdudlaşdırılır, əməliyyatlar jurnallaşdırılır, administratorlar yalnız zəruri hallarda məlumata baxır.",
+      `Heç bir sistem tam risksiz deyil. Şəxsi məlumatların pozulması (icazəsiz çıxış, itki, sızma) aşkar olunarsa, riski qiymətləndiririk, səbəbi aradan qaldırırıq və təsirə məruz qalan şəxsləri və səlahiyyətli orqanı qanunun tələb etdiyi qaydada, əsassız gecikmədən (mümkünsə 72 saat ərzində) məlumatlandırırıq. Şübhəli hal görsəniz ${mail} ünvanına dərhal yazın.`,
     ] },
-    { title: "Çərəzlər", body: [
-      "Platforma yalnız girişi saxlamaq üçün zəruri sessiya çərəzindən (7 gün) və seçdiyiniz dili yadda saxlayan brauzer yaddaşından istifadə edir. Reklam və izləmə çərəzləri yoxdur. Robot yoxlaması işə salınıbdırsa, Cloudflare öz təhlükəsizlik məqsədləri üçün texniki məlumat oxuya bilər.",
+    { title: "Çərəzlər və yerli yaddaş", body: [
+      "Zəruri çərəz: giriş üçün sessiya çərəzi (HttpOnly, 7 gün). Onsuz hesaba daxil olmaq mümkün deyil və razılıq tələb etmir.",
+      "Brauzer yaddaşı: seçdiyiniz dil və görünüş (tema) kimi interfeys üstünlükləri; oflayn işləmə üçün səhifə keşi (service worker). Bunlar cihazınızda qalır və bizə göndərilmir.",
+      "Reklam, izləmə və üçüncü tərəf analitika çərəzləri yoxdur. Robot yoxlaması işə salınıbsa, Cloudflare öz təhlükəsizlik məqsədləri üçün texniki məlumat oxuya bilər. Çərəzləri brauzer ayarlarından silə bilərsiniz; bu halda yenidən daxil olmalı olacaqsınız.",
     ] },
-    { title: "Uşaqlar", body: ["Platforma 16 yaşdan kiçik şəxslər üçün nəzərdə tutulmayıb. Uşağın məlumatının bizə verildiyini bilsəniz, yazın, silək."] },
+    { title: "Uşaqlar", body: [
+      `Platforma 16 yaşdan kiçik şəxslər üçün nəzərdə tutulmayıb və bilərəkdən onların məlumatını toplamırıq. Uşağın məlumatının bizə verildiyini bilsəniz ${mail} ünvanına yazın, onu dərhal siləcəyik.`,
+    ] },
+    { title: "ABŞ sakinləri (Kaliforniya və s.)", body: [
+      "Şəxsi məlumatlarınızı satmırıq və CCPA/CPRA mənasında çarpaz kontekstli reklam üçün «paylaşmırıq». Həssas məlumatları qanunun icazə verdiyi məqsədlərdən kənar işlətmirik.",
+      `Kaliforniya və analoji qanunları olan digər ştatların sakinləri bilmək, silmək, düzəltmək və hüquqlarından istifadəyə görə ayrı-seçkiliyə məruz qalmamaq hüququna malikdir. Sorğunu ${mail} ünvanına göndərin; icazəli nümayəndə vasitəsilə də müraciət edə bilərsiniz.`,
+    ] },
     { title: "Dəyişikliklər və əlaqə", body: [
-      `Bu siyasət dəyişdikdə yeni versiya bu səhifədə dərc olunur və «son yenilənmə» tarixi dəyişir. Əhəmiyyətli dəyişikliklər barədə hesab e-poçtuna məlumat göndərilə bilər. Suallar üçün: ${mail}.`,
+      "Bu siyasət dəyişdikdə yeni versiya bu səhifədə dərc olunur və «son yenilənmə» tarixi dəyişir. Əhəmiyyətli dəyişikliklər barədə hesab e-poçtuna əvvəlcədən məlumat göndərilə bilər.",
+      `Məlumatların mühafizəsi üzrə əlaqə: ${who}, e-poçt: ${mail} (mövzu: «Məxfilik»).`,
     ] },
   ];
   const en: LegalSection[] = [
     { title: "What this policy is about", body: [
       "This policy explains how the JobMatch platform (the site and all its sections) collects personal data, why it uses it, who it is shared with and how it is protected. It applies to visitors without an account, job seekers, employers and the employees an employer records on the platform.",
+    ] },
+    { title: "Legal framework and principles", body: [
+      "This policy is prepared in line with the Law of the Republic of Azerbaijan «On Personal Data» (11 May 2010, No. 998-IIIQ), the Law «On Information, Informatization and Protection of Information» and other rules in force.",
+      "For people using the platform in the European Economic Area and the United Kingdom, we undertake to apply the core principles of the General Data Protection Regulation (GDPR) to all our users alike: lawfulness, fairness and transparency; purpose limitation; data minimisation; accuracy; storage limitation; integrity and confidentiality; accountability.",
+      "In practice this means we collect only the data we need, use it only for the purposes we explain openly, and give you real control over your data.",
     ] },
     { title: "Operator (the party responsible for the data)", body: [
       `The platform operator is ${who}${voen}${addr}. Contact: ${mail}.`,
@@ -124,8 +156,17 @@ export function privacyDoc(op: Operator, lang: LegalLang): LegalDoc {
       "Where the law requires, data may be given to competent state authorities.",
       "Your data is not sold and is not passed to third parties for advertising.",
     ] },
+    { title: "Service providers (sub-processors)", body: [
+      "Cloudflare, Inc. — hosting (Workers), database (D1) and the Turnstile robot check. Data: all platform data (over encrypted connections). Location: global network.",
+      "Resend — e-mail delivery. Data: the e-mail address and the content of the message (verification code, password reset, notifications).",
+      "OpenAI or DeepSeek — artificial intelligence features. Data: only the text needed for that operation (for example CV text and a vacancy description). We seek to restrict these providers by contract from using the submitted data to train their models.",
+      "Payment service — online payment is not active at the moment. This list will be updated when it is activated; bank card details are not stored on the platform and are processed by the payment provider.",
+      "This page is updated whenever the list changes (a new provider is added).",
+    ] },
     { title: "Transfers to other countries", body: [
-      "Servers of hosting and AI providers may be located outside Azerbaijan. In that case data is transferred only to provide the service and under privacy terms agreed with the providers.",
+      "The servers of hosting, e-mail and AI providers may be located outside Azerbaijan, the European Economic Area and the United Kingdom (for example in the USA or on a global network).",
+      "Such transfers are made only to provide the service and rely on appropriate safeguards such as the providers' data processing terms (DPA), the European Commission's standard contractual clauses (SCC) or an adequacy decision.",
+      `If you want to know which mechanism a provider applies, write to ${mail}.`,
     ] },
     { title: "Retention", body: [
       "Data is kept while your account is active. When you delete the account, your personal data is deleted.",
@@ -133,25 +174,43 @@ export function privacyDoc(op: Operator, lang: LegalLang): LegalDoc {
       "Unused e-mail codes and recovery links become invalid after a short time.",
     ] },
     { title: "Your rights", body: [
-      "Under the Law of the Republic of Azerbaijan “On Personal Data” you have the right to view, correct, delete or restrict the processing of your data, withdraw consent and object to processing.",
-      `From the account settings you can download your data and delete the account. For other requests write to ${mail}; we answer within the period set by law.`,
-      "If you believe your rights have been violated, you can apply to the competent state authority or to a court.",
+      "Under the Law of the Republic of Azerbaijan «On Personal Data» and (where applicable) the GDPR you have the following rights:",
+      "Access: to learn what data about you is processed and receive a copy. Rectification: to correct inaccurate or incomplete data. Erasure: to ask for deletion («right to be forgotten»), except where the law requires retention. Restriction: to pause processing while a dispute is resolved.",
+      "Portability: to receive your data in a structured, machine-readable format (you can download it from account settings). Objection: to object to processing based on legitimate interest. Withdrawal of consent: at any time, without affecting the lawfulness of earlier processing.",
+      "Automated decisions: decisions that have legal or similarly significant effects on you are not taken solely by automated processing; the match score and AI results are advisory. You may ask for a human review.",
+      `To make a request write to ${mail} (subject: «Privacy»). We may ask for extra information to verify your identity. We answer without undue delay and in any case within 30 days; the service is free of charge (except for manifestly unfounded or excessively repeated requests).`,
+      "If you think your rights have been violated, write to us first; if you are not satisfied you may apply to the competent state authority (in Azerbaijan the relevant executive authority, in the European Economic Area and the United Kingdom the local data protection supervisory authority) or to a court.",
     ] },
-    { title: "Security", body: [
-      "Passwords are stored only as secure hashes; sign-in and verification-code attempts are limited; a robot check and two-step sign-in (authenticator app and backup codes) are available; communication is protected with HTTPS; you can view and close active sessions in the account settings.",
-      "No system is entirely risk-free. If unauthorised access to your data is found, we inform the affected people and, where needed, the competent authority as the law requires. If you notice anything suspicious, write to us at once.",
+    { title: "Security and handling of breaches", body: [
+      "Technical measures: passwords are stored only as secure hashes; sign-in and verification-code attempts are limited; a robot check and two-step sign-in (authenticator app and backup codes) are available; communication is protected by HTTPS; you can view and close active sessions in account settings; an employer can enable encryption of personal-data fields.",
+      "Organisational measures: access to data is limited by role, operations are logged, and administrators view data only when necessary.",
+      `No system is entirely risk-free. If a personal data breach (unauthorised access, loss, leak) is found, we assess the risk, remove the cause and notify affected persons and the competent authority as the law requires, without undue delay (where possible within 72 hours). If you notice anything suspicious, write to ${mail} immediately.`,
     ] },
-    { title: "Cookies", body: [
-      "The platform uses only the essential session cookie (7 days) that keeps you signed in and browser storage that remembers your chosen language. There are no advertising or tracking cookies. If the robot check is on, Cloudflare may read technical data for its own security purposes.",
+    { title: "Cookies and local storage", body: [
+      "Necessary cookie: a session cookie for signing in (HttpOnly, 7 days). You cannot sign in without it and it does not require consent.",
+      "Browser storage: interface preferences such as the language and appearance (theme) you chose; a page cache for offline use (service worker). These stay on your device and are not sent to us.",
+      "There are no advertising, tracking or third-party analytics cookies. If the robot check is enabled, Cloudflare may read technical information for its own security purposes. You can delete cookies in browser settings; you will then have to sign in again.",
     ] },
-    { title: "Children", body: ["The platform is not intended for persons under 16. If you know that a child's data has been given to us, write to us and we will delete it."] },
+    { title: "Children", body: [
+      `The platform is not intended for persons under 16 and we do not knowingly collect their data. If you know that a child's data was given to us, write to ${mail} and we will delete it promptly.`,
+    ] },
+    { title: "US residents (California and others)", body: [
+      "We do not sell your personal data and we do not «share» it for cross-context behavioural advertising within the meaning of CCPA/CPRA. We do not use sensitive data beyond the purposes the law allows.",
+      `Residents of California and other states with similar laws have the right to know, delete, correct and not be discriminated against for exercising their rights. Send your request to ${mail}; you may also act through an authorised agent.`,
+    ] },
     { title: "Changes and contact", body: [
-      `When this policy changes, the new version is published on this page and the “last updated” date changes. Important changes may be sent to the account e-mail. Questions: ${mail}.`,
+      "When this policy changes, the new version is published on this page and the «last updated» date changes. Material changes may be announced to the account e-mail in advance.",
+      `Data protection contact: ${who}, e-mail: ${mail} (subject: «Privacy»).`,
     ] },
   ];
   const ru: LegalSection[] = [
     { title: "О чём эта политика", body: [
       "Эта политика объясняет, как платформа JobMatch (сайт и все его разделы) собирает персональные данные, зачем их использует, кому передаёт и как защищает. Она относится к посетителям без аккаунта, соискателям, работодателям и сотрудникам, которых работодатель учитывает на платформе.",
+    ] },
+    { title: "Правовая основа и принципы", body: [
+      "Настоящая политика подготовлена в соответствии с Законом Азербайджанской Республики «О персональных данных» (11 мая 2010 г., № 998-IIIQ), Законом «Об информации, информатизации и защите информации» и другими действующими нормами.",
+      "Для пользователей платформы в Европейской экономической зоне и Великобритании мы обязуемся применять ко всем пользователям одинаково основные принципы Общего регламента по защите данных (GDPR): законность, добросовестность и прозрачность; ограничение целями; минимизация данных; точность; ограничение срока хранения; целостность и конфиденциальность; подотчётность.",
+      "На практике это означает, что мы собираем только необходимые данные, используем их лишь для целей, которые открыто объясняем, и даём вам реальный контроль над вашими данными.",
     ] },
     { title: "Оператор (лицо, отвечающее за данные)", body: [
       `Оператор платформы: ${who}${voen}${addr}. Контакт: ${mail}.`,
@@ -191,8 +250,17 @@ export function privacyDoc(op: Operator, lang: LegalLang): LegalDoc {
       "В случаях, предусмотренных законом, данные могут быть переданы компетентным государственным органам.",
       "Ваши данные не продаются и не передаются третьим лицам в рекламных целях.",
     ] },
+    { title: "Поставщики услуг (субобработчики)", body: [
+      "Cloudflare, Inc. — хостинг (Workers), база данных (D1) и проверка на робота Turnstile. Данные: все данные платформы (по зашифрованным каналам). Расположение: глобальная сеть.",
+      "Resend — отправка e-mail. Данные: адрес e-mail и содержание письма (код подтверждения, сброс пароля, уведомления).",
+      "OpenAI или DeepSeek — функции искусственного интеллекта. Данные: только текст, необходимый для данной операции (например, текст резюме и описание вакансии). Мы стремимся договорно ограничить использование этими поставщиками переданных данных для обучения их моделей.",
+      "Платёжный сервис — онлайн-оплата сейчас не активна. При её включении этот список будет обновлён; данные банковских карт на платформе не хранятся и обрабатываются платёжным провайдером.",
+      "Эта страница обновляется при изменении списка (добавлении нового поставщика).",
+    ] },
     { title: "Передача в другие страны", body: [
-      "Серверы поставщиков хостинга и ИИ могут находиться за пределами Азербайджана. В этом случае данные передаются только для оказания услуги и на условиях конфиденциальности, согласованных с поставщиками.",
+      "Серверы поставщиков хостинга, e-mail и ИИ могут находиться за пределами Азербайджана, Европейской экономической зоны и Великобритании (например, в США или в глобальной сети).",
+      "Такая передача осуществляется только для предоставления сервиса и опирается на соответствующие механизмы защиты: условия обработки данных поставщиков (DPA), стандартные договорные положения Европейской комиссии (SCC) или решение об адекватности.",
+      `Если вы хотите узнать, какой механизм применяет поставщик, напишите на ${mail}.`,
     ] },
     { title: "Срок хранения", body: [
       "Данные хранятся, пока ваш аккаунт активен. При удалении аккаунта ваши персональные данные удаляются.",
@@ -200,20 +268,33 @@ export function privacyDoc(op: Operator, lang: LegalLang): LegalDoc {
       "Неиспользованные e-mail-коды и ссылки восстановления через короткое время становятся недействительными.",
     ] },
     { title: "Ваши права", body: [
-      "В соответствии с Законом Азербайджанской Республики «О персональных данных» вы вправе просматривать, исправлять, удалять свои данные или ограничивать их обработку, отзывать согласие и возражать против обработки.",
-      `В настройках аккаунта вы можете скачать свои данные и удалить аккаунт. По другим запросам пишите на ${mail}; мы отвечаем в срок, установленный законом.`,
-      "Если вы считаете, что ваши права нарушены, вы можете обратиться в компетентный государственный орган или в суд.",
+      "В соответствии с Законом Азербайджанской Республики «О персональных данных» и (где применимо) GDPR вы имеете следующие права:",
+      "Доступ: узнать, какие данные о вас обрабатываются, и получить копию. Исправление: исправить неточные или неполные данные. Удаление: потребовать удаления («право быть забытым»), кроме случаев, когда закон требует хранения. Ограничение: приостановить обработку на время спора.",
+      "Переносимость: получить данные в структурированном, машиночитаемом формате (их можно скачать в настройках аккаунта). Возражение: возразить против обработки на основании законного интереса. Отзыв согласия: в любое время, без влияния на законность прежней обработки.",
+      "Автоматизированные решения: решения, имеющие для вас правовые или подобные существенные последствия, не принимаются исключительно автоматически; балл соответствия и результаты ИИ носят вспомогательный характер. Вы можете потребовать пересмотра человеком.",
+      `Для запроса напишите на ${mail} (тема: «Конфиденциальность»). Для проверки личности мы можем запросить дополнительные сведения. Мы отвечаем без неоправданной задержки и в любом случае в течение 30 дней; услуга бесплатна (кроме явно необоснованных или чрезмерно повторяющихся запросов).`,
+      "Если вы считаете, что ваши права нарушены, сначала напишите нам; если вы не удовлетворены, можно обратиться в компетентный государственный орган (в Азербайджане — соответствующий орган исполнительной власти, в Европейской экономической зоне и Великобритании — местный надзорный орган по защите данных) или в суд.",
     ] },
-    { title: "Безопасность", body: [
-      "Пароли хранятся только в виде защищённых хэшей; попытки входа и ввода кода ограничены; доступны проверка на робота и двухэтапный вход (приложение-аутентификатор и резервные коды); связь защищена HTTPS; активные сессии можно просмотреть и закрыть в настройках аккаунта.",
-      "Ни одна система не застрахована от рисков полностью. Если будет обнаружен несанкционированный доступ к вашим данным, мы уведомим затронутых лиц и, при необходимости, компетентный орган в порядке, требуемом законом. Заметив что-то подозрительное, сразу напишите нам.",
+    { title: "Безопасность и действия при нарушениях", body: [
+      "Технические меры: пароли хранятся только в виде безопасных хэшей; попытки входа и ввода кода подтверждения ограничены; доступны проверка на робота и двухэтапный вход (приложение-аутентификатор и резервные коды); связь защищена HTTPS; активные сеансы можно просматривать и закрывать в настройках аккаунта; работодатель может включить шифрование полей персональных данных.",
+      "Организационные меры: доступ к данным ограничен по ролям, операции журналируются, администраторы просматривают данные только при необходимости.",
+      `Ни одна система не лишена риска полностью. При обнаружении нарушения безопасности персональных данных (несанкционированный доступ, потеря, утечка) мы оцениваем риск, устраняем причину и уведомляем затронутых лиц и компетентный орган в порядке, предусмотренном законом, без неоправданной задержки (по возможности в течение 72 часов). Если заметите что-то подозрительное, сразу напишите на ${mail}.`,
     ] },
-    { title: "Файлы cookie", body: [
-      "Платформа использует только необходимый сессионный cookie (7 дней), который сохраняет вход, и память браузера, запоминающую выбранный язык. Рекламных и отслеживающих cookie нет. Если включена проверка на робота, Cloudflare может считывать технические данные в собственных целях безопасности.",
+    { title: "Файлы cookie и локальное хранилище", body: [
+      "Необходимый cookie: сеансовый cookie для входа (HttpOnly, 7 дней). Без него войти нельзя, согласие на него не требуется.",
+      "Хранилище браузера: интерфейсные предпочтения, например выбранный язык и оформление (тема); кэш страниц для работы офлайн (service worker). Они остаются на вашем устройстве и нам не передаются.",
+      "Рекламных, отслеживающих cookie и сторонней аналитики нет. Если включена проверка на робота, Cloudflare может считывать техническую информацию для собственных целей безопасности. Cookie можно удалить в настройках браузера; тогда потребуется войти заново.",
     ] },
-    { title: "Дети", body: ["Платформа не предназначена для лиц младше 16 лет. Если вам известно, что нам переданы данные ребёнка, напишите нам, и мы их удалим."] },
+    { title: "Дети", body: [
+      `Платформа не предназначена для лиц младше 16 лет, и мы сознательно не собираем их данные. Если вам известно, что данные ребёнка переданы нам, напишите на ${mail} — мы немедленно их удалим.`,
+    ] },
+    { title: "Жители США (Калифорния и др.)", body: [
+      "Мы не продаём ваши персональные данные и не «передаём» их для кросс-контекстной поведенческой рекламы в значении CCPA/CPRA. Мы не используем чувствительные данные сверх целей, разрешённых законом.",
+      `Жители Калифорнии и других штатов с аналогичными законами имеют право знать, удалять, исправлять и не подвергаться дискриминации за использование своих прав. Отправьте запрос на ${mail}; можно действовать и через уполномоченного представителя.`,
+    ] },
     { title: "Изменения и контакты", body: [
-      `При изменении этой политики новая версия публикуется на этой странице, а дата «последнего обновления» меняется. О существенных изменениях может быть сообщено на e-mail аккаунта. Вопросы: ${mail}.`,
+      "При изменении политики новая версия публикуется на этой странице, а дата «последнего обновления» меняется. О существенных изменениях можно заранее уведомить по e-mail аккаунта.",
+      `Контакт по вопросам защиты данных: ${who}, e-mail: ${mail} (тема: «Конфиденциальность»).`,
     ] },
   ];
   return {
@@ -228,12 +309,19 @@ export function privacyDoc(op: Operator, lang: LegalLang): LegalDoc {
 }
 
 export function termsDoc(op: Operator, lang: LegalLang): LegalDoc {
-  const who = op.name || L(lang, "[operatorun adı daxil edilməlidir]", "[operator name to be entered]", "[укажите название оператора]");
-  const mail = op.email || L(lang, "[e-poçt daxil edilməlidir]", "[e-mail to be entered]", "[укажите e-mail]");
+  const who = op.name || "Digilabs";
+  const mail = op.email || "info@digilabs.az";
   const az: LegalSection[] = [
     { title: "Ümumi müddəalar", body: [
       `Bu şərtlər ${who} (bundan sonra «Operator») tərəfindən idarə olunan JobMatch platformasından (sayt, onun işəgötürən, iş axtaran və admin bölmələri, hesablama alətləri) istifadəni tənzimləyir. Qeydiyyatdan keçməklə və ya platformadan istifadə etməklə bu şərtləri və Məxfilik siyasətini qəbul etmiş olursunuz. Razı deyilsinizsə, platformadan istifadə etməyin.`,
       "Platformanın açıq hissələrindən (vakansiyalara baxış, kalkulyatorlar) hesab yaratmadan istifadə etmək olar; hesab tələb edən əməliyyatlar üçün qeydiyyat lazımdır.",
+    ] },
+    { title: "Təriflər", body: [
+      `«Platforma» — JobMatch saytı və onun bütün bölmələri; «Operator» — platformanı idarə edən ${who}; «İstifadəçi» — platformadan istifadə edən hər kəs; «İş axtaran» — iş və ya təcrübə axtaran şəxs; «İşəgötürən» — vakansiya yerləşdirən və ya kadr alətlərindən istifadə edən şirkət və ya onun nümayəndəsi; «Məzmun» — istifadəçinin platformaya yüklədiyi məlumat (CV, vakansiya, mesaj, sənəd və s.); «AI funksiyaları» — süni intellektlə işləyən analiz, tövsiyə və köməkçi alətləri.`,
+    ] },
+    { title: "Uyğunluq və səlahiyyət", body: [
+      "Platformadan istifadə etmək üçün ən azı 16 yaşınız olmalı və qanuni olaraq müqavilə bağlamaq qabiliyyətinə malik olmalısınız. Şirkət adından qeydiyyatdan keçirsinizsə, həmin şirkəti bu şərtlərlə bağlamaq səlahiyyətinizin olduğunu təsdiq edirsiniz.",
+      "Bir şəxs bir hesab saxlamalıdır. Hesab başqasına verilə və ya satıla bilməz; hesabdan edilən əməliyyatlara görə hesab sahibi cavabdehdir.",
     ] },
     { title: "Hesab və e-poçt təsdiqi", body: [
       "Qeydiyyat üçün düzgün ad və sizə məxsus e-poçt ünvanı göstərməlisiniz. Yeni hesabın e-poçt ünvanına 6 rəqəmli təsdiq kodu göndərilir; kod daxil olunana qədər hesab aktivləşmir. Kod 15 dəqiqə qüvvədədir, yeni kod istəyə bilərsiniz.",
@@ -273,25 +361,58 @@ export function termsDoc(op: Operator, lang: LegalLang): LegalDoc {
       "Platformanın fasiləsiz və xətasız işləməsinə çalışırıq, amma bunu zəmanət vermirik: texniki xidmət, yeniləmə və üçüncü tərəf xidmətlərinin (hostinq, e-poçt, ödəniş, AI) nasazlığı müvəqqəti fasilə yarada bilər.",
       "Funksiyaları inkişaf etdirir, dəyişir və ya ləğv edə bilərik. Əhəmiyyətli dəyişikliklər barədə əvvəlcədən xəbər verməyə çalışırıq.",
     ] },
+    { title: "Üçüncü tərəf xidmətləri", body: [
+      "Platforma üçüncü tərəf xidmətlərindən (hostinq, e-poçt, AI təminatçıları, ödəniş, xarici vakansiya mənbələri) istifadə edir və ya onlara keçid verə bilər. Həmin xidmətlərin öz şərtləri və məxfilik qaydaları var; onlar üzərində nəzarətimiz yoxdur və məzmununa görə məsuliyyət daşımırıq.",
+    ] },
+    { title: "Zəmanətlərin rədd edilməsi", body: [
+      "Qanunun icazə verdiyi maksimum həddə platforma «olduğu kimi» və «mövcud olduğu kimi» təqdim olunur. Operator xidmətin fasiləsiz, xətasız və ya konkret məqsədə yararlı olacağına, vakansiyaların, namizədlərin və ya AI nəticələrinin dəqiq, tam və ya aktual olacağına dair açıq və ya nəzərdə tutulan zəmanət vermir.",
+      "Hesablama alətləri (maaş, məzuniyyət, vergi və s.) məlumat xarakterlidir və rəsmi uçotu əvəz etmir; yekun hesablama üçün qüvvədə olan qanunvericiliyə və mütəxəssisə əsaslanın.",
+    ] },
     { title: "Məsuliyyətin həddi", body: [
       "Platforma «olduğu kimi» təqdim olunur. Operator qanunun icazə verdiyi həddə dolayı və nəticə zərərinə, itirilmiş gəlir və ya fürsətə, üçüncü tərəflərin (işəgötürən, namizəd, xidmət təminatçıları) hərəkətlərinə və AI nəticələrinə əsaslanan qərarlara görə məsuliyyət daşımır.",
       "Operatorun məsuliyyəti, qanunla başqa cür tələb olunmayan hallarda, zərərin yarandığı dövrdə sizin ödədiyiniz məbləğlə məhdudlaşır. Bu müddəa qanunla ləğv edilə bilməyən hüquqlarınıza toxunmur.",
+    ] },
+    { title: "Müəllif hüquqlarının və məzmunla bağlı şikayətlərin qaydası", body: [
+      `Platformadakı məzmunun sizin müəllif hüququnuzu, ticarət nişanınızı, şəxsi məlumatınızı və ya digər hüquqlarınızı pozduğunu düşünürsünüzsə, ${mail} ünvanına yazın: hüququn mahiyyəti, pozuntu olduğunu düşündüyünüz məzmunun ünvanı, əlaqə məlumatınız və məlumatın doğruluğuna dair bəyanat göstərilsin.`,
+      "Əsaslı şikayət alındıqda məzmun müvəqqəti gizlədilə və ya silinə bilər; məzmunu yükləyən şəxsə cavab hüququ verilir. Təkrarlanan pozuntu hesabın bağlanmasına səbəb ola bilər.",
+    ] },
+    { title: "Zərərin əvəzinin ödənilməsi", body: [
+      "Siz şərtləri, qanunu və ya üçüncü tərəfin hüquqlarını pozmanızdan, yüklədiyiniz məzmundan və ya işəgötürən kimi işçi və namizəd məlumatlarını qanunsuz emal etməyinizdən yaranan üçüncü tərəf tələblərindən Operatoru qoruyacağınıza və bu tələblər üzrə əsaslı zərəri ödəyəcəyinizə razılıq verirsiniz. Bu müddəa istehlakçıların qanunla ləğv edilə bilməyən hüquqlarına toxunmur.",
     ] },
     { title: "Hesabın bağlanması", body: [
       "Hesabı istənilən vaxt hesab ayarlarından silə bilərsiniz; bu halda şəxsi məlumatlar Məxfilik siyasətinə uyğun silinir, qanunla saxlanması tələb olunan qeydlər istisna olmaqla.",
       "Şərtləri pozan, aldadıcı və ya təhlükə yaradan hesab Operator tərəfindən dayandırıla və ya silinə bilər. Ödənişli paketlə bağlı qalıq məbləğ qaydası müqavilədə göstərildiyi kimidir.",
     ] },
+    { title: "Qüvvədən kənar hallar", body: [
+      "Operator əsaslı nəzarətindən kənar hallar (təbii fəlakət, müharibə, tətil, şəbəkə və ya enerji nasazlığı, üçüncü tərəf xidmətlərinin dayanması, dövlət orqanlarının qərarları və s.) səbəbindən öhdəliklərinin yerinə yetirilməməsinə və ya gecikməsinə görə məsuliyyət daşımır.",
+    ] },
+    { title: "Sanksiyalar və qanunvericiliyə riayət", body: [
+      "Siz platformadan sanksiyalara, ixrac nəzarətinə və kriminal gəlirlərin leqallaşdırılmasına qarşı qüvvədə olan qanunlara zidd şəkildə istifadə etməyəcəyinizi və sanksiyalı şəxslər siyahısında olmadığınızı təsdiq edirsiniz.",
+    ] },
     { title: "Şərtlərin dəyişməsi", body: [
       "Şərtlər dəyişdikdə yeni versiya bu səhifədə dərc olunur və «son yenilənmə» tarixi dəyişir. Əhəmiyyətli dəyişikliklərdə hesab e-poçtuna məlumat göndərilə bilər. Dəyişiklikdən sonra platformadan istifadəni davam etmək yeni şərtləri qəbul etmək deməkdir.",
     ] },
     { title: "Tətbiq olunan hüquq və mübahisələr", body: [
-      `Bu şərtlər Azərbaycan Respublikasının qanunvericiliyinə tabedir. Mübahisələr əvvəlcə danışıqlarla, razılıq olmadıqda səlahiyyətli Azərbaycan məhkəməsində həll olunur. Əlaqə: ${mail}.`,
+      "Bu şərtlər Azərbaycan Respublikasının qanunvericiliyinə tabedir (kolliziya normaları istisna olmaqla). Mübahisələr əvvəlcə 30 gün ərzində danışıqlarla, razılıq olmadıqda Bakı şəhərinin səlahiyyətli məhkəməsində həll olunur. İstehlakçı kimi yaşadığınız ölkənin imperativ qaydaları sizə daha yaxşı müdafiə verirsə, onlar qüvvədə qalır.",
+      `Şikayət və suallar üçün: ${mail}.`,
+    ] },
+    { title: "Bildirişlər və ümumi hüquqi müddəalar", body: [
+      `Bildirişlər hesabınızdakı e-poçta, platformada və ya bu səhifədə göndərilə bilər. Sizin Operatora bildirişiniz ${mail} ünvanına göndərilir.`,
+      "Şərtlərin hər hansı müddəası qüvvədən düşərsə, qalan müddəalar qüvvədə qalır. Bu şərtlər və Məxfilik siyasəti tərəflər arasında tam razılaşmadır. Operator hüququndan istifadə etməməsi ondan imtina demək deyil. Operator bu şərtlər üzrə hüquq və vəzifələrini (məsələn, biznesin satışı zamanı) üçüncü şəxsə keçirə bilər; siz bunu Operatorun razılığı olmadan edə bilməzsiniz.",
+      "Şərtlər Azərbaycan, ingilis və rus dillərində dərc olunur. Fərq olarsa, Azərbaycan dilindəki mətn üstünlük təşkil edir.",
     ] },
   ];
   const en: LegalSection[] = [
     { title: "General", body: [
       `These terms govern the use of the JobMatch platform (the site, its employer, job-seeker and admin sections, and the calculation tools) operated by ${who} (the “Operator”). By registering or using the platform you accept these terms and the Privacy policy. If you do not agree, do not use the platform.`,
       "The open parts of the platform (browsing vacancies, calculators) can be used without an account; operations that need an account require registration.",
+    ] },
+    { title: "Definitions", body: [
+      `«Platform» means the JobMatch website and all its sections; «Operator» means ${who}, which runs the platform; «User» means anyone using the platform; «Job seeker» means a person looking for a job or internship; «Employer» means a company or its representative that posts vacancies or uses the HR tools; «Content» means information the user uploads to the platform (CV, vacancy, message, document and so on); «AI features» means analysis, recommendation and assistant tools powered by artificial intelligence.`,
+    ] },
+    { title: "Eligibility and authority", body: [
+      "To use the platform you must be at least 16 and legally able to enter into a contract. If you register on behalf of a company, you confirm that you are authorised to bind that company to these terms.",
+      "One person should keep one account. An account may not be transferred or sold; the account holder is responsible for actions taken through the account.",
     ] },
     { title: "Account and e-mail verification", body: [
       "To register you must give a real name and an e-mail address that belongs to you. A 6-digit verification code is sent to the new account's e-mail; the account is not activated until the code is entered. The code is valid for 15 minutes and you can ask for a new one.",
@@ -331,25 +452,58 @@ export function termsDoc(op: Operator, lang: LegalLang): LegalDoc {
       "We try to keep the platform running without interruption or errors but do not guarantee it: maintenance, updates and failures of third-party services (hosting, e-mail, payment, AI) can cause temporary interruptions.",
       "We may develop, change or withdraw features. We try to give advance notice of important changes.",
     ] },
+    { title: "Third-party services", body: [
+      "The platform uses or may link to third-party services (hosting, e-mail, AI providers, payment, external vacancy sources). Those services have their own terms and privacy rules; we do not control them and are not responsible for their content.",
+    ] },
+    { title: "Disclaimer of warranties", body: [
+      "To the maximum extent permitted by law the platform is provided «as is» and «as available». The Operator gives no express or implied warranty that the service will be uninterrupted, error-free or fit for a particular purpose, or that vacancies, candidates or AI results will be accurate, complete or current.",
+      "The calculators (salary, vacation, tax and so on) are informational and do not replace official accounting; rely on the legislation in force and a specialist for the final calculation.",
+    ] },
     { title: "Limitation of liability", body: [
       "The platform is provided “as is”. To the extent the law allows, the Operator is not liable for indirect and consequential loss, lost income or opportunity, actions of third parties (employer, candidate, service providers) or decisions based on AI results.",
       "Unless the law requires otherwise, the Operator's liability is limited to the amount you paid in the period in which the loss arose. This does not affect rights that cannot be excluded by law.",
+    ] },
+    { title: "Copyright and content complaints", body: [
+      `If you believe content on the platform infringes your copyright, trademark, personal data or other rights, write to ${mail} stating the right concerned, the address of the content you believe infringes, your contact details and a statement that the information is accurate.`,
+      "On a well-founded complaint the content may be hidden or removed temporarily; the person who uploaded it is given a chance to reply. Repeated infringement may lead to closing the account.",
+    ] },
+    { title: "Indemnification", body: [
+      "You agree to protect the Operator against, and to compensate reasonable loss arising from, third-party claims caused by your breach of these terms, the law or third-party rights, by the Content you upload, or, if you are an employer, by your unlawful processing of employee and candidate data. This provision does not affect consumers' rights that cannot be waived by law.",
     ] },
     { title: "Closing an account", body: [
       "You can delete your account at any time in the account settings; your personal data is then deleted under the Privacy policy, except records the law requires to be kept.",
       "An account that breaks the terms, is misleading or creates risk can be suspended or deleted by the Operator. The rule for any balance on a paid package is as stated in the contract.",
     ] },
+    { title: "Force majeure", body: [
+      "The Operator is not liable for failure or delay in performing its obligations caused by circumstances beyond its reasonable control (natural disaster, war, strike, network or power failure, outage of third-party services, decisions of public authorities and so on).",
+    ] },
+    { title: "Sanctions and legal compliance", body: [
+      "You confirm that you will not use the platform in breach of sanctions, export control or anti-money-laundering laws and that you are not on any list of sanctioned persons.",
+    ] },
     { title: "Changes to the terms", body: [
       "When the terms change, the new version is published on this page and the “last updated” date changes. For important changes a message may be sent to the account e-mail. Continuing to use the platform after a change means accepting the new terms.",
     ] },
     { title: "Governing law and disputes", body: [
-      `These terms are governed by the legislation of the Republic of Azerbaijan. Disputes are resolved first by negotiation and, failing agreement, by the competent court of Azerbaijan. Contact: ${mail}.`,
+      "These terms are governed by the law of the Republic of Azerbaijan (excluding conflict-of-law rules). Disputes are first resolved by negotiation within 30 days and, failing agreement, by the competent court of the city of Baku. If you are a consumer and the mandatory rules of your country of residence protect you better, they remain in force.",
+      `For complaints and questions: ${mail}.`,
+    ] },
+    { title: "Notices and general legal provisions", body: [
+      `Notices may be sent to the e-mail on your account, on the platform or on this page. Your notices to the Operator go to ${mail}.`,
+      "If any provision of the terms becomes invalid, the rest remain in force. These terms and the Privacy policy are the entire agreement between the parties. Failure by the Operator to exercise a right is not a waiver. The Operator may assign its rights and duties under these terms (for example on a sale of the business); you may not do so without the Operator's consent.",
+      "The terms are published in Azerbaijani, English and Russian. If they differ, the Azerbaijani text prevails.",
     ] },
   ];
   const ru: LegalSection[] = [
     { title: "Общие положения", body: [
       `Настоящие условия регулируют использование платформы JobMatch (сайт, его разделы для работодателей, соискателей и администратора, инструменты расчётов), которой управляет ${who} (далее «Оператор»). Регистрируясь или используя платформу, вы принимаете эти условия и Политику конфиденциальности. Если вы не согласны, не используйте платформу.`,
       "Открытыми частями платформы (просмотр вакансий, калькуляторы) можно пользоваться без аккаунта; для операций, требующих аккаунта, нужна регистрация.",
+    ] },
+    { title: "Определения", body: [
+      `«Платформа» — сайт JobMatch и все его разделы; «Оператор» — ${who}, управляющий платформой; «Пользователь» — любое лицо, использующее платформу; «Соискатель» — лицо, ищущее работу или стажировку; «Работодатель» — компания или её представитель, размещающий вакансии или использующий кадровые инструменты; «Контент» — информация, загружаемая пользователем на платформу (резюме, вакансия, сообщение, документ и т. д.); «Функции ИИ» — инструменты анализа, рекомендаций и помощника на основе искусственного интеллекта.`,
+    ] },
+    { title: "Соответствие требованиям и полномочия", body: [
+      "Для использования платформы вам должно быть не менее 16 лет, и вы должны быть законно способны заключать договор. Если вы регистрируетесь от имени компании, вы подтверждаете, что имеете полномочия связывать её настоящими условиями.",
+      "Один человек должен вести один аккаунт. Аккаунт нельзя передавать или продавать; владелец аккаунта отвечает за действия, совершённые через аккаунт.",
     ] },
     { title: "Аккаунт и подтверждение e-mail", body: [
       "Для регистрации необходимо указать настоящее имя и принадлежащий вам e-mail. На e-mail нового аккаунта отправляется 6-значный код подтверждения; пока код не введён, аккаунт не активируется. Код действует 15 минут, можно запросить новый.",
@@ -389,19 +543,45 @@ export function termsDoc(op: Operator, lang: LegalLang): LegalDoc {
       "Мы стараемся обеспечить бесперебойную и безошибочную работу платформы, но не гарантируем этого: техническое обслуживание, обновления и сбои сторонних сервисов (хостинг, e-mail, оплата, ИИ) могут вызывать временные перерывы.",
       "Мы можем развивать, изменять или отменять функции. О существенных изменениях стараемся предупреждать заранее.",
     ] },
+    { title: "Сторонние сервисы", body: [
+      "Платформа использует сторонние сервисы (хостинг, e-mail, поставщики ИИ, оплата, внешние источники вакансий) или может давать на них ссылки. У этих сервисов свои условия и правила конфиденциальности; мы не контролируем их и не отвечаем за их содержание.",
+    ] },
+    { title: "Отказ от гарантий", body: [
+      "В максимальной степени, разрешённой законом, платформа предоставляется «как есть» и «по мере доступности». Оператор не даёт явных или подразумеваемых гарантий бесперебойности, безошибочности и пригодности сервиса для конкретной цели, а также точности, полноты и актуальности вакансий, кандидатов и результатов ИИ.",
+      "Калькуляторы (зарплата, отпуск, налоги и т. д.) носят информационный характер и не заменяют официальный учёт; для окончательного расчёта ориентируйтесь на действующее законодательство и специалиста.",
+    ] },
     { title: "Ограничение ответственности", body: [
       "Платформа предоставляется «как есть». В пределах, допускаемых законом, Оператор не отвечает за косвенные и последующие убытки, упущенный доход или возможность, действия третьих лиц (работодателя, кандидата, поставщиков услуг) и решения, основанные на результатах ИИ.",
       "Если иное не требуется законом, ответственность Оператора ограничена суммой, уплаченной вами за период, в котором возник ущерб. Это не затрагивает права, которые нельзя исключить по закону.",
+    ] },
+    { title: "Авторские права и жалобы на контент", body: [
+      `Если вы считаете, что контент на платформе нарушает ваше авторское право, товарный знак, персональные данные или иные права, напишите на ${mail}, указав затронутое право, адрес контента, который, по вашему мнению, нарушает права, ваши контактные данные и заявление о достоверности сведений.`,
+      "При обоснованной жалобе контент может быть временно скрыт или удалён; загрузившему его лицу даётся возможность ответить. Повторные нарушения могут привести к закрытию аккаунта.",
+    ] },
+    { title: "Возмещение ущерба", body: [
+      "Вы соглашаетесь защищать Оператора и возмещать обоснованный ущерб, возникший из претензий третьих лиц, вызванных вашим нарушением условий, закона или прав третьих лиц, загруженным вами Контентом либо (если вы работодатель) незаконной обработкой вами данных сотрудников и кандидатов. Это положение не затрагивает права потребителей, от которых нельзя отказаться по закону.",
     ] },
     { title: "Закрытие аккаунта", body: [
       "Вы можете удалить аккаунт в любое время в настройках аккаунта; ваши персональные данные при этом удаляются согласно Политике конфиденциальности, за исключением записей, которые по закону необходимо хранить.",
       "Аккаунт, нарушающий условия, вводящий в заблуждение или создающий опасность, может быть приостановлен или удалён Оператором. Правила в отношении остатка по платному пакету — как указано в договоре.",
     ] },
+    { title: "Форс-мажор", body: [
+      "Оператор не отвечает за неисполнение или задержку исполнения обязательств, вызванные обстоятельствами вне его разумного контроля (стихийное бедствие, война, забастовка, сбой сети или электроснабжения, недоступность сторонних сервисов, решения государственных органов и т. д.).",
+    ] },
+    { title: "Санкции и соблюдение законодательства", body: [
+      "Вы подтверждаете, что не будете использовать платформу в нарушение законов о санкциях, экспортном контроле и противодействии отмыванию денег и что вас нет в списках лиц, на которых распространяются санкции.",
+    ] },
     { title: "Изменение условий", body: [
       "При изменении условий новая версия публикуется на этой странице, а дата «последнего обновления» меняется. О существенных изменениях сообщение может быть отправлено на e-mail аккаунта. Продолжение использования платформы после изменения означает принятие новых условий.",
     ] },
     { title: "Применимое право и споры", body: [
-      `Настоящие условия регулируются законодательством Азербайджанской Республики. Споры разрешаются сначала путём переговоров, а при отсутствии согласия — компетентным судом Азербайджана. Контакт: ${mail}.`,
+      "Настоящие условия регулируются законодательством Азербайджанской Республики (за исключением коллизионных норм). Споры сначала разрешаются путём переговоров в течение 30 дней, а при недостижении согласия — компетентным судом города Баку. Если вы потребитель и императивные нормы страны вашего проживания защищают вас лучше, они сохраняют силу.",
+      `По жалобам и вопросам: ${mail}.`,
+    ] },
+    { title: "Уведомления и общие правовые положения", body: [
+      `Уведомления могут направляться на e-mail вашего аккаунта, на платформе или на этой странице. Ваши уведомления Оператору направляются на ${mail}.`,
+      "Если какое-либо положение условий станет недействительным, остальные сохраняют силу. Настоящие условия и Политика конфиденциальности составляют полное соглашение сторон. Неиспользование Оператором своего права не означает отказа от него. Оператор вправе передать свои права и обязанности по условиям (например, при продаже бизнеса); вы не вправе делать это без согласия Оператора.",
+      "Условия опубликованы на азербайджанском, английском и русском языках. При расхождениях приоритет имеет текст на азербайджанском языке.",
     ] },
   ];
   return {

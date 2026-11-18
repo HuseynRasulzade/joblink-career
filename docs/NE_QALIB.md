@@ -594,3 +594,10 @@ Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), 
 - **Telefon:** yuxarı menyuda qulaqlıq işarəsi ilə nömrə (`tel:` linki), telefonda yalnız işarə; «Əlaqə» bölməsi və footer. Nömrə `lib/contact.ts`-dədir və **yer tutucudur**: açıqlamadan əvvəl real nömrə yazılmalıdır.
 - **Yeni bölmələr:** «Sürətli keçidlər» (vakansiyalar, kalkulyator, CV təhlili, şirkət kimi başla, qiymətlər, suallar), vakansiyalarda format süzgəci (Uzaqdan/Hibrid/Ofisdə/Tam ştat/Yarım ştat), «Əlaqə» kartı; aşağıdakı bloklar görünəndə yumşaq açılır (hərəkət azaldılmışsa söndürülür).
 - Yeni mətnlər 3 dildədir (`lib/i18n-pages.ts`).
+
+## 59. Hüquqi mətnlər: beynəlxalq səviyyə
+
+- **Məxfilik siyasəti (18 bölmə, 3 dil):** hüquqi çərçivə (Azərbaycan «Fərdi məlumatlar haqqında» Qanunu, GDPR prinsipləri, CCPA/CPRA), alt-emalçı siyahısı (Cloudflare, Resend, OpenAI/DeepSeek, ödəniş), başqa ölkələrə ötürmə mexanizmləri (DPA/SCC), genişləndirilmiş hüquqlar (giriş, düzəliş, silmə, məhdudlaşdırma, köçürülmə, etiraz, razılığı geri götürmə, avtomatik qərarlar, 30 gün cavab), təhlükəsizlik və pozuntu (72 saat hədəfi), çərəzlər və yerli yaddaş, uşaqlar (16+), ABŞ sakinləri.
+- **İstifadə şərtləri (22 bölmə, 3 dil):** təriflər, uyğunluq və səlahiyyət, üçüncü tərəf xidmətləri, zəmanətlərin rədd edilməsi, müəllif hüququ və məzmun şikayəti qaydası, zərərin əvəzi, qüvvədən kənar hallar, sanksiyalar, tətbiq olunan hüquq (Bakı), bildirişlər, ayrılıqlılıq, bütöv razılaşma, dil üstünlüyü (Azərbaycan).
+- Operator: standart olaraq **Digilabs**, əlaqə **info@digilabs.az**. Hüquqi ad, VÖEN və ünvan Cloudflare-də `PLATFORM_LEGAL_NAME`, `PLATFORM_VOEN`, `PLATFORM_ADDRESS`, `PLATFORM_EMAIL` ilə yazılanda mətndə görünür.
+- Mətn işçi layihəsidir: açıqlamadan əvvəl hüquqşünas yoxlamalıdır.
