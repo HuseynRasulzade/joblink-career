@@ -1072,6 +1072,59 @@ export async function aiDocumentCheck(
   }
 }
 
+// Reads an image or PDF with the AI (vision) and returns its text answer; the real tokens of the call are counted for the admin usage panel.
+// Throws a clear error when the AI is not set up or refuses, so the caller can tell the admin what to do instead.
+export async function aiVisionText(
+  doc: { name: string; type: string; data: string },
+  instructions: string,
+  prompt: string,
+  feature: string,
+  user = "",
+) {
+  const settings = runtime();
+  if (!settings.OPENAI_API_KEY) throw new HttpError(503, "Şəkil və PDF faylını oxumaq üçün AI qoşulmayıb (OPENAI_API_KEY). Faylı mətn formatında (CSV, TXT, Excel, Word) yükləyin.");
+  const content =
+    doc.type === "application/pdf"
+      ? { type: "input_file", filename: doc.name || "document.pdf", file_data: `data:application/pdf;base64,${doc.data}` }
+      : { type: "input_image", image_url: `data:${doc.type};base64,${doc.data}`, detail: "high" };
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${settings.OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: settings.OPENAI_MODEL || "gpt-5.2",
+      instructions,
+      input: [{ role: "user", content: [content, { type: "input_text", text: prompt }] }],
+      store: false,
+      max_output_tokens: 12000,
+    }),
+    signal: AbortSignal.timeout(110000),
+  });
+  await recordAiUsage({ tokens: response.ok ? await tokensOfResponse(response) : undefined, feature, provider: "openai", user, charsIn: Math.ceil(doc.data.length * 0.75 / 4) + prompt.length, charsOut: 3000, error: !response.ok });
+  if (!response.ok) throw new HttpError(502, "AI faylı oxumadı. Bir az sonra yenidən sınayın və ya faylı mətn formatında yükləyin.");
+  const body = (await response.json()) as { output?: { content?: { type: string; text?: string }[] }[] };
+  return (
+    body.output
+      ?.flatMap((item) => item.content || [])
+      .filter((item) => item.type === "output_text")
+      .map((item) => item.text)
+      .join("\n") || ""
+  );
+}
+// The JSON object inside an AI answer (it may be wrapped in a code fence or in a few words).
+export function jsonFromAi(text: string): unknown {
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const m = /\{[\s\S]*\}/.exec(cleaned);
+    try {
+      return m ? JSON.parse(m[0]) : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
 export async function sendAdminEmail(subject: string, text: string) {
   const settings = runtime();
   if (!mailConfigured(settings)) return "queued";

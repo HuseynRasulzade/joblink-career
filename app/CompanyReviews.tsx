@@ -186,7 +186,7 @@ function PriceEditor({ prices, notify, onSaved }: { prices?: Record<string, Pric
               <tr key={provider}>
                 <td>{provider}</td>
                 {(["input", "cachedInput", "output"] as const).map((key) => (
-                  <td key={key}><input type="number" min={0} step="0.01" value={p[key]} onChange={(e) => set(provider, key, e.target.value)} style={{ width: 90 }} /></td>
+                  <td key={key}><input className="admin-input" type="number" min={0} step="0.01" value={p[key]} onChange={(e) => set(provider, key, e.target.value)} style={{ width: 90 }} /></td>
                 ))}
               </tr>
             ))}

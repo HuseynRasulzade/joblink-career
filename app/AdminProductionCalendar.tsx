@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, FileUp, Undo2 } from "lucide-react";
 import type { MonthSummary, PlatformDay } from "@/lib/calendar-az";
 
 const MONTHS = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun", "İyul", "Avqust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
@@ -25,6 +25,13 @@ export default function AdminProductionCalendar({ api, notify }: { api: (path: s
   const [kind, setKind] = useState<PlatformDay["kind"] | "">("holiday");
   const [label, setLabel] = useState("");
   const [range, setRange] = useState({ from: "", to: "", label: "", kind: "holiday" as PlatformDay["kind"] });
+  // Upload of a calendar file: the days found in it are applied at once (auto) or shown for a check first.
+  type Found = { day: string; kind: PlatformDay["kind"]; label: string; on: boolean };
+  const [auto, setAuto] = useState(true);
+  const [found, setFound] = useState<Found[] | null>(null);
+  const [upBusy, setUpBusy] = useState(false);
+  const [undo, setUndo] = useState<{ day: string; kind: string; label: string }[] | null>(null);
+  const [sourceNote, setSourceNote] = useState("");
   const load = useCallback(() => {
     (api(`admin/production-calendar?year=${year}`) as Promise<Data>).then(setData).catch((e) => notify((e as Error).message));
   }, [api, notify, year]);
@@ -39,6 +46,41 @@ export default function AdminProductionCalendar({ api, notify }: { api: (path: s
       notify(message);
     } catch (e) {
       notify((e as Error).message);
+    }
+  }
+  async function applyFound(list: { day: string; kind: string; label: string }[]) {
+    // What each day was before, so that the whole upload can be undone.
+    const before = new Map((data?.days || []).map((d) => [d.day, d]));
+    setUndo(list.map((d) => before.get(d.day) || { day: d.day, kind: "", label: "" }));
+    await save(list, `${list.length} gün təqvimə tətbiq olundu.`);
+  }
+  async function onFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 6 * 1024 * 1024) return notify("Fayl 6 MB-dan böyükdür.");
+    setUpBusy(true);
+    setFound(null);
+    try {
+      const encoded = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = () => reject(new Error("Fayl oxunmadı."));
+        reader.readAsDataURL(file);
+      });
+      const result = (await api("admin/production-calendar/extract", { name: file.name, type: file.type, data: encoded, year })) as { source: "text" | "ai"; count: number; days: { day: string; kind: PlatformDay["kind"]; label: string }[] };
+      setSourceNote(result.source === "ai" ? "Fayl AI ilə oxundu: tarixləri yoxlayın." : "Fayl mətn kimi oxundu.");
+      // The calendar jumps to the year the file is about.
+      const counts = new Map<number, number>();
+      for (const d of result.days) counts.set(Number(d.day.slice(0, 4)), (counts.get(Number(d.day.slice(0, 4))) || 0) + 1);
+      const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+      if (top && top !== year) setYear(top);
+      if (auto) await applyFound(result.days);
+      else setFound(result.days.map((d) => ({ ...d, on: true })));
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setUpBusy(false);
     }
   }
   function addRange() {
@@ -76,6 +118,55 @@ export default function AdminProductionCalendar({ api, notify }: { api: (path: s
           <div className="notice" role="status">
             {year}-ci il üçün Ramazan və Qurban bayramı günləri hələ daxil edilməyib. Aşağıdakı “Bayram dövrü əlavə et” ilə əlavə edin; Novruz və sabit bayramlar avtomatik var.
           </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <h3><FileUp size={18} /> Faylla yenilə (şəkil, PDF, Word, Excel, CSV, mətn)</h3>
+        <p className="muted fine-print">Rəsmi istehsalat təqvimini yükləyin: fayldakı bayram, köçürülmüş, işçi və qısaldılmış günlər tapılıb təqvimə yazılır. Şəkil və PDF AI ilə oxunur (AI qoşulubsa), Word/Excel/CSV/mətn/ICS isə AI olmadan. Ən çox 6 MB.</p>
+        <div className="admin-actions" style={{ alignItems: "center", flexWrap: "wrap" }}>
+          <label className="secondary" style={{ cursor: "pointer" }}>
+            {upBusy ? "Oxunur…" : "Fayl seç"}
+            <input type="file" hidden disabled={upBusy} accept="image/*,.pdf,.docx,.xlsx,.csv,.tsv,.txt,.md,.html,.htm,.ics,.json,.rtf" onChange={onFile} />
+          </label>
+          <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} /> Avtomatik tətbiq et (yoxlamadan)
+          </label>
+          {undo && (
+            <button type="button" className="ghost" onClick={() => { void save(undo, "Son yükləmə geri alındı."); setUndo(null); }}>
+              <Undo2 size={14} /> Son yükləməni geri al
+            </button>
+          )}
+        </div>
+        {sourceNote && <p className="muted fine-print">{sourceNote}</p>}
+        {found && (
+          <>
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead><tr><th /><th>Tarix</th><th>Növ</th><th>Ad</th></tr></thead>
+                <tbody>
+                  {found.map((d, i) => (
+                    <tr key={d.day}>
+                      <td><input type="checkbox" checked={d.on} onChange={(e) => setFound(found.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} /></td>
+                      <td>{d.day}</td>
+                      <td>
+                        <select value={d.kind} onChange={(e) => setFound(found.map((x, j) => (j === i ? { ...x, kind: e.target.value as PlatformDay["kind"] } : x)))}>
+                          {KINDS.filter((k) => k.id).map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
+                        </select>
+                      </td>
+                      <td><input value={d.label} onChange={(e) => setFound(found.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="admin-actions">
+              <button type="button" className="primary" onClick={() => { const list = found.filter((d) => d.on).map(({ day, kind, label }) => ({ day, kind, label })); setFound(null); void applyFound(list); }}>
+                Seçilmişləri tətbiq et ({found.filter((d) => d.on).length})
+              </button>
+              <button type="button" className="secondary" onClick={() => setFound(null)}>Ləğv et</button>
+            </div>
+          </>
         )}
       </section>
 

@@ -376,6 +376,17 @@ export async function jsonBody(request: Request) {
     throw new HttpError(400, "Sorğu məlumatları oxunmadı.");
   }
 }
+// For the few admin endpoints that receive a whole file (base64 inside JSON): a larger limit than `jsonBody`.
+export async function bigJsonBody(request: Request, maxChars = 11_500_000) {
+  if (Number(request.headers.get("content-length")) > maxChars + 2000) throw new HttpError(413, "Fayl çox böyükdür.");
+  const raw = await request.text();
+  if (raw.length > maxChars + 2000) throw new HttpError(413, "Fayl çox böyükdür.");
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new HttpError(400, "Sorğu məlumatları oxunmadı.");
+  }
+}
 type AiLimits = {
   maxInputChars?: number;
   maxOutputTokens?: number;

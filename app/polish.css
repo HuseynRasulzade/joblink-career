@@ -387,3 +387,7 @@ html[data-theme="dark"] .ov-dark, html[data-theme="dark"] .ov-teal, html[data-th
   .topbar .breadcrumb { order: 3; flex: 1 1 100%; margin: 0; }
   .topbar-right { margin-left: auto; }
 }
+
+/* Admin sahələri: cədvəl və formalarda yazı görünsün (qaranlıq rejimdə də). */
+.admin-input { background: #fff; color: #1b2b2a; border: 1px solid #cfdcda; border-radius: 10px; padding: 8px 10px; font: inherit; min-height: 38px; }
+.admin-input:focus { outline: 2px solid #2aa595; outline-offset: 1px; }

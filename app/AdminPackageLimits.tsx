@@ -66,7 +66,7 @@ export default function AdminPackageLimits({ api, notify }: { api: (path: string
               <td>{r.priceAzn ? `${r.priceAzn} ₼` : "Pulsuz"}</td>
               {fields.map(([key]) => (
                 <td key={key}>
-                  <input type="number" min={0} value={draft[group][r.id]?.[key] ?? 0} onChange={(e) => set(group, r.id, key, e.target.value)} style={{ width: 110 }} />
+                  <input className="admin-input" type="number" min={0} value={draft[group][r.id]?.[key] ?? 0} onChange={(e) => set(group, r.id, key, e.target.value)} style={{ width: 110 }} />
                   {draft[group][r.id]?.[key] !== r.defaults[key] && <small className="muted" style={{ display: "block" }}>ilkin: {r.defaults[key]}</small>}
                 </td>
               ))}
