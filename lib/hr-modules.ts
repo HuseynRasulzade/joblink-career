@@ -35,6 +35,7 @@ export const HR_MODULE_OF: Record<string, HrModule | "both"> = {
   "hr-proposals": "both",
   "hr-company": "both",
   "hr-billing": "both",
+  "hr-packages": "both",
   "hr-calculator": "both",
   "hr-support": "both",
   "hr-guide": "both",

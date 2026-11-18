@@ -3449,6 +3449,9 @@ type AiAccount = {
   purchases: { id: string; pack_id: string; full_count: number; rank_count: number; price_cents: number; created: string }[];
 };
 // The company's AI package: what is left this month, switching the package and buying extra analyses (each paid step makes an invoice below).
+export function CompanyPackagesPage({ notify }: { notify: Notify }) {
+  return <AiAccountPanel notify={notify} onChanged={() => undefined} />;
+}
 function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () => void }) {
   const [data, reload] = useLoad<AiAccount>("company/ai-account", notify);
   const [busy, setBusy] = useState(false);
@@ -3540,11 +3543,10 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
   );
 }
 export function BillingPage({ notify }: { notify: Notify }) {
-  const [data, reloadBilling] = useLoad<Billing>("company/billing", notify);
+  const [data] = useLoad<Billing>("company/billing", notify);
   if (!data) return <p className="muted loading-line">Yüklənir…</p>;
   return (
     <div className="company-page">
-      <AiAccountPanel notify={notify} onChanged={reloadBilling} />
       <div className="kpi-grid">
         <div className="kpi">
           <small>Hesablanıb</small>

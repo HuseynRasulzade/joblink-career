@@ -5,7 +5,7 @@ export const HR_NAV_GROUPS: NavGroupDef[] = [
   { id: "assess", label: "Qiymətləndirmə", ids: ["hr-interviews", "hr-tests", "hr-ats"] },
   { id: "people", label: "İşçilər və əmrlər", ids: ["hr-employees", "hr-orders", "hr-people-ops", "hr-growth", "hr-attendance"] },
   { id: "money", label: "Plan və əmək haqqı", ids: ["hr-payroll", "hr-planfact", "hr-proposals", "hr-branches"] },
-  { id: "company", label: "Şirkət", ids: ["hr-team", "hr-company", "hr-billing", "hr-group"] },
+  { id: "company", label: "Şirkət", ids: ["hr-team", "hr-company", "hr-packages", "hr-billing", "hr-group"] },
 ];
 
 export type NavEntry<T> = { group: NavGroupDef | null; items: T[] };

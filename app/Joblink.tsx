@@ -52,6 +52,7 @@ import {
   UserCog,
   Network,
   Receipt,
+  Menu,
   BadgeCheck,
 } from "lucide-react";
 import {
@@ -99,6 +100,7 @@ import {
   AdminCompanies,
   ApprovalsPage,
   BillingPage,
+  CompanyPackagesPage,
   CompanyDashboard,
   CompanyProfilePage,
   EmployeesPage,
@@ -183,6 +185,7 @@ const hrNav = [
   { id: "hr-team", label: "Komanda və rollar", icon: UserCog },
   { id: "hr-group", label: "Qrup (holdinq)", icon: Network },
   { id: "hr-company", label: "Şirkət məlumatları", icon: Building2 },
+  { id: "hr-packages", label: "Paketlər", icon: CreditCard },
   { id: "hr-billing", label: "Hesablar və ödənişlər", icon: Receipt },
   { id: "hr-calculator", label: "Kalkulyatorlar", icon: Calculator },
   { id: "hr-messages", label: "Mesajlar", icon: MessageCircle },
@@ -498,6 +501,7 @@ export default function Joblink() {
   // Company sections follow the team member's role.
   const hrNeeds: Record<string, string> = {
     "hr-billing": "billing",
+    "hr-packages": "billing",
     "hr-tests": "tests",
     "hr-reports": "reports",
     "hr-orders": "orders",
@@ -678,7 +682,16 @@ export default function Joblink() {
             : "overview",
       );
   }
+  // On a phone the left menu is a drawer: the topbar button slides it in from the left and a chosen section slides it back.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
   function go(id: string) {
+    setMenuOpen(false);
     setJob(null);
     setCompany(null);
     const target = signedIn
@@ -1863,7 +1876,8 @@ export default function Joblink() {
   return localizeTree(
     <div className="app-shell">
       <CommandPalette items={navigation.map((n) => ({ id: n.id, label: n.label }))} go={go} />
-      <aside className="sidebar">
+      <button type="button" className={`sidebar-backdrop${menuOpen ? " open" : ""}`} tabIndex={-1} aria-label="Menyunu bağla" onClick={() => setMenuOpen(false)} />
+      <aside className={`sidebar${menuOpen ? " open" : ""}`}>
         <a
           className="brand"
           href={admin ? "#admin-overview" : hr ? "#hr-overview" : "#overview"}
@@ -2011,6 +2025,9 @@ export default function Joblink() {
       </aside>
       <div className="main-shell">
         <header className="topbar">
+          <button type="button" className="menu-toggle" aria-label="Menyu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
+            <Menu size={20} />
+          </button>
           <div className="breadcrumb">
             {admin ? "Administrator" : hr ? "İşəgötürən" : "İş məkanım"}
             <span>/</span>
@@ -2896,6 +2913,7 @@ export default function Joblink() {
               "hr-group",
               "hr-company",
               "hr-billing",
+              "hr-packages",
               "hr-calculator",
             ].includes(page) ? (
             <>
@@ -2964,6 +2982,7 @@ export default function Joblink() {
                 </>
               )}
               {page === "hr-billing" && <BillingPage notify={notify} />}
+              {page === "hr-packages" && <CompanyPackagesPage notify={notify} />}
               {page === "hr-calculator" && (
                 <HrCalculators employer api={api} notify={notify} />
               )}
