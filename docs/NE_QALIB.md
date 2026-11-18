@@ -578,3 +578,10 @@ Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), 
 - **Qanunvericilik kitabxanası** (`admin-laws`, migrasiya 0129): istənilən növ fayl (8 MB-a qədər) parça-parça D1-də saxlanılır və həmişə «attachment» kimi yüklənir; AI xülasə və sənəddəki rəqəmləri (faiz, hədd, müddət, maddə) çıxarır. Sənəd hesablamaları öz-özünə dəyişmir: admin rəqəmləri kalkulyatorlarla tutuşdurub özü yeniləyir.
 
 - **Kadr + AI birlikdə 120 ₼:** Kadr modulu ödənişli AI paketi ilə birlikdə istifadə olunanda ƏDV-siz **120 ₼/ay** (ƏDV ilə 141,60 ₼), tək (AI-siz və ya pulsuz AI ilə) **150 ₼/ay** (177 ₼). Hər AI paket kartında «Kadr ilə birlikdə istifadə et» düyməsi var; basanda kartda cəmi (məs. Başlanğıc 49 + 120 = 169 ₼ + ƏDV = 199,42 ₼) görünür və təsdiqdən sonra bir hesab-faktura yaranır. Qiymətlər `lib/ai-packages.ts`-də (`HR_MODULE_PRICE_AZN`, `HR_MODULE_BUNDLE_PRICE_AZN`, `hrModulePriceFor`).
+
+## 57. Açılış səhifəsinin «ember» dizaynı bütün panellərdə
+
+- Açılış səhifəsinin tünd-qəhvəyi fon, şüşə kartlar və narıncı vurğu görünüşü indi üç paneldə (namizəd, işəgötürən, admin) də defoltdur; açıq tema günəş/ay düyməsi ilə qalır.
+- Köhnə «bütün səhifəni çevir» filtri (`invert + hue-rotate`) silindi: rənglər artıq həqiqi rənglərdir, şəkillər geri çevrilmir.
+- `app/ember.css` **avtomatik yaranır**: `node scripts/gen-ember-theme.mjs` açıq stil fayllarını oxuyur və hər rəngi rolu üzrə (fon, mətn, xətt, kölgə, qrafik pilləsi) ember palitrasına çevirir. Yeni komponent əlavə edəndən sonra bu əmri işlədin və faylı commit edin.
+- Əllə yazılan hissə `app/ember-base.css`-dir (dəyişənlər, forma sahələri, düymələr, yan menyu, kartlar, komponentlərin içində birbaşa yazılmış rənglər). Çap zamanı tünd tema tətbiq olunmur (`@media screen`).

@@ -334,13 +334,9 @@ tbody tr:hover { background: rgba(20, 123, 112, 0.045); }
 .od-person.has-photo .od-body { align-items: flex-start; }
 .od-person.has-photo .emp-avatar { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); flex: none; }
 
-/* Qaranlıq rejim: səhifə CSS ilə çevrilir, şəkillər geri çevrilir (köhnə sərt rənglər üçün ən etibarlı yol). */
-html[data-theme="dark"] { background: #fff; filter: invert(0.9) hue-rotate(180deg); color-scheme: dark; }
-html[data-theme="dark"] img, html[data-theme="dark"] video, html[data-theme="dark"] canvas, html[data-theme="dark"] iframe,
-html[data-theme="dark"] .no-invert, html[data-theme="dark"] .vacancy-company-mark img { filter: invert(1) hue-rotate(180deg); }
+/* Qaranlıq rejim: açılış səhifəsinin «ember» görünüşü (ember.css + ember-base.css). */
 .theme-toggle { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; border: 1px solid #cfdcda; background: #fff; color: #31484c; cursor: pointer; }
 .theme-toggle:hover { background: #eef5f3; }
-@media print { html[data-theme="dark"] { filter: none; background: #fff; } html[data-theme="dark"] img { filter: none; } }
 
 /* Başlıqlarda marka serif şrifti (açılış səhifəsi və səhifə başlıqları). */
 .landing h2, .landing h3, .page-heading h1, .page-heading h2, .heading-row h1, .heading-row h2, .section-heading h2, .first-steps-head h2, .auth-gate h1, .auth-gate-hero h1 {
@@ -355,8 +351,6 @@ html[data-theme="dark"] .no-invert, html[data-theme="dark"] .vacancy-company-mar
 }
 .empty:not(:has(> svg))::before { margin-bottom: 0; }
 
-/* Qaranlıq rejimdə qəsdən tünd/rəngli kartlar (ümumi baxış) çevrilmir: valideyn çevrilməsi ilə birlikdə orijinal rəngləri qalır. */
-html[data-theme="dark"] .ov-dark, html[data-theme="dark"] .ov-teal, html[data-theme="dark"] .admin-hero, html[data-theme="dark"] .discovery-banner, html[data-theme="dark"] .profile-cover { filter: invert(1) hue-rotate(180deg); }
 
 /* Telefonda sol menyu: standart gizlidir; yuxarıdakı düymə ilə soldan açılır, bölmə seçiləndə yenidən sola çəkilir. */
 .menu-toggle, .sidebar-backdrop { display: none; }
