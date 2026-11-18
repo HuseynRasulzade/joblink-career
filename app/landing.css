@@ -438,3 +438,45 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .gate-nav-right { display: flex; align-items: center; gap: 10px; }
 .gate-nav-lang { padding: 10px 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.12); color: #fff; font-weight: 700; cursor: pointer; backdrop-filter: blur(8px); }
 .gate-nav-lang option { color: #1b0a09; }
+
+/* Terms of use and Privacy policy: dark reading layout with summary, contents and numbered sections. */
+.lg { max-width: 1180px; margin: 0 auto; padding: clamp(24px, 4vw, 56px) clamp(16px, 4vw, 40px) 72px; background: none; color: #f1e0d4; }
+.lg-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+.lg-head h1 { margin: 0; color: #fff; font-size: clamp(30px, 4.5vw, 48px); letter-spacing: -1.2px; line-height: 1.05; }
+.lg-meta { margin: 8px 0 0; color: #d8bfb0; font-size: 14px; }
+.lg-tools { display: flex; gap: 10px; align-items: center; }
+.lg-lang { display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.08); }
+.lg-lang button { border: 0; background: transparent; color: #f6e0d2; font-weight: 700; padding: 8px 14px; cursor: pointer; }
+.lg-lang button.on { background: linear-gradient(135deg, #ff8a4c, #e5501f); color: #fff; }
+.lg-print { border: 1px solid rgba(255, 255, 255, 0.28); background: rgba(255, 255, 255, 0.08); color: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
+.lg-print:hover { background: rgba(255, 255, 255, 0.16); }
+.lg-summary { padding: 20px 24px; border-radius: 18px; border: 1px solid rgba(255, 154, 92, 0.35); background: linear-gradient(135deg, rgba(255, 138, 76, 0.16), rgba(255, 255, 255, 0.05)); backdrop-filter: blur(10px); margin-bottom: 28px; }
+.lg-summary b { color: #ffb48a; letter-spacing: 1.5px; text-transform: uppercase; font-size: 12px; }
+.lg-summary ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px; color: #fff; line-height: 1.5; }
+.lg-body { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 36px; align-items: start; }
+.lg-toc { position: sticky; top: 84px; max-height: calc(100vh - 110px); overflow-y: auto; padding: 18px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(10px); }
+.lg-toc b { color: #ffb48a; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; }
+.lg-toc ol { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 7px; }
+.lg-toc a { color: #f1e0d4; text-decoration: none; font-size: 14px; line-height: 1.35; }
+.lg-toc a:hover { color: #ff9a5c; }
+.lg-toc p { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.14); }
+.lg-toc p a { color: #ff9a5c; font-weight: 700; }
+.lg-text section { scroll-margin-top: 90px; padding: 22px 26px; margin-bottom: 14px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.05); }
+.lg-text h2 { margin: 0 0 12px; color: #fff; font-size: 20px; display: flex; gap: 12px; align-items: center; }
+.lg-text h2 span { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #ff8a4c, #e5501f); color: #fff; font-size: 14px; }
+.lg-text p { margin: 0 0 10px; line-height: 1.7; color: #ecd9cc; }
+.lg-text p:last-child { margin-bottom: 0; }
+.lg-foot { text-align: center; padding-top: 10px; }
+.lg a { color: #ff9a5c; }
+@media (max-width: 900px) {
+  .lg-body { grid-template-columns: 1fr; }
+  .lg-toc { position: static; max-height: none; }
+  .lg-text section { padding: 18px; }
+}
+@media print {
+  .pj { background: #fff !important; color: #000; }
+  .pj-nav, .pj-footer, .lg-tools, .lg-toc { display: none !important; }
+  .lg, .lg-text p, .lg-text h2, .lg-head h1, .lg-meta, .lg-summary ul { color: #000 !important; }
+  .lg-text section, .lg-summary { background: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
+  .lg-body { display: block; }
+}

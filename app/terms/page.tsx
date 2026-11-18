@@ -1,24 +1,19 @@
 import type { Metadata } from "next";
 import { runtime } from "@/lib/server";
-import { termsSections, LEGAL_UPDATED, type Operator } from "@/lib/legal-text";
+import { LEGAL_UPDATED, termsDoc, type LegalLang, type Operator } from "@/lib/legal-text";
+import LegalPage from "../LegalPage";
+import PublicShell from "../jobs/PublicShell";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "İstifadə şərtləri | JobMatch", description: "JobMatch platformasından istifadə qaydaları." };
+export const metadata: Metadata = { title: "İstifadə şərtləri | JobMatch", description: "JobMatch platformasından istifadə qaydaları.", alternates: { canonical: "/terms" } };
 
 export default function Page() {
   const env = runtime();
   const op: Operator = { name: env.PLATFORM_LEGAL_NAME || "", voen: env.PLATFORM_VOEN || "", address: env.PLATFORM_ADDRESS || "", email: env.PLATFORM_EMAIL || "" };
+  const docs = { az: termsDoc(op, "az"), en: termsDoc(op, "en"), ru: termsDoc(op, "ru") } as Record<LegalLang, ReturnType<typeof termsDoc>>;
   return (
-    <main className="seo-page">
-      <h1>İstifadə şərtləri</h1>
-      <p className="muted">Son yenilənmə: {LEGAL_UPDATED}</p>
-      <p><a href="/">JobMatch-ə keç</a></p>
-      {termsSections(op).map((section) => (
-        <section key={section.title}>
-          <h2>{section.title}</h2>
-          {section.body.map((text, i) => <p key={i}>{text}</p>)}
-        </section>
-      ))}
-    </main>
+    <PublicShell>
+      <LegalPage kind="terms" docs={docs} updated={LEGAL_UPDATED} />
+    </PublicShell>
   );
 }
