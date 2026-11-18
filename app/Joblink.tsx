@@ -1753,7 +1753,14 @@ export default function Joblink() {
   if (!signedIn) {
     return localizeTree(
       <>
-      <GateNav onAuth={openAuth} />
+      <GateNav
+        onAuth={openAuth}
+        language={language}
+        onLanguage={(next) => {
+          setLanguage(next);
+          localStorage.setItem("joblink-language", next);
+        }}
+      />
       <main className="auth-gate" id="top">
         <section className="auth-gate-intro">
           <div className="auth-gate-brand">
@@ -1812,24 +1819,6 @@ export default function Joblink() {
         <button type="button" className="auth-modal-backdrop" tabIndex={-1} aria-label="Close" onClick={() => setAuthShown(false)} />
         <section className="auth-gate-panel">
           <button type="button" className="auth-modal-close" aria-label="Close" onClick={() => { setAuthShown(false); setResetToken(""); }}>×</button>
-          <div className="auth-gate-language">
-            <label>
-              <span className="sr-only">Language / Dil</span>
-              <select
-                aria-label="Language / Dil"
-                value={language}
-                onChange={(event) => {
-                  const next = event.target.value as "az" | "en" | "ru";
-                  setLanguage(next);
-                  localStorage.setItem("joblink-language", next);
-                }}
-              >
-                <option value="az">AZ</option>
-                <option value="en">EN</option>
-                <option value="ru">RU</option>
-              </select>
-            </label>
-          </div>
           {authMode === "password" ? (
             <AccountLogin
               mode={authWant}

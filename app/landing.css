@@ -434,3 +434,7 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 @media (max-width: 900px) { .auth-modal .auth-gate-panel { margin: 0; } }
 .auth-modal-backdrop { position: fixed; inset: 0; border: 0; background: transparent; cursor: default; }
 .auth-modal .auth-gate-panel { z-index: 1; }
+
+.gate-nav-right { display: flex; align-items: center; gap: 10px; }
+.gate-nav-lang { padding: 10px 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.12); color: #fff; font-weight: 700; cursor: pointer; backdrop-filter: blur(8px); }
+.gate-nav-lang option { color: #1b0a09; }

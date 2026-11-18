@@ -12,7 +12,7 @@ const LINKS = [
 ];
 
 // The top menu of the public page: sections of the page and one «Daxil ol» button that offers sign-in or registration.
-export default function GateNav({ onAuth }: { onAuth: (want: "login" | "register") => void }) {
+export default function GateNav({ onAuth, language, onLanguage }: { onAuth: (want: "login" | "register") => void; language: "az" | "en" | "ru"; onLanguage: (next: "az" | "en" | "ru") => void }) {
   const [open, setOpen] = useState(false);
   const [solid, setSolid] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -35,6 +35,12 @@ export default function GateNav({ onAuth }: { onAuth: (want: "login" | "register
           <a key={l.href} href={l.href}>{l.label}</a>
         ))}
       </nav>
+      <div className="gate-nav-right">
+      <select className="gate-nav-lang" aria-label="Language / Dil" value={language} onChange={(e) => onLanguage(e.target.value as "az" | "en" | "ru")}>
+        <option value="az">AZ</option>
+        <option value="en">EN</option>
+        <option value="ru">RU</option>
+      </select>
       <div className="gate-nav-auth" ref={box}>
         <button type="button" className="gate-nav-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
           <LogIn size={16} /> Daxil ol <ChevronDown size={15} />
@@ -45,6 +51,7 @@ export default function GateNav({ onAuth }: { onAuth: (want: "login" | "register
             <button type="button" role="menuitem" onClick={() => choose("register")}><UserPlus size={16} /><span><b>Qeydiyyatdan keç</b><small>Pulsuz yeni hesab</small></span></button>
           </div>
         )}
+      </div>
       </div>
     </header>,
   );
