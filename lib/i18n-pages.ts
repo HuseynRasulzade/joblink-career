@@ -1898,7 +1898,160 @@ Universitetlər (|Universities (|Университеты (
 qeyd ·|note ·|заметка ·
 Aylıq uçot, vergi bəyannamələri, bank əməliyyatları və balans hazırlığı.|Monthly bookkeeping, tax returns, bank operations and balance sheet preparation.|Ежемесячный учёт, налоговые декларации, банковские операции и подготовка баланса.
 İşçi və ya HR ezamiyyət sorğusu yaradır, rəhbər və HR təsdiqləyir, işçi xərc hesabatı verir, hesablaşma əmək haqqında «digər ödəniş» kimi qeyd olunur.|An employee or HR creates a business-trip request, the manager and HR approve it, the employee submits an expense report, and settlement is recorded as “other payment” in payroll.|Сотрудник или HR создаёт заявку на командировку, руководитель и HR утверждают, сотрудник сдаёт авансовый отчёт, расчёт отражается в зарплате как «прочая выплата».
-Ad, vəzifə və ya şöbə üzrə axtar (16 nəfər)|Search by name, position or department (16 people)|Поиск по имени, должности или отделу (16 человек)`;
+Ad, vəzifə və ya şöbə üzrə axtar (16 nəfər)|Search by name, position or department (16 people)|Поиск по имени, должности или отделу (16 человек)
+Departament|Department|Департамент
+Departamentsiz|No department|Без департамента
+departamentsiz|no department|без департамента
+Rol|Role|Роль
+Performans|Performance|Эффективность
+Hesablama|Calculation|Расчёт
+Bank|Bank|Банк
+Filial|Branch|Филиал
+Struktur|Structure|Структура
+Sektor|Sector|Сектор
+Ay|Month|Месяц
+Gün|Day|День
+Norma|Norm|Норма
+Ayarlar|Settings|Настройки
+Kod|Code|Код
+Axtar|Search|Поиск
+Elanlar|Announcements|Объявления
+Elan yoxdur.|No announcements.|Объявлений нет.
+Say|Count|Количество
+aktiv|active|активно
+Kompensasiya|Compensation|Компенсация
+Paket|Package|Пакет
+Server|Server|Сервер
+Kollektiv|Team|Коллектив
+Hesabat|Report|Отчёт
+Versiya|Version|Версия
+Saat|Hour|Час
+Çap|Print|Печать
+Qaydalar|Rules|Правила
+Gündüz|Day|День
+Yoxlama|Check|Проверка
+Dolu|Filled|Занято
+Kartda|On the card|В карточке
+Qrafik|Schedule|График
+Kiçilt|Zoom out|Уменьшить
+Böyüt|Zoom in|Увеличить
+Rekruter|Recruiter|Рекрутер
+Yeni|New|Новое
+Direktor|Director|Директор
+Son|Last|Последний
+Avans|Advance|Аванс
+avans|advance|аванс
+Kim|Who|Кто
+Aç|Open|Открыть
+Ad Soyad|Full name|ФИО
+Ad|Name|Имя
+Vaxt|Time|Время
+Pay|Share|Доля
+Qayda|Rule|Правило
+Limit|Limit|Лимит
+Komanda|Team|Команда
+Referans|Reference|Рекомендация
+Vebsayt|Website|Сайт
+Onlayn|Online|Онлайн
+Problem|Problem|Проблема
+Funksiya|Function|Функция
+Provayder|Provider|Провайдер
+Yer|Place|Место
+Sonuncu|Latest|Последний
+Bloklar|Blocks|Блоки
+İddia|Claim|Заявление
+Kataloqlar|Catalogs|Каталоги
+Sığorta və daşınmaz əmlak|Insurance and real estate|Страхование и недвижимость
+Marketinq və satış|Marketing and sales|Маркетинг и продажи
+Kibertəhlükəsizlik, İT audit və məxfilik|Cybersecurity, IT audit and privacy|Кибербезопасность, ИТ-аудит и конфиденциальность
+Hüquq və uyğunluq|Law and compliance|Право и комплаенс
+Dil sertifikatları|Language certificates|Языковые сертификаты
+Qida, otel və turizm|Food, hotels and tourism|Питание, отели и туризм
+Aviasiya, dənizçilik və nəqliyyat|Aviation, maritime and transport|Авиация, морское дело и транспорт
+Bank, risk və AML|Banking, risk and AML|Банки, риски и AML
+Biznes|Business|Бизнес
+Dizayn|Design|Дизайн
+İT|IT|ИТ
+Kənd təsərrüfatı|Agriculture|Сельское хозяйство
+Məlumat|Data|Данные
+Neft və enerji|Oil and energy|Нефть и энергетика
+Nəqliyyat və logistika|Transport and logistics|Транспорт и логистика
+Proqramlar|Software|Программы
+Şəxsi bacarıqlar|Personal skills|Личные навыки
+Təhlükəsizlik|Safety|Безопасность
+Tikinti|Construction|Строительство
+Xidmət|Service|Услуги
+Biznes təhlili və idarəetmə|Business analysis and management|Бизнес-анализ и управление
+Məlumat və süni intellekt|Data and artificial intelligence|Данные и искусственный интеллект
+Əməyin mühafizəsi və neft-qaz təhlükəsizliyi|Occupational safety and oil-and-gas safety|Охрана труда и безопасность в нефтегазовой отрасли
+Təhsil və tədris|Education and teaching|Образование и обучение
+Ofis və rəqəmsal savadlılıq|Office and digital literacy|Офисная и цифровая грамотность
+Satınalma, logistika və anbar|Procurement, logistics and warehouse|Закупки, логистика и склад
+Mühəndislik, tikinti və istehsal|Engineering, construction and manufacturing|Инженерия, строительство и производство
+İT və məlumat|IT and data|ИТ и данные
+Marketinq, media və dizayn|Marketing, media and design|Маркетинг, медиа и дизайн
+Təhsil və təlim|Education and training|Образование и обучение
+Otel, restoran və turizm|Hotels, restaurants and tourism|Отели, рестораны и туризм
+Səhiyyə və əczaçılıq|Healthcare and pharmaceuticals|Здравоохранение и фармацевтика
+Təhlükəsizlik və əməyin mühafizəsi|Security and occupational safety|Безопасность и охрана труда
+İnzibati və idarəetmə|Administration and management|Административная работа и управление
+Neft-qaz, energetika və mədənçıxarma|Oil and gas, energy and mining|Нефтегаз, энергетика и добыча
+Kənd təsərrüfatı və qida istehsalı|Agriculture and food production|Сельское хозяйство и пищевое производство
+Peşə və istehsal işçiləri|Trades and production workers|Рабочие профессии и производство
+Nəqliyyat və aviasiya|Transport and aviation|Транспорт и авиация
+Elm, tədqiqat və laboratoriya|Science, research and laboratory|Наука, исследования и лаборатории
+Sosial xidmət və qeyri-kommersiya|Social services and non-profit|Социальные услуги и некоммерческий сектор
+Gözəllik, idman və şəxsi xidmət|Beauty, sport and personal services|Красота, спорт и персональные услуги
+Dövlət və bələdiyyə xidməti|Public and municipal service|Государственная и муниципальная служба
+Maliyyə və mühasibatlıq|Finance and accounting|Финансы и бухгалтерия
+Keyfiyyət və ISO|Quality and ISO|Качество и ISO
+Satınalma və logistika|Procurement and logistics|Закупки и логистика
+Dizayn və media|Design and media|Дизайн и медиа
+Səhiyyə|Healthcare|Здравоохранение
+İnsan resursları və kouçinq|Human resources and coaching|Управление персоналом и коучинг
+İT, şəbəkə və proqramlaşdırma|IT, networking and programming|ИТ, сети и программирование
+Layihə idarəetməsi və Agile|Project management and Agile|Управление проектами и Agile
+Mühəndislik, inspeksiya və enerji|Engineering, inspection and energy|Инженерия, инспекция и энергетика
+Yan|Jan|Янв
+Fev|Feb|Фев
+Mar|Mar|Мар
+Apr|Apr|Апр
+May|May|Май
+İyn|Jun|Июн
+Avq|Aug|Авг
+Sen|Sep|Сен
+Okt|Oct|Окт
+Noy|Nov|Ноя
+Dek|Dec|Дек
+yan|jan|янв
+mar|mar|мар
+may|may|май
+iyl|jul|июл
+sen|sep|сен
+noy|nov|ноя
+Yanvar|January|Январь
+Fevral|February|Февраль
+Mart|March|Март
+Aprel|April|Апрель
+İyun|June|Июнь
+İyul|July|Июль
+Avqust|August|Август
+Sentyabr|September|Сентябрь
+Oktyabr|October|Октябрь
+Noyabr|November|Ноябрь
+Dekabr|December|Декабрь
+Bayram günü|Public holiday|Праздничный день
+Zəfər günü (iş günü köçürülüb)|Victory Day (working day moved)|День Победы (рабочий день перенесён)
+Ramazan bayramı (iş günü köçürülüb)|Ramadan Bayram (working day moved)|Рамазан байрамы (рабочий день перенесён)
+Novruz bayramı (iş günü köçürülüb)|Novruz holiday (working day moved)|Праздник Новруз (рабочий день перенесён)
+Ümumxalq hüzn günü|National day of mourning|День общенационального траура
+Böyük hesabatları «Arxa planda hazırla» ilə sifariş edib səhifədən ayrıla bilərsiniz: hazır olanda bildiriş gəlir. Nəticə 7 gün saxlanır.|You can order large reports with “Prepare in background” and leave the page: a notification arrives when it is ready. The result is kept for 7 days.|Большие отчёты можно заказать через «Подготовить в фоне» и закрыть страницу: когда отчёт будет готов, придёт уведомление. Результат хранится 7 дней.
+Dövr açın, hər işçiyə məqsəd yazın. İşçi icranı və özünüqiyməti doldurur, rəhbər və kolleqalar rəy verir, sonda işçi nəticə ilə tanış olub təsdiq edir. Rəhbər öz komandasını «İş yerim → Komandam»dan qiymətləndirə bilər.|Open a period and write a goal for each employee. The employee fills in progress and self-rating, the manager and colleagues give feedback, and finally the employee reviews the result and confirms. A manager can rate their team from “My workplace → My team”.|Откройте период и запишите цель для каждого сотрудника. Сотрудник заполняет выполнение и самооценку, руководитель и коллеги дают отзывы, в конце сотрудник знакомится с результатом и подтверждает. Руководитель может оценить свою команду в «Моё рабочее место → Моя команда».
+Başqa vəzifəyə, departamentə, şöbəyə və ya filiala keçirmə (maaş dəyişikliyi ilə birgə də ola bilər)|Transfer to another position, department, section or branch (may come with a salary change)|Перевод на другую должность, в другой департамент, отдел или филиал (может сопровождаться изменением зарплаты)
+Başqa vəzifəyə, departamentə, şöbəyə və ya filiala keçirmə haqqında əmr (maaş dəyişikliyi ilə birgə də ola bilər)|Order on transfer to another position, department, section or branch (may come with a salary change)|Приказ о переводе на другую должность, в другой департамент, отдел или филиал (может сопровождаться изменением зарплаты)
+Hər sətirdə bir dövr: 2020-01-01 – 2022-06-30|One period per line: 2020-01-01 – 2022-06-30|Один период на строку: 2020-01-01 – 2022-06-30
+Təsvir çox qısadır|The description is too short|Описание слишком короткое
+Çox illik təcrübəsi olan mühasib: uçot, hesabatlar, vergi bəyannamələri.|Accountant with years of experience: bookkeeping, reports, tax returns.|Бухгалтер с многолетним опытом: учёт, отчёты, налоговые декларации.`;
 const EN: Record<string, string> = {};
 const RU: Record<string, string> = {};
 for (const line of LINES.split("\n")) {
@@ -1943,6 +2096,24 @@ const RULES: Rule[] = [
   [/^(\d+) dəqiqə · göndərilib$/, "$1 min · sent", "$1 мин · отправлено"],
   [/^(.+) · (.+) · (\d+) gün gözləyir$/, "$1 · $2 · waiting $3 days", "$1 · $2 · ждёт $3 дн."],
   [/^· (\d+) gün gözləyir$/, "· waiting $1 days", "· ждёт $1 дн."],
+  [/^(\d{4}-\d{2}): plan (\d+), faktiki (\d+) — plandan (\d+) nəfər azdır \(işə qəbul lazım ola bilər\)\.$/, "$1: plan $2, actual $3 — $4 fewer people than planned (hiring may be needed).", "$1: план $2, факт $3 — на $4 чел. меньше плана (возможно, нужен найм)."],
+  [/^(\d{4}-\d{2}): plan (\d+)$/, "$1: plan $2", "$1: план $2"],
+  [/^(\d{4}-\d{2}): (\d+) işçi, (\d+) qəbul, (\d+) çıxış$/, "$1: $2 employees, $3 hired, $4 left", "$1: $2 сотр., $3 принято, $4 уволено"],
+  [/^(\d{4}-\d{2}): (\d+) nəfər işə qəbul$/, "$1: $2 people hired", "$1: принято $2 чел."],
+  [/^(\d{4}-\d{2}): (\d+) nəfər çıxıb$/, "$1: $2 people left", "$1: уволилось $2 чел."],
+  [/^(\d{4}-\d{2}): təxminən ([\d.]+) işçi \(proqnoz\)$/, "$1: about $2 employees (forecast)", "$1: примерно $2 сотр. (прогноз)"],
+  [/^(\d{4}-\d{2}-\d{2}) — Bayram ərəfəsi: qısaldılmış iş günü \(1 saat az, haqq tam\)$/, "$1 — Holiday eve: shortened working day (1 hour less, full pay)", "$1 — Предпраздничный день: сокращённый рабочий день (на 1 час меньше, оплата полная)"],
+  [/^(.+) (\d{4}-\d{2}) büdcəsi$/, "$1 $2 budget", "Бюджет $1 $2"],
+  [/^Bölünməmiş \(ümumi\)$/, "Unallocated (general)", "Нераспределённый (общий)"],
+  [/^(\d+) nəfər$/, "$1 people", "$1 чел."],
+  [/^(\d+) işçi$/, "$1 employees", "$1 сотр."],
+  [/^(\d+) namizəd$/, "$1 candidates", "$1 кандидатов"],
+  [/^(\d+) müraciət$/, "$1 applications", "$1 откликов"],
+  [/^(\d+) gecikib$/, "$1 late", "$1 просрочено"],
+  [/^· (\d+) gecikib$/, "· $1 late", "· $1 просрочено"],
+  [/^(\d+)\+ gündür gözləyir$/, "waiting for $1+ days", "ждёт $1+ дней"],
+  [/^(\d+) il təcrübəniz və (.+) bacarıqlarınız bu istiqamətlə əlaqəlidir\.$/, "Your $1 years of experience and $2 skills are related to this direction.", "Ваш опыт $1 лет и навыки $2 связаны с этим направлением."],
+  [/^([\d.]+) illik təcrübəniz və (.+) bacarıqlarınız bu istiqamətlə əlaqəlidir\.$/, "Your $1 years of experience and $2 skills are related to this direction.", "Ваш опыт $1 лет и навыки $2 связаны с этим направлением."],
   [/^Aylıq limit \(dollar, 0 = yoxdur\)$/, "Monthly limit (dollars, 0 = none)", "Месячный лимит (доллары, 0 = нет)"],
 ];
 export function translatePattern(text: string, language: "en" | "ru", part: (phrase: string) => string = (x) => x): string | undefined {
