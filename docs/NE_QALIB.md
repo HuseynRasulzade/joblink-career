@@ -524,3 +524,10 @@ Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), 
 - **Super-gross izahı** açıq səhifədə də var («İşəgötürənə neçəyə başa gəlir?»).
 - **Axtarış (SEO):** başlıq və təsvir, canonical, Open Graph/Twitter, JSON-LD (`WebApplication` + `FAQPage`). Açılış səhifəsindəki kalkulyator bölməsindən link verilib.
 - Yoxlandı: link parametrləri tətbiq olunur (net 3000, dövlət, güzəşt 200 → gross 3 848,91; super-gross 4 791,89), kopyalanan link düzdür, 390 px mobil ölçüdə üfüqi sürüşmə yoxdur. Yoxlanmayıb: real domendə paylaşım önizləməsi (Open Graph şəkli yoxdur), Google-da indeksləmə, rus və ingilis dilləri (səhifə yalnız Azərbaycan dilindədir).
+
+## 50. Giriş səhifəsinin yeni dizaynı
+
+- Göndərilən nümunəyə uyğun: tünd şabalıdı-narıncı fon, şüşə (blur) kartlar, parlayan «uyğunluq» kürəsi və fırlanan orbitlər, iri böyük hərfli başlıq («DOĞRU İNSAN / DOĞRU İMKAN»), «AI ilə işləyir» nişanı, sağda açıq şüşəli giriş paneli, narıncı «Daxil ol» düyməsi. Kod: `app/Joblink.tsx` (giriş bloku) və `app/landing.css` (sonda).
+- Şəkil kopyalanmayıb: kürə, orbit və kartlar CSS ilə çəkilib. Kartlardakı «87%» və müraciət yolu **nümunədir** (kartda «Nümunə: uyğunluq balı» yazılıb), «3 istifadəçi növü, 13 kalkulyator, 3 dil» real faktlardır; uydurma namizəd/vakansiya sayı göstərilmir.
+- Mobil (390 px): animasiyalı səhnə gizlənir, başlıq və giriş paneli alt-alta düzülür. Hərəkət azaldılmış rejimdə animasiyalar söndürülür.
+- Yoxlandı: 1440 və 390 px, üfüqi sürüşmə yoxdur, JS xətası yoxdur, giriş formu görünür və düymə işləyir vəziyyətdədir (real giriş bu dizayn dəyişikliyi ilə sınanmayıb). Rus/ingilis dili və planşet ölçüsü ayrıca baxılmayıb. Şrift sandbox-da yoxdur (serif ehtiyat), real şrift görünüşü canlıda yoxlanmalıdır. Açılış səhifəsinin aşağıdakı hissələri hələ açıq (yaşıl/ağ) palitradadır.

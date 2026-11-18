@@ -1750,18 +1750,52 @@ export default function Joblink() {
           <div className="auth-gate-brand">
             jobmatch<span>✳</span>
           </div>
-          <p className="eyebrow">KARYERA VƏ İŞƏ QƏBUL PLATFORMASI</p>
-          <h1>Doğru insanı doğru imkanla birləşdiririk.</h1>
-          <p>
-            İş axtaran kimi CV-nizi inkişaf etdirin və uyğun vakansiyaları
-            tapın. Şirkət kimi vakansiyalar yaradın və uyğun namizədləri idarə
-            edin.
-          </p>
-          <div className="auth-gate-role-note">
-            <UserRound size={20} />
-            <span>
-              Hər hesab yalnız qeydiyyatda seçilən panelə giriş əldə edir.
-            </span>
+          <div className="gate-stage" aria-hidden="true">
+            <div className="gate-glow" />
+            <div className="gate-orbit one" />
+            <div className="gate-orbit two" />
+            <div className="gate-orb">
+              <span className="gate-ring" />
+              <span className="gate-core">✳</span>
+            </div>
+            <div className="gate-card gate-card-match">
+              <small>Nümunə: uyğunluq balı</small>
+              <strong>87%</strong>
+              <div className="gate-bar"><i style={{ width: "87%" }} /></div>
+              <div className="gate-tags"><span>Bacarıq 92%</span><span>Təcrübə 85%</span></div>
+            </div>
+            <div className="gate-card gate-card-flow">
+              <small>Müraciətin yolu</small>
+              <ol>
+                <li className="done">Müraciət</li>
+                <li className="done">Müsahibə</li>
+                <li>Təklif</li>
+              </ol>
+            </div>
+            <div className="gate-card gate-card-facts">
+              <div><strong>3</strong><small>istifadəçi növü</small></div>
+              <div><strong>13</strong><small>kalkulyator</small></div>
+              <div><strong>3</strong><small>dil</small></div>
+            </div>
+          </div>
+          <div className="gate-copy">
+            <span className="gate-pill">AI ilə işləyir</span>
+            <h1>
+              DOĞRU İNSAN
+              <br />
+              DOĞRU İMKAN
+            </h1>
+            <p className="gate-sub">
+              İş axtaran kimi CV-nizi inkişaf etdirin və uyğun vakansiyaları
+              tapın. Şirkət kimi vakansiyalar yaradın və uyğun namizədləri idarə
+              edin.
+            </p>
+            <div className="auth-gate-role-note">
+              <UserRound size={20} />
+              <span>
+                Hər hesab yalnız qeydiyyatda seçilən panelə giriş əldə edir.
+              </span>
+            </div>
           </div>
         </section>
         <section className="auth-gate-panel">
