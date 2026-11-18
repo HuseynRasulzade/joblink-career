@@ -1,20 +1,21 @@
-# JobMatch tanıtım videosu (~62 san, 16:9) — real ekran videolarından
+# JobMatch tanıtım videosu (~73 san, 16:9) — real ekran videolarından
 
 Hazır fayl: `jobmatch_promo_az_silent.mp4` (səssiz, yanıb-sönən altyazılı) + `jobmatch_promo_az.srt`. Kadrlar şəkil deyil, platformada Playwright ilə icra olunan REAL əməliyyatların ekran videosudur (giriş, vakansiya axtarışı, 1 kliklə müraciət, işəgötürən icmalı, əmək haqqı, kalkulyator, qiymətlər; kursor və kliklər görünür). Sahnələr arasında keçidlər (circleopen, slide, wipe, zoomin, fade), animasiyalı başlıqlar, nişanlar və irəliləyiş xətti var. Ekran tam göstərilir, kəsilmir. Səsləndirmə ayrıca əlavə olunur (aşağıda).
 
 ## Səsləndirmə mətni (sahnələr üzrə)
 
-| # | Vaxt | Ekranda yazı | Diktor (AZ) |
-|---|---|---|---|
-| 1 | 0:00 | Yenə Excel? Yenə CV yığını? Bəsdir. | Yenə Excel? Yenə CV yığını? Yenə "bu işçinin neçə gün məzuniyyəti qalıb" sualı? Bəsdir. |
-| 2 | 0:05 | İşə qəbul da, kadr da: bir platformada. | JobMatch işə qəbulu da, kadr işini də bir yerə yığır. Daxil olursunuz, hər şey əlinizin altındadır. |
-| 3 | 0:13 | Kimi çağırmalı? Bal göstərir. | Kimi müsahibəyə çağırmaq lazımdır? Bal göstərir: bacarıq, təcrübə, maaş gözləntisi. Ən güclülər həmişə yuxarıda. |
-| 4 | 0:19 | Namizəd bir kliklə müraciət edir. | Namizəd bir kliklə müraciət edir. Süni intellekt CV-ni oxuyur, siz isə yalnız uyğun olanlara baxırsınız. |
-| 5 | 0:26 | Nə harada qaldı? Hamısı bir ekranda. | Müraciət, müsahibə, test, təklif: işin harada qaldığını artıq axtarmırsınız. Hamısı bir ekranda. |
-| 6 | 0:32 | Maaş hesabı? 2026 dərəcələri, avtomatik. | Əmək haqqı? Vergi və sığorta 2026 dərəcələri ilə avtomatik hesablanır. İşçi kartı, əmrlər, məzuniyyət, davamiyyət də eyni yerdədir. |
-| 7 | 0:39 | Hələ tərəddüd edirsiniz? 13 kalkulyator pulsuz. | Hələ qərar verməmisiniz? Əvvəl 13 pulsuz kalkulyatoru yoxlayın: maaş, məzuniyyət, ixtisar, super-gross. Qeydiyyat belə istəmir. |
-| 8 | 0:47 | Başlamaq pulsuz. AI: 49 AZN-dən · Kadr: 120-dən | Qiymət? Başlamaq pulsuzdur. AI istəyirsinizsə 49 manatdan. Kadr modulu AI ilə birlikdə 120 manat, tək 150 manat; ƏDV əlavə olunur. |
-| 9 | 0:54 | İndi qeydiyyatdan keçin. İlk addım pulsuzdur. | Növbəti CV yığınını açmazdan əvvəl bir dəqiqə ayırın. İndi pulsuz qeydiyyatdan keçin. JobMatch: doğru insan, doğru imkan. |
+| # | Ekranda yazı | Diktor (AZ) |
+|---|---|---|
+| 1 | Hər şey ayrı alətdə? Bu, itirilən vaxtdır. | CV-lər poçtda, işçi məlumatları Excel-də, əmək haqqı başqa yerdə. Vaxt hər gün bu dağınıqlığa gedir. |
+| 2 | Bir platforma: iş axtarışından əmək haqqına. | JobMatch bunu dəyişir: iş axtaran, işəgötürən və kadr şöbəsi eyni platformada. |
+| 3 | Doğru namizəd saniyələr içində. | Süni intellekt hər CV-ni vakansiya ilə müqayisə edir və aydın uyğunluq balı verir: bacarıq, təcrübə, maaş. |
+| 4 | Müraciət də bir klik. | Namizəd bir kliklə müraciət edir. Siz isə vaxtınızı yalnız ən uyğun namizədlərə ayırırsınız. |
+| 5 | Bütün mərhələlər bir ekranda. | Müraciətdən müsahibəyə, testdən təklifə: canlı panel hər namizədin harada olduğunu göstərir. |
+| 6 | Kadr işi nizamlı və izlənən. | İşçi kartı, kadr əmrləri, məzuniyyət, davamiyyət, ştat planı: hamısı hazır şablonlarla, hər dəyişiklik tarixçədə. |
+| 7 | Əmək haqqı avtomatik hesablanır. | Vergi və sığorta 2026 dərəcələri ilə avtomatik hesablanır. Bank reyestri və haqq-hesab vərəqələri hazırdır. |
+| 8 | 13 kalkulyator. Tamamilə pulsuz. | Qeydiyyatsız belə 13 kalkulyator pulsuzdur: maaş, məzuniyyət, ixtisar, super-gross. Hər nəticədə qanun maddəsi var. |
+| 9 | Pulsuz başlayın. İhtiyac artdıqca böyüyün. | Başlamaq pulsuzdur. AI paketləri 49 manatdan; Kadr modulu AI ilə birlikdə 120, tək 150 manat. ƏDV əlavə olunur. |
+| 10 | İndi qeydiyyatdan keçin. İlk addım pulsuzdur. (JobMatch by Digilabs · +994 55 478 25 81) | Növbəti addımı gecikdirməyin: pulsuz hesab açın və doğru insanı, doğru imkanı tapın. |
 
 **Ton:** söhbət dili, qısa cümlələr, problem → həll → sübut (ekran) → qiymət → çağırış. Ekranda yazı diktorun cümləsini təkrarlamır, onu gücləndirir (səssiz baxanlar üçün altyazı da var). Uydurma rəqəm, rəy və "son gün" yoxdur.
 

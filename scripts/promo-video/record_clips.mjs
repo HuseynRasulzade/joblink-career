@@ -38,6 +38,12 @@ const flows={
    await click(p,p.locator('.sidebar .nav-item',{hasText:'Namizədlər'}));
    await p.waitForTimeout(2500);
    await done('company',o,sm);},
+ async people(){ const o=await ctx(b,{login:'isveren@joblink.test',name:'people'}); const {p}=o;
+   await p.goto(URL+'/#hr-employees'); await p.reload({waitUntil:'load'}); await p.waitForTimeout(4500); const sm=Date.now();
+   await p.waitForTimeout(1800); await p.mouse.move(760,520,{steps:30}); await p.mouse.wheel(0,300); await p.waitForTimeout(1800); await p.mouse.wheel(0,-300); await p.waitForTimeout(900);
+   await click(p,p.locator('.sidebar .nav-item',{hasText:'Əmrlər reyestri'}));
+   await p.waitForTimeout(3000); await p.mouse.wheel(0,260); await p.waitForTimeout(1800);
+   await done('people',o,sm);},
  async payroll(){ const o=await ctx(b,{login:'isveren@joblink.test',name:'pay'}); const {p}=o;
    await p.goto(URL+'/#hr-payroll'); await p.reload({waitUntil:'load'}); await p.waitForTimeout(4500); const sm=Date.now();
    await p.waitForTimeout(1500);
@@ -53,8 +59,10 @@ const flows={
    const det=p.locator('details.lc-sg summary').first(); if(await det.count()){ await click(p,det); await p.waitForTimeout(2200); }
    await done('calc',o,sm);},
  async pricing(){ const o=await ctx(b,{name:'pricing'}); const {p}=o;
-   await p.goto(URL+'/',{waitUntil:'networkidle'}); await p.waitForTimeout(1000); const sm=Date.now();
-   await p.evaluate(()=>document.querySelector('#qiymetler')?.scrollIntoView({behavior:'smooth'})); await p.waitForTimeout(2200);
+   await p.goto(URL+'/',{waitUntil:'networkidle'}); await p.waitForTimeout(800);
+   // jump to the prices at once (blocks fade in as they are scrolled to, so a slow scroll would show empty space), then start the take
+   await p.evaluate(()=>document.querySelector('#qiymetler')?.scrollIntoView({behavior:'instant'})); await p.waitForTimeout(1800); const sm=Date.now();
+   await p.waitForTimeout(1400);
    await click(p,p.getByRole('tab',{name:/Şirkətlər üçün/})); await p.waitForTimeout(1800);
    await p.mouse.move(980,520,{steps:30}); await p.waitForTimeout(1600);
    await done('pricing',o,sm);},

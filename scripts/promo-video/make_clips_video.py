@@ -12,15 +12,16 @@ CW,CH,CX,CY=1280,720,320,228
 T=0.6
 # (clip, start, end (after trim), speed, scene length, headline, voice-over, badge (text,from,to))
 S=[
- ('gate',0,6.0,1.0,6.0,'Yenə Excel? Yenə CV yığını?\nBəsdir.','Yenə Excel? Yenə CV yığını? Yenə "bu işçinin neçə gün məzuniyyəti qalıb" sualı? Bəsdir.',None),
- ('gate',14.8,22.7,1.0,8.0,'İşə qəbul da, kadr da:\nbir platformada.','JobMatch işə qəbulu da, kadr işini də bir yerə yığır. Daxil olursunuz, hər şey əlinizin altındadır.',('Bir giriş · bir platforma',2.0,7.5)),
- ('jobs',0,7.0,1.0,7.0,'Kimi çağırmalı?\nBal göstərir.','Kimi müsahibəyə çağırmaq lazımdır? Bal göstərir: bacarıq, təcrübə, maaş gözləntisi. Ən güclülər həmişə yuxarıda.',('Uyğunluq balı: 84%',3.0,7.0)),
- ('jobs',7.0,15.8,1.1,8.0,'Namizəd bir kliklə\nmüraciət edir.','Namizəd bir kliklə müraciət edir. Süni intellekt CV-ni oxuyur, siz isə yalnız uyğun olanlara baxırsınız.',('1 kliklə müraciət',2.0,7.5)),
- ('company',0,9.4,1.3,7.2,'Nə harada qaldı?\nHamısı bir ekranda.','Müraciət, müsahibə, test, təklif: işin harada qaldığını artıq axtarmırsınız. Hamısı bir ekranda.',('Canlı icmal',1.0,6.5)),
- ('payroll',0,7.0,0.875,8.0,'Maaş hesabı?\n2026 dərəcələri, avtomatik.','Əmək haqqı? Vergi və sığorta 2026 dərəcələri ilə avtomatik hesablanır. İşçi kartı, əmrlər, məzuniyyət, davamiyyət də eyni yerdədir.',('Gross → net, avtomatik',1.5,7.5)),
- ('calc',0,11.9,1.5,8.0,'Hələ tərəddüd edirsiniz?\n13 kalkulyator pulsuz.','Hələ qərar verməmisiniz? Əvvəl 13 pulsuz kalkulyatoru yoxlayın: maaş, məzuniyyət, ixtisar, super-gross. Qeydiyyat belə istəmir.',('Hər nəticədə maddə nömrəsi',3.5,7.8)),
- ('pricing',0,8.8,1.1,8.0,'Başlamaq pulsuz.\nAI: 49 AZN-dən · Kadr: 120-dən','Qiymət? Başlamaq pulsuzdur. AI istəyirsinizsə 49 manatdan. Kadr modulu AI ilə birlikdə 120 manat, tək 150 manat; ƏDV əlavə olunur.',('ƏDV əlavə olunur',2.5,7.8)),
- ('outro',0,0,1.0,7.0,'İndi qeydiyyatdan keçin.\nİlk addım pulsuzdur.','Növbəti CV yığınını açmazdan əvvəl bir dəqiqə ayırın. İndi pulsuz qeydiyyatdan keçin. JobMatch: doğru insan, doğru imkan.',None),
+ ('gate',0,6.0,1.0,7.0,'Hər şey ayrı alətdə?\nBu, itirilən vaxtdır.','CV-lər poçtda, işçi məlumatları Excel-də, əmək haqqı başqa yerdə. Vaxt hər gün bu dağınıqlığa gedir.',None),
+ ('gate',14.8,22.7,1.0,8.0,'Bir platforma:\niş axtarışından əmək haqqına.','JobMatch bunu dəyişir: iş axtaran, işəgötürən və kadr şöbəsi eyni platformada.',('Qəbul · Kadr · Əmək haqqı',2.0,7.5)),
+ ('jobs',0,7.0,1.0,8.0,'Doğru namizəd\nsaniyələr içində.','Süni intellekt hər CV-ni vakansiya ilə müqayisə edir və aydın uyğunluq balı verir: bacarıq, təcrübə, maaş.',('Uyğunluq balı: 84%',3.0,7.5)),
+ ('jobs',7.0,15.8,1.1,8.0,'Müraciət də\nbir klik.','Namizəd bir kliklə müraciət edir. Siz isə vaxtınızı yalnız ən uyğun namizədlərə ayırırsınız.',('1 kliklə müraciət',2.0,7.5)),
+ ('company',0,9.4,1.3,8.0,'Bütün mərhələlər\nbir ekranda.','Müraciətdən müsahibəyə, testdən təklifə: canlı panel hər namizədin harada olduğunu göstərir.',('Canlı icmal',1.0,7.0)),
+ ('people',0,9.0,1.1,8.0,'Kadr işi\nnizamlı və izlənən.','İşçi kartı, kadr əmrləri, məzuniyyət, davamiyyət, ştat planı: hamısı hazır şablonlarla, hər dəyişiklik tarixçədə.',('İşçi kartı · əmrlər · ştat',1.5,7.5)),
+ ('payroll',0,7.0,0.875,8.0,'Əmək haqqı\navtomatik hesablanır.','Vergi və sığorta 2026 dərəcələri ilə avtomatik hesablanır. Bank reyestri və haqq-hesab vərəqələri hazırdır.',('Gross → net, avtomatik',1.5,7.5)),
+ ('calc',0,11.9,1.5,8.0,'13 kalkulyator.\nTamamilə pulsuz.','Qeydiyyatsız belə 13 kalkulyator pulsuzdur: maaş, məzuniyyət, ixtisar, super-gross. Hər nəticədə qanun maddəsi var.',('Hər nəticədə maddə nömrəsi',3.5,7.8)),
+ ('pricing',0,8.8,1.1,8.0,'Pulsuz başlayın.\nİhtiyac artdıqca böyüyün.','Başlamaq pulsuzdur. AI paketləri 49 manatdan; Kadr modulu AI ilə birlikdə 120, tək 150 manat. ƏDV əlavə olunur.',('ƏDV əlavə olunur',2.5,7.8)),
+ ('outro',0,0,1.0,7.0,'İndi qeydiyyatdan keçin.\nİlk addım pulsuzdur.','Növbəti addımı gecikdirməyin: pulsuz hesab açın və doğru insanı, doğru imkanı tapın.',None),
 ]
 def run(cmd):
     r=subprocess.run(cmd,capture_output=True,text=True)
@@ -57,7 +58,7 @@ for i,(clip,a,b,sp,L,head,vo,badge) in enumerate(S):
             f"[0:v][c]overlay={CX}:{CY}:eof_action=pass,{common}{badgef}{sub}[v]")
         run(['ffmpeg','-y','-loglevel','error','-loop','1','-framerate',str(FPS),'-i',B+'bg.png','-i',f'{CLIPS}{clip}.webm','-filter_complex',fc,'-map','[v]','-t',str(L),'-r',str(FPS),'-pix_fmt','yuv420p','-c:v','libx264','-preset','medium','-crf','18',f'{B}scene{i}.mp4'])
     else:
-        open(f'{B}o1.txt','w').write('İndi pulsuz başlayın'); open(f'{B}o2.txt','w').write('AI: 49 AZN-dən · Kadr: AI ilə 120, tək 150 AZN (+ƏDV)\nQeydiyyat pulsuzdur.')
+        open(f'{B}o1.txt','w').write('İndi pulsuz başlayın'); open(f'{B}o2.txt','w').write('AI: 49 AZN-dən · Kadr: AI ilə 120, tək 150 AZN (+ƏDV)\nJobMatch by Digilabs · +994 55 478 25 81')
         fc=(f"[0:v]scale={W}:{H},boxblur=22:2,eq=brightness=-0.28[bgv];"
             f"[bgv]drawtext=fontfile={FONT}:text='jobmatch ✳':fontcolor=0xff9a5c:fontsize=64:x=(w-text_w)/2:y=190:alpha='min(1,t/0.5)',"
             f"drawtext=fontfile={FONT}:textfile={B}o1.txt:fontcolor=white:fontsize=118:x=(w-text_w)/2:y='400+(1-min(1,t/0.6))*40':shadowcolor=black@0.8:shadowx=4:shadowy=4:alpha='min(1,t/0.5)',"
@@ -69,7 +70,7 @@ for i,(clip,a,b,sp,L,head,vo,badge) in enumerate(S):
 total-=T*(len(S)-1)
 inputs=[]
 for i in range(len(S)): inputs+=['-i',f'{B}scene{i}.mp4']
-trans=['circleopen','slideleft','fade','wipeleft','smoothleft','zoomin','slideright','fadeblack']
+trans=['circleopen','slideleft','fade','wipeleft','smoothleft','zoomin','slideright','wiperight','smoothright','fadeblack']
 fc=[];off=0;prev='[0:v]'
 for i in range(1,len(S)):
     off+=S[i-1][4]-T; out=f'[v{i}]'
