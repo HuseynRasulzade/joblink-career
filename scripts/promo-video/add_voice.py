@@ -10,18 +10,18 @@ VOICE = sys.argv[1] if len(sys.argv) > 1 else "az-AZ-BanuNeural"
 SRC = sys.argv[2] if len(sys.argv) > 2 else "jobmatch_promo_az_silent.mp4"
 OUT = sys.argv[3] if len(sys.argv) > 3 else "jobmatch_promo_az_voice.mp4"
 WORK = "voice_work"; os.makedirs(WORK, exist_ok=True)
-T = 0.5  # cross-fade between scenes
+T = 0.6  # cross-fade between scenes
 # (duration, line) in the order of make_video.py
 SCENES = [
- (6.0, "Yenə Excel? Yenə CV yığını? Yenə \"bu işçinin neçə gün məzuniyyəti qalıb\" sualı? Bəsdir."),
- (8.0, "JobMatch işə qəbulu da, kadr işini də bir yerə yığır. Vakansiyanı yerləşdirirsiniz, namizədlər uyğunluq balı ilə özü sıralanır."),
- (7.0, "Kimi müsahibəyə çağırmaq lazımdır? Bal göstərir: bacarıq, təcrübə, maaş gözləntisi. Ən güclülər həmişə yuxarıda."),
- (7.0, "CV yığınını siz yox, süni intellekt oxuyur. Güclü və zəif tərəfləri çıxarır, siz isə yalnız qərar verirsiniz."),
- (6.5, "Müraciət, müsahibə, test, təklif: işin harada qaldığını artıq axtarmırsınız. Hamısı bir ekranda."),
- (8.0, "Əmək haqqı? Vergi və sığorta 2026 dərəcələri ilə avtomatik hesablanır. İşçi kartı, əmrlər, məzuniyyət, davamiyyət də eyni yerdədir."),
- (7.5, "Hələ qərar verməmisiniz? Əvvəl 13 pulsuz kalkulyatoru yoxlayın: maaş, məzuniyyət, ixtisar, super-gross. Qeydiyyat belə istəmir."),
- (8.0, "Qiymət? Başlamaq pulsuzdur. AI istəyirsinizsə 49 manatdan. AI-siz bütün platforma 150 manat, ƏDV əlavə olunur."),
- (7.5, "Növbəti CV yığınını açmazdan əvvəl bir dəqiqə ayırın. İndi pulsuz qeydiyyatdan keçin. JobMatch: doğru insan, doğru imkan."),
+ (6.0, 'Yenə Excel? Yenə CV yığını? Yenə "bu işçinin neçə gün məzuniyyəti qalıb" sualı? Bəsdir.'),
+ (8.0, 'JobMatch işə qəbulu da, kadr işini də bir yerə yığır. Daxil olursunuz, hər şey əlinizin altındadır.'),
+ (7.0, 'Kimi müsahibəyə çağırmaq lazımdır? Bal göstərir: bacarıq, təcrübə, maaş gözləntisi. Ən güclülər həmişə yuxarıda.'),
+ (8.0, 'Namizəd bir kliklə müraciət edir. Süni intellekt CV-ni oxuyur, siz isə yalnız uyğun olanlara baxırsınız.'),
+ (7.2, 'Müraciət, müsahibə, test, təklif: işin harada qaldığını artıq axtarmırsınız. Hamısı bir ekranda.'),
+ (8.0, 'Əmək haqqı? Vergi və sığorta 2026 dərəcələri ilə avtomatik hesablanır. İşçi kartı, əmrlər, məzuniyyət, davamiyyət də eyni yerdədir.'),
+ (8.0, 'Hələ qərar verməmisiniz? Əvvəl 13 pulsuz kalkulyatoru yoxlayın: maaş, məzuniyyət, ixtisar, super-gross. Qeydiyyat belə istəmir.'),
+ (8.0, 'Qiymət? Başlamaq pulsuzdur. AI istəyirsinizsə 49 manatdan. AI-siz bütün platforma 150 manat, ƏDV əlavə olunur.'),
+ (7.0, 'Növbəti CV yığınını açmazdan əvvəl bir dəqiqə ayırın. İndi pulsuz qeydiyyatdan keçin. JobMatch: doğru insan, doğru imkan.'),
 ]
 def run(cmd): subprocess.run(cmd, check=True, capture_output=True)
 def duration(path):
