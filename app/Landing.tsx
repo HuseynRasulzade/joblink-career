@@ -208,6 +208,7 @@ export default function Landing() {
                 </li>
               ))}
             </ul>
+            <p className="landing-lead sm"><a href="/kalkulyatorlar" target="_blank" rel="noreferrer"><b>Kalkulyatorları ayrıca səhifədə aç</b></a> (qeydiyyatsız, linki paylaşmaq olar).</p>
             <p className="landing-lead sm"><ChartNoAxesColumn size={15} /> Hesab açanda kalkulyator işçi kartına bağlanır: nəticəni saxlayın, əmr hazırlayın.</p>
           </div>
         </div>

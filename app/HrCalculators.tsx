@@ -96,6 +96,7 @@ function printPage(ctx: ExportContext, rows: [string, ReactNode, boolean?][], ar
     <h2>Nəticə</h2>${table(results)}
     <p>Əsas: ${esc(basis)}.</p>${notes.map((n) => `<p>${esc(n)}</p>`).join("")}
     <p>Hesablama məlumat xarakterlidir; rəsmi sənədləşmədən əvvəl mühasib və ya hüquqşünasla yoxlayın.</p>
+    <p style="margin-top:18px;border-top:1px solid #dfe8e3;padding-top:8px">JobMatch kalkulyatorları ilə hesablanıb · ${esc(window.location.origin)}/kalkulyatorlar</p>
     <div class="sign"><span>Hazırladı: ____________</span><span>Təsdiq etdi: ____________</span></div>
   </body></html>`);
   win.document.close();
@@ -714,10 +715,12 @@ const TABS = [
 // (Labor Code and Tax Code) and lib/salary.ts, which the payroll section will use as well.
 export function HrCalculators({
   employer = false,
+  publicMode = false,
   api,
   notify,
 }: {
   employer?: boolean;
+  publicMode?: boolean;
   api?: (path: string, body?: unknown) => Promise<Loose>;
   notify?: (message: string) => void;
 }) {
@@ -818,6 +821,7 @@ export function HrCalculators({
         <SalaryCalculator
           key={empId}
           employer={employer}
+          shareable={publicMode}
           api={api}
           notify={tell}
           initial={emp && emp.salary ? { amount: emp.salary, from: emp.salaryType || "gross", sector: emp.sector || "private", reduction: emp.taxReduction || 0 } : undefined}

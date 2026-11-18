@@ -1,6 +1,6 @@
 "use client";
 import type { Loose } from "@/lib/loose";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { calculateFromGross, calculateFromNet, type Sector, type SalaryBreakdown } from "@/lib/salary";
 import { Field } from "./components";
 import SuperGross from "./SuperGross";
@@ -23,12 +23,15 @@ function Row({ label, value, strong }: { label: string; value: number; strong?: 
 // on the server so it is only available to company accounts.
 export function SalaryCalculator({
   employer = false,
+  shareable = false,
   api,
   notify,
   initial,
   onApply,
 }: {
   employer?: boolean;
+  // The public page: the numbers live in the address (?m=2000&k=gross&s=private&r=0) so a result can be sent as a link.
+  shareable?: boolean;
   api?: (path: string, body?: unknown) => Promise<Loose>;
   notify: (message: string) => void;
   initial?: { amount: number; from: "gross" | "net"; sector: Sector; reduction?: number };
@@ -41,6 +44,30 @@ export function SalaryCalculator({
   const [reduction, setReduction] = useState(initial?.reduction || 0);
   const [headcount, setHeadcount] = useState(1);
   const [serverResult, setServerResult] = useState<Employer | null>(null);
+  useEffect(() => {
+    if (!shareable) return;
+    const q = new URLSearchParams(window.location.search);
+    const m = Number(q.get("m"));
+    if (Number.isFinite(m) && m > 0 && m <= 1_000_000) setAmount(m);
+    if (q.get("k") === "net" || q.get("k") === "gross") setFrom(q.get("k") as "gross" | "net");
+    if (q.get("s") === "public" || q.get("s") === "private") setSector(q.get("s") as Sector);
+    const red = Number(q.get("r"));
+    if ([50, 100, 200, 400, 800].includes(red)) setReduction(red);
+  }, [shareable]);
+  useEffect(() => {
+    if (!shareable) return;
+    const q = new URLSearchParams({ m: String(amount), k: from, s: sector });
+    if (reduction) q.set("r", String(reduction));
+    window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
+  }, [shareable, amount, from, sector, reduction]);
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      notify("Link kopyalandı: nəticəni göndərə bilərsiniz.");
+    } catch {
+      notify("Linki ünvan sətrindən kopyalayın.");
+    }
+  }
   const local = useMemo(
     () => (from === "net" ? calculateFromNet(amount, sector, { reduction }) : calculateFromGross(amount, sector, { reduction })),
     [from, amount, sector, reduction],
@@ -125,7 +152,20 @@ export function SalaryCalculator({
               )}
             </tbody>
           </table>
-          {employer && <SuperGross gross={r.gross} sector={sector} />}
+          {employer ? (
+            <SuperGross gross={r.gross} sector={sector} />
+          ) : (
+            <details className="lc-sg">
+              <summary>İşəgötürənə neçəyə başa gəlir? Super-gross necə yaranır?</summary>
+              <SuperGross gross={r.gross} sector={sector} />
+            </details>
+          )}
+          {shareable && (
+            <p className="calc-share">
+              <button type="button" className="secondary" onClick={copyLink}>Nəticənin linkini kopyala</button>
+              <button type="button" className="ghost" onClick={() => window.print()}>Çap et / PDF</button>
+            </p>
+          )}
           <p className="muted fine-print">
             Təxmini hesablamadır (Vergilər Nazirliyinin 2026-cı il dərəcələri). Əsas iş yerində aylıq gəlir 2 500 AZN-dək olduqda 200 AZN vergidən azaddır (Vergi Məcəlləsi 102.1.6). Özəl qeyri-neft sektorunda gəlir vergisi
             2 500 AZN-dək 3%, 8 000 AZN-dək 75 AZN + 10%, yuxarısı 625 AZN + 14%. Dövlət və

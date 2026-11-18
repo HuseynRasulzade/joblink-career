@@ -516,3 +516,11 @@ Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), 
 - `superGrossParts` (`lib/salary.ts`) və `app/SuperGross.tsx`: super-gross = gross maaş + işəgötürənin üç payı (DSMF, işsizlik, icbari tibbi sığorta). Panel rəngli zolaq, hər payın məbləği, qaydası və pillələr üzrə hesabı («200-dək 200 × 22% = 44 ₼ · 200–8000 arası 1 800 × 15% = 270 ₼») və cəmi göstərir; işəgötürən paylarının gross-a nisbəti də yazılır.
 - Yerləri: işəgötürən kalkulyatorunun nəticəsi (Kadr → Kalkulyatorlar → İşəgötürən kalkulyatoru) və açılış səhifəsindəki kalkulyator («Super-gross necə yaranır?» açılan bölmə). İşçi siyahısındakı və əmək haqqı səhifəsindəki super-gross sütunlarında hələ izah yoxdur.
 - Test: hissələrin cəmi `employerCost`-a bərabərdir (hər iki sektor, 4 maaş səviyyəsi). Kalkulyatorun alt qeydi də düzəldilib (200 AZN azadolma hər iki sektora aiddir).
+
+## 49. Açıq kalkulyator səhifəsi (reklam və tanınma üçün)
+
+- **Ünvan:** `/kalkulyatorlar` (qeydiyyatsız, sitemap-də var). `app/PublicCalculators.tsx` + `app/kalkulyatorlar/page.tsx`: marka başlığı, «Pulsuz hesab aç» düyməsi, hero («pulsuz · qeydiyyatsız», 2026 dərəcələri, maddə nömrəsi ilə), 13 kalkulyator, yaşıl çağırış bloku («Bu hesabları komandanız üçün avtomatlaşdırın»), sual-cavab, alt hissə.
+- **Paylaşıla bilən nəticə:** maaş kalkulyatoru rəqəmləri ünvana yazır (`?m=3000&k=net&s=public&r=200`), «Nəticənin linkini kopyala» düyməsi var; link açılanda eyni hesab görünür. «Çap et / PDF» çapda yalnız hesabı göstərir; çap olunan kalkulyator vərəqinin altına «JobMatch kalkulyatorları ilə hesablanıb · <sayt>/kalkulyatorlar» yazılır.
+- **Super-gross izahı** açıq səhifədə də var («İşəgötürənə neçəyə başa gəlir?»).
+- **Axtarış (SEO):** başlıq və təsvir, canonical, Open Graph/Twitter, JSON-LD (`WebApplication` + `FAQPage`). Açılış səhifəsindəki kalkulyator bölməsindən link verilib.
+- Yoxlandı: link parametrləri tətbiq olunur (net 3000, dövlət, güzəşt 200 → gross 3 848,91; super-gross 4 791,89), kopyalanan link düzdür, 390 px mobil ölçüdə üfüqi sürüşmə yoxdur. Yoxlanmayıb: real domendə paylaşım önizləməsi (Open Graph şəkli yoxdur), Google-da indeksləmə, rus və ingilis dilləri (səhifə yalnız Azərbaycan dilindədir).
