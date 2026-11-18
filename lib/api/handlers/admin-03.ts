@@ -3,6 +3,10 @@ import { ADMIN_HEALTH_TEXT, budgetState, monthSpendByArea, monthSpendUsd, readAi
 import { type FeedbackRow as AiFeedbackRow, feedbackCsv, summarizeFeedback } from "@/lib/ai-eval";
 import { COMPANY_AI_PACKAGES, monthKey, worstCaseNetShare } from "@/lib/ai-packages";
 import { HttpError, jsonBody, str } from "@/lib/server";
+import { PLANS } from "@/lib/plans";
+import { rowCost } from "@/lib/ai-cost";
+import { readAiPrices } from "@/lib/ai-guard";
+import { CANDIDATE_LIMIT_KEYS, COMPANY_LIMIT_KEYS, TOKENS_PER_ANALYSIS, defaultCandidateLimits, defaultCompanyLimits, loadPackageOverrides, savePackageOverrides } from "@/lib/package-limits";
 import { type Job } from "@/lib/model";
 import { PLATFORM_KINDS, type PlatformDay, RELIGIOUS_YEARS, knownReligiousYears, platformCalendar, yearCalendar } from "@/lib/calendar-az";
 import { companyDisplayName } from "@/lib/api-core";
@@ -108,6 +112,68 @@ export async function handle_admin_03(c: Pick<RouteCtx, "db" | "id" | "path" | "
         companies: rows.results,
       });
     }
+  // AI limits of every package (candidate and employer) with what the real AI costs of the last 30 days say about them.
+  if (path === "admin/package-limits") {
+      if (request.method === "POST") {
+        const body = await jsonBody(request);
+        await savePackageOverrides(db, body.reset ? {} : { candidate: body.candidate, company: body.company });
+        await db
+          .prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), id, "package-limits", "settings", "package_limits", JSON.stringify({ reset: !!body.reset }), new Date().toISOString())
+          .run()
+          .catch(() => undefined);
+      } else {
+        await loadPackageOverrides(db, true);
+      }
+      const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+      const rows = await db
+        .prepare("SELECT provider,SUM(calls) AS calls,SUM(chars_in) AS chars_in,SUM(chars_out) AS chars_out,SUM(tokens_in) AS tokens_in,SUM(tokens_out) AS tokens_out,SUM(tokens_cached) AS tokens_cached,SUM(measured) AS measured FROM ai_usage WHERE day>=? AND measured>0 GROUP BY provider")
+        .bind(since)
+        .all<{ provider: string; calls: number; chars_in: number; chars_out: number; tokens_in: number; tokens_out: number; tokens_cached: number; measured: number }>()
+        .catch(() => ({ results: [] as { provider: string; calls: number; chars_in: number; chars_out: number; tokens_in: number; tokens_out: number; tokens_cached: number; measured: number }[] }));
+      const prices = await readAiPrices(db);
+      // USD per 1M tokens, as the real calls of the last 30 days were priced (input, cached input and output together).
+      let cost = 0;
+      let tokens = 0;
+      for (const r of rows.results) {
+        const row = { day: "", feature: "", user_id: "", errors: 0, provider: r.provider, calls: Number(r.measured) || 0, chars_in: 0, chars_out: 0, tokens_in: Number(r.tokens_in) || 0, tokens_out: Number(r.tokens_out) || 0, tokens_cached: Number(r.tokens_cached) || 0, measured: Number(r.measured) || 0 };
+        cost += rowCost(row, prices).cost;
+        tokens += row.tokens_in + row.tokens_out;
+      }
+      const real = tokens >= 20_000;
+      const blendUsdPerM = real ? (cost / tokens) * 1_000_000 : (prices.openai.input * 0.75 + prices.openai.output * 0.25);
+      const AZN_PER_USD = 1.7;
+      const aznPerToken = (blendUsdPerM / 1_000_000) * AZN_PER_USD;
+      const money = (n: number) => Math.round(n * 100) / 100;
+      return ok({
+        blend: { usdPerMillion: Math.round(blendUsdPerM * 100) / 100, aznPerUsd: AZN_PER_USD, source: real ? "real" : "default", measuredTokens: tokens },
+        tokensPerAnalysis: TOKENS_PER_ANALYSIS,
+        candidate: PLANS.map((p) => {
+          const worst = p.limits.aiTokensMonth * aznPerToken;
+          return {
+            id: p.id,
+            name: p.name,
+            priceAzn: p.priceAzn,
+            limits: Object.fromEntries(CANDIDATE_LIMIT_KEYS.map((k) => [k, p.limits[k]])),
+            defaults: Object.fromEntries(CANDIDATE_LIMIT_KEYS.map((k) => [k, defaultCandidateLimits(p.id)?.[k]])),
+            worstCostAzn: money(worst),
+            worstShare: p.priceAzn ? Math.round(((p.priceAzn * 0.95 - worst) / p.priceAzn) * 1000) / 1000 : null,
+          };
+        }),
+        company: COMPANY_AI_PACKAGES.map((p) => {
+          const worst = (p.fullPerMonth * TOKENS_PER_ANALYSIS + p.rankPerMonth * 250) * aznPerToken;
+          return {
+            id: p.id,
+            name: p.name,
+            priceAzn: p.priceAzn,
+            limits: Object.fromEntries(COMPANY_LIMIT_KEYS.map((k) => [k, p[k]])),
+            defaults: Object.fromEntries(COMPANY_LIMIT_KEYS.map((k) => [k, defaultCompanyLimits(p.id)?.[k]])),
+            worstCostAzn: money(worst),
+            worstShare: p.priceAzn ? Math.round(((p.priceAzn * 0.95 - worst) / p.priceAzn) * 1000) / 1000 : null,
+          };
+        }),
+      });
+  }
   if (path === "admin/production-calendar") {
       const year = Number(str(requestUrl.searchParams.get("year"), 4) || new Date().getFullYear());
       if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new HttpError(400, "İli düzgün seçin.");

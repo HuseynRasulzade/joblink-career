@@ -37,6 +37,7 @@ import { pickSigners, sameName } from "@/lib/order-signers";
 
 import { ORDER_KINDS, signedOrderNotice } from "@/lib/orders";
 
+import { loadPackageOverrides } from "@/lib/package-limits";
 import { HR_MODULE_API, hrModuleOpen, packageById, monthKey, quotaLeft } from "@/lib/ai-packages";
 
 import { statusAfter, type ApplicationFlowEvent } from "@/lib/application-flow";
@@ -174,6 +175,8 @@ async function route(request: Request) {
     if (r) return r;
   }
   const db = await store();
+  // The AI limits of the packages (edited by the admin) are applied over the defaults, refreshed once a minute.
+  await loadPackageOverrides(db);
   // The three shared lists and the session are read together: each D1 round trip is slow.
   // The three shared lists change rarely (only the admin edits them): they are kept for half a minute in the instance, so most requests
   // do not read them from the database again. Any admin write drops the copy at once.
