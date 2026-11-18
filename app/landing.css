@@ -159,3 +159,19 @@
 @media (max-width: 1000px) { .landing-features { grid-template-columns: repeat(2, minmax(0, 1fr)); } .landing-calc { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .landing-steps { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .landing-features { grid-template-columns: 1fr; } .landing-tabs { width: 100%; left: 0; transform: none; } .landing-tabs button { flex: 1; padding: 10px 8px; } }
+
+.super-gross { margin-top: 18px; padding: 18px; border: 1px solid #dfe8e4; border-radius: 16px; background: #f8fbfa; }
+.super-gross h4 { margin: 0 0 6px; font-size: 17px; }
+.sg-bar { display: flex; height: 14px; border-radius: 8px; overflow: hidden; gap: 2px; margin: 12px 0 14px; background: #e4eeea; }
+.sg-bar span { display: block; min-width: 4px; }
+.sg-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.sg-list li { display: flex; gap: 10px; align-items: flex-start; }
+.sg-dot { flex: none; width: 12px; height: 12px; border-radius: 4px; margin-top: 5px; }
+.sg-list li > div { flex: 1; min-width: 0; }
+.sg-row { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+.sg-list small { display: block; line-height: 1.4; }
+.sg-tiers { color: #3c5a55; margin-top: 2px; }
+.sg-total { border-top: 1.5px solid #14262a; padding-top: 10px; font-size: 16px; }
+.lc-sg { margin: 0; }
+.lc-sg summary { cursor: pointer; font-weight: 700; color: #0f6b61; }
+.lc-sg .super-gross { margin-top: 10px; background: #fff; }

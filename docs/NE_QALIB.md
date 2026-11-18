@@ -510,3 +510,9 @@ Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), 
 - 14 saylı qərar: ölkədaxili normalar (Bakı 125, Naxçıvan 100, Gəncə və Sumqayıt 95, digər 90), mehmanxana 70%, sənədsiz 50%, və **106 xarici ölkənin hər bir norması** (200 saylı qərarın cədvəli ilə maşın müqayisəsi: fərq yoxdur).
 
 **Hələ yoxlanmayanlar:** DSMF faizləri (yalnız Sosial Sığorta Qanunu və tibbi sığorta qanunu ilə yoxlanır, onlar bu yükləmələrdə yoxdur), işsizlik sığortası 0,5%, istirahət/bayram günü işinin haqqı (164, 107, 109), müavinət düsturları (əvvəl yüklənmiş Sosial Sığorta Qanunu ilə yoxlanmışdı).
+
+## 48. Super-gross necə yaranır (izah paneli)
+
+- `superGrossParts` (`lib/salary.ts`) və `app/SuperGross.tsx`: super-gross = gross maaş + işəgötürənin üç payı (DSMF, işsizlik, icbari tibbi sığorta). Panel rəngli zolaq, hər payın məbləği, qaydası və pillələr üzrə hesabı («200-dək 200 × 22% = 44 ₼ · 200–8000 arası 1 800 × 15% = 270 ₼») və cəmi göstərir; işəgötürən paylarının gross-a nisbəti də yazılır.
+- Yerləri: işəgötürən kalkulyatorunun nəticəsi (Kadr → Kalkulyatorlar → İşəgötürən kalkulyatoru) və açılış səhifəsindəki kalkulyator («Super-gross necə yaranır?» açılan bölmə). İşçi siyahısındakı və əmək haqqı səhifəsindəki super-gross sütunlarında hələ izah yoxdur.
+- Test: hissələrin cəmi `employerCost`-a bərabərdir (hər iki sektor, 4 maaş səviyyəsi). Kalkulyatorun alt qeydi də düzəldilib (200 AZN azadolma hər iki sektora aiddir).

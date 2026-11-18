@@ -3,6 +3,7 @@ import type { Loose } from "@/lib/loose";
 import { useMemo, useState } from "react";
 import { calculateFromGross, calculateFromNet, type Sector, type SalaryBreakdown } from "@/lib/salary";
 import { Field } from "./components";
+import SuperGross from "./SuperGross";
 
 const azn = (v: number) => `${v.toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AZN`;
 
@@ -124,10 +125,11 @@ export function SalaryCalculator({
               )}
             </tbody>
           </table>
+          {employer && <SuperGross gross={r.gross} sector={sector} />}
           <p className="muted fine-print">
-            Təxmini hesablamadır (Vergilər Nazirliyinin 2026-cı il dərəcələri). Özəl qeyri-neft sektorunda gəlir vergisi
-            2 500 AZN-dək 200 AZN-dən çox hissənin 3%-i, 8 000 AZN-dək 75 AZN + 10%, yuxarısı 625 AZN + 14%. Dövlət və
-            neft-qaz sektorunda gəlir vergisi 14% və 2 500 AZN-dən yuxarı 350 AZN + 25%, DSMF işçi 3% və işəgötürən 22%.
+            Təxmini hesablamadır (Vergilər Nazirliyinin 2026-cı il dərəcələri). Əsas iş yerində aylıq gəlir 2 500 AZN-dək olduqda 200 AZN vergidən azaddır (Vergi Məcəlləsi 102.1.6). Özəl qeyri-neft sektorunda gəlir vergisi
+            2 500 AZN-dək 3%, 8 000 AZN-dək 75 AZN + 10%, yuxarısı 625 AZN + 14%. Dövlət və
+            neft-qaz sektorunda gəlir vergisi 2 500 AZN-dək 14% və yuxarı 350 AZN + 25%, DSMF işçi 3% və işəgötürən 22%.
             Güzəştlər və əlavə ödənişlər nəzərə alınmır; rəsmi hesablama üçün mühasib və ya Dövlət Vergi Xidməti ilə
             yoxlayın.
           </p>

@@ -97,3 +97,25 @@ export function calculateFromNet(netInput: number, sector: Sector = "private", o
   }
   return calculateFromGross(hi, sector, options);
 }
+
+// How the employer's total cost (super-gross) is made: gross + the employer's contributions, each with the rule and the tiers that gave the number.
+export type SuperGrossLine = { label: string; amount: number; rule: string; tiers: { text: string; amount: number }[] };
+export type SuperGrossParts = { gross: number; lines: SuperGrossLine[]; total: number; shareOfGross: number };
+export function superGrossParts(grossInput: number, sector: Sector = "private"): SuperGrossParts {
+  const gross = Math.max(0, Number(grossInput) || 0);
+  const pct = (n: number) => `${String(Math.round(n * 1000) / 10).replace(".", ",")}%`;
+  const tier = (from: number, to: number, rate: number) => {
+    const part = Math.max(0, Math.min(gross, to) - from);
+    return part > 0 ? { text: `${from === 0 ? "" : `${from.toLocaleString("az-AZ")}-dən `}${Number.isFinite(to) ? `${to.toLocaleString("az-AZ")}-dək` : "yuxarı"} olan ${part.toLocaleString("az-AZ", { maximumFractionDigits: 2 })} × ${pct(rate)}`, amount: r2(part * rate) } : null;
+  };
+  const compact = (items: ({ text: string; amount: number } | null)[]) => items.filter((x): x is { text: string; amount: number } => !!x);
+  const socialTiers = sector === "public" ? compact([tier(0, Infinity, 0.22)]) : compact([tier(0, 200, 0.22), tier(200, 8000, 0.15), tier(8000, Infinity, 0.11)]);
+  const medicalTiers = compact([tier(0, 8000, 0.02), tier(8000, Infinity, 0.005)]);
+  const b = calculateFromGross(gross, sector);
+  const lines: SuperGrossLine[] = [
+    { label: "DSMF (dövlət sosial sığorta), işəgötürən payı", amount: b.employerSocial, rule: sector === "public" ? "Dövlət və neft-qaz sektoru: bütün maaşdan 22%." : "Qeyri-dövlət sektoru: 200 AZN-dək 22%, 200–8 000 AZN arası 15%, 8 000-dən yuxarı 11%.", tiers: socialTiers },
+    { label: "İşsizlikdən sığorta, işəgötürən payı", amount: b.employerUnemployment, rule: "Bütün maaşdan 0,5%.", tiers: compact([tier(0, Infinity, 0.005)]) },
+    { label: "İcbari tibbi sığorta, işəgötürən payı", amount: b.employerMedical, rule: "8 000 AZN-dək 2%, yuxarı hissədən 0,5%.", tiers: medicalTiers },
+  ];
+  return { gross: b.gross, lines, total: b.employerCost, shareOfGross: b.gross ? r2((b.employerTotalContributions / b.gross) * 100) : 0 };
+}

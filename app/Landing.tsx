@@ -4,6 +4,7 @@ import { PLANS } from "@/lib/plans";
 import { useState } from "react";
 import { Briefcase, CalendarClock, Calculator, ChartNoAxesColumn, Check, FileSpreadsheet, Languages, Lock, Network, Plane, Scale, Sparkles, Users, UserSearch, Wallet } from "lucide-react";
 import { calculateFromGross, calculateFromNet, type Sector } from "@/lib/salary";
+import SuperGross from "./SuperGross";
 import { localizeTree } from "./i18n";
 
 // The public page under the sign-in: what the platform is, for whom, how it starts, what it costs.
@@ -81,7 +82,8 @@ function LandingCalc({ onSignup }: { onSignup: () => void }) {
           </div>
         ))}
       </dl>
-      <p className="lc-employer"><span>İşəgötürənin ümumi xərci</span><b>{fmt(r.employerCost)} ₼</b></p>
+      <p className="lc-employer"><span>İşəgötürənin ümumi xərci (super-gross)</span><b>{fmt(r.employerCost)} ₼</b></p>
+      <details className="lc-sg"><summary>Super-gross necə yaranır?</summary><SuperGross gross={r.gross} sector={sector} /></details>
       <p className="lc-note">Hesablama məlumat xarakterlidir. İşçi kartında vergi güzəşti, müavinət və digər tutulmalar da nəzərə alınır.</p>
       <button type="button" className="primary" onClick={onSignup}>Bütün kalkulyatorlardan istifadə et</button>
     </div>

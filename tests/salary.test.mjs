@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateFromGross, calculateFromNet } from "../lib/salary.ts";
+import { calculateFromGross, calculateFromNet, superGrossParts } from "../lib/salary.ts";
 
 test("private 1000 AZN gross", () => {
   const r = calculateFromGross(1000);
@@ -66,4 +66,19 @@ test("200 AZN is exempt only while the income is up to 2,500 AZN, in both sector
   // a reduction (102.3 disability, 200) comes on top of the exemption; the exemption itself depends on the gross
   assert.equal(calculateFromGross(1000, "public", { reduction: 200 }).incomeTax, 84); // 14% of 600
   assert.equal(calculateFromGross(2600, "public", { reduction: 200 }).incomeTax, 336); // 14% of 2400, no exemption
+});
+
+test("super-gross is the gross plus the three employer contributions and its parts add up", () => {
+  for (const sector of ["private", "public"]) {
+    for (const gross of [150, 1000, 2500, 9000]) {
+      const p = superGrossParts(gross, sector);
+      const sum = Math.round((p.gross + p.lines.reduce((t, l) => t + l.amount, 0)) * 100) / 100;
+      assert.equal(sum, p.total);
+      assert.equal(p.total, calculateFromGross(gross, sector).employerCost);
+      for (const l of p.lines) assert.ok(Math.abs(l.tiers.reduce((t, x) => t + x.amount, 0) - l.amount) < 0.02);
+    }
+  }
+  const priv = superGrossParts(1000);
+  assert.equal(priv.lines[0].amount, 44 + 120); // 200 x 22% + 800 x 15%
+  assert.equal(superGrossParts(1000, "public").lines[0].amount, 220);
 });
