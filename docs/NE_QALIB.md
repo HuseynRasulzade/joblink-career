@@ -562,3 +562,9 @@ Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), 
 - **E-poçt kodu:** canlı mühitdə kod yalnız e-poçt qurulubsa gedir (`EMAIL_FROM` + `RESEND_API_KEY`, ya da Cloudflare `EMAIL` bağlaması). Qurulmayıbsa kod addımı atlanır. Provayder məktubu rədd edərsə (məs. domen təsdiqlənməyib), hesab «gözləyən» qalmır: qeydiyyat köhnə qaydada sessiya verir.
 - **İşəgötürən «Paketlər» bölməsi** (`hr-packages`, «Şirkət» qrupunda): AI paketini dəyişmək və əlavə analiz almaq (`CompanyPackagesPage`); «Hesablar və ödənişlər» artıq yalnız hesab-fakturaları göstərir.
 - **Telefonda sol menyu** (≤900 px): standart gizlidir, yuxarıdakı ☰ düyməsi ilə soldan açılır (tam yazılarla), bölmə seçiləndə, kənara toxunanda və ya Esc ilə yenidən sola çəkilir (`menuOpen` in `Joblink.tsx`, `app/polish.css` sonu). Köhnə 58–76 px ikon zolağı götürüldü.
+
+## 55. ƏDV-siz qiymətlər və Kadr modulu (+150 ₼)
+
+- **Qiymətlər ƏDV-siz göstərilir:** namizəd paketləri, şirkət AI paketləri və əlavə analiz paketlərində «X ₼ + 18% ƏDV = Y ₼» yazılır (açılış səhifəsi, «Paketlər», təsdiq pəncərələri). Hesab-faktura və ödəniş məbləği ƏDV daxil cəmdir (`lib/vat.ts`: `grossCents`, `vatAzn`, `withVatAzn`); invoysdakı «ƏDV» hissəsi mövcud `vatParts` ilə cəmdən çıxarılır. `COST_SHARES.vat` 0-dır (qiymət ƏDV-sizdir), mənfəət hesabı ona görə dəyişdi.
+- **Kadr modulu:** hər AI paket kartında «Kadr modulu +150 ₼/ay + 18% ƏDV» qutusu var; işarələyəndə aylıq cəmi (paket + 150) və ƏDV göstərilir, təsdiqdən sonra hesab-faktura yaranır (`company/ai-plan/change` + `hrModule`). Dəyər `company_ai_plans.hr_module` (migrasiya 0127). Qiymət: `HR_MODULE_PRICE_AZN` in `lib/ai-packages.ts`.
+- **Hələ edilməyib:** Kadr modulunun girişi qiymətlə bağlanmayıb (bütün şirkətlər onu əvvəlki kimi görür). Bağlamaq üçün «Kadr» səhifələri `hr_module=1` tələb etməlidir; mövcud şirkətlərin girişini kəsməmək üçün bu ayrıca qərar kimi saxlanılıb.

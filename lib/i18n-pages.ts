@@ -2070,7 +2070,15 @@ E-poçtunuz hələ təsdiqlənməyib. Ünvanınıza yeni kod göndərildi.|Your 
 Xəbərdarlıq yaratmaq üçün əvvəl axtarış sözü yazın və ya filtr (şəhər, kateqoriya, maaş və s.) seçin, sonra bu düyməni basın.|To create an alert, first type a search word or choose a filter (city, category, salary, etc.), then press this button.|Чтобы создать оповещение, сначала введите поисковое слово или выберите фильтр (город, категория, зарплата и т. д.), затем нажмите эту кнопку.
 Əvvəl axtarış sözü yazın və ya filtr seçin.|First type a search word or choose a filter.|Сначала введите поисковое слово или выберите фильтр.
 Menyu|Menu|Меню
-Menyunu bağla|Close menu|Закрыть меню`;
+Menyunu bağla|Close menu|Закрыть меню
+Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir (+18% ƏDV əlavə olunur). Paketsiz istifadə pulsuzdur.|Monthly payment; prices are shown without VAT (+18% VAT is added). Using the platform without a package is free.|Ежемесячная оплата; цены указаны без НДС (добавляется +18% НДС). Использование без пакета бесплатно.
+Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir (+18% ƏDV əlavə olunur). Hər paketə istəyə görə Kadr modulu (ştat, əmrlər, əmək haqqı, davamiyyət) +150 ₼ / ay əlavə edilə bilər; paket AI analizinin sayını müəyyən edir. Limit bitəndə əlavə analiz paketi almaq olar.|Monthly payment; prices are shown without VAT (+18% VAT is added). The HR module (staff schedule, orders, payroll, attendance) can be added to any package for +150 ₼ / month; the package sets the number of AI analyses. When the limit is used up, an extra analysis pack can be bought.|Ежемесячная оплата; цены указаны без НДС (добавляется +18% НДС). К любому пакету можно добавить кадровый модуль (штатное расписание, приказы, зарплата, посещаемость) за +150 ₼ / мес.; пакет определяет число ИИ-анализов. Когда лимит исчерпан, можно купить дополнительный пакет анализов.
+Kadr modulu istəyə görə: +150 ₼ / ay + ƏDV|HR module optional: +150 ₼ / month + VAT|Кадровый модуль по желанию: +150 ₼ / мес. + НДС
+ ₼ / ay + 18% ƏDV| ₼ / month + 18% VAT| ₼ / мес. + 18% НДС
+Kadr modulu|HR module|Кадровый модуль
+Kadr modulunu əlavə et|Add the HR module|Добавить кадровый модуль
+Kadr modulunu söndür|Turn off the HR module|Отключить кадровый модуль
+Qiymətlər ƏDV-siz göstərilir, hesab-fakturaya 18% ƏDV əlavə olunur.|Prices are shown without VAT; 18% VAT is added to the invoice.|Цены указаны без НДС; в счёт добавляется 18% НДС.`;
 const EN: Record<string, string> = {};
 const RU: Record<string, string> = {};
 for (const line of LINES.split("\n")) {
@@ -2133,6 +2141,12 @@ const RULES: Rule[] = [
   [/^(\d+)\+ gündür gözləyir$/, "waiting for $1+ days", "ждёт $1+ дней"],
   [/^(\d+) il təcrübəniz və (.+) bacarıqlarınız bu istiqamətlə əlaqəlidir\.$/, "Your $1 years of experience and $2 skills are related to this direction.", "Ваш опыт $1 лет и навыки $2 связаны с этим направлением."],
   [/^([\d.]+) illik təcrübəniz və (.+) bacarıqlarınız bu istiqamətlə əlaqəlidir\.$/, "Your $1 years of experience and $2 skills are related to this direction.", "Ваш опыт $1 лет и навыки $2 связаны с этим направлением."],
+  [/^(\d+) ₼\/ay \+ (\d+)% ƏDV$/, "$1 ₼/month + $2% VAT", "$1 ₼/мес. + $2% НДС"],
+  [/^\+(\d+) ₼\/ay \+ (\d+)% ƏDV \(işçilər, əmrlər, əmək haqqı, davamiyyət\)$/, "+$1 ₼/month + $2% VAT (employees, orders, payroll, attendance)", "+$1 ₼/мес. + $2% НДС (сотрудники, приказы, зарплата, посещаемость)"],
+  [/^Aylıq cəmi: ([\d.]+) ₼ \+ (\d+)% ƏDV = ([\d.]+) ₼$/, "Monthly total: $1 ₼ + $2% VAT = $3 ₼", "Итого в месяц: $1 ₼ + $2% НДС = $3 ₼"],
+  [/^([\d.]+) ₼ \+ (\d+)% ƏDV = ([\d.]+) ₼$/, "$1 ₼ + $2% VAT = $3 ₼", "$1 ₼ + $2% НДС = $3 ₼"],
+  [/^\+ (\d+)% ƏDV \(([\d.]+) AZN\) = ([\d.]+) AZN$/, "+ $1% VAT ($2 AZN) = $3 AZN", "+ $1% НДС ($2 AZN) = $3 AZN"],
+  [/^Qiymət: ([\d.]+) AZN \+ (\d+)% ƏDV = ([\d.]+) AZN \/ 30 gün\.$/, "Price: $1 AZN + $2% VAT = $3 AZN / 30 days.", "Цена: $1 AZN + $2% НДС = $3 AZN / 30 дней."],
   [/^Aylıq limit \(dollar, 0 = yoxdur\)$/, "Monthly limit (dollars, 0 = none)", "Месячный лимит (доллары, 0 = нет)"],
 ];
 export function translatePattern(text: string, language: "en" | "ru", part: (phrase: string) => string = (x) => x): string | undefined {

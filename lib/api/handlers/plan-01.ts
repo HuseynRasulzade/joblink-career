@@ -1,4 +1,5 @@
 // plan: handlers of the JobMatch API (moved out of route.ts; the order of the checks is the order of the calls in route.ts).
+import { grossCents } from "@/lib/vat";
 import { HttpError, jsonBody, runtime, str } from "@/lib/server";
 import { addPeriod, azn as aznCents, planById } from "@/lib/plans";
 import { buildServiceContract } from "@/lib/contracts";
@@ -166,7 +167,7 @@ export async function handle_plan_01(c: Pick<RouteCtx, "db" | "id" | "path" | "p
     const periodEnd = addPeriod(now);
     const charge = paymentProvider.charge({
       token: method.token,
-      amountCents: plan.priceAzn * 100,
+      amountCents: grossCents(plan.priceAzn),
       currency: "AZN",
       description: `JobMatch ${plan.name}`,
     });
@@ -179,7 +180,7 @@ export async function handle_plan_01(c: Pick<RouteCtx, "db" | "id" | "path" | "p
         id,
         subId,
         plan.id,
-        plan.priceAzn * 100,
+        grossCents(plan.priceAzn),
         charge.ok ? "paid" : "failed",
         cardLabel(method),
         paymentProvider.name,
@@ -265,7 +266,7 @@ export async function handle_plan_01(c: Pick<RouteCtx, "db" | "id" | "path" | "p
       userId: id,
       type: "plan",
       title: `${plan.name} paketi aktivdir`,
-      body: `${aznCents(plan.priceAzn * 100)} ödənildi. Müqavilə № ${contract.number}.`,
+      body: `${aznCents(grossCents(plan.priceAzn))} ödənildi. Müqavilə № ${contract.number}.`,
       link: "packages",
     });
     return ok(

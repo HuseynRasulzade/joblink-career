@@ -1,4 +1,5 @@
 // plan: handlers of the JobMatch API (moved out of route.ts; the order of the checks is the order of the calls in route.ts).
+import { grossCents } from "@/lib/vat";
 import { AUTO_APPLY_FLOOR, type Job, type Profile, autoApplyEligible, match, salaryFits } from "@/lib/model";
 import { HttpError, jsonBody, providerRefusal, recordAiUsage, runtime, str } from "@/lib/server";
 import type { Loose } from "@/lib/loose";
@@ -25,12 +26,12 @@ export async function handle_plan_02(c: Pick<RouteCtx, "accountRole" | "activate
     const bank = checkoutFor(runtime().PAYMENT_PROVIDER);
     const orderId = crypto.randomUUID();
     const origin = new URL(request.url).origin;
-    const started = bank.createCheckout({ orderId, amountCents: plan.priceAzn * 100, currency: "AZN", description: `JobMatch ${plan.name}`, origin, returnUrl: `${origin}/?payment=${orderId}#packages` });
+    const started = bank.createCheckout({ orderId, amountCents: grossCents(plan.priceAzn), currency: "AZN", description: `JobMatch ${plan.name}`, origin, returnUrl: `${origin}/?payment=${orderId}#packages` });
     if ("error" in started) throw new HttpError(503, started.error);
     const at = new Date().toISOString();
     await db
       .prepare("INSERT INTO payment_orders(id,account_id,plan_id,amount_cents,currency,status,provider,provider_ref,auto_renew,created,updated) VALUES(?,?,?,?,'AZN','created',?,?,?,?,?)")
-      .bind(orderId, id, plan.id, plan.priceAzn * 100, bank.name, started.providerRef, b.autoRenew === true ? 1 : 0, at, at)
+      .bind(orderId, id, plan.id, grossCents(plan.priceAzn), bank.name, started.providerRef, b.autoRenew === true ? 1 : 0, at, at)
       .run();
     return ok({ orderId, url: started.url, bank: bank.name }, 201);
   }
@@ -47,7 +48,7 @@ export async function handle_plan_02(c: Pick<RouteCtx, "accountRole" | "activate
       role: accountRole,
       topic: "billing",
       subject,
-      body: `${plan.name} paketini (${plan.priceAzn} AZN / 30 gün) seçmək istəyirəm. Bank ödənişi hələ qoşulmayıb; paketi aktivləşdirmək üçün mənimlə əlaqə saxlayın.`,
+      body: `${plan.name} paketini (${plan.priceAzn} AZN + 18% ƏDV / 30 gün) seçmək istəyirəm. Bank ödənişi hələ qoşulmayıb; paketi aktivləşdirmək üçün mənimlə əlaqə saxlayın.`,
       meta: { planId: plan.id },
     });
     return ok({ ok: true, id: threadId }, 201);

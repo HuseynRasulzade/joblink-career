@@ -5,6 +5,7 @@ import { Field, Modal } from "./components";
 import { formatDate } from "@/lib/dates";
 import { siteLanguage } from "./i18n";
 import type { Plan } from "@/lib/plans";
+import { PACKAGE_VAT_PERCENT, vatAzn, withVatAzn } from "@/lib/vat";
 
 type Method = { id: string; brand: string; last4: string; expMonth: number; expYear: number; isDefault: boolean };
 type Usage = { used: number; limit: number };
@@ -191,6 +192,7 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
             <article key={p.id} className={`panel plan-card${active ? " active" : ""}`}>
               <h3>{p.name}</h3>
               <strong className="plan-price">{p.priceAzn ? `${p.priceAzn} AZN` : "0 AZN"}<small>{p.priceAzn ? " / 30 gün" : ""}</small></strong>
+              {p.priceAzn ? <small className="muted">{`+ ${PACKAGE_VAT_PERCENT}% ƏDV (${vatAzn(p.priceAzn).toFixed(2)} AZN) = ${withVatAzn(p.priceAzn).toFixed(2)} AZN`}</small> : null}
               <p className="muted">{p.summary}</p>
               <ul>{p.features.map((f) => <li key={f}>{f}</li>)}</ul>
               {active ? (
@@ -277,7 +279,7 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
       {choosing && (
         <Modal title={`${choosing.name} paketini aktivləşdir`} onClose={() => setChoosing(null)}>
           <div className="offer-composer">
-            <p>Qiymət: <b>{choosing.priceAzn} AZN</b> / 30 gün. Paket ödənişdən dərhal sonra aktiv olur; qüvvədə olan başqa paket varsa, onun qalan günləri geri qaytarılmır.</p>
+            <p>{`Qiymət: ${choosing.priceAzn} AZN + ${PACKAGE_VAT_PERCENT}% ƏDV = ${withVatAzn(choosing.priceAzn).toFixed(2)} AZN / 30 gün.`} Paket ödənişdən dərhal sonra aktiv olur; qüvvədə olan başqa paket varsa, onun qalan günləri geri qaytarılmır.</p>
             {data.methods.length ? (
               <Field label="Ödəniş kartı">
                 <select value={methodId} onChange={(e) => setMethodId(e.target.value)}>
@@ -293,7 +295,7 @@ export default function PackagesPage({ notify }: { notify: (message: string) => 
             </label>
             <p className="muted fine-print">Təsdiq etməklə avtomatik hazırlanmış xidmət müqaviləsinin şərtlərinə razılıq verirsiniz. Müqavilə ödənişdən sonra “Müqavilələr” bölməsində görünür.</p>
             <button className="primary" disabled={busy || !methodId} onClick={() => run(async () => { await call("plan/subscribe", { planId: choosing.id, methodId, autoRenew }); setChoosing(null); }, "Paket aktivləşdirildi.")}>
-              {busy ? "Ödəniş edilir…" : `${choosing.priceAzn} AZN ödə və aktivləşdir`}
+              {busy ? "Ödəniş edilir…" : `${withVatAzn(choosing.priceAzn).toFixed(2)} AZN ödə və aktivləşdir`}
             </button>
           </div>
         </Modal>

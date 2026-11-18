@@ -4,7 +4,7 @@
 export type CompanyAiPackage = {
   id: string;
   name: string;
-  priceAzn: number; // per month, VAT included
+  priceAzn: number; // per month, WITHOUT VAT (18% VAT is added on the invoice)
   fullPerMonth: number;
   rankPerMonth: number;
   target: number; // the net profit share the package is built for (0 = free package)
@@ -21,8 +21,11 @@ export const packageById = (id: string) => COMPANY_AI_PACKAGES.find((p) => p.id 
 // What one operation costs on OpenAI (₼): a full analysis is about 3 800 tokens, a ranking about 250; 5.44 ₼ per million tokens.
 export const FULL_COST_AZN = 0.020672;
 export const RANK_COST_AZN = 0.00136;
-// Shares of the price: 18% VAT inside the price, 2.5% payment fee, 2.5% running costs.
-export const COST_SHARES = { vat: 18 / 118, payment: 0.025, running: 0.025 };
+// Shares of the price: the price is without VAT (VAT is added on top), 2.5% payment fee, 2.5% running costs.
+export const COST_SHARES = { vat: 0, payment: 0.025, running: 0.025 };
+
+// The HR (Kadr) module is offered on top of any AI package for a fixed monthly price (without VAT).
+export const HR_MODULE_PRICE_AZN = 150;
 
 export const worstCaseCost = (p: CompanyAiPackage) => p.fullPerMonth * FULL_COST_AZN + p.rankPerMonth * RANK_COST_AZN;
 // The net profit share when the whole quota is used on OpenAI.

@@ -3439,6 +3439,9 @@ const INVOICE_STATE: Record<string, string> = {
 };
 type AiAccount = {
   month: string;
+  hrModule: boolean;
+  hrModulePriceAzn: number;
+  vatPercent: number;
   current: { id: string; name: string; priceAzn: number; fullPerMonth: number; rankPerMonth: number };
   used: { full: number; rank: number };
   monthly: { full: number; rank: number };
@@ -3455,7 +3458,12 @@ export function CompanyPackagesPage({ notify }: { notify: Notify }) {
 function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () => void }) {
   const [data, reload] = useLoad<AiAccount>("company/ai-account", notify);
   const [busy, setBusy] = useState(false);
+  // The HR (Kadr) module tick of each package card; it starts from what the company has now.
+  const [hrPick, setHrPick] = useState<Record<string, boolean>>({});
   if (!data) return null;
+  const vat = data.vatPercent || 18;
+  const withVat = (net: number) => Math.round(net * (100 + vat)) / 100;
+  const azn2 = (n: number) => `${n.toFixed(2)} ₼`;
   const bar = (left: number, total: number) => (
     <div style={{ height: 8, borderRadius: 6, background: "#e3ece8", overflow: "hidden", marginTop: 4 }}>
       <div style={{ width: `${total ? Math.max(0, Math.min(100, (left / total) * 100)) : 0}%`, height: "100%", background: left / Math.max(1, total) < 0.15 ? "#d9822b" : "#2aa595" }} />
@@ -3484,7 +3492,7 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
         </h3>
         <small className="muted">{data.month}</small>
       </div>
-      <p className="muted fine-print">Aktiv paket: <b>{c.name}</b>{c.priceAzn ? ` · ${c.priceAzn} ₼/ay (ƏDV daxil)` : " · pulsuz"}. Ödənişli dəyişiklik hesab-faktura yaradır; ödəniş bank köçürməsi ilə aşağıdakı «Hesab-fakturalar»da qeyd olunur.</p>
+      <p className="muted fine-print">Aktiv paket: <b>{c.name}</b>{c.priceAzn ? ` · ${c.priceAzn} ₼/ay + ${vat}% ƏDV` : " · pulsuz"}{data.hrModule ? " · Kadr modulu aktivdir" : ""}. Qiymətlər ƏDV-siz göstərilir, hesab-fakturaya {vat}% ƏDV əlavə olunur. Ödənişli dəyişiklik hesab-faktura yaradır; ödəniş bank köçürməsi ilə aşağıdakı «Hesab-fakturalar»da qeyd olunur.</p>
       <div className="kpi-grid">
         <div className="kpi">
           <small>Tam CV analizi: qalıb</small>
@@ -3501,22 +3509,53 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
       </div>
       <h4 style={{ margin: "16px 0 8px" }}>Paketi dəyiş</h4>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
-        {data.packages.map((p) => (
-          <div key={p.id} className="panel" style={{ margin: 0, padding: 12, borderColor: p.id === c.id ? "#2aa595" : undefined }}>
-            <b>{p.name}</b>
-            <div>{p.priceAzn ? `${p.priceAzn} ₼/ay` : "Pulsuz"}</div>
-            <small className="muted">{p.fullPerMonth} tam analiz · {p.rankPerMonth} reytinq</small>
-            <div style={{ marginTop: 8 }}>
-              {p.id === c.id ? (
-                <span className="demo-tag">Aktiv</span>
-              ) : (
-                <button type="button" className={p.priceAzn > c.priceAzn ? "primary" : "secondary"} disabled={busy} onClick={() => act("company/ai-plan/change", { planId: p.id }, p.priceAzn > c.priceAzn ? `«${p.name}» paketinə keçilsin? ${p.priceAzn} ₼ (ƏDV daxil) hesab-faktura yaranacaq.` : `«${p.name}» paketinə keçilsin? Aylıq limit azalır, ödənilmiş məbləğ geri qaytarılmır.`)}>
-                  {p.priceAzn > c.priceAzn ? "Yüksəlt" : "Keç"}
-                </button>
+        {data.packages.map((p) => {
+          const wantHr = hrPick[p.id] ?? data.hrModule;
+          const isCurrent = p.id === c.id;
+          const upgrade = p.priceAzn > c.priceAzn;
+          // The same amount the server bills: the package when it is dearer than the current one, plus the HR module when it is newly ticked.
+          const billNet = (!isCurrent && upgrade ? p.priceAzn : 0) + (wantHr && !data.hrModule ? data.hrModulePriceAzn : 0);
+          const totalNet = p.priceAzn + (wantHr ? data.hrModulePriceAzn : 0);
+          const hrChanged = wantHr !== data.hrModule;
+          return (
+            <div key={p.id} className="panel" style={{ margin: 0, padding: 12, borderColor: isCurrent ? "#2aa595" : undefined }}>
+              <b>{p.name}</b>
+              <div>{p.priceAzn ? `${p.priceAzn} ₼/ay + ${vat}% ƏDV` : "Pulsuz"}</div>
+              <small className="muted">{p.fullPerMonth} tam analiz · {p.rankPerMonth} reytinq</small>
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "10px 0 4px", fontSize: 13, cursor: "pointer" }}>
+                <input type="checkbox" checked={wantHr} disabled={busy} onChange={(e) => setHrPick({ ...hrPick, [p.id]: e.target.checked })} style={{ marginTop: 3 }} />
+                <span><b>Kadr modulu</b> <small className="muted">{`+${data.hrModulePriceAzn} ₼/ay + ${vat}% ƏDV (işçilər, əmrlər, əmək haqqı, davamiyyət)`}</small></span>
+              </label>
+              {totalNet > 0 && (
+                <small className="muted" style={{ display: "block" }}>
+                  {`Aylıq cəmi: ${totalNet} ₼ + ${vat}% ƏDV = ${withVat(totalNet).toFixed(2)} ₼`}
+                </small>
               )}
+              <div style={{ marginTop: 8 }}>
+                {isCurrent && !hrChanged ? (
+                  <span className="demo-tag">Aktiv</span>
+                ) : (
+                  <button
+                    type="button"
+                    className={upgrade || (wantHr && !data.hrModule) ? "primary" : "secondary"}
+                    disabled={busy}
+                    onClick={() =>
+                      act(
+                        "company/ai-plan/change",
+                        { planId: p.id, hrModule: wantHr },
+                        billNet
+                          ? `«${p.name}»${wantHr ? " + Kadr modulu" : ""} seçilsin? ${billNet} ₼ + ${vat}% ƏDV = ${azn2(withVat(billNet))} hesab-faktura yaranacaq.`
+                          : `«${p.name}»${wantHr ? " + Kadr modulu" : ""} seçilsin? ${p.priceAzn < c.priceAzn ? "Aylıq limit azalır, ödənilmiş məbləğ geri qaytarılmır." : "Yeni hesab-faktura yaranmır."}`,
+                      )
+                    }
+                  >
+                    {isCurrent ? (wantHr ? "Kadr modulunu əlavə et" : "Kadr modulunu söndür") : upgrade ? "Yüksəlt" : "Keç"}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <h4 style={{ margin: "16px 0 8px" }}>Əlavə analiz al</h4>
       <p className="muted fine-print">Aylıq limit bitəndə istifadə olunur; müddəti bitmir.</p>
@@ -3524,10 +3563,10 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
         {data.topupPacks.map((t) => (
           <div key={t.id} className="panel" style={{ margin: 0, padding: 12 }}>
             <b>{t.name}</b>
-            <div>{t.priceAzn} ₼ <small className="muted">(ƏDV daxil)</small></div>
+            <div><small className="muted">{`${t.priceAzn} ₼ + ${vat}% ƏDV = ${withVat(t.priceAzn).toFixed(2)} ₼`}</small></div>
             <small className="muted">+{t.full} tam analiz · +{t.rank} reytinq</small>
             <div style={{ marginTop: 8 }}>
-              <button type="button" className="secondary" disabled={busy} onClick={() => act("company/ai-topup", { packId: t.id }, `«${t.name}» alınsın? ${t.priceAzn} ₼ (ƏDV daxil) hesab-faktura yaranacaq, analizlər dərhal əlavə olunur.`)}>
+              <button type="button" className="secondary" disabled={busy} onClick={() => act("company/ai-topup", { packId: t.id }, `«${t.name}» alınsın? ${t.priceAzn} ₼ + ${vat}% ƏDV = ${azn2(withVat(t.priceAzn))} hesab-faktura yaranacaq, analizlər dərhal əlavə olunur.`)}>
                 Al
               </button>
             </div>

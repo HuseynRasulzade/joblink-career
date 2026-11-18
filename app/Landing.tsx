@@ -1,5 +1,5 @@
 "use client";
-import { COMPANY_AI_PACKAGES } from "@/lib/ai-packages";
+import { COMPANY_AI_PACKAGES, HR_MODULE_PRICE_AZN } from "@/lib/ai-packages";
 import { PLANS } from "@/lib/plans";
 import { useEffect, useState } from "react";
 import { Briefcase, CalendarClock, Calculator, ChartNoAxesColumn, Check, FileSpreadsheet, Languages, Lock, Network, Plane, Scale, Sparkles, Users, UserSearch, Wallet } from "lucide-react";
@@ -213,13 +213,13 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
         </div>
         {audience === "seeker" ? (
           <>
-            <p className="landing-note">Aylıq ödəniş. Paketsiz istifadə pulsuzdur.</p>
+            <p className="landing-note">Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir (+18% ƏDV əlavə olunur). Paketsiz istifadə pulsuzdur.</p>
             <div className="landing-plans cols3">
               {PLANS.map((p) => (
                 <article className={`landing-card plan-card${p.id === "plus-7" ? " popular" : ""}`} key={p.id}>
                   {p.id === "plus-7" && <span className="plan-badge">Ən çox seçilən</span>}
                   <span className="landing-tag">{p.name}</span>
-                  <p className="landing-price">{p.priceAzn ? <>{p.priceAzn}<small> ₼ / ay</small></> : "Pulsuz"}</p>
+                  <p className="landing-price">{p.priceAzn ? <>{p.priceAzn}<small>{" ₼ / ay + 18% ƏDV"}</small></> : "Pulsuz"}</p>
                   <p className="plan-summary">{p.summary}</p>
                   <ul className="landing-checks">{p.features.map((f) => <li key={f}><Check size={15} />{f}</li>)}</ul>
                   <button type="button" className={p.id === "plus-7" ? "primary" : "secondary"} onClick={signup}>{p.priceAzn ? "Paketi seç" : "Pulsuz başla"}</button>
@@ -229,17 +229,17 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
           </>
         ) : (
           <>
-            <p className="landing-note">Aylıq ödəniş, ƏDV daxil. Ştat, əmrlər, əmək haqqı və bütün HR alətləri hər paketə daxildir; paket yalnız AI analizinin sayını müəyyən edir. Limit bitəndə əlavə analiz paketi almaq olar.</p>
+            <p className="landing-note">{`Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir (+18% ƏDV əlavə olunur). Hər paketə istəyə görə Kadr modulu (ştat, əmrlər, əmək haqqı, davamiyyət) +${HR_MODULE_PRICE_AZN} ₼ / ay əlavə edilə bilər; paket AI analizinin sayını müəyyən edir. Limit bitəndə əlavə analiz paketi almaq olar.`}</p>
             <div className="landing-plans cols5">
               {COMPANY_AI_PACKAGES.map((p) => (
                 <article className={`landing-card plan-card${p.id === "pro" ? " popular" : ""}`} key={p.id}>
                   {p.id === "pro" && <span className="plan-badge">Ən çox seçilən</span>}
                   <span className="landing-tag">{p.name}</span>
-                  <p className="landing-price">{p.priceAzn ? <>{p.priceAzn}<small> ₼ / ay</small></> : "Pulsuz"}</p>
+                  <p className="landing-price">{p.priceAzn ? <>{p.priceAzn}<small>{" ₼ / ay + 18% ƏDV"}</small></> : "Pulsuz"}</p>
                   <ul className="landing-checks">
                     <li><Check size={15} /><span><b>{p.fullPerMonth}</b> tam CV analizi / ay</span></li>
                     <li><Check size={15} /><span><b>{p.rankPerMonth}</b> AI reytinqi / ay</span></li>
-                    <li><Check size={15} />Bütün HR alətləri</li>
+                    <li><Check size={15} />{`Kadr modulu istəyə görə: +${HR_MODULE_PRICE_AZN} ₼ / ay + ƏDV`}</li>
                     <li><Check size={15} />Əlavə analiz paketi alıla bilər</li>
                   </ul>
                   <button type="button" className={p.id === "pro" ? "primary" : "secondary"} onClick={signup}>{p.priceAzn ? "Paketi seç" : "Pulsuz başla"}</button>
