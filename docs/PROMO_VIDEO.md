@@ -1,20 +1,22 @@
-# JobMatch tanıtım videosu (53 san, 16:9)
+# JobMatch tanıtım videosu (~62 san, 16:9)
 
 Hazır fayl: `jobmatch_promo_az_silent.mp4` (səssiz, yanıb-sönən altyazılı) + `jobmatch_promo_az.srt`. Ekranlar platformanın real tünd interfeysindən (lokal demo hesablar) çəkilib. Səsləndirmə ayrıca əlavə olunur (aşağıda).
 
 ## Səsləndirmə mətni (sahnələr üzrə)
 
-| # | Vaxt | AZ (diktor) | Ekran |
+| # | Vaxt | Ekranda yazı | Diktor (AZ) |
 |---|---|---|---|
-| 1 | 0:00 | Hələ də CV-ləri əl ilə oxuyursunuz? Maaşı Excel-də hesablayırsınız? | açılış (narıncı kürə, 87% uyğunluq kartı) |
-| 2 | 0:05 | JobMatch işə qəbulu və kadr idarəçiliyini bir platformaya yığır. Vakansiya yaradın, namizədlər uyğunluq balı ilə sıralansın. | vakansiya kartları |
-| 3 | 0:12 | Bacarıq, təcrübə, maaş gözləntisi: hər namizəd üçün bir bal. Ən güclülər yuxarıda. | namizəd paneli, 84% |
-| 4 | 0:18 | Süni intellekt CV-ni təhlil edir: güclü və zəif tərəfləri göstərir, düzəliş təklif edir. | CV analizi |
-| 5 | 0:24 | Müraciətlər, müsahibələr, testlər, təkliflər: bütün axın bir ekranda. | işəgötürən icmalı |
-| 6 | 0:30 | Kadr modulu: işçi kartı, əmrlər, məzuniyyət, davamiyyət və əmək haqqı. Vergi və sığorta avtomatik hesablanır. | əmək haqqı |
-| 7 | 0:37 | Üstəlik, 13 pulsuz kalkulyator: maaş, məzuniyyət, ixtisar, super-gross. Qeydiyyat belə lazım deyil. | kalkulyatorlar |
-| 8 | 0:43 | Pulsuz başlayın. AI istəyirsinizsə 49 manatdan. AI olmadan bütün platforma 150 manat, ƏDV əlavə olunur. | qiymətlər |
-| 9 | 0:50 | Bu gün pulsuz qeydiyyatdan keçin və ilk vakansiyanı yerləşdirin. JobMatch: doğru insan, doğru imkan. | final |
+| 1 | 0:00 | Yenə Excel? Yenə CV yığını? Bəsdir. | Yenə Excel? Yenə CV yığını? Yenə "bu işçinin neçə gün məzuniyyəti qalıb" sualı? Bəsdir. |
+| 2 | 0:05 | İşə qəbul da, kadr da: bir platformada. | JobMatch işə qəbulu da, kadr işini də bir yerə yığır. Vakansiyanı yerləşdirirsiniz, namizədlər uyğunluq balı ilə özü sıralanır. |
+| 3 | 0:13 | Kimi çağırmalı? Bal göstərir. | Kimi müsahibəyə çağırmaq lazımdır? Bal göstərir: bacarıq, təcrübə, maaş gözləntisi. Ən güclülər həmişə yuxarıda. |
+| 4 | 0:19 | CV-ni AI oxusun. Siz qərar verin. | CV yığınını siz yox, süni intellekt oxuyur. Güclü və zəif tərəfləri çıxarır, siz isə yalnız qərar verirsiniz. |
+| 5 | 0:26 | Nə harada qaldı? Hamısı bir ekranda. | Müraciət, müsahibə, test, təklif: işin harada qaldığını artıq axtarmırsınız. Hamısı bir ekranda. |
+| 6 | 0:32 | Maaş hesabı? 2026 dərəcələri, avtomatik. | Əmək haqqı? Vergi və sığorta 2026 dərəcələri ilə avtomatik hesablanır. İşçi kartı, əmrlər, məzuniyyət, davamiyyət də eyni yerdədir. |
+| 7 | 0:39 | Hələ tərəddüd edirsiniz? 13 kalkulyator pulsuz. | Hələ qərar verməmisiniz? Əvvəl 13 pulsuz kalkulyatoru yoxlayın: maaş, məzuniyyət, ixtisar, super-gross. Qeydiyyat belə istəmir. |
+| 8 | 0:47 | Başlamaq pulsuz. AI: 49 AZN-dən · Kadr: 150 AZN | Qiymət? Başlamaq pulsuzdur. AI istəyirsinizsə 49 manatdan. AI-siz bütün platforma 150 manat, ƏDV əlavə olunur. |
+| 9 | 0:54 | İndi qeydiyyatdan keçin. İlk addım pulsuzdur. | Növbəti CV yığınını açmazdan əvvəl bir dəqiqə ayırın. İndi pulsuz qeydiyyatdan keçin. JobMatch: doğru insan, doğru imkan. |
+
+**Ton:** söhbət dili, qısa cümlələr, problem → həll → sübut (ekran) → qiymət → çağırış. Ekranda yazı diktorun cümləsini təkrarlamır, onu gücləndirir (səssiz baxanlar üçün altyazı da var). Uydurma rəqəm, rəy və "son gün" yoxdur.
 
 RU (qısa): «Всё ещё читаете резюме вручную и считаете зарплату в Excel? JobMatch объединяет подбор и кадры в одной платформе… Начните бесплатно: ИИ — от 49 манат, вся платформа без ИИ — 150 манат + НДС. Зарегистрируйтесь сегодня.»
 EN (short): “Still reading CVs by hand and doing payroll in Excel? JobMatch puts hiring and HR in one platform… Start free: AI from 49 AZN, the whole platform without AI 150 AZN + VAT. Sign up today.”

@@ -6,15 +6,15 @@ W,H,FPS=1920,1080,30
 CW,CH,CX,CY=1160,652,380,268
 # (image, crop (x,y,w,h), headline, voiceover, duration)
 scenes=[
- ('01_gate',(700,40,1100,619),'Hələ də CV-ləri əl ilə oxuyur,\nmaaşı Excel-də hesablayırsınız?','Hələ də CV-ləri əl ilə oxuyursunuz? Maaşı Excel-də hesablayırsınız?',5.5),
- ('02_landing_mid',(420,300,1100,619),'İşə qəbul + Kadr:\nbir platformada','JobMatch işə qəbulu və kadr idarəçiliyini bir platformaya yığır. Vakansiya yaradın, namizədlər uyğunluq balı ilə sıralansın.',7.0),
- ('06_cand_overview',(360,470,1100,619),'Hər namizədə\nuyğunluq balı','Bacarıq, təcrübə, maaş gözləntisi: hər namizəd üçün bir bal. Ən güclülər yuxarıda.',6.0),
- ('07_cv_analysis',(360,330,1100,619),'AI CV-ni saniyələr içində\ntəhlil edir','Süni intellekt CV-ni təhlil edir: güclü və zəif tərəfləri göstərir, düzəliş təklif edir.',6.5),
- ('08_co_overview',(340,330,1100,619),'Müraciətdən işə qəbula:\nhamısı bir ekranda','Müraciətlər, müsahibələr, testlər, təkliflər: bütün axın bir ekranda.',6.0),
- ('11_payroll',(360,520,720,405),'Əmək haqqı:\n2026-cı il dərəcələri ilə','Kadr modulu: işçi kartı, əmrlər, məzuniyyət, davamiyyət və əmək haqqı. Vergi və sığorta avtomatik hesablanır.',7.0),
- ('04_calc',(280,315,1360,765),'13 pulsuz kalkulyator,\nqeydiyyatsız','Üstəlik, 13 pulsuz kalkulyator: maaş, məzuniyyət, ixtisar, super-gross. Qeydiyyat belə lazım deyil.',6.0),
- ('03_pricing',(400,200,1120,630),'Pulsuz başlayın.\nAI: 49 AZN-dən · Kadr: 150 AZN (+ƏDV)','Pulsuz başlayın. AI istəyirsinizsə 49 manatdan. AI olmadan bütün platforma 150 manat, ƏDV əlavə olunur.',7.0),
- ('01_gate',(0,480,1000,562),'İndi pulsuz başlayın.\nJobMatch: doğru insan, doğru imkan.','Bu gün pulsuz qeydiyyatdan keçin və ilk vakansiyanı yerləşdirin. JobMatch: doğru insan, doğru imkan.',6.0),
+ ('01_gate',(700,40,1100,619),'Yenə Excel? Yenə CV yığını?\nBəsdir.','Yenə Excel? Yenə CV yığını? Yenə "bu işçinin neçə gün məzuniyyəti qalıb" sualı? Bəsdir.',6.0),
+ ('02_landing_mid',(420,300,1100,619),'İşə qəbul da, kadr da:\nbir platformada.','JobMatch işə qəbulu da, kadr işini də bir yerə yığır. Vakansiyanı yerləşdirirsiniz, namizədlər uyğunluq balı ilə özü sıralanır.',8.0),
+ ('06_cand_overview',(360,470,1100,619),'Kimi çağırmalı?\nBal göstərir.','Kimi müsahibəyə çağırmaq lazımdır? Bal göstərir: bacarıq, təcrübə, maaş gözləntisi. Ən güclülər həmişə yuxarıda.',7.0),
+ ('07_cv_analysis',(360,330,1100,619),'CV-ni AI oxusun.\nSiz qərar verin.','CV yığınını siz yox, süni intellekt oxuyur. Güclü və zəif tərəfləri çıxarır, siz isə yalnız qərar verirsiniz.',7.0),
+ ('08_co_overview',(340,330,1100,619),'Nə harada qaldı?\nHamısı bir ekranda.','Müraciət, müsahibə, test, təklif: işin harada qaldığını artıq axtarmırsınız. Hamısı bir ekranda.',6.5),
+ ('11_payroll',(360,520,720,405),'Maaş hesabı?\n2026 dərəcələri, avtomatik.','Əmək haqqı? Vergi və sığorta 2026 dərəcələri ilə avtomatik hesablanır. İşçi kartı, əmrlər, məzuniyyət, davamiyyət də eyni yerdədir.',8.0),
+ ('04_calc',(280,315,1360,765),'Hələ tərəddüd edirsiniz?\n13 kalkulyator pulsuz.','Hələ qərar verməmisiniz? Əvvəl 13 pulsuz kalkulyatoru yoxlayın: maaş, məzuniyyət, ixtisar, super-gross. Qeydiyyat belə istəmir.',7.5),
+ ('03_pricing',(400,200,1120,630),'Başlamaq pulsuz.\nAI: 49 AZN-dən · Kadr: 150 AZN','Qiymət? Başlamaq pulsuzdur. AI istəyirsinizsə 49 manatdan. AI-siz bütün platforma 150 manat, ƏDV əlavə olunur.',8.0),
+ ('01_gate',(0,480,1000,562),'İndi qeydiyyatdan keçin.\nİlk addım pulsuzdur.','Növbəti CV yığınını açmazdan əvvəl bir dəqiqə ayırın. İndi pulsuz qeydiyyatdan keçin. JobMatch: doğru insan, doğru imkan.',7.5),
 ]
 def bg():
     im=Image.new('RGB',(W,H))
@@ -63,7 +63,7 @@ for i in range(1,len(scenes)):
     off+=scenes[i-1][4]-T; out=f'[v{i}]'
     fc.append(f"{prev}[{i}:v]xfade=transition={trans[i-1]}:duration={T}:offset={off:.2f}{out}"); prev=out
 total=sum(s[4] for s in scenes)-T*(len(scenes)-1)
-run(['ffmpeg','-y','-loglevel','error']+inputs+['-f','lavfi','-t',f'{total:.2f}','-i','anullsrc=r=48000:cl=stereo','-filter_complex',';'.join(fc),'-map',prev,'-map',f'{len(scenes)}:a','-c:v','libx264','-preset','medium','-crf','19','-pix_fmt','yuv420p','-c:a','aac','-shortest','/tmp/promo/jobmatch_promo_az_silent.mp4'])
+run(['ffmpeg','-y','-loglevel','error']+inputs+['-f','lavfi','-t',f'{total:.2f}','-i','anullsrc=r=48000:cl=stereo','-filter_complex',';'.join(fc),'-map',prev,'-map',f'{len(scenes)}:a','-c:v','libx264','-preset','medium','-crf','19','-pix_fmt','yuv420p','-c:a','aac','-shortest',os.environ.get('OUT','/tmp/promo/jobmatch_promo_az_silent.mp4')])
 def ts(t):
     h=int(t//3600);m=int(t%3600//60);s=t%60
     return f"{h:02}:{m:02}:{int(s):02},{int((s-int(s))*1000):03}"
@@ -71,5 +71,5 @@ srt=[];start=0
 for i,(img,crop,head,vo,d) in enumerate(scenes):
     end=start+d-(T if i<len(scenes)-1 else 0)
     srt.append(f"{i+1}\n{ts(start)} --> {ts(end)}\n{vo}\n"); start+=d-T
-open('/tmp/promo/jobmatch_promo_az.srt','w').write('\n'.join(srt))
+open(os.environ.get('SRT','/tmp/promo/jobmatch_promo_az.srt'),'w').write('\n'.join(srt))
 print('total',round(total,1))
