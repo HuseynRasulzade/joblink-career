@@ -342,7 +342,7 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
         <div className="contact-card">
           <a className="contact-phone" href={`tel:${CONTACT.phoneHref}`}><span className="landing-icon"><Phone size={22} /></span><span><small>Telefon</small><b>{CONTACT.phone}</b></span></a>
           <div className="contact-meta"><span className="landing-icon sm"><Headset size={18} /></span><span><small>İş saatları</small><b>{CONTACT.hours}</b></span></div>
-          <div className="contact-meta"><span className="landing-icon sm"><Mail size={18} /></span><span><small>Hesab sahibləri üçün</small><b>Hesabdan «Dəstək» bölməsinə yazın</b></span></div>
+          <a className="contact-meta" href={`mailto:${CONTACT.email}`}><span className="landing-icon sm"><Mail size={18} /></span><span><small>E-poçt</small><b>{CONTACT.email}</b></span></a>
           <div className="contact-actions"><a className="primary" href={`tel:${CONTACT.phoneHref}`}>Zəng et</a><button type="button" className="secondary" onClick={signup}>Qeydiyyatdan keç</button></div>
         </div>
       </section>
@@ -355,7 +355,7 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
 
       <footer className="landing-footer">
         <span>jobmatch<span className="star">✳</span></span>
-        <span className="landing-footer-links"><a href="/jobs">Vakansiyalar</a> · <a href="/kalkulyatorlar">Kalkulyatorlar</a> · <a href="#qiymetler">Qiymətlər</a> · <a href={`tel:${CONTACT.phoneHref}`}>{CONTACT.phone}</a></span>
+        <span className="landing-footer-links"><a href="/jobs">Vakansiyalar</a> · <a href="/kalkulyatorlar">Kalkulyatorlar</a> · <a href="#qiymetler">Qiymətlər</a> · <a href={`tel:${CONTACT.phoneHref}`}>{CONTACT.phone}</a> · <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></span>
         <span><a href="/terms" target="_blank" rel="noreferrer">İstifadə şərtləri</a> · <a href="/privacy" target="_blank" rel="noreferrer">Məxfilik siyasəti</a></span>
       </footer>
     </div>,

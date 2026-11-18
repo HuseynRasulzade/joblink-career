@@ -2116,6 +2116,7 @@ Vakansiya süzgəci|Vacancy filter|Фильтр вакансий
 ƏLAQƏ|CONTACT|КОНТАКТЫ
 Sualınız var? Bizimlə danışın|Have a question? Talk to us|Есть вопрос? Поговорите с нами
 Qeydiyyatdan əvvəl və ya sonra komandamız yardıma hazırdır.|Before or after sign-up, our team is ready to help.|До или после регистрации наша команда готова помочь.
+E-poçt|E-mail|Эл. почта
 Telefon|Phone|Телефон
 İş saatları|Working hours|Часы работы
 B.e.–Cümə, 09:00–18:00|Mon–Fri, 09:00–18:00|Пн–Пт, 09:00–18:00
