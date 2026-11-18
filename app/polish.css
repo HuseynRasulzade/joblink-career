@@ -382,3 +382,8 @@ html[data-theme="dark"] .ov-dark, html[data-theme="dark"] .ov-teal, html[data-th
   .app-shell > .sidebar .role-switch { justify-content: flex-start; font-size: inherit; }
   .app-shell > .sidebar .role-switch span { display: inline; }
 }
+@media (max-width: 700px) {
+  .topbar { height: auto; min-height: 60px; flex-wrap: wrap; row-gap: 2px; padding-top: 8px; padding-bottom: 8px; }
+  .topbar .breadcrumb { order: 3; flex: 1 1 100%; margin: 0; }
+  .topbar-right { margin-left: auto; }
+}
