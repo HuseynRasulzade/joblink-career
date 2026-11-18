@@ -1,0 +1,51 @@
+"use client";
+import { ChevronDown, LogIn, UserPlus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { localizeTree } from "./i18n";
+
+const LINKS = [
+  { href: "#kimler", label: "Kimlər üçün" },
+  { href: "#vakansiyalar", label: "Vakansiyalar" },
+  { href: "#qiymetler", label: "Qiymətlər" },
+  { href: "/kalkulyatorlar", label: "Kalkulyatorlar" },
+  { href: "#suallar", label: "Suallar" },
+];
+
+// The top menu of the public page: sections of the page and one «Daxil ol» button that offers sign-in or registration.
+export default function GateNav({ onAuth }: { onAuth: (want: "login" | "register") => void }) {
+  const [open, setOpen] = useState(false);
+  const [solid, setSolid] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onScroll = () => setSolid(window.scrollY > 30);
+    const onDown = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("scroll", onScroll); document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, []);
+  const choose = (want: "login" | "register") => { setOpen(false); onAuth(want); };
+  return localizeTree(
+    <header className={`gate-nav${solid ? " solid" : ""}`}>
+      <a className="gate-nav-brand" href="#top" aria-label="JobMatch">jobmatch<span>✳</span></a>
+      <nav aria-label="Bölmələr">
+        {LINKS.map((l) => (
+          <a key={l.href} href={l.href}>{l.label}</a>
+        ))}
+      </nav>
+      <div className="gate-nav-auth" ref={box}>
+        <button type="button" className="gate-nav-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          <LogIn size={16} /> Daxil ol <ChevronDown size={15} />
+        </button>
+        {open && (
+          <div className="gate-nav-menu" role="menu">
+            <button type="button" role="menuitem" onClick={() => choose("login")}><LogIn size={16} /><span><b>Daxil ol</b><small>Mövcud hesabla</small></span></button>
+            <button type="button" role="menuitem" onClick={() => choose("register")}><UserPlus size={16} /><span><b>Qeydiyyatdan keç</b><small>Pulsuz yeni hesab</small></span></button>
+          </div>
+        )}
+      </div>
+    </header>,
+  );
+}

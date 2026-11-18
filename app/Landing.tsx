@@ -1,7 +1,7 @@
 "use client";
 import { COMPANY_AI_PACKAGES } from "@/lib/ai-packages";
 import { PLANS } from "@/lib/plans";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Briefcase, CalendarClock, Calculator, ChartNoAxesColumn, Check, FileSpreadsheet, Languages, Lock, Network, Plane, Scale, Sparkles, Users, UserSearch, Wallet } from "lucide-react";
 import { calculateFromGross, calculateFromNet, type Sector } from "@/lib/salary";
 import SuperGross from "./SuperGross";
@@ -90,12 +90,70 @@ function LandingCalc({ onSignup }: { onSignup: () => void }) {
   );
 }
 
-export default function Landing() {
+type PublicJob = { id: string; title: string; company: string; city: string; mode: string; type: string; minSalary: number; maxSalary: number; skills: string[]; demo?: boolean; companyLogo?: boolean; owner?: string };
+const salaryText = (j: PublicJob) => (j.minSalary || j.maxSalary ? `${j.minSalary.toLocaleString("az-AZ")}–${j.maxSalary.toLocaleString("az-AZ")} AZN` : "Razılaşma ilə");
+
+// Real open vacancies when there are any, the platform's sample vacancies otherwise (marked «Nümunə»).
+function JobsShowcase({ onAuth }: { onAuth: (want: "login" | "register") => void }) {
+  const [jobs, setJobs] = useState<PublicJob[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/joblink/state", { cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ jobs?: PublicJob[] }>) : Promise.resolve({ jobs: [] as PublicJob[] })))
+      .then((d) => { if (alive) setJobs((d.jobs || []).filter((j) => !(j as { external?: unknown }).external).slice(0, 6)); })
+      .catch(() => { if (alive) setJobs([]); });
+    return () => { alive = false; };
+  }, []);
+  if (jobs && !jobs.length) return null;
+  return (
+    <section className="landing-block" id="vakansiyalar">
+      <header className="landing-head">
+        <p className="landing-eyebrow">VAKANSİYALAR</p>
+        <h2>Elanlar bu formatda görünür</h2>
+        <p className="landing-lead">Namizəd vakansiyanı filtrlərlə tapır, uyğunluq balını görür və bir kliklə müraciət edir. İşəgötürən elanı AI köməkçi ilə hazırlayır.</p>
+      </header>
+      <div className="landing-jobs">
+        {(jobs || Array.from({ length: 3 }, () => null)).map((j, i) =>
+          j ? (
+            <article className="job-tile" key={j.id}>
+              <div className="job-tile-top">
+                {j.companyLogo && j.owner ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="job-tile-mark" src={`/api/joblink/companies/logo?id=${encodeURIComponent(j.owner)}`} alt="" loading="lazy" />
+                ) : (
+                  <span className="job-tile-mark">{j.company.trim().slice(0, 1).toLocaleUpperCase("az")}</span>
+                )}
+                <div>
+                  <h3>{j.title}</h3>
+                  <small>{j.company}</small>
+                </div>
+                {j.demo && <span className="job-tile-demo">Nümunə</span>}
+              </div>
+              <ul className="job-tile-meta">
+                <li>{j.city}</li>
+                <li>{j.mode}</li>
+                <li>{j.type}</li>
+              </ul>
+              <p className="job-tile-salary">{salaryText(j)}</p>
+              <ul className="job-tile-skills">{j.skills.slice(0, 3).map((k) => <li key={k}>{k}</li>)}</ul>
+              <button type="button" className="job-tile-apply" onClick={() => onAuth("register")}>Müraciət et</button>
+            </article>
+          ) : (
+            <article className="job-tile skeleton" key={i} aria-hidden="true" />
+          ),
+        )}
+      </div>
+      <p className="landing-cta"><a className="gate-link" href="/jobs">Bütün vakansiyalara bax →</a></p>
+    </section>
+  );
+}
+
+export default function Landing({ onAuth }: { onAuth: (want: "login" | "register") => void }) {
   const [audience, setAudience] = useState<"seeker" | "company">("seeker");
-  const signup = () => { const el = document.querySelector(".auth-gate-panel"); el?.scrollIntoView({ behavior: "smooth", block: "center" }); };
+  const signup = () => onAuth("register");
   return localizeTree(
     <div className="landing">
-      <section className="landing-block">
+      <section className="landing-block" id="kimler">
         <header className="landing-head">
           <p className="landing-eyebrow">KİMLƏR ÜÇÜN</p>
           <h2>Bir hesab, üç istifadəçi növü</h2>
@@ -115,6 +173,8 @@ export default function Landing() {
           })}
         </div>
       </section>
+
+      <JobsShowcase onAuth={onAuth} />
 
       <section className="landing-block tint">
         <header className="landing-head">
@@ -142,7 +202,7 @@ export default function Landing() {
         </ul>
       </section>
 
-      <section className="landing-block tint">
+      <section className="landing-block tint" id="qiymetler">
         <header className="landing-head">
           <p className="landing-eyebrow">QİYMƏTLƏR</p>
           <h2>Pulsuz başlayın, ehtiyac artdıqca paket seçin</h2>
@@ -190,7 +250,7 @@ export default function Landing() {
         )}
       </section>
 
-      <section className="landing-block">
+      <section className="landing-block" id="kalkulyatorlar">
         <header className="landing-head">
           <p className="landing-eyebrow">KALKULYATORLAR</p>
           <h2>Əmək hesablamaları bir yerdə, qanuna uyğun</h2>
@@ -214,7 +274,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="landing-block tint">
+      <section className="landing-block tint" id="suallar">
         <header className="landing-head">
           <p className="landing-eyebrow">SUALLAR</p>
           <h2>Tez-tez verilən suallar</h2>

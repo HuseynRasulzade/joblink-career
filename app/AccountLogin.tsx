@@ -8,10 +8,13 @@ export default function AccountLogin({
   onComplete,
   resetToken = "",
   onResetDone,
+  mode,
 }: {
   onComplete: (role: "candidate" | "company" | "admin") => Promise<void>;
   resetToken?: string;
   onResetDone?: () => void;
+  // The top menu of the public page asks for the sign-in or the registration form; `n` changes on every request.
+  mode?: { want: "login" | "register"; n: number };
 }) {
   // "forgot" asks for a reset link by e-mail; "reset" sets the new password from that link.
   const [view, setView] = useState<"" | "forgot" | "reset">(resetToken ? "reset" : "");
@@ -19,6 +22,12 @@ export default function AccountLogin({
   const [twoFactor, setTwoFactor] = useState(false);
   const [info, setInfo] = useState("");
   const [register, setRegister] = useState(false);
+  useEffect(() => {
+    if (!mode || mode.n === 0) return;
+    setRegister(mode.want === "register");
+    if (!resetToken) setView("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode?.n]);
   // Cloudflare Turnstile robot check; shown only when the server has it switched on.
   type Turnstile = { render: (el: HTMLElement, options: Record<string, unknown>) => string; reset: (id?: string) => void; remove: (id?: string) => void };
   const turnstile = () => (window as unknown as { turnstile?: Turnstile }).turnstile;

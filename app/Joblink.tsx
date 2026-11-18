@@ -132,6 +132,7 @@ import PeopleOps from "./PeopleOps";
 import AtsAnalytics from "./AtsAnalytics";
 import GuidePage from "./GuidePage";
 import Landing from "./Landing";
+import GateNav from "./GateNav";
 import ThemeToggle from "./ThemeToggle";
 import FirstSteps from "./FirstSteps";
 import CommandPalette from "./CommandPalette";
@@ -379,6 +380,12 @@ export default function Joblink() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [saved, setSaved] = useState<string[]>([]);
   const [signedIn, setSignedIn] = useState(false);
+  // The top menu of the public page asks for the sign-in or the registration form.
+  const [authWant, setAuthWant] = useState<{ want: "login" | "register"; n: number }>({ want: "login", n: 0 });
+  const openAuth = (want: "login" | "register") => {
+    setAuthWant((prev) => ({ want, n: prev.n + 1 }));
+    window.setTimeout(() => document.querySelector(".auth-gate-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+  };
   const [authChecked, setAuthChecked] = useState(false);
   const [accountRole, setAccountRole] = useState<
     "candidate" | "company" | "admin" | null
@@ -1745,7 +1752,8 @@ export default function Joblink() {
   if (!signedIn) {
     return localizeTree(
       <>
-      <main className="auth-gate">
+      <GateNav onAuth={openAuth} />
+      <main className="auth-gate" id="top">
         <section className="auth-gate-intro">
           <div className="auth-gate-brand">
             jobmatch<span>✳</span>
@@ -1819,6 +1827,7 @@ export default function Joblink() {
           </div>
           {authMode === "password" ? (
             <AccountLogin
+              mode={authWant}
               resetToken={resetToken}
               onResetDone={() => setResetToken("")}
               onComplete={async (role) => {
@@ -1850,7 +1859,7 @@ export default function Joblink() {
           )}
         </section>
       </main>
-      <Landing />
+      <Landing onAuth={openAuth} />
       </>,
     );
   }
