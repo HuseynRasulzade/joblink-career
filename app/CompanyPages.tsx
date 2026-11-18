@@ -3443,6 +3443,7 @@ type AiAccount = {
   hrModule: boolean;
   hrFree?: boolean;
   hrModulePriceAzn: number;
+  hrModuleBundlePriceAzn?: number;
   vatPercent: number;
   current: { id: string; name: string; priceAzn: number; fullPerMonth: number; rankPerMonth: number };
   used: { full: number; rank: number };
@@ -3466,6 +3467,9 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
   const vat = data.vatPercent || 18;
   const withVat = (net: number) => Math.round(net * (100 + vat)) / 100;
   const azn2 = (n: number) => `${n.toFixed(2)} ₼`;
+  const bundle = data.hrModuleBundlePriceAzn ?? 120;
+  // The HR module costs less beside a paid AI package.
+  const hrPriceFor = (aiPrice: number) => (aiPrice > 0 ? bundle : data.hrModulePriceAzn);
   const bar = (left: number, total: number) => (
     <div style={{ height: 8, borderRadius: 6, background: "#e3ece8", overflow: "hidden", marginTop: 4 }}>
       <div style={{ width: `${total ? Math.max(0, Math.min(100, (left / total) * 100)) : 0}%`, height: "100%", background: left / Math.max(1, total) < 0.15 ? "#d9822b" : "#2aa595" }} />
@@ -3514,6 +3518,7 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
         <b>Kadr paketi</b>
         <div>{`${data.hrModulePriceAzn} ₼/ay + ${vat}% ƏDV`}</div>
         <small className="muted" style={{ display: "block" }}>{`Aylıq cəmi: ${data.hrModulePriceAzn} ₼ + ${vat}% ƏDV = ${withVat(data.hrModulePriceAzn).toFixed(2)} ₼`}</small>
+        <small className="muted" style={{ display: "block" }}>{`AI paketi ilə birlikdə istifadə edəndə: ${bundle} ₼/ay + ${vat}% ƏDV = ${withVat(bundle).toFixed(2)} ₼ (aşağıda AI paketində «Kadr ilə birlikdə istifadə et»).`}</small>
         <small className="muted" style={{ display: "block", margin: "6px 0" }}>AI istəməyən şirkət üçün: bütün platforma (işə qəbul və Kadr: işçilər, əmrlər, əmək haqqı, davamiyyət, hesabatlar) AI paketi olmadan işləyir. AI-ni istəsəniz, aşağıdakı AI paketlərindən birini də seçin.</small>
         {data.hrFree ? (
           <span className="demo-tag">Sizin şirkətdə pulsuzdur (platformaya erkən qoşulduğunuz üçün)</span>
@@ -3530,8 +3535,9 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
           const isCurrent = p.id === c.id;
           const upgrade = p.priceAzn > c.priceAzn;
           // The same amount the server bills: the package when it is dearer than the current one, plus the HR module when it is newly ticked.
-          const billNet = (!isCurrent && upgrade ? p.priceAzn : 0) + (wantHr && !data.hrModule ? data.hrModulePriceAzn : 0);
-          const totalNet = p.priceAzn + (wantHr ? data.hrModulePriceAzn : 0);
+          const hrPrice = hrPriceFor(p.priceAzn);
+          const billNet = (!isCurrent && upgrade ? p.priceAzn : 0) + (wantHr && !data.hrModule ? hrPrice : 0);
+          const totalNet = p.priceAzn + (wantHr ? hrPrice : 0);
           const hrChanged = wantHr !== data.hrModule;
           return (
             <div key={p.id} className="panel" style={{ margin: 0, padding: 12, borderColor: isCurrent ? "#2aa595" : undefined }}>
@@ -3541,10 +3547,12 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
               {data.hrFree ? (
                 <small className="muted" style={{ display: "block", margin: "10px 0 4px" }}>Kadr modulu sizdə pulsuzdur.</small>
               ) : (
-              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "10px 0 4px", fontSize: 13, cursor: "pointer" }}>
-                <input type="checkbox" checked={wantHr} disabled={busy} onChange={(e) => setHrPick({ ...hrPick, [p.id]: e.target.checked })} style={{ marginTop: 3 }} />
-                <span><b>Kadr modulu</b> <small className="muted">{`+${data.hrModulePriceAzn} ₼/ay + ${vat}% ƏDV (işçilər, əmrlər, əmək haqqı, davamiyyət)`}</small></span>
-              </label>
+              <div style={{ margin: "10px 0 4px" }}>
+                <button type="button" className={wantHr ? "primary" : "secondary"} aria-pressed={wantHr} disabled={busy} onClick={() => setHrPick({ ...hrPick, [p.id]: !wantHr })}>
+                  {wantHr ? "✓ Kadr ilə birlikdə istifadə olunur" : "Kadr ilə birlikdə istifadə et"}
+                </button>
+                <small className="muted" style={{ display: "block", marginTop: 4 }}>{`Kadr modulu ${p.priceAzn > 0 ? "AI ilə birlikdə" : "tək"}: +${hrPrice} ₼/ay + ${vat}% ƏDV (işçilər, əmrlər, əmək haqqı, davamiyyət)`}</small>
+              </div>
               )}
               {totalNet > 0 && (
                 <small className="muted" style={{ display: "block" }}>

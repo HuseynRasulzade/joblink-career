@@ -26,6 +26,9 @@ export const COST_SHARES = { vat: 0, payment: 0.025, running: 0.025 };
 
 // The HR (Kadr) module is offered on top of any AI package for a fixed monthly price (without VAT).
 export const HR_MODULE_PRICE_AZN = 150;
+// Used together with a paid AI package the HR module costs less: 120 AZN a month (without VAT) instead of 150.
+export const HR_MODULE_BUNDLE_PRICE_AZN = 120;
+export const hrModulePriceFor = (aiPackagePriceAzn: number) => (aiPackagePriceAzn > 0 ? HR_MODULE_BUNDLE_PRICE_AZN : HR_MODULE_PRICE_AZN);
 // Companies registered before this day keep the HR (Kadr) module free; companies registered from this day on need it as a package.
 export const HR_MODULE_REQUIRED_FROM = "2026-11-19T00:00:00.000Z";
 // The HR module is open when it was bought, or when the company is older than the rule.

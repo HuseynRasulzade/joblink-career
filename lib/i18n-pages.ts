@@ -2088,7 +2088,9 @@ Kadr modulu (işçilər, əmrlər, əmək haqqı, davamiyyət) sizin şirkətdə
 AI istəməyən şirkət üçün: bütün platforma (işə qəbul və Kadr: işçilər, əmrlər, əmək haqqı, davamiyyət, hesabatlar) AI paketi olmadan işləyir. AI-ni istəsəniz, aşağıdakı AI paketlərindən birini də seçin.|For a company that does not want AI: the whole platform (recruitment and HR: employees, orders, payroll, attendance, reports) works without an AI package. If you want AI, also choose one of the AI packages below.|Для компании, которой ИИ не нужен: вся платформа (подбор и кадры: сотрудники, приказы, зарплата, посещаемость, отчёты) работает без ИИ-пакета. Если нужен ИИ, дополнительно выберите один из ИИ-пакетов ниже.
 Kadr modulu aktiv deyil. «Paketlər» bölməsindən 150 ₼ + ƏDV ilə aktivləşdirin.|The HR module is not active. Activate it in “Packages” for 150 ₼ + VAT.|Кадровый модуль не активен. Активируйте его в разделе «Пакеты» за 150 ₼ + НДС.
 Sizin şirkətdə pulsuzdur (platformaya erkən qoşulduğunuz üçün)|Free in your company (because you joined the platform early)|Бесплатно в вашей компании (вы присоединились к платформе раньше)
-Kadr modulu sizdə pulsuzdur.|The HR module is free for you.|Кадровый модуль для вас бесплатный.`;
+Kadr modulu sizdə pulsuzdur.|The HR module is free for you.|Кадровый модуль для вас бесплатный.
+Kadr ilə birlikdə istifadə et|Use together with HR|Использовать вместе с кадровым модулем
+✓ Kadr ilə birlikdə istifadə olunur|✓ Used together with HR|✓ Используется вместе с кадровым модулем`;
 const EN: Record<string, string> = {};
 const RU: Record<string, string> = {};
 for (const line of LINES.split("\n")) {
@@ -2157,6 +2159,8 @@ const RULES: Rule[] = [
   [/^([\d.]+) ₼ \+ (\d+)% ƏDV = ([\d.]+) ₼$/, "$1 ₼ + $2% VAT = $3 ₼", "$1 ₼ + $2% НДС = $3 ₼"],
   [/^\+ (\d+)% ƏDV \(([\d.]+) AZN\) = ([\d.]+) AZN$/, "+ $1% VAT ($2 AZN) = $3 AZN", "+ $1% НДС ($2 AZN) = $3 AZN"],
   [/^Qiymət: ([\d.]+) AZN \+ (\d+)% ƏDV = ([\d.]+) AZN \/ 30 gün\.$/, "Price: $1 AZN + $2% VAT = $3 AZN / 30 days.", "Цена: $1 AZN + $2% НДС = $3 AZN / 30 дней."],
+  [/^Kadr modulu (?:AI ilə birlikdə|tək): \+(\d+) ₼\/ay \+ (\d+)% ƏDV \(işçilər, əmrlər, əmək haqqı, davamiyyət\)$/, "HR module: +$1 ₼/month + $2% VAT (employees, orders, payroll, attendance)", "Кадровый модуль: +$1 ₼/мес. + $2% НДС (сотрудники, приказы, зарплата, посещаемость)"],
+  [/^AI paketi ilə birlikdə istifadə edəndə: (\d+) ₼\/ay \+ (\d+)% ƏDV = ([\d.]+) ₼ \(aşağıda AI paketində «Kadr ilə birlikdə istifadə et»\)\.$/, "Used together with an AI package: $1 ₼/month + $2% VAT = $3 ₼ (below, in the AI package: “Use together with HR”).", "При совместном использовании с ИИ-пакетом: $1 ₼/мес. + $2% НДС = $3 ₼ (ниже в ИИ-пакете: «Использовать вместе с кадровым модулем»)."],
   [/^Aylıq limit \(dollar, 0 = yoxdur\)$/, "Monthly limit (dollars, 0 = none)", "Месячный лимит (доллары, 0 = нет)"],
 ];
 export function translatePattern(text: string, language: "en" | "ru", part: (phrase: string) => string = (x) => x): string | undefined {

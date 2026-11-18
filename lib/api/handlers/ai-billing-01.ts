@@ -1,7 +1,7 @@
 // ai-billing: the company chooses its AI package and buys extra analyses itself. Every paid change makes an open invoice
 // (price + 18% VAT) that appears in «Hesablar və ödənişlər»; the payment is recorded there (bank transfer), there is no card gateway yet.
 import { HttpError, jsonBody, str } from "@/lib/server";
-import { AI_TOPUPS, COMPANY_AI_PACKAGES, HR_MODULE_PRICE_AZN, hrModuleOpen, monthKey, packageById, topupById } from "@/lib/ai-packages";
+import { AI_TOPUPS, COMPANY_AI_PACKAGES, HR_MODULE_BUNDLE_PRICE_AZN, HR_MODULE_PRICE_AZN, hrModuleOpen, hrModulePriceFor, monthKey, packageById, topupById } from "@/lib/ai-packages";
 import { companyAudit } from "@/lib/api-core";
 import { ok } from "@/lib/api/shared";
 import { PACKAGE_VAT_PERCENT, grossCents, withVatAzn } from "@/lib/vat";
@@ -32,7 +32,7 @@ export async function handle_ai_billing_01(c: Pick<RouteCtx, "accountRole" | "ai
       .all<{ id: string; pack_id: string; full_count: number; rank_count: number; price_cents: number; invoice_id: string; created: string }>()
       .catch(() => ({ results: [] as { id: string; pack_id: string; full_count: number; rank_count: number; price_cents: number; invoice_id: string; created: string }[] }));
     const hrRow = await db.prepare("SELECT a.created,p.hr_module FROM accounts a LEFT JOIN company_ai_plans p ON p.company_id=a.id WHERE a.id=?").bind(id).first<{ created: string; hr_module: number | null }>().catch(() => null);
-    return ok({ month: monthKey(), hrModule: !!hrRow?.hr_module, hrFree: !!hrRow && !hrRow.hr_module && hrModuleOpen(hrRow.created, false), hrModulePriceAzn: HR_MODULE_PRICE_AZN, vatPercent: PACKAGE_VAT_PERCENT, current: q.pkg, used: q.used, monthly: q.monthly, credits: q.credits, left: q.left, packages: COMPANY_AI_PACKAGES, topupPacks: AI_TOPUPS, purchases: topups.results });
+    return ok({ month: monthKey(), hrModule: !!hrRow?.hr_module, hrFree: !!hrRow && !hrRow.hr_module && hrModuleOpen(hrRow.created, false), hrModulePriceAzn: HR_MODULE_PRICE_AZN, hrModuleBundlePriceAzn: HR_MODULE_BUNDLE_PRICE_AZN, vatPercent: PACKAGE_VAT_PERCENT, current: q.pkg, used: q.used, monthly: q.monthly, credits: q.credits, left: q.left, packages: COMPANY_AI_PACKAGES, topupPacks: AI_TOPUPS, purchases: topups.results });
   }
 
   if (request.method === "POST" && path === "company/ai-plan/change") {
@@ -50,7 +50,8 @@ export async function handle_ai_billing_01(c: Pick<RouteCtx, "accountRole" | "ai
     const money = (net: number) => `${net} ₼ + ${PACKAGE_VAT_PERCENT}% ƏDV = ${withVatAzn(net)} ₼`;
     // A paid package is billed by an invoice for 30 days; a cheaper or free one applies at once, without a refund.
     const packageNet = next.priceAzn > 0 && next.priceAzn > current.priceAzn ? next.priceAzn : 0;
-    const hrNet = wantHr && !hrNow ? HR_MODULE_PRICE_AZN : 0;
+    // Together with a paid AI package the HR module is 120 AZN, alone 150 AZN.
+    const hrNet = wantHr && !hrNow ? hrModulePriceFor(next.priceAzn) : 0;
     let invoiceNote = "";
     if (packageNet + hrNet > 0) {
       const parts = [packageNet ? `AI paketi: ${next.name}` : "", hrNet ? "Kadr modulu" : ""].filter(Boolean).join(" + ");

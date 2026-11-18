@@ -1,5 +1,5 @@
 "use client";
-import { COMPANY_AI_PACKAGES, HR_MODULE_PRICE_AZN } from "@/lib/ai-packages";
+import { COMPANY_AI_PACKAGES, HR_MODULE_BUNDLE_PRICE_AZN, HR_MODULE_PRICE_AZN } from "@/lib/ai-packages";
 import { PLANS } from "@/lib/plans";
 import { useEffect, useState } from "react";
 import { Briefcase, CalendarClock, Calculator, ChartNoAxesColumn, Check, FileSpreadsheet, Languages, Lock, Network, Plane, Scale, Sparkles, Users, UserSearch, Wallet } from "lucide-react";
@@ -229,7 +229,7 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
           </>
         ) : (
           <>
-            <p className="landing-note">{`Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir (+18% ƏDV əlavə olunur). Hər paketə istəyə görə Kadr modulu (ştat, əmrlər, əmək haqqı, davamiyyət) +${HR_MODULE_PRICE_AZN} ₼ / ay əlavə edilə bilər; paket AI analizinin sayını müəyyən edir. Limit bitəndə əlavə analiz paketi almaq olar.`}</p>
+            <p className="landing-note">{`Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir (+18% ƏDV əlavə olunur). Kadr modulu (ştat, əmrlər, əmək haqqı, davamiyyət) AI paketi ilə birlikdə +${HR_MODULE_BUNDLE_PRICE_AZN} ₼ / ay, tək isə ${HR_MODULE_PRICE_AZN} ₼ / aydır; paket AI analizinin sayını müəyyən edir. Limit bitəndə əlavə analiz paketi almaq olar.`}</p>
             <div className="landing-plans cols5">
               {COMPANY_AI_PACKAGES.map((p) => (
                 <article className={`landing-card plan-card${p.id === "pro" ? " popular" : ""}`} key={p.id}>
@@ -239,7 +239,7 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
                   <ul className="landing-checks">
                     <li><Check size={15} /><span><b>{p.fullPerMonth}</b> tam CV analizi / ay</span></li>
                     <li><Check size={15} /><span><b>{p.rankPerMonth}</b> AI reytinqi / ay</span></li>
-                    <li><Check size={15} />{`Kadr modulu istəyə görə: +${HR_MODULE_PRICE_AZN} ₼ / ay + ƏDV`}</li>
+                    <li><Check size={15} />{p.priceAzn > 0 ? `Kadr modulu birlikdə: +${HR_MODULE_BUNDLE_PRICE_AZN} ₼ / ay + ƏDV` : `Kadr modulu tək: ${HR_MODULE_PRICE_AZN} ₼ / ay + ƏDV`}</li>
                     <li><Check size={15} />Əlavə analiz paketi alıla bilər</li>
                   </ul>
                   <button type="button" className={p.id === "pro" ? "primary" : "secondary"} onClick={signup}>{p.priceAzn ? "Paketi seç" : "Pulsuz başla"}</button>
