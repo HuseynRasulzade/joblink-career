@@ -2066,7 +2066,9 @@ Kodu yenidən göndər|Send the code again|Отправить код ещё ра
 Yeni kod göndərildi. Qutunuzu (və spam qovluğunu) yoxlayın.|A new code was sent. Check your inbox (and the spam folder).|Новый код отправлен. Проверьте почту (и папку «Спам»).
 Kod yanlışdır və ya vaxtı bitib. Yeni kod istəyə bilərsiniz.|The code is wrong or has expired. You can ask for a new code.|Код неверный или срок его действия истёк. Вы можете запросить новый код.
 Çox yanlış cəhd. Yeni kod istəyin və bir az sonra yenidən cəhd edin.|Too many wrong attempts. Ask for a new code and try again a little later.|Слишком много неверных попыток. Запросите новый код и повторите чуть позже.
-E-poçtunuz hələ təsdiqlənməyib. Ünvanınıza yeni kod göndərildi.|Your e-mail is not confirmed yet. A new code was sent to your address.|Ваш e-mail ещё не подтверждён. На ваш адрес отправлен новый код.`;
+E-poçtunuz hələ təsdiqlənməyib. Ünvanınıza yeni kod göndərildi.|Your e-mail is not confirmed yet. A new code was sent to your address.|Ваш e-mail ещё не подтверждён. На ваш адрес отправлен новый код.
+Xəbərdarlıq yaratmaq üçün əvvəl axtarış sözü yazın və ya filtr (şəhər, kateqoriya, maaş və s.) seçin, sonra bu düyməni basın.|To create an alert, first type a search word or choose a filter (city, category, salary, etc.), then press this button.|Чтобы создать оповещение, сначала введите поисковое слово или выберите фильтр (город, категория, зарплата и т. д.), затем нажмите эту кнопку.
+Əvvəl axtarış sözü yazın və ya filtr seçin.|First type a search word or choose a filter.|Сначала введите поисковое слово или выберите фильтр.`;
 const EN: Record<string, string> = {};
 const RU: Record<string, string> = {};
 for (const line of LINES.split("\n")) {

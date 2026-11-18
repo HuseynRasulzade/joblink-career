@@ -41,9 +41,14 @@ export function JobAlerts({ current, notify }: { current: AlertFilters; notify: 
       <button
         type="button"
         className="text-button"
-        disabled={alertIsEmpty(current)}
+        aria-disabled={alertIsEmpty(current)}
         title={alertIsEmpty(current) ? "Əvvəl axtarış sözü yazın və ya filtr seçin" : describeAlert(current)}
         onClick={async () => {
+          // Not disabled, so the press always answers: an empty search cannot be saved, and the person is told what to do.
+          if (alertIsEmpty(current)) {
+            notify("Xəbərdarlıq yaratmaq üçün əvvəl axtarış sözü yazın və ya filtr (şəhər, kateqoriya, maaş və s.) seçin, sonra bu düyməni basın.");
+            return;
+          }
           try {
             await request("alerts/save", { filters: current });
             notify("Xəbərdarlıq yaradıldı: bu axtarışa uyğun yeni vakansiya çıxanda bildiriş alacaqsınız.");
@@ -55,6 +60,7 @@ export function JobAlerts({ current, notify }: { current: AlertFilters; notify: 
       >
         Bu axtarış üçün xəbərdarlıq yarat
       </button>
+      {alertIsEmpty(current) && <small className="muted">Əvvəl axtarış sözü yazın və ya filtr seçin.</small>}
     </div>
   );
 }
