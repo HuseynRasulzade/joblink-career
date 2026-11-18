@@ -482,8 +482,8 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 }
 
 /* ---- landing additions: hero figure, search, phone, quick links, contact, reveal ---- */
-.gate-figure { position: absolute; left: 50%; top: 42%; width: clamp(190px, 27vmin, 330px); transform: translate(-50%, -50%); animation: gate-orb-float 7s ease-in-out infinite; }
-.gate-figure img { display: block; width: 100%; height: auto; -webkit-mask-image: radial-gradient(ellipse 50% 52% at 50% 46%, #000 55%, transparent 98%); mask-image: radial-gradient(ellipse 50% 52% at 50% 46%, #000 55%, transparent 98%); }
+.gate-figure { position: absolute; left: 50%; top: 42%; width: clamp(190px, 30vmin, 360px); transform: translate(-50%, -50%); animation: gate-orb-float 7s ease-in-out infinite; }
+.gate-figure img { display: block; width: 100%; height: auto; }
 .gate-figure::before { content: ""; position: absolute; inset: -12%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 120, 60, 0.5), transparent 65%); z-index: -1; }
 .gate-figure .gate-ring { position: absolute; inset: -9% -14% -4%; border-radius: 50%; border: 2px solid rgba(255, 220, 190, 0.5); border-left-color: transparent; border-bottom-color: transparent; animation: gate-spin 16s linear infinite; }
 .gate-badge { position: absolute; right: -4%; bottom: 14%; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: #fff; font-size: 22px; background: linear-gradient(135deg, #d94c18, #b53713); box-shadow: 0 0 30px rgba(255, 110, 50, 0.6); }
