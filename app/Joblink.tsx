@@ -382,9 +382,10 @@ export default function Joblink() {
   const [signedIn, setSignedIn] = useState(false);
   // The top menu of the public page asks for the sign-in or the registration form.
   const [authWant, setAuthWant] = useState<{ want: "login" | "register"; n: number }>({ want: "login", n: 0 });
+  const [authShown, setAuthShown] = useState(false);
   const openAuth = (want: "login" | "register") => {
     setAuthWant((prev) => ({ want, n: prev.n + 1 }));
-    window.setTimeout(() => document.querySelector(".auth-gate-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+    setAuthShown(true);
   };
   const [authChecked, setAuthChecked] = useState(false);
   const [accountRole, setAccountRole] = useState<
@@ -1806,7 +1807,11 @@ export default function Joblink() {
             </div>
           </div>
         </section>
+        {(authShown || Boolean(resetToken)) && (
+        <div className="auth-modal" role="dialog" aria-modal="true">
+        <button type="button" className="auth-modal-backdrop" tabIndex={-1} aria-label="Close" onClick={() => setAuthShown(false)} />
         <section className="auth-gate-panel">
+          <button type="button" className="auth-modal-close" aria-label="Close" onClick={() => { setAuthShown(false); setResetToken(""); }}>×</button>
           <div className="auth-gate-language">
             <label>
               <span className="sr-only">Language / Dil</span>
@@ -1858,6 +1863,8 @@ export default function Joblink() {
             </div>
           )}
         </section>
+        </div>
+        )}
       </main>
       <Landing onAuth={openAuth} />
       </>,

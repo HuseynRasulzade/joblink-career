@@ -425,3 +425,12 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 .pc-footer a { color: #ffb48a; }
 .pc-promo { background: linear-gradient(135deg, #7a2410, #c8431c 60%, #ff7a3c); }
 .pc-promo-btn { color: #b93a16; }
+
+/* The sign-in panel opens as a dialog only after the menu button is pressed. */
+.auth-gate { grid-template-columns: 1fr; }
+.auth-modal { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: rgba(10, 4, 3, 0.72); backdrop-filter: blur(6px); overflow-y: auto; }
+.auth-modal .auth-gate-panel { position: relative; width: min(520px, 100%); margin: 0; max-height: calc(100vh - 40px); overflow-y: auto; }
+.auth-modal-close { position: absolute; top: 10px; left: 12px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid #e6d6cc; background: #fff; color: #5a3a2c; font-size: 22px; line-height: 1; cursor: pointer; z-index: 2; }
+@media (max-width: 900px) { .auth-modal .auth-gate-panel { margin: 0; } }
+.auth-modal-backdrop { position: fixed; inset: 0; border: 0; background: transparent; cursor: default; }
+.auth-modal .auth-gate-panel { z-index: 1; }
