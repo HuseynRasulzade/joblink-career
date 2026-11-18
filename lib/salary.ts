@@ -25,10 +25,14 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 //               2,500 - 8,000:  75 + 10% of the amount above 2,500
 //               above 8,000:    625 + 14% of the amount above 8,000
 // State and oil-and-gas sector: 14% up to 2,500, then 350 + 25%.
+// Tax Code 102.1.6: for the main workplace, 200 AZN of the monthly income is exempt when the income is up to 2,500 AZN (both sectors).
+// Tax Code 101.1 (state, oil-gas) and 101.1-1.1 (private non-oil, 2026) tables are applied to what is left after the exemption and the reduction.
 const TAX_FREE_AMOUNT = 200;
-function incomeTax(taxable: number, sector: Sector) {
+const TAX_FREE_LIMIT = 2500;
+function incomeTax(gross: number, reduction: number, sector: Sector) {
+  const taxable = Math.max(0, gross - reduction - (gross <= TAX_FREE_LIMIT ? TAX_FREE_AMOUNT : 0));
   if (sector === "public") return taxable <= 2500 ? taxable * 0.14 : 350 + (taxable - 2500) * 0.25;
-  if (taxable <= 2500) return Math.max(0, taxable - TAX_FREE_AMOUNT) * 0.03;
+  if (taxable <= 2500) return taxable * 0.03;
   if (taxable <= 8000) return 75 + (taxable - 2500) * 0.1;
   return 75 + 550 + (taxable - 8000) * 0.14;
 }
@@ -44,9 +48,9 @@ function social(gross: number, side: "employee" | "employer", sector: Sector) {
   return 200 * low + 7800 * mid + (gross - 8000) * high;
 }
 
-// Medical insurance: 2% up to 2,500, 0.5% above, paid by each side.
+// Medical insurance: 2% up to 8,000, 0.5% above, paid by each side.
 function medical(gross: number) {
-  return gross <= 2500 ? gross * 0.02 : 50 + (gross - 2500) * 0.005;
+  return gross <= 8000 ? gross * 0.02 : 160 + (gross - 8000) * 0.005;
 }
 
 // `reduction` is the monthly amount the taxable wage is reduced by (Tax Code 102.1-1, 102.2, 102.3, 102.4, 102.5):
@@ -58,7 +62,7 @@ export function calculateFromGross(grossInput: number, sector: Sector = "private
   const employeeSocial = social(gross, "employee", sector);
   const employeeUnemployment = gross * 0.005;
   const employeeMedical = medical(gross);
-  const tax = incomeTax(Math.max(0, gross - reduction), sector);
+  const tax = incomeTax(gross, reduction, sector);
   const employerSocial = social(gross, "employer", sector);
   const employerUnemployment = gross * 0.005;
   const employerMedical = medical(gross);

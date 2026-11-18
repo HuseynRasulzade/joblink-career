@@ -107,14 +107,14 @@ const KIND_LABEL = { "Ümumi": "general", "İcra sənədi": "writ", "Aliment": "
 
 // Parameter rows of the "Parametrlər" sheet (column B), used by every formula.
 const PR = { month: 3, calendarDays: 4, workingDays: 5, dayHours: 6, meanMonth: 7, taxFree: 8, tier1: 9, tier2: 10, rate1: 11, rate2: 12, rate3: 13, base2: 14, base3: 15, pubRate1: 16, pubRate2: 17, pubBase: 18, socLow: 19, socHigh: 20, socLimit: 21, unemp: 22, medLow: 23, medHigh: 24, medLimit: 25, medBase: 26, erLow: 27, erMid: 28, erHigh: 29, erLimit: 30, capGeneral: 31, capWrit: 32, capAlimony: 33, minWage: 34, sickPct: 35, maternityPct: 36, minPension: 37, capFactor: 38, minInsurance: 39, dependents: 40 } as const;
-const PV: Record<keyof typeof PR, number | string> = { month: "", calendarDays: 0, workingDays: 0, dayHours: 8, meanMonth: 30.4, taxFree: 200, tier1: 2500, tier2: 8000, rate1: 0.03, rate2: 0.1, rate3: 0.14, base2: 75, base3: 625, pubRate1: 0.14, pubRate2: 0.25, pubBase: 350, socLow: 0.03, socHigh: 0.1, socLimit: 200, unemp: 0.005, medLow: 0.02, medHigh: 0.005, medLimit: 2500, medBase: 50, erLow: 0.22, erMid: 0.15, erHigh: 0.11, erLimit: 8000, capGeneral: 0.2, capWrit: 0.5, capAlimony: 0.7, minWage: 400, sickPct: SICK_BENEFIT_PERCENT, maternityPct: MATERNITY_BENEFIT_PERCENT, minPension: 0, capFactor: BENEFIT_CAP_FACTOR, minInsurance: BENEFIT_MIN_INSURANCE_MONTHS, dependents: DEPENDENTS_REDUCTION };
+const PV: Record<keyof typeof PR, number | string> = { month: "", calendarDays: 0, workingDays: 0, dayHours: 8, meanMonth: 30.4, taxFree: 200, tier1: 2500, tier2: 8000, rate1: 0.03, rate2: 0.1, rate3: 0.14, base2: 75, base3: 625, pubRate1: 0.14, pubRate2: 0.25, pubBase: 350, socLow: 0.03, socHigh: 0.1, socLimit: 200, unemp: 0.005, medLow: 0.02, medHigh: 0.005, medLimit: 8000, medBase: 160, erLow: 0.22, erMid: 0.15, erHigh: 0.11, erLimit: 8000, capGeneral: 0.2, capWrit: 0.5, capAlimony: 0.7, minWage: 400, sickPct: SICK_BENEFIT_PERCENT, maternityPct: MATERNITY_BENEFIT_PERCENT, minPension: 0, capFactor: BENEFIT_CAP_FACTOR, minInsurance: BENEFIT_MIN_INSURANCE_MONTHS, dependents: DEPENDENTS_REDUCTION };
 const PLABEL: Record<keyof typeof PR, string> = {
   month: "Hesablama ayı",
   calendarDays: "Ayın təqvim günü sayı",
   workingDays: "Ayın iş günü sayı (norma)",
   dayHours: "Gündəlik iş saatı (40 saatlıq həftə)",
   meanMonth: "Orta aylıq təqvim günü (Əmək M. 140)",
-  taxFree: "Vergidən azad məbləğ (özəl sektor, AZN)",
+  taxFree: "Vergidən azad məbləğ (əsas iş yeri, aylıq gəlir 2500-dək, AZN)",
   tier1: "Gəlir vergisi: 1-ci pillənin həddi (AZN)",
   tier2: "Gəlir vergisi: 2-ci pillənin həddi (AZN)",
   rate1: "Gəlir vergisi: 1-ci pillə faizi (özəl)",
@@ -129,8 +129,8 @@ const PLABEL: Record<keyof typeof PR, string> = {
   socHigh: "DSMF (işçi): 200-dən artıq faiz",
   socLimit: "DSMF həddi (AZN)",
   unemp: "İşsizlikdən sığorta (işçi və işəgötürən)",
-  medLow: "İcbari tibbi sığorta: 2500-dək faiz",
-  medHigh: "İcbari tibbi sığorta: 2500-dən artıq faiz",
+  medLow: "İcbari tibbi sığorta: 8000-dək faiz",
+  medHigh: "İcbari tibbi sığorta: 8000-dən artıq faiz",
   medLimit: "İcbari tibbi sığorta həddi (AZN)",
   medBase: "İcbari tibbi sığorta: sabit hissə (AZN)",
   erLow: "DSMF (işəgötürən): 200-dək faiz",
@@ -750,7 +750,7 @@ export function buildPayrollWorkbook(raw: WorkbookInput): XlsxSheet[] {
       f(`ROUND(SUMIFS(${AD("E")},${AD("A")},$A${r},${AD("C")},"Mükafat")+SUMIFS(${LKR("M")},${LKR("B")},$A${r}),2)`, c?.bonus ?? 0, "money"),
       f(`ROUND(SUM(${L(H.payWorked)}${r}:${L(H.bonus)}${r}),2)`, pay?.gross ?? 0, "total"),
       f(taxBase, Math.max(0, (pay?.gross ?? 0) - (c?.reduction ?? 0)), "money"),
-      f(`IF(${st}F${ir}="Dövlət",IF(${a("base")}<=${P("tier1")},${a("base")}*${P("pubRate1")},${P("pubBase")}+(${a("base")}-${P("tier1")})*${P("pubRate2")}),IF(${a("base")}<=${P("tier1")},MAX(0,${a("base")}-${P("taxFree")})*${P("rate1")},IF(${a("base")}<=${P("tier2")},${P("base2")}+(${a("base")}-${P("tier1")})*${P("rate2")},${P("base3")}+(${a("base")}-${P("tier2")})*${P("rate3")})))`, pay?.incomeTax ?? 0, "money"),
+      f(`IF(${st}F${ir}="Dövlət",IF(MAX(0,${a("base")}-IF(${a("gross")}<=${P("tier1")},${P("taxFree")},0))<=${P("tier1")},MAX(0,${a("base")}-IF(${a("gross")}<=${P("tier1")},${P("taxFree")},0))*${P("pubRate1")},${P("pubBase")}+(MAX(0,${a("base")}-IF(${a("gross")}<=${P("tier1")},${P("taxFree")},0))-${P("tier1")})*${P("pubRate2")}),IF(MAX(0,${a("base")}-IF(${a("gross")}<=${P("tier1")},${P("taxFree")},0))<=${P("tier1")},MAX(0,${a("base")}-IF(${a("gross")}<=${P("tier1")},${P("taxFree")},0))*${P("rate1")},IF(MAX(0,${a("base")}-IF(${a("gross")}<=${P("tier1")},${P("taxFree")},0))<=${P("tier2")},${P("base2")}+(MAX(0,${a("base")}-IF(${a("gross")}<=${P("tier1")},${P("taxFree")},0))-${P("tier1")})*${P("rate2")},${P("base3")}+(MAX(0,${a("base")}-IF(${a("gross")}<=${P("tier1")},${P("taxFree")},0))-${P("tier2")})*${P("rate3")})))`, pay?.incomeTax ?? 0, "money"),
       f(`IF(${st}F${ir}="Dövlət",${a("gross")}*${P("socLow")},IF(${a("gross")}<=${P("socLimit")},${a("gross")}*${P("socLow")},${P("socLimit")}*${P("socLow")}+(${a("gross")}-${P("socLimit")})*${P("socHigh")}))`, pay?.employeeSocial ?? 0, "money"),
       f(`${a("gross")}*${P("unemp")}`, pay?.employeeUnemployment ?? 0, "money"),
       f(`IF(${a("gross")}<=${P("medLimit")},${a("gross")}*${P("medLow")},${P("medBase")}+(${a("gross")}-${P("medLimit")})*${P("medHigh")})`, pay?.employeeMedical ?? 0, "money"),

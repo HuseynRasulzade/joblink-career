@@ -38,20 +38,32 @@ test("private employer contributions use the 22/15/11 tiers", () => {
   assert.equal(calculateFromGross(2000).employerSocial, 44 + 270);
   assert.equal(calculateFromGross(10000).employerSocial, 44 + 1170 + 220);
 });
-test("medical insurance is 2% up to 2,500 and 0.5% above, on each side", () => {
+test("medical insurance is 2% up to 8,000 and 0.5% above, on each side", () => {
   const r = calculateFromGross(3000);
-  assert.equal(r.employeeMedical, 50 + 2.5);
-  assert.equal(r.employerMedical, 50 + 2.5);
+  assert.equal(r.employeeMedical, 60);
+  assert.equal(r.employerMedical, 60);
+  const big = calculateFromGross(10000);
+  assert.equal(big.employeeMedical, 160 + 10);
+  assert.equal(big.employerMedical, 160 + 10);
   assert.equal(r.employeeUnemployment, 15);
   assert.equal(r.employerUnemployment, 15);
 });
 test("state sector: 3% and 22% social insurance on the whole salary", () => {
   const r = calculateFromGross(1000, "public");
-  assert.equal(r.incomeTax, 140);
+  assert.equal(r.incomeTax, 112); // 14% of (1000 - 200), Tax Code 101.1 and 102.1.6
   assert.equal(r.employeeSocial, 30);
   assert.equal(r.employerSocial, 220);
   const big = calculateFromGross(5000, "public");
   assert.equal(big.employeeSocial, 150);
   assert.equal(big.employerSocial, 1100);
   assert.equal(big.incomeTax, 350 + 625);
+});
+
+test("200 AZN is exempt only while the income is up to 2,500 AZN, in both sectors (Tax Code 102.1.6)", () => {
+  assert.equal(calculateFromGross(2500, "public").incomeTax, 322); // 14% of 2300
+  assert.equal(calculateFromGross(2600, "public").incomeTax, 350 + 25); // no exemption above 2,500
+  assert.equal(calculateFromGross(2600).incomeTax, 75 + 10);
+  // a reduction (102.3 disability, 200) comes on top of the exemption; the exemption itself depends on the gross
+  assert.equal(calculateFromGross(1000, "public", { reduction: 200 }).incomeTax, 84); // 14% of 600
+  assert.equal(calculateFromGross(2600, "public", { reduction: 200 }).incomeTax, 336); // 14% of 2400, no exemption
 });

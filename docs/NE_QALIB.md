@@ -494,3 +494,19 @@ Vakansiya kartlarında şirkət loqosu (loqo yüklənir, amma namizədə göstə
 - `app/Landing.tsx` + `app/landing.css`: mərkəzləşdirilmiş bölmə başlıqları, ikonlu rol və imkan kartları, addım kartları, iş axtaran/şirkət **sekməli** qiymət kartları («Ən çox seçilən» nişanı, «Paketi seç» düyməsi, hər paketin tərkibi), tünd-yaşıl yekun çağırış zolağı.
 - **Yeni «Kalkulyatorlar» bölməsi** (qiymətlərin aşağısında): işləyən maaş kalkulyatoru (gross/net, sektor; `lib/salary.ts` ilə platformadakı eyni hesab), 8 kalkulyatorun siyahısı və «Bütün kalkulyatorlardan istifadə et» düyməsi. Hesab məlumat xarakterlidir; işçi kartındakı güzəştlər burada yoxdur.
 - Yoxlandı: masaüstü və 390 px mobil (üfüqi sürüşmə yoxdur), AZ və EN, kalkulyatorda net 3000 → gross 3 605,69. RU və qaranlıq rejimdə bu səhifəyə baxılmadı. Şrift sandbox-da yoxdur (serif ehtiyat şrift görünür), real görünüşü canlıda yoxlamaq lazımdır.
+
+## 47. Hesablamaların rəsmi mətnlərlə yoxlanması (Vergi və Əmək Məcəllələri, 14 saylı qərar)
+
+Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), Əmək Məcəlləsi, Nazirlər Kabinetinin 14 saylı qərarı və 2024-cü il 200 saylı dəyişiklik qərarı.
+
+**Düzəldilənlər**
+- **Gəlir vergisi, 200 AZN azadolma (Vergi Məcəlləsi 102.1.6):** əsas iş yerində aylıq gəlir 2500 AZN-dək olduqda 200 AZN vergidən azaddır. Əvvəl bu azadolma yalnız özəl sektora tətbiq olunurdu; **dövlət və neft-qaz sektoru üçün də** tətbiq olunur (1000 AZN gross üçün vergi 140 yox, 14% × 800 = 112). Azadolma gəlirin özünə (≤2500) bağlıdır, güzəştdən (102.2–102.5) sonrakı məbləğə yox: 2600 AZN gross və 200 AZN güzəştdə azadolma verilmir. Eyni düstur Excel iş kitabında da yenilənib. Test: `tests/salary.test.mjs`.
+- **İcbari tibbi sığorta həddi:** 2% hissənin həddi 2500 deyil, **8000 AZN** (sən təsdiq etdin; 160 AZN + 8000-dən yuxarı hissənin 0,5%). Verilən Məcəllələrdə tibbi sığorta dərəcəsi yoxdur, ona görə bu rəqəm mətnlərdən yox, sənin təsdiqindən götürülüb. Excel iş kitabındakı parametr və etiketlər də yenilənib.
+- **14 saylı qərar, 6-cı bənd:** daimi iş vaxtı yolda keçən, gediş-gəliş xarakterli, növbə metodu ilə işləyən və ya çöl işçilərinə ezamiyyə xərcləri əvəzinə gündə **20 AZN** (2024-də 15-dən artırılıb): normalar cədvəlinin izahında göstərilir (`TRAVELLING_WORKER_DAILY`).
+
+**Mətnlə üst-üstə düşdüyü təsdiqlənənlər**
+- 2026-cı il özəl sektor cədvəli (3% / 75 + 10% / 625 + 14%), dövlət-neft cədvəli (14% / 350 + 25%), güzəştlər 800 / 400 / 200 / 100 / 50 AZN.
+- Əmək Məcəlləsi: əsas məzuniyyət 21 və 30 gün (114), staj əlavəsi 2/4/6 gün (116), uşaqlı qadın 2/5 gün (117), məzuniyyət pulu 12 ay ÷ 12 ÷ 30,4 (139), ixtisarda xəbərdarlıq 2/4/6/9 həftə və işdənçıxarma müavinəti 1/1,4/1,7/2 misli (77), xəbərdarlıq əvəzi 0,5/0,9/1,4/2 misli, sınaq müddəti 2 həftə/3 ay (51), iş vaxtından artıq ikiqat (165), tutulmalar 20% / 50% / 70% (176).
+- 14 saylı qərar: ölkədaxili normalar (Bakı 125, Naxçıvan 100, Gəncə və Sumqayıt 95, digər 90), mehmanxana 70%, sənədsiz 50%, və **106 xarici ölkənin hər bir norması** (200 saylı qərarın cədvəli ilə maşın müqayisəsi: fərq yoxdur).
+
+**Hələ yoxlanmayanlar:** DSMF faizləri (yalnız Sosial Sığorta Qanunu və tibbi sığorta qanunu ilə yoxlanır, onlar bu yükləmələrdə yoxdur), işsizlik sığortası 0,5%, istirahət/bayram günü işinin haqqı (164, 107, 109), müavinət düsturları (əvvəl yüklənmiş Sosial Sığorta Qanunu ilə yoxlanmışdı).

@@ -6,6 +6,7 @@ export { FOREIGN_NORMS, type ForeignNorm, type NormCurrency } from "./trip-norms
 
 export const NORMS_SOURCE = "Azərbaycan Respublikası Nazirlər Kabinetinin 25.01.2008-ci il tarixli 14 nömrəli qərarı (26.10.2026-cı il dəyişikliklərinədək)";
 export const HOTEL_SHARE = 0.7; // of the norm of one day inside the country
+export const TRAVELLING_WORKER_DAILY = 20; // item 6 (changed to 20 AZN by decision No. 200 of 4 April 2024): workers whose permanent work is on the road, shift or field workers get this a day instead of trip expenses
 export const NO_RECEIPT_HOTEL_PART = 0.5; // without hotel documents half of the hotel part is paid (item 1-1)
 
 // Inside the country, AZN a day.

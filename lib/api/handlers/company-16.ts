@@ -1,6 +1,6 @@
 // company: handlers of the JobMatch API (moved out of route.ts; the order of the checks is the order of the calls in route.ts).
 import { CBAR_PAGE, fetchCbarRates, perUnitRates } from "@/lib/cbar";
-import { CURRENCY_NAME, DOMESTIC_NORMS, DOMESTIC_OTHER, FOREIGN_NORMS, HOTEL_SHARE, NORMS_SOURCE, NO_RECEIPT_HOTEL_PART, azNPerDay, lookupNorm } from "@/lib/trip-norms";
+import { CURRENCY_NAME, DOMESTIC_NORMS, DOMESTIC_OTHER, FOREIGN_NORMS, HOTEL_SHARE, NORMS_SOURCE, NO_RECEIPT_HOTEL_PART, TRAVELLING_WORKER_DAILY, azNPerDay, lookupNorm } from "@/lib/trip-norms";
 import { ENPS_QUESTIONS, type SurveyQuestion, cleanQuestions, enps } from "@/lib/survey";
 import { HttpError, jsonBody, str } from "@/lib/server";
 import { checkDestination } from "@/lib/trip-places";
@@ -31,7 +31,7 @@ export async function handle_company_16(c: Pick<RouteCtx, "FX" | "createTripOrde
   }
   if (request.method === "GET" && path === "company/trips/norm-table") {
     requirePermission("salaries", "Gündəlik normanı yalnız kadr işçisi görə bilər.");
-    return ok({ source: NORMS_SOURCE, hotelShare: HOTEL_SHARE, noReceiptHotelPart: NO_RECEIPT_HOTEL_PART, domestic: [...DOMESTIC_NORMS.map((d) => ({ label: d.label, norm: d.norm })), { label: "Digər şəhərlər, rayon mərkəzləri, qəsəbələr və kəndlər", norm: DOMESTIC_OTHER }], foreign: FOREIGN_NORMS, currencies: CURRENCY_NAME });
+    return ok({ source: NORMS_SOURCE, hotelShare: HOTEL_SHARE, noReceiptHotelPart: NO_RECEIPT_HOTEL_PART, travellingWorkerDaily: TRAVELLING_WORKER_DAILY, domestic: [...DOMESTIC_NORMS.map((d) => ({ label: d.label, norm: d.norm })), { label: "Digər şəhərlər, rayon mərkəzləri, qəsəbələr və kəndlər", norm: DOMESTIC_OTHER }], foreign: FOREIGN_NORMS, currencies: CURRENCY_NAME });
   }
   if (request.method === "POST" && path === "company/trips/save") {
     requirePermission("salaries", "Ezamiyyəti yalnız kadr işçisi yaza bilər.");

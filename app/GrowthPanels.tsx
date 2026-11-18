@@ -666,7 +666,7 @@ function TripNormHint({ destination, abroad, onFill }: { destination: string; ab
   );
 }
 
-type NormTableData = { source: string; hotelShare: number; noReceiptHotelPart: number; domestic: { label: string; norm: number }[]; foreign: { n: number; country: string; currency: string; norm: number; cities: { name: string; norm: number }[] }[]; currencies: Record<string, string> };
+type NormTableData = { source: string; hotelShare: number; noReceiptHotelPart: number; travellingWorkerDaily?: number; domestic: { label: string; norm: number }[]; foreign: { n: number; country: string; currency: string; norm: number; cities: { name: string; norm: number }[] }[]; currencies: Record<string, string> };
 function NormTable({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<NormTableData | null>(null);
   const [q, setQ] = useState("");
@@ -679,7 +679,7 @@ function NormTable({ onClose }: { onClose: () => void }) {
     <Modal title="Ezamiyyə xərclərinin rəsmi normaları" onClose={onClose}>
       {!data ? <p className="muted loading-line">Yüklənir…</p> : (
         <div className="offer-composer">
-          <p className="muted">{data.source}. Bir günlük norma mehmanxana ({Math.round(data.hotelShare * 100)}%) və gündəlik xərcləri (yemək, şəhərdaxili nəqliyyat, rabitə) əhatə edir. Ölkə daxilində mehmanxana sənədi təqdim edilməyəndə mehmanxana hissəsinin {Math.round(data.noReceiptHotelPart * 100)}%-i ödənilir. Yol xərci sənədlərə əsasən ayrıca ödənilir.</p>
+          <p className="muted">{data.source}. Bir günlük norma mehmanxana ({Math.round(data.hotelShare * 100)}%) və gündəlik xərcləri (yemək, şəhərdaxili nəqliyyat, rabitə) əhatə edir. Ölkə daxilində mehmanxana sənədi təqdim edilməyəndə mehmanxana hissəsinin {Math.round(data.noReceiptHotelPart * 100)}%-i ödənilir. Yol xərci sənədlərə əsasən ayrıca ödənilir. Daimi iş vaxtı yolda keçən, gediş-gəliş xarakterli, növbə metodu ilə işləyən və ya çöl şəraitində çalışan işçilərə (qərarın 6-cı bəndi) ezamiyyə xərcləri əvəzinə hər gün üçün {data.travellingWorkerDaily ?? 20} manat əlavə vəsait verilir.</p>
           <h4>Azərbaycan daxilində (AZN / gün)</h4>
           <table className="admin-table"><tbody>{data.domestic.map((d) => <tr key={d.label}><td>{d.label}</td><td style={{ width: 110 }}><b>{d.norm}</b></td></tr>)}</tbody></table>
           <h4>Xarici ölkələr ({data.foreign.length})</h4>
