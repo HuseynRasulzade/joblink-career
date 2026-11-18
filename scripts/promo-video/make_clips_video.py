@@ -19,7 +19,7 @@ S=[
  ('company',0,9.4,1.3,7.2,'Nə harada qaldı?\nHamısı bir ekranda.','Müraciət, müsahibə, test, təklif: işin harada qaldığını artıq axtarmırsınız. Hamısı bir ekranda.',('Canlı icmal',1.0,6.5)),
  ('payroll',0,7.0,0.875,8.0,'Maaş hesabı?\n2026 dərəcələri, avtomatik.','Əmək haqqı? Vergi və sığorta 2026 dərəcələri ilə avtomatik hesablanır. İşçi kartı, əmrlər, məzuniyyət, davamiyyət də eyni yerdədir.',('Gross → net, avtomatik',1.5,7.5)),
  ('calc',0,11.9,1.5,8.0,'Hələ tərəddüd edirsiniz?\n13 kalkulyator pulsuz.','Hələ qərar verməmisiniz? Əvvəl 13 pulsuz kalkulyatoru yoxlayın: maaş, məzuniyyət, ixtisar, super-gross. Qeydiyyat belə istəmir.',('Hər nəticədə maddə nömrəsi',3.5,7.8)),
- ('pricing',0,8.8,1.1,8.0,'Başlamaq pulsuz.\nAI: 49 AZN-dən · Kadr: 150 AZN','Qiymət? Başlamaq pulsuzdur. AI istəyirsinizsə 49 manatdan. AI-siz bütün platforma 150 manat, ƏDV əlavə olunur.',('ƏDV əlavə olunur',2.5,7.8)),
+ ('pricing',0,8.8,1.1,8.0,'Başlamaq pulsuz.\nAI: 49 AZN-dən · Kadr: 120-dən','Qiymət? Başlamaq pulsuzdur. AI istəyirsinizsə 49 manatdan. Kadr modulu AI ilə birlikdə 120 manat, tək 150 manat; ƏDV əlavə olunur.',('ƏDV əlavə olunur',2.5,7.8)),
  ('outro',0,0,1.0,7.0,'İndi qeydiyyatdan keçin.\nİlk addım pulsuzdur.','Növbəti CV yığınını açmazdan əvvəl bir dəqiqə ayırın. İndi pulsuz qeydiyyatdan keçin. JobMatch: doğru insan, doğru imkan.',None),
 ]
 def run(cmd):
@@ -57,7 +57,7 @@ for i,(clip,a,b,sp,L,head,vo,badge) in enumerate(S):
             f"[0:v][c]overlay={CX}:{CY}:eof_action=pass,{common}{badgef}{sub}[v]")
         run(['ffmpeg','-y','-loglevel','error','-loop','1','-framerate',str(FPS),'-i',B+'bg.png','-i',f'{CLIPS}{clip}.webm','-filter_complex',fc,'-map','[v]','-t',str(L),'-r',str(FPS),'-pix_fmt','yuv420p','-c:v','libx264','-preset','medium','-crf','18',f'{B}scene{i}.mp4'])
     else:
-        open(f'{B}o1.txt','w').write('İndi pulsuz başlayın'); open(f'{B}o2.txt','w').write('AI: 49 AZN-dən · Kadr paketi: 150 AZN (+ƏDV)\nQeydiyyat pulsuzdur.')
+        open(f'{B}o1.txt','w').write('İndi pulsuz başlayın'); open(f'{B}o2.txt','w').write('AI: 49 AZN-dən · Kadr: AI ilə 120, tək 150 AZN (+ƏDV)\nQeydiyyat pulsuzdur.')
         fc=(f"[0:v]scale={W}:{H},boxblur=22:2,eq=brightness=-0.28[bgv];"
             f"[bgv]drawtext=fontfile={FONT}:text='jobmatch ✳':fontcolor=0xff9a5c:fontsize=64:x=(w-text_w)/2:y=190:alpha='min(1,t/0.5)',"
             f"drawtext=fontfile={FONT}:textfile={B}o1.txt:fontcolor=white:fontsize=118:x=(w-text_w)/2:y='400+(1-min(1,t/0.6))*40':shadowcolor=black@0.8:shadowx=4:shadowy=4:alpha='min(1,t/0.5)',"

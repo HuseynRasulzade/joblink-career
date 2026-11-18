@@ -13,7 +13,7 @@ Hazır fayl: `jobmatch_promo_az_silent.mp4` (səssiz, yanıb-sönən altyazılı
 | 5 | 0:26 | Nə harada qaldı? Hamısı bir ekranda. | Müraciət, müsahibə, test, təklif: işin harada qaldığını artıq axtarmırsınız. Hamısı bir ekranda. |
 | 6 | 0:32 | Maaş hesabı? 2026 dərəcələri, avtomatik. | Əmək haqqı? Vergi və sığorta 2026 dərəcələri ilə avtomatik hesablanır. İşçi kartı, əmrlər, məzuniyyət, davamiyyət də eyni yerdədir. |
 | 7 | 0:39 | Hələ tərəddüd edirsiniz? 13 kalkulyator pulsuz. | Hələ qərar verməmisiniz? Əvvəl 13 pulsuz kalkulyatoru yoxlayın: maaş, məzuniyyət, ixtisar, super-gross. Qeydiyyat belə istəmir. |
-| 8 | 0:47 | Başlamaq pulsuz. AI: 49 AZN-dən · Kadr: 150 AZN | Qiymət? Başlamaq pulsuzdur. AI istəyirsinizsə 49 manatdan. AI-siz bütün platforma 150 manat, ƏDV əlavə olunur. |
+| 8 | 0:47 | Başlamaq pulsuz. AI: 49 AZN-dən · Kadr: 120-dən | Qiymət? Başlamaq pulsuzdur. AI istəyirsinizsə 49 manatdan. Kadr modulu AI ilə birlikdə 120 manat, tək 150 manat; ƏDV əlavə olunur. |
 | 9 | 0:54 | İndi qeydiyyatdan keçin. İlk addım pulsuzdur. | Növbəti CV yığınını açmazdan əvvəl bir dəqiqə ayırın. İndi pulsuz qeydiyyatdan keçin. JobMatch: doğru insan, doğru imkan. |
 
 **Ton:** söhbət dili, qısa cümlələr, problem → həll → sübut (ekran) → qiymət → çağırış. Ekranda yazı diktorun cümləsini təkrarlamır, onu gücləndirir (səssiz baxanlar üçün altyazı da var). Uydurma rəqəm, rəy və "son gün" yoxdur.
@@ -29,6 +29,8 @@ EN (short): “Still reading CVs by hand and doing payroll in Excel? JobMatch pu
 4. Videonu yenidən yaratmaq: lokal serveri açın (`JOBLINK_LOCAL=1 npx vinext dev --port 3111`), `node scripts/promo-video/record_clips.mjs all` ilə əməliyyatları çəkin, sonra `python3 scripts/promo-video/make_clips_video.py` (ffmpeg və Pillow lazımdır). Köhnə, şəkil əsaslı variant: `make_video.py`.
 
 ## Qeydlər
+
+- Video 18 noyabr 2026-da yeni «ember» dizaynı, yeni giriş səhifəsi və yeni paketlərlə yenidən çəkilib. Girişdəki telefon nömrəsi yer tutucu olduğundan çəkiliş skripti onu gizlədir (`record_lib.mjs`); real nömrə yazılandan sonra həmin sətri silin.
 
 - Səsləndirmə mətnində yalnız platformada real olan imkanlar və hazırkı qiymətlər var (49 AZN-dən AI, 150 AZN Kadr, ƏDV əlavə). Qiymət dəyişərsə, 8-ci sahnənin mətnini və `make_video.py`-dakı başlığı yeniləyin.
 - Ekranlarda lokal demo məlumat görünür; yayımdan əvvəl təmiz demo hesabla yenidən çəkmək olar.

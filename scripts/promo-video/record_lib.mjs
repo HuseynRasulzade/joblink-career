@@ -6,6 +6,8 @@ export async function ctx(browser,{login,record=true,name}){
   if(record) opts.recordVideo={dir:'/tmp/promo2/clips/raw_'+name,size:{width:1440,height:810}};
   const c=await browser.newContext(opts);
   await c.addInitScript(CURSOR);
+  // the contact number on the page is a placeholder until the real one is set: keep it out of the video
+  await c.addInitScript(`addEventListener('DOMContentLoaded',()=>{const s=document.createElement('style');s.textContent='.gate-nav-phone,.contact-phone,.landing-footer-links a[href^="tel:"]{visibility:hidden!important}';document.head.appendChild(s)})`);
   const p=await c.newPage();
   const t0=Date.now();
   if(login){ await p.goto(URL+'/',{waitUntil:'networkidle'});
