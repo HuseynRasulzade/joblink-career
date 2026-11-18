@@ -589,7 +589,7 @@ Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), 
 
 ## 58. Giriş səhifəsi: dəbilqəli fiqur, axtarış, telefon, keçidlər
 
-- **Hero:** parlaq kürənin yerinə istifadəçinin göndərdiyi istinad şəklindən kəsilmiş dəbilqəli fiqur (`public/hero-figure.webp`; mənbə şəkil kiçikdir, 3 dəfə böyüdülüb, kənarları yumşaq maskalanıb). Orijinal yüksək ölçülü fayl olsa əvəz edilə bilər.
+- **Hero:** parlaq kürənin yerinə istifadəçinin göndərdiyi istinad şəklindən kəsilmiş dəbilqəli fiqur (`public/hero-figure.webp`; mənbə şəkil kiçik olduğundan EDSR süni intellekt modeli ilə 4 dəfə böyüdülüb, səs-küy təmizlənib, kənarları yumşaq maskalanıb). Orijinal yüksək ölçülü fayl olsa əvəz edilə bilər.
 - **Axtarış:** hero-da «Vəzifə, şirkət, bacarıq + şəhər» axtarışı və sürətli çiplər; `/jobs?q=&city=` açıq vakansiya səhifəsində süzgəc kimi işləyir (vəzifə, şirkət, şəhər, format, növ, kateqoriya, tələblər üzrə).
 - **Telefon:** yuxarı menyuda qulaqlıq işarəsi ilə nömrə (`tel:` linki), telefonda yalnız işarə; «Əlaqə» bölməsi və footer. Nömrə `lib/contact.ts`-dədir və **yer tutucudur**: açıqlamadan əvvəl real nömrə yazılmalıdır.
 - **Yeni bölmələr:** «Sürətli keçidlər» (vakansiyalar, kalkulyator, CV təhlili, şirkət kimi başla, qiymətlər, suallar), vakansiyalarda format süzgəci (Uzaqdan/Hibrid/Ofisdə/Tam ştat/Yarım ştat), «Əlaqə» kartı; aşağıdakı bloklar görünəndə yumşaq açılır (hərəkət azaldılmışsa söndürülür).
