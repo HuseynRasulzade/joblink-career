@@ -1,5 +1,5 @@
 // hr: handlers of the JobMatch API (moved out of route.ts; the order of the checks is the order of the calls in route.ts).
-import { HttpError, jsonBody, recordAiUsage, runtime, str } from "@/lib/server";
+import { HttpError, jsonBody, recordAiUsage, runtime, str, tokensOfResponse } from "@/lib/server";
 import { type Question, parseSnapshot, percentOf, resultState, sanitizeQuestions, summarizeResults } from "@/lib/assessments";
 import { closeExpiredAssignments, companyAudit } from "@/lib/api-core";
 import { createXlsx } from "@/lib/xlsx";
@@ -167,6 +167,7 @@ export async function handle_hr_01(c: Pick<RouteCtx, "db" | "id" | "path" | "req
         signal: AbortSignal.timeout(90000),
       });
       await recordAiUsage({
+        tokens: response.ok ? await tokensOfResponse(response) : undefined,
         feature: "test-parse",
         provider: "openai",
         user: id,

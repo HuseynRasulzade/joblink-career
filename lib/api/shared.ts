@@ -5,7 +5,7 @@ import { cleanOrgName } from "@/lib/org-names";
 import { bestCatalogMatch } from "@/lib/job-title-match";
 import { canonicalOrg } from "@/lib/staff-db";
 import { normalizeRate, type PlanUnit, type PlanPerson, bandConflicts, conflictMessage, placeProblem } from "@/lib/staff-plan";
-import { HttpError, str, runtime, recordAiUsage } from "@/lib/server";
+import { HttpError, str, runtime, recordAiUsage, tokensOfResponse } from "@/lib/server";
 import { employeePay, freeStaffPlaces } from "@/lib/payroll";
 import { taxReduction } from "@/lib/employee-rights";
 import { parseProfile } from "@/lib/employee-profile";
@@ -1041,6 +1041,7 @@ export async function aiDocumentCheck(
       signal: AbortSignal.timeout(90000),
     });
     await recordAiUsage({
+      tokens: response.ok ? await tokensOfResponse(response) : undefined,
       feature: "doc-check",
       provider: "openai",
       user: "",

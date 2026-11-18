@@ -11,6 +11,7 @@ import { quiet } from "@/lib/quiet";
 import { planById } from "@/lib/plans";
 import { readMatching } from "@/lib/api-matching";
 import { summarizeAiUsage } from "@/lib/ai-cost";
+import { readAiPrices, writeAiPrices } from "@/lib/ai-guard";
 import { ok } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
@@ -87,44 +88,28 @@ export async function handle_admin_02(c: Pick<RouteCtx, "db" | "id" | "path" | "
         },
       });
     }
+  if (request.method === "POST" && path === "admin/ai-prices") {
+      const body = await jsonBody(request);
+      await writeAiPrices(db, body.prices);
+      return ok({ ok: true, prices: await readAiPrices(db) });
+  }
   if (request.method === "GET" && path === "admin/ai-usage") {
-      const days = Math.max(
-        1,
-        Math.min(
-          90,
-          Math.round(Number(requestUrl.searchParams.get("days"))) || 30,
-        ),
-      );
-      const since = new Date(Date.now() - days * 86400000)
-        .toISOString()
-        .slice(0, 10);
+      const days = Math.max(1, Math.min(90, Math.round(Number(requestUrl.searchParams.get("days"))) || 30));
+      const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      type UsageRows = { day: string; feature: string; provider: string; user_id: string; calls: number; chars_in: number; chars_out: number; errors: number; tokens_in?: number; tokens_out?: number; tokens_cached?: number; measured?: number };
       const rows = await db
-        .prepare(
-          "SELECT day,feature,provider,user_id,calls,chars_in,chars_out,errors FROM ai_usage WHERE day>=?",
-        )
+        .prepare("SELECT day,feature,provider,user_id,calls,chars_in,chars_out,errors,tokens_in,tokens_out,tokens_cached,measured FROM ai_usage WHERE day>=?")
         .bind(since)
-        .all<{
-          day: string;
-          feature: string;
-          provider: string;
-          user_id: string;
-          calls: number;
-          chars_in: number;
-          chars_out: number;
-          errors: number;
-        }>()
-        .catch(() => ({
-          results: [] as {
-            day: string;
-            feature: string;
-            provider: string;
-            user_id: string;
-            calls: number;
-            chars_in: number;
-            chars_out: number;
-            errors: number;
-          }[],
-        }));
+        .all<UsageRows>()
+        .catch(() =>
+          // Before the migration of the token columns the usage is an estimate only.
+          db
+            .prepare("SELECT day,feature,provider,user_id,calls,chars_in,chars_out,errors FROM ai_usage WHERE day>=?")
+            .bind(since)
+            .all<UsageRows>()
+            .catch(() => ({ results: [] as UsageRows[] })),
+        );
+      const prices = await readAiPrices(db);
       const names = new Map<string, string>();
       const userIds = [
         ...new Set(rows.results.map((r) => r.user_id).filter(Boolean)),
@@ -142,7 +127,7 @@ export async function handle_admin_02(c: Pick<RouteCtx, "db" | "id" | "path" | "
             a.id,
             `${a.name} (${a.role === "company" ? "şirkət" : a.role === "admin" ? "admin" : "namizəd"})`,
           );
-      return ok({ days, ...summarizeAiUsage(rows.results, names) });
+      return ok({ days, prices, ...summarizeAiUsage(rows.results, names, prices) });
     }
   if (request.method === "GET" && path === "admin/reviews") {
       const status = ["pending", "approved", "rejected"].includes(

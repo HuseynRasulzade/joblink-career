@@ -385,6 +385,28 @@ type AiLimits = {
   user?: string;
 };
 // One row per day, feature, provider and user; counts calls, text sizes and failures (never the text itself).
+// Tokens as the provider itself reports them (input, output and the part of the input served from the provider's cache).
+export type AiTokens = { input: number; output: number; cached: number };
+// Reads the `usage` block of an OpenAI «responses» answer or a DeepSeek / chat-completions answer; undefined when it is missing.
+export function tokensOfUsage(body: unknown): AiTokens | undefined {
+  const u = (body as { usage?: Record<string, unknown> } | null)?.usage;
+  if (!u || typeof u !== "object") return undefined;
+  const n = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.round(Number(v)) : 0);
+  const input = n(u.input_tokens ?? u.prompt_tokens);
+  const output = n(u.output_tokens ?? u.completion_tokens);
+  if (!input && !output) return undefined;
+  const details = (u.input_tokens_details ?? u.prompt_tokens_details) as { cached_tokens?: unknown } | undefined;
+  const cached = Math.min(input, n(u.prompt_cache_hit_tokens ?? details?.cached_tokens));
+  return { input, output, cached };
+}
+export async function tokensOfResponse(response: Response): Promise<AiTokens | undefined> {
+  try {
+    return tokensOfUsage(await response.clone().json());
+  } catch {
+    return undefined;
+  }
+}
+// One row per day, feature, provider and user; counts calls, text sizes, the provider-reported tokens (when known) and failures (never the text itself).
 export async function recordAiUsage(entry: {
   feature: string;
   provider: string;
@@ -392,24 +414,31 @@ export async function recordAiUsage(entry: {
   charsIn: number;
   charsOut: number;
   error: boolean;
+  tokens?: AiTokens;
 }) {
+  const day = new Date().toISOString().slice(0, 10);
+  const feature = entry.feature.slice(0, 40);
+  const user = entry.user.slice(0, 100);
   try {
     const db = await store();
-    await db
-      .prepare(
-        `INSERT INTO ai_usage(day,feature,provider,user_id,calls,chars_in,chars_out,errors) VALUES(?,?,?,?,1,?,?,?)
-        ON CONFLICT(day,feature,provider,user_id) DO UPDATE SET calls=calls+1,chars_in=chars_in+excluded.chars_in,chars_out=chars_out+excluded.chars_out,errors=errors+excluded.errors`,
-      )
-      .bind(
-        new Date().toISOString().slice(0, 10),
-        entry.feature.slice(0, 40),
-        entry.provider,
-        entry.user.slice(0, 100),
-        entry.charsIn,
-        entry.charsOut,
-        entry.error ? 1 : 0,
-      )
-      .run();
+    try {
+      await db
+        .prepare(
+          `INSERT INTO ai_usage(day,feature,provider,user_id,calls,chars_in,chars_out,errors,tokens_in,tokens_out,tokens_cached,measured) VALUES(?,?,?,?,1,?,?,?,?,?,?,?)
+          ON CONFLICT(day,feature,provider,user_id) DO UPDATE SET calls=calls+1,chars_in=chars_in+excluded.chars_in,chars_out=chars_out+excluded.chars_out,errors=errors+excluded.errors,tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,tokens_cached=tokens_cached+excluded.tokens_cached,measured=measured+excluded.measured`,
+        )
+        .bind(day, feature, entry.provider, user, entry.charsIn, entry.charsOut, entry.error ? 1 : 0, entry.tokens?.input || 0, entry.tokens?.output || 0, entry.tokens?.cached || 0, entry.tokens ? 1 : 0)
+        .run();
+    } catch {
+      // Before the migration of the token columns only the old counters are kept.
+      await db
+        .prepare(
+          `INSERT INTO ai_usage(day,feature,provider,user_id,calls,chars_in,chars_out,errors) VALUES(?,?,?,?,1,?,?,?)
+          ON CONFLICT(day,feature,provider,user_id) DO UPDATE SET calls=calls+1,chars_in=chars_in+excluded.chars_in,chars_out=chars_out+excluded.chars_out,errors=errors+excluded.errors`,
+        )
+        .bind(day, feature, entry.provider, user, entry.charsIn, entry.charsOut, entry.error ? 1 : 0)
+        .run();
+    }
   } catch {
     // Usage statistics are best-effort (before the migration they are simply not kept).
   }
@@ -459,12 +488,12 @@ async function assertUserTokens(user: string, feature: string) {
     // The counting table may not be migrated yet: the AI then works as before.
   }
 }
-async function addUserTokens(user: string, feature: string, chars: number) {
+async function addUserTokens(user: string, feature: string, chars: number, real?: AiTokens) {
   if (!user || runtime().BILLING_ENFORCED !== "1" || aiAreaOf(feature) !== "cv" || chars <= 0) return;
   try {
     const db = await store();
     const now = new Date();
-    const tokens = tokensOfChars(chars);
+    const tokens = real ? real.input + real.output : tokensOfChars(chars);
     await db.batch(
       [windowKey(now), monthPeriodKey(now)].map((period) =>
         db.prepare("INSERT INTO ai_token_usage(user_id,period,tokens) VALUES(?,?,?) ON CONFLICT(user_id,period) DO UPDATE SET tokens=tokens+excluded.tokens").bind(user, period, tokens),
@@ -518,7 +547,7 @@ export async function aiText(
       ? "deepseek"
       : "openai";
   if (provider === "openai" && !settings.OPENAI_API_KEY)
-    return aiTextRaw(instructions, input, json, limits);
+    return (await aiTextRaw(instructions, input, json, limits)).text;
   await assertAiBudget(limits.feature || "");
   await assertUserTokens(limits.user || "", limits.feature || "");
   const base = {
@@ -530,9 +559,10 @@ export async function aiText(
       Math.min(input.length, limits.maxInputChars || 30000),
   };
   try {
-    const text = await aiTextRaw(instructions, input, json, limits);
-    await recordAiUsage({ ...base, charsOut: text?.length || 0, error: false });
-    await addUserTokens(limits.user || "", limits.feature || "", base.charsIn + (text?.length || 0));
+    const { text, tokens } = await aiTextRaw(instructions, input, json, limits);
+    await recordAiUsage({ ...base, charsOut: text?.length || 0, error: false, tokens });
+    // The package allowance counts the real tokens when the provider reported them, the character estimate otherwise.
+    await addUserTokens(limits.user || "", limits.feature || "", base.charsIn + (text?.length || 0), tokens);
     await noteAiHealth("ok");
     return text;
   } catch (error) {
@@ -545,7 +575,7 @@ async function aiTextRaw(
   input: string,
   json: boolean,
   limits: AiLimits,
-) {
+): Promise<{ text: string | null; tokens?: AiTokens }> {
   const settings = runtime();
   const maxInputChars = Math.min(120000, limits.maxInputChars || 30000);
   const maxOutputTokens = Math.min(16000, limits.maxOutputTokens || 3500);
@@ -580,15 +610,16 @@ async function aiTextRaw(
     }
     const data = (await response.json()) as {
       choices?: { message?: { content?: string }; finish_reason?: string }[];
+      usage?: Record<string, unknown>;
     };
     if (data.choices?.[0]?.finish_reason === "length")
       throw new HttpError(
         502,
         "AI cavabı yarımçıq qaldı. CV ixtisar edilmədən yenidən analiz üçün bir daha sınayın.",
       );
-    return data.choices?.[0]?.message?.content || null;
+    return { text: data.choices?.[0]?.message?.content || null, tokens: tokensOfUsage(data) };
   }
-  if (!settings.OPENAI_API_KEY) return null;
+  if (!settings.OPENAI_API_KEY) return { text: null };
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -618,19 +649,22 @@ async function aiTextRaw(
     status?: string;
     incomplete_details?: { reason?: string };
     output?: { content?: { type: string; text?: string }[] }[];
+    usage?: Record<string, unknown>;
   };
   if (body.status === "incomplete")
     throw new HttpError(
       502,
       "AI cavabı yarımçıq qaldı. Bir az sonra yenidən sınayın.",
     );
-  return (
-    body.output
-      ?.flatMap((x) => x.content || [])
-      .filter((x) => x.type === "output_text")
-      .map((x) => x.text)
-      .join("\n") || null
-  );
+  return {
+    text:
+      body.output
+        ?.flatMap((x) => x.content || [])
+        .filter((x) => x.type === "output_text")
+        .map((x) => x.text)
+        .join("\n") || null,
+    tokens: tokensOfUsage(body),
+  };
 }
 
 // AI results are cached per user and exact input so the same CV gets the same

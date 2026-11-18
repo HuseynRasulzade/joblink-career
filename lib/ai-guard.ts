@@ -1,9 +1,10 @@
 // Keeping the AI affordable and visible: a monthly spending limit, and a record
 // of whether the provider is answering (an empty balance or a wrong key must be
 // seen by the admin, while people only get a plain explanation).
-import { estimateCost } from "./ai-cost.ts";
+import { mergePrices, rowCost } from "./ai-cost.ts";
 
 export const AI_BUDGET_KEY = "ai_budget";
+export const AI_PRICES_KEY = "ai_prices";
 export const AI_HEALTH_KEY = "ai_health";
 
 // The AI is used for two separate things and each has its own limit, its own spend and, if wished, its own model:
@@ -94,16 +95,32 @@ export async function readAreaBudget(db: Db, area: "cv" | "vacancy"): Promise<nu
 export const writeAreaBudget = (db: Db, area: "cv" | "vacancy", monthlyUsd: number) =>
   writeSetting(db, AI_AREA_BUDGET_KEY[area], { monthlyUsd: Math.max(0, Math.min(100000, Math.round(monthlyUsd * 100) / 100)) });
 
-// Estimated spend since the start of the month for each area, from the usage counters.
+type SpendRow = { feature: string; provider: string; calls: number; chars_in: number; chars_out: number; tokens_in: number; tokens_out: number; tokens_cached: number; measured: number };
+const asUsageRow = (r: SpendRow) => ({ day: "", feature: r.feature, provider: r.provider, user_id: "", errors: 0, calls: Number(r.calls) || 0, chars_in: Number(r.chars_in) || 0, chars_out: Number(r.chars_out) || 0, tokens_in: Number(r.tokens_in) || 0, tokens_out: Number(r.tokens_out) || 0, tokens_cached: Number(r.tokens_cached) || 0, measured: Number(r.measured) || 0 });
+// Before the token columns are migrated only the old counters exist.
+async function fallbackSpend(db: Db, start: string) {
+  return db
+    .prepare("SELECT feature,provider,SUM(calls) AS calls,SUM(chars_in) AS chars_in,SUM(chars_out) AS chars_out,0 AS tokens_in,0 AS tokens_out,0 AS tokens_cached,0 AS measured FROM ai_usage WHERE day>=? GROUP BY feature,provider")
+    .bind(start)
+    .all<SpendRow>()
+    .catch(() => ({ results: [] as SpendRow[] }));
+}
+// The provider prices of the admin over the defaults.
+export async function readAiPrices(db: Db) {
+  return mergePrices(await readSetting(db, AI_PRICES_KEY));
+}
+export const writeAiPrices = (db: Db, prices: unknown) => writeSetting(db, AI_PRICES_KEY, mergePrices(prices));
+// Spend since the start of the month for each area, from the usage counters (real token counts where the provider reported them).
 export async function monthSpendByArea(db: Db, now = new Date()): Promise<Record<AiArea, number>> {
   const start = `${now.toISOString().slice(0, 7)}-01`;
   const rows = await db
-    .prepare("SELECT feature,provider,SUM(chars_in) AS chars_in,SUM(chars_out) AS chars_out FROM ai_usage WHERE day>=? GROUP BY feature,provider")
+    .prepare("SELECT feature,provider,SUM(calls) AS calls,SUM(chars_in) AS chars_in,SUM(chars_out) AS chars_out,SUM(tokens_in) AS tokens_in,SUM(tokens_out) AS tokens_out,SUM(tokens_cached) AS tokens_cached,SUM(measured) AS measured FROM ai_usage WHERE day>=? GROUP BY feature,provider")
     .bind(start)
-    .all<{ feature: string; provider: string; chars_in: number; chars_out: number }>()
-    .catch(() => ({ results: [] as { feature: string; provider: string; chars_in: number; chars_out: number }[] }));
+    .all<SpendRow>()
+    .catch(() => fallbackSpend(db, start));
+  const prices = await readAiPrices(db);
   const out: Record<AiArea, number> = { cv: 0, vacancy: 0, other: 0 };
-  for (const r of rows.results) out[aiAreaOf(r.feature)] += estimateCost(r.provider, Number(r.chars_in) || 0, Number(r.chars_out) || 0);
+  for (const r of rows.results) out[aiAreaOf(r.feature)] += rowCost(asUsageRow(r), prices).cost;
   return out;
 }
 
@@ -111,9 +128,10 @@ export async function monthSpendByArea(db: Db, now = new Date()): Promise<Record
 export async function monthSpendUsd(db: Db, now = new Date()) {
   const start = `${now.toISOString().slice(0, 7)}-01`;
   const rows = await db
-    .prepare("SELECT provider,SUM(chars_in) AS chars_in,SUM(chars_out) AS chars_out FROM ai_usage WHERE day>=? GROUP BY provider")
+    .prepare("SELECT feature,provider,SUM(calls) AS calls,SUM(chars_in) AS chars_in,SUM(chars_out) AS chars_out,SUM(tokens_in) AS tokens_in,SUM(tokens_out) AS tokens_out,SUM(tokens_cached) AS tokens_cached,SUM(measured) AS measured FROM ai_usage WHERE day>=? GROUP BY feature,provider")
     .bind(start)
-    .all<{ provider: string; chars_in: number; chars_out: number }>()
-    .catch(() => ({ results: [] as { provider: string; chars_in: number; chars_out: number }[] }));
-  return rows.results.reduce((sum, r) => sum + estimateCost(r.provider, Number(r.chars_in) || 0, Number(r.chars_out) || 0), 0);
+    .all<SpendRow>()
+    .catch(() => fallbackSpend(db, start));
+  const prices = await readAiPrices(db);
+  return rows.results.reduce((sum, r) => sum + rowCost(asUsageRow(r), prices).cost, 0);
 }

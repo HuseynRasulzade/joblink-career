@@ -1,7 +1,7 @@
 // plan: handlers of the JobMatch API (moved out of route.ts; the order of the checks is the order of the calls in route.ts).
 import { grossCents } from "@/lib/vat";
 import { AUTO_APPLY_FLOOR, type Job, type Profile, autoApplyEligible, match, salaryFits } from "@/lib/model";
-import { HttpError, jsonBody, providerRefusal, recordAiUsage, runtime, str } from "@/lib/server";
+import { HttpError, jsonBody, providerRefusal, recordAiUsage, runtime, str, tokensOfResponse } from "@/lib/server";
 import type { Loose } from "@/lib/loose";
 import { MAX_CV_FILE_BYTES, MAX_CV_PAGES, MAX_CV_TEXT_CHARS, formatCvFileLimit } from "@/lib/cv-limits";
 import { UNIVERSAL_CV_PARSER_PROMPT, profileFieldsFromUniversalCv } from "@/lib/cv-parser";
@@ -466,6 +466,7 @@ export async function handle_plan_02(c: Pick<RouteCtx, "accountRole" | "activate
       );
     }
     await recordAiUsage({
+      tokens: await tokensOfResponse(response),
       feature: "cv-visual",
       provider: "openai",
       user: id,
