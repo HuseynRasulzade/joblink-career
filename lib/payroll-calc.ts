@@ -1,7 +1,7 @@
 // Monthly pay of an employee from the production calendar, the attendance marks, one-off additions and
 // deductions, with the taxes of lib/salary.ts. Pure functions for the payroll page, the pay slip and the tests.
 // Rules: Labor Code 154–176 (pay, additions, payment terms, pay slip, deductions), 164–166 (extra work), 169 (downtime).
-import { calculateFromGross, type Sector } from "./salary.ts";
+import { DEFAULT_TAX_PARAMS, calculateFromGross, minimumWageAt, type Sector } from "./salary.ts";
 import { deductionLimit, HOURS_PER_DAY, MEAN_MONTH_DAYS, type DeductionKind } from "./hr-calc.ts";
 import { daysOff } from "./calendar-az.ts";
 
@@ -111,6 +111,7 @@ export function cleanInputs(raw: unknown): PayInputs {
 }
 
 export type PayInput = {
+  taxDay?: string; // the day (or month, YYYY-MM) the pay is for: picks the tax and insurance rates in force then
   monthlySalary: number; // gross, AZN a month for the full norm
   statuses: DayStatus[]; // one per working day of the month, in order
   weekHours?: number; // 40, 36 or 24
@@ -211,7 +212,7 @@ export function computePay(input: PayInput): PayResult {
   add("allowance", "Əlavələr", extra.allowance, "Əmək M. 157");
   add("bonus", "Mükafat", extra.bonus, "Əmək M. 157.6");
   const gross = r2(lines.reduce((s, l) => s + l.amount, 0));
-  const taxed = calculateFromGross(gross, input.sector || "private", { reduction: pos(input.taxReduction) });
+  const taxed = calculateFromGross(gross, input.sector || "private", { reduction: pos(input.taxReduction), asOf: input.taxDay });
   // Other deductions: all together at most 20% of the pay due (50% for writs, 70% for alimony), art. 175–176.
   const present = extra.deductions.filter((d) => d.amount > 0);
   const share = present.length ? Math.max(...present.map((d) => deductionLimit(1, d.kind).maxShare)) : 0;
@@ -310,11 +311,12 @@ export function scheduleProblem(advanceDay: number, payDay: number): string {
 }
 
 // The minimum monthly wage for full-time work. The figure is set by the state and changes: check it every year.
-export const MINIMUM_WAGE = 400;
-export function payWarnings(input: { gross: number; weekHours: number; workedAll: boolean; hasIban: boolean; cashPay: boolean; advanceExcess: number; earned?: number; previousEarned?: number }): string[] {
+export const MINIMUM_WAGE = DEFAULT_TAX_PARAMS.minimumWage; // the built-in value; the live value (the admin can change it) is `minimumWageAt(day)`
+export function payWarnings(input: { asOf?: string; gross: number; weekHours: number; workedAll: boolean; hasIban: boolean; cashPay: boolean; advanceExcess: number; earned?: number; previousEarned?: number }): string[] {
   const out: string[] = [];
   const share = Math.min(1, Math.max(0.1, (input.weekHours || 40) / 40));
-  if (input.gross > 0 && input.workedAll && input.gross + 0.005 < MINIMUM_WAGE * share) out.push(`Aylıq maaş minimum əmək haqqından (${(MINIMUM_WAGE * share).toFixed(0)} AZN) aşağıdır: yoxlayın.`);
+  const minimum = minimumWageAt(input.asOf);
+  if (input.gross > 0 && input.workedAll && input.gross + 0.005 < minimum * share) out.push(`Aylıq maaş minimum əmək haqqından (${(minimum * share).toFixed(0)} AZN) aşağıdır: yoxlayın.`);
   if (!input.hasIban && !input.cashPay) out.push("Bank hesabı (IBAN) və ya kart yoxdur: bank sənədinə düşməyəcək.");
   if (input.advanceExcess > 0) out.push(`Avans hesablanmış məbləğdən ${input.advanceExcess.toFixed(2)} AZN artıqdır.`);
   // A big move against the last approved month is worth a second look (a mistyped bonus, a missed leave mark).

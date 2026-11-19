@@ -28,7 +28,8 @@ export async function handle_misc_02(c: Pick<RouteCtx, "accountRole" | "canAct" 
       1,
       Math.min(10_000, Math.round(Number(b.headcount)) || 1),
     );
-    const options = { reduction: Math.max(0, Math.min(5000, Number(b.reduction) || 0)) };
+    // `asOf` (YYYY-MM or YYYY-MM-DD) picks the rates in force on that day; today when empty.
+    const options = { reduction: Math.max(0, Math.min(5000, Number(b.reduction) || 0)), asOf: /^\d{4}-\d{2}(-\d{2})?$/.test(String(b.asOf || "")) ? String(b.asOf) : undefined };
     const result =
       b.from === "net"
         ? calculateFromNet(amount, sector, options)

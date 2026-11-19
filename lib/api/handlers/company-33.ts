@@ -8,7 +8,7 @@ import { forecast, monthSeries, planFactAlerts, targetAlerts } from "@/lib/hr-tr
 import { normalizeDocType } from "@/lib/employee-docs";
 import { paymentDate } from "@/lib/payroll-calc";
 import { summarize, unitActive } from "@/lib/staff-plan";
-import { MINIMUM_WAGE } from "@/lib/payroll-calc";
+import { minimumWageAt } from "@/lib/salary";
 import { loadPlanData, ok } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
@@ -227,7 +227,7 @@ export async function handle_company_33(c: Pick<RouteCtx, "AWAY_CODES" | "EMPLOY
     const expectedExits = horizon.map((month) => ({ month, count: leaving.filter((r) => (r.end_date || r.contract_end || "").slice(0, 7) === month && (r.end_date || r.contract_end) > today).length }));
     const fill = await db.prepare("SELECT AVG(julianday(substr(e.created,1,10))-julianday(substr(j.created,1,10))) AS days, COUNT(*) AS n FROM company_employees e JOIN jobs j ON j.id=e.job_id WHERE e.company_id=? AND e.source='hired'").bind(id).first<{ days: number | null; n: number }>().catch(() => null);
     const avgFillDays = fill && Number(fill.n) > 0 && fill.days !== null ? Math.max(0, Math.round(Number(fill.days))) : null;
-    const lowPay = plan.units.filter((u) => u.salaryMax > 0 && u.salaryMin > 0 && u.salaryMin < MINIMUM_WAGE).map((u) => ({ level: "amber" as const, text: `“${u.position || u.department}” ştat sətrinin minimum maaşı (${u.salaryMin} AZN) ölkə minimumundan (${MINIMUM_WAGE} AZN) aşağıdır.` }));
+    const lowPay = plan.units.filter((u) => u.salaryMax > 0 && u.salaryMin > 0 && u.salaryMin < minimumWageAt()).map((u) => ({ level: "amber" as const, text: `“${u.position || u.department}” ştat sətrinin minimum maaşı (${u.salaryMin} AZN) ölkə minimumundan (${minimumWageAt()} AZN) aşağıdır.` }));
     const units = new Map(fact.departments.map((d) => [d.department, d.units]));
     return ok({ series, forecast: forecast(series, 3, 6), planFact: planFact.map((r) => ({ ...r, units: units.get(r.department) || 0 })), alerts: [...targetAlerts(series, targets), ...planFactAlerts(planFact), ...lowPay], expectedExits, avgFillDays, planned: fact.total.planned, filled: fact.total.filled, targets, canPlan: canAct("staff") });
   }

@@ -61,7 +61,8 @@ import { revealProfile, sealProfile } from "@/lib/secure-profile";
 import { maskCard, normalizeProfile, parseProfile, type EmployeeProfile } from "@/lib/employee-profile";
 import { BATCH_STATUS, batchTotal, type BatchKind, buildTransfers, type TransferItem, type TransferSkip } from "@/lib/bank-transfer";
 import { taxBenefit, taxReduction, weeklyHours } from "@/lib/employee-rights";
-import { EMPTY_INPUTS, MINIMUM_WAGE, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, payWarnings, isVacationCode, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
+import { minimumWageAt } from "@/lib/salary";
+import { EMPTY_INPUTS, availableAdvance, cleanInputs, computePay, dayStatus, isInsuredCode, payWarnings, isVacationCode, paymentDate, scheduleProblem, vacationCalendarDays, type DayStatus, type PayInputs } from "@/lib/payroll-calc";
 
 import { STATUS_TEXT as TRIP_STATUS, settleTrip, tripDays } from "@/lib/trips";
 
@@ -163,6 +164,8 @@ import { handle_job_status_01 } from "@/lib/api/handlers/job-status-01";
 import { handle_admin_02 } from "@/lib/api/handlers/admin-02";
 import { handle_admin_03 } from "@/lib/api/handlers/admin-03";
 import { SITE_NOTICE_KEY, handle_admin_08, publicNotice } from "@/lib/api/handlers/admin-08";
+import { loadTaxParams } from "@/lib/tax-params-store";
+import { allTaxParams } from "@/lib/salary";
 import { handle_admin_04 } from "@/lib/api/handlers/admin-04";
 import { handle_admin_05 } from "@/lib/api/handlers/admin-05";
 import { handle_admin_06 } from "@/lib/api/handlers/admin-06";
@@ -178,6 +181,12 @@ async function route(request: Request) {
   const db = await store();
   // The AI limits of the packages (edited by the admin) are applied over the defaults, refreshed once a minute.
   await loadPackageOverrides(db);
+  // The tax and insurance parameter sets the admin added (each with its own start day).
+  await loadTaxParams(db);
+  // Every set of rates with its day: the calculators of the page pick the one in force for their day.
+  if (request.method === "GET" && path === "public/tax-params") {
+    return Response.json({ sets: allTaxParams() }, { headers: { "Cache-Control": "public, max-age=60" } });
+  }
   // The notice the administrator wrote for everybody (the panels show it as a strip).
   if (request.method === "GET" && path === "public/notice") {
     const row = await db.prepare("SELECT value FROM app_settings WHERE key=?").bind(SITE_NOTICE_KEY).first<{ value: string }>().catch(() => null);
@@ -1569,7 +1578,7 @@ async function route(request: Request) {
           insured = { averageMonthly: avg, calendarDays: insuredDays.calendarDays, percent: maternity ? maternityPercent : sickPercent, eligible, cap: minPension > 0 ? minPension * BENEFIT_CAP_FACTOR : null };
         }
       }
-      const base = { monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: (() => {
+      const base = { taxDay: `${monthRaw}-01`, monthlySalary: pay?.gross || 0, statuses, weekHours: week.hours, sector: (p.sector === "public" ? "public" : "private") as "public" | "private", taxReduction: reduction, inputs: (() => {
           const merged = withStanding(inputsOf, p.id);
           // The hours come only from Saat uçotu; the night supplement is a term of the contract, kept on the employee card.
           return { ...merged, bonus: Math.round((merged.bonus + branchBonusTotal) * 100) / 100, overtimeHours: hoursAuto.overtime, restDayHours: hoursAuto.restDay, nightHours: hoursAuto.night, nightPercent: Number(profile.nightPercent) || merged.nightPercent };
@@ -1610,7 +1619,7 @@ async function route(request: Request) {
         benefit: profile.taxBenefit ? taxBenefit(profile.taxBenefit)?.short || taxBenefit(profile.taxBenefit)?.label || "" : "",
         taxReduction: reduction,
         annual: annualInfo,
-        warnings: [...payWarnings({ gross: pay?.gross || 0, weekHours: week.hours, workedAll: result.workedDays + result.paidLeaveDays >= result.normDays && result.normDays > 0, hasIban: !!profile.iban || !!profile.cardNumber, cashPay: profile.payMethod === "cash", advanceExcess: result.advanceExcess, earned: result.gross, previousEarned: previousGross.get(p.id) }), ...(result.benefitCalendarDays > 0 && !inputsOf.benefitDoc ? ["Xəstəlik/analıq günləri var, e-bülleten nömrəsi yazılmayıb (əlavələr və tutulmalar pəncərəsində)."] : [])],
+        warnings: [...payWarnings({ asOf: `${monthRaw}-01`, gross: pay?.gross || 0, weekHours: week.hours, workedAll: result.workedDays + result.paidLeaveDays >= result.normDays && result.normDays > 0, hasIban: !!profile.iban || !!profile.cardNumber, cashPay: profile.payMethod === "cash", advanceExcess: result.advanceExcess, earned: result.gross, previousEarned: previousGross.get(p.id) }), ...(result.benefitCalendarDays > 0 && !inputsOf.benefitDoc ? ["Xəstəlik/analıq günləri var, e-bülleten nömrəsi yazılmayıb (əlavələr və tutulmalar pəncərəsində)."] : [])],
         inputs: inputsOf,
         branches: myLinks.map((l) => ({ branchId: l.branchId, name: branchName.get(l.branchId) || "", role: l.role, share: Math.round((branchShares.get(l.branchId) || 0) * 10000) / 10000 })),
         branchBonuses: branchBonus.map((x) => ({ branchId: x.branchId, label: x.label, amount: x.amount })),
@@ -1644,7 +1653,7 @@ async function route(request: Request) {
       status: run?.status || "draft",
       approvedBy: run?.approved_by_name || "",
       approvedAt: run?.approved_at || "",
-      settings: { advanceDay, payDay, dualThreshold: (settings?.dual_threshold || 0) / 100, benefitSick: sickPercent, benefitMaternity: maternityPercent, benefitMinPension: minPension, benefitPayer: benefitPayer, taxCheck: { year: monthRaw.slice(0, 4), confirmed: rateRows.find((r) => r.key === "tax_confirmed_year")?.value === monthRaw.slice(0, 4), by: rateRows.find((r) => r.key === "tax_confirmed_by")?.value || "", at: rateRows.find((r) => r.key === "tax_confirmed_at")?.value || "", params: [`Minimum aylıq əmək haqqı: ${MINIMUM_WAGE} AZN`, "Gəlir vergisi (qeyri-dövlət, qeyri-neft): 2500 AZN-dək 3% (əsas iş yerində gəlir 2500-dək olduqda əvvəlcə 200 AZN azad edilir, md. 102.1.6); 2500–8000: 75 + 10%; 8000-dən yuxarı: 625 + 14%", "Gəlir vergisi (dövlət və neft-qaz): 2500 AZN-dək 14% (gəlir 2500-dək olduqda əvvəlcə 200 AZN azad edilir, md. 102.1.6), yuxarısı 350 + 25%", "DSMF (özəl): işçi 200-dək 3%, yuxarısı 10%; işəgötürən 200-dək 22%, 200–8000 15%, yuxarısı 11%. Dövlət/neft-qaz: işçi 3%, işəgötürən 22%", "İcbari tibbi sığorta: hər tərəf 8000 AZN-dək 2%, yuxarısı 0,5%", "İşsizlik sığortası: işçi 0,5%, işəgötürən 0,5%"] }, problem: scheduleProblem(advanceDay, payDay) },
+      settings: { advanceDay, payDay, dualThreshold: (settings?.dual_threshold || 0) / 100, benefitSick: sickPercent, benefitMaternity: maternityPercent, benefitMinPension: minPension, benefitPayer: benefitPayer, taxCheck: { year: monthRaw.slice(0, 4), confirmed: rateRows.find((r) => r.key === "tax_confirmed_year")?.value === monthRaw.slice(0, 4), by: rateRows.find((r) => r.key === "tax_confirmed_by")?.value || "", at: rateRows.find((r) => r.key === "tax_confirmed_at")?.value || "", params: [`Minimum aylıq əmək haqqı: ${minimumWageAt(`${monthRaw}-01`)} AZN`, "Gəlir vergisi (qeyri-dövlət, qeyri-neft): 2500 AZN-dək 3% (əsas iş yerində gəlir 2500-dək olduqda əvvəlcə 200 AZN azad edilir, md. 102.1.6); 2500–8000: 75 + 10%; 8000-dən yuxarı: 625 + 14%", "Gəlir vergisi (dövlət və neft-qaz): 2500 AZN-dək 14% (gəlir 2500-dək olduqda əvvəlcə 200 AZN azad edilir, md. 102.1.6), yuxarısı 350 + 25%", "DSMF (özəl): işçi 200-dək 3%, yuxarısı 10%; işəgötürən 200-dək 22%, 200–8000 15%, yuxarısı 11%. Dövlət/neft-qaz: işçi 3%, işəgötürən 22%", "İcbari tibbi sığorta: hər tərəf 8000 AZN-dək 2%, yuxarısı 0,5%", "İşsizlik sığortası: işçi 0,5%, işəgötürən 0,5%"] }, problem: scheduleProblem(advanceDay, payDay) },
       schedule: { advanceDate, payDate },
       workingDays: working.length,
       rows,

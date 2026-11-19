@@ -2,7 +2,9 @@
 import { COMPANY_AI_PACKAGES, hrModulePriceFor } from "@/lib/ai-packages";
 import { mailConfigured } from "@/lib/mail";
 import { PLANS } from "@/lib/plans";
-import { jsonBody, runtime, str } from "@/lib/server";
+import { DEFAULT_TAX_PARAMS, allTaxParams, normalizeTaxParams, taxParamsFor } from "@/lib/salary";
+import { MAX_TAX_SETS, loadTaxParams, parseTaxSets, saveTaxParams, TAX_SETS_KEY } from "@/lib/tax-params-store";
+import { HttpError, jsonBody, runtime, str } from "@/lib/server";
 import { ok } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
 
@@ -60,6 +62,41 @@ export async function handle_admin_08(c: Pick<RouteCtx, "db" | "id" | "path" | "
       notice = null;
     }
     return ok({ notice });
+  }
+
+  // ---- tax and insurance parameter sets, each with the day it takes effect ----
+  if (path === "admin/tax-params" || path === "admin/tax-params/delete") {
+    const saved = async () => parseTaxSets((await safe(db.prepare("SELECT value FROM app_settings WHERE key=?").bind(TAX_SETS_KEY).first<{ value: string }>(), null))?.value);
+    if (request.method === "POST") {
+      const body = await jsonBody(request);
+      let list = await saved();
+      let action = "";
+      if (path === "admin/tax-params/delete") {
+        const day = str(body.effectiveFrom, 10);
+        if (day === DEFAULT_TAX_PARAMS.effectiveFrom && !list.some((p) => p.effectiveFrom === day)) throw new HttpError(400, "Daxili 2026 dəsti silinmir; onu eyni tarixli yeni dəstlə əvəz edə bilərsiniz.");
+        list = list.filter((p) => p.effectiveFrom !== day);
+        action = `delete ${day}`;
+      } else {
+        let set;
+        try {
+          set = normalizeTaxParams(body.set);
+        } catch (e) {
+          throw new HttpError(400, (e as Error).message);
+        }
+        if (!list.some((p) => p.effectiveFrom === set.effectiveFrom) && list.length >= MAX_TAX_SETS) throw new HttpError(400, "Çox dəst var: köhnələrini silin.");
+        list = [...list.filter((p) => p.effectiveFrom !== set.effectiveFrom), set];
+        action = `save ${set.effectiveFrom}`;
+      }
+      await saveTaxParams(db, list);
+      await db
+        .prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), id, "tax-params", "settings", TAX_SETS_KEY, JSON.stringify({ action }), new Date().toISOString())
+        .run()
+        .catch(() => undefined);
+    } else {
+      await loadTaxParams(db, true);
+    }
+    return ok({ sets: allTaxParams(), builtin: DEFAULT_TAX_PARAMS.effectiveFrom, active: taxParamsFor().effectiveFrom, today: new Date().toISOString().slice(0, 10) });
   }
 
   // ---- system health ----

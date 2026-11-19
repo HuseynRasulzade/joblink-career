@@ -215,6 +215,7 @@ const adminNav = [
   { id: "admin-matching", label: "Uyğunluq balı", icon: Sparkles },
   { id: "admin-calendar", label: "İstehsalat təqvimi", icon: CalendarDays },
   { id: "admin-laws", label: "Qanunvericilik", icon: Scale },
+  { id: "admin-tax-params", label: "Vergi və sığorta parametrləri", icon: Scale },
   { id: "admin-company-ai", label: "İşəgötürən AI paketləri", icon: CreditCard },
   { id: "admin-package-limits", label: "Paket qiymət və limitləri", icon: Gauge },
   { id: "admin-metrics", label: "Gəlir və göstəricilər", icon: BarChart3 },

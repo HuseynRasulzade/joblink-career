@@ -7,6 +7,7 @@ import "./landing.css";
 import "./ember.css";
 import "./ember-base.css";
 import RegisterServiceWorker from "./RegisterServiceWorker";
+import TaxParamsLoader from "./TaxParamsLoader";
 import ClientErrorReporter from "./ClientErrorReporter";
 
 const geistSans = Geist({
@@ -67,6 +68,7 @@ export default function RootLayout({
           </main>
         </noscript>
         <RegisterServiceWorker />
+        <TaxParamsLoader />
         <ClientErrorReporter />
       </body>
     </html>
