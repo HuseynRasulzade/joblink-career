@@ -1,12 +1,12 @@
 // admin: handlers of the JobMatch API (moved out of route.ts; the order of the checks is the order of the calls in route.ts).
 import { ADMIN_HEALTH_TEXT, budgetState, monthSpendByArea, monthSpendUsd, readAiBudget, readAiHealth, readAreaBudget, writeAiBudget, writeAreaBudget } from "@/lib/ai-guard";
 import { type FeedbackRow as AiFeedbackRow, feedbackCsv, summarizeFeedback } from "@/lib/ai-eval";
-import { COMPANY_AI_PACKAGES, monthKey, worstCaseNetShare } from "@/lib/ai-packages";
+import { COMPANY_AI_PACKAGES, HR_PRICES, hrUntilAfter, monthKey, worstCaseNetShare } from "@/lib/ai-packages";
 import { HttpError, aiText, bigJsonBody, jsonBody, str } from "@/lib/server";
 import { PLANS } from "@/lib/plans";
 import { rowCost } from "@/lib/ai-cost";
 import { readAiPrices } from "@/lib/ai-guard";
-import { CANDIDATE_LIMIT_KEYS, COMPANY_LIMIT_KEYS, TOKENS_PER_ANALYSIS, defaultCandidateLimits, defaultCompanyLimits, loadPackageOverrides, savePackageOverrides } from "@/lib/package-limits";
+import { CANDIDATE_LIMIT_KEYS, COMPANY_LIMIT_KEYS, DEFAULT_HR_PRICES, TOKENS_PER_ANALYSIS, defaultCandidateLimits, defaultCandidatePrice, defaultCompanyLimits, defaultCompanyPrice, loadPackageOverrides, savePackageOverrides } from "@/lib/package-limits";
 import { type Job } from "@/lib/model";
 import { PLATFORM_KINDS, type PlatformDay, RELIGIOUS_YEARS, knownReligiousYears, platformCalendar, yearCalendar } from "@/lib/calendar-az";
 import { companyDisplayName } from "@/lib/api-core";
@@ -94,19 +94,28 @@ export async function handle_admin_03(c: Pick<RouteCtx, "db" | "id" | "path" | "
           .prepare("INSERT INTO company_ai_plans(company_id,plan_id,started,updated) VALUES(?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET plan_id=excluded.plan_id,updated=excluded.updated")
           .bind(companyId, planId, at, at)
           .run();
+        // The admin can also give the HR (Kadr) module for a number of days (a trial or a gift), or take it back (hrDays: 0).
+        if (body.hrDays !== undefined) {
+          const days = Math.max(0, Math.min(366, Math.round(Number(body.hrDays) || 0)));
+          const cur = await db.prepare("SELECT hr_until FROM company_ai_plans WHERE company_id=?").bind(companyId).first<{ hr_until: string | null }>();
+          await db
+            .prepare("UPDATE company_ai_plans SET hr_module=?,hr_until=?,updated=? WHERE company_id=?")
+            .bind(days ? 1 : 0, days ? hrUntilAfter(days, cur?.hr_until, at) : null, at, companyId)
+            .run();
+        }
         await db
           .prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
-          .bind(crypto.randomUUID(), id, "company-ai-plan", "company", companyId, JSON.stringify({ planId }), at)
+          .bind(crypto.randomUUID(), id, "company-ai-plan", "company", companyId, JSON.stringify({ planId, hrDays: body.hrDays ?? null }), at)
           .run();
       }
       const rows = await db
         .prepare(
-          `SELECT a.id,a.name,a.created,COALESCE(p.plan_id,'free') AS plan_id,COALESCE(u.full_used,0) AS full_used,COALESCE(u.rank_used,0) AS rank_used
+          `SELECT a.id,a.name,a.created,COALESCE(p.plan_id,'free') AS plan_id,COALESCE(p.hr_module,0) AS hr_module,p.hr_until AS hr_until,COALESCE(u.full_used,0) AS full_used,COALESCE(u.rank_used,0) AS rank_used
            FROM accounts a LEFT JOIN company_ai_plans p ON p.company_id=a.id LEFT JOIN company_ai_usage u ON u.company_id=a.id AND u.month=?
            WHERE a.role='company' ORDER BY a.created DESC LIMIT 300`,
         )
         .bind(monthKey())
-        .all<{ id: string; name: string; created: string; plan_id: string; full_used: number; rank_used: number }>();
+        .all<{ id: string; name: string; created: string; plan_id: string; hr_module: number; hr_until: string | null; full_used: number; rank_used: number }>();
       return ok({
         month: monthKey(),
         packages: COMPANY_AI_PACKAGES.map((p) => ({ ...p, worstNetShare: Math.round(worstCaseNetShare(p) * 1000) / 1000 })),
@@ -117,7 +126,7 @@ export async function handle_admin_03(c: Pick<RouteCtx, "db" | "id" | "path" | "
   if (path === "admin/package-limits") {
       if (request.method === "POST") {
         const body = await jsonBody(request);
-        await savePackageOverrides(db, body.reset ? {} : { candidate: body.candidate, company: body.company });
+        await savePackageOverrides(db, body.reset ? {} : { candidate: body.candidate, company: body.company, prices: body.prices });
         await db
           .prepare("INSERT INTO admin_audit_logs(id,admin_id,action,entity_type,entity_id,details,created) VALUES(?,?,?,?,?,?,?)")
           .bind(crypto.randomUUID(), id, "package-limits", "settings", "package_limits", JSON.stringify({ reset: !!body.reset }), new Date().toISOString())
@@ -149,12 +158,14 @@ export async function handle_admin_03(c: Pick<RouteCtx, "db" | "id" | "path" | "
       return ok({
         blend: { usdPerMillion: Math.round(blendUsdPerM * 100) / 100, aznPerUsd: AZN_PER_USD, source: real ? "real" : "default", measuredTokens: tokens },
         tokensPerAnalysis: TOKENS_PER_ANALYSIS,
+        hr: { alone: HR_PRICES.alone, bundle: HR_PRICES.bundle, defaults: DEFAULT_HR_PRICES },
         candidate: PLANS.map((p) => {
           const worst = p.limits.aiTokensMonth * aznPerToken;
           return {
             id: p.id,
             name: p.name,
             priceAzn: p.priceAzn,
+            defaultPrice: defaultCandidatePrice(p.id),
             limits: Object.fromEntries(CANDIDATE_LIMIT_KEYS.map((k) => [k, p.limits[k]])),
             defaults: Object.fromEntries(CANDIDATE_LIMIT_KEYS.map((k) => [k, defaultCandidateLimits(p.id)?.[k]])),
             worstCostAzn: money(worst),
@@ -167,6 +178,7 @@ export async function handle_admin_03(c: Pick<RouteCtx, "db" | "id" | "path" | "
             id: p.id,
             name: p.name,
             priceAzn: p.priceAzn,
+            defaultPrice: defaultCompanyPrice(p.id),
             limits: Object.fromEntries(COMPANY_LIMIT_KEYS.map((k) => [k, p[k]])),
             defaults: Object.fromEntries(COMPANY_LIMIT_KEYS.map((k) => [k, defaultCompanyLimits(p.id)?.[k]])),
             worstCostAzn: money(worst),

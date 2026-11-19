@@ -3441,6 +3441,8 @@ const INVOICE_STATE: Record<string, string> = {
 type AiAccount = {
   month: string;
   hrModule: boolean;
+  hrUntil?: string | null;
+  hrExpired?: boolean;
   hrFree?: boolean;
   hrModulePriceAzn: number;
   hrModuleBundlePriceAzn?: number;
@@ -3523,9 +3525,18 @@ function AiAccountPanel({ notify, onChanged }: { notify: Notify; onChanged: () =
         {data.hrFree ? (
           <span className="demo-tag">Sizin şirkətdə pulsuzdur (platformaya erkən qoşulduğunuz üçün)</span>
         ) : data.hrModule ? (
-          <button type="button" className="secondary" disabled={busy} onClick={() => act("company/ai-plan/change", { planId: c.id, hrModule: false }, "Kadr paketi söndürülsün? Ödənilmiş məbləğ geri qaytarılmır, Kadr bölmələri bağlanır.")}>Kadr paketini söndür</button>
+          <div>
+            {data.hrUntil && <small className="muted" style={{ display: "block", marginBottom: 6 }}>{`Kadr modulu aktivdir, ${data.hrUntil.slice(0, 10)} tarixinədək.`}</small>}
+            <span className="admin-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" className="primary" disabled={busy} onClick={() => act("company/ai-plan/change", { planId: c.id, renewHr: true }, `Kadr modulu 30 gün uzadılsın? ${hrPriceFor(c.priceAzn)} ₼ + ${vat}% ƏDV = ${withVat(hrPriceFor(c.priceAzn)).toFixed(2)} ₼ hesab-faktura yaranacaq.`)}>30 gün uzat</button>
+              <button type="button" className="secondary" disabled={busy} onClick={() => act("company/ai-plan/change", { planId: c.id, hrModule: false }, "Kadr paketi söndürülsün? Ödənilmiş məbləğ geri qaytarılmır, Kadr bölmələri bağlanır.")}>Kadr paketini söndür</button>
+            </span>
+          </div>
         ) : (
-          <button type="button" className="primary" disabled={busy} onClick={() => act("company/ai-plan/change", { planId: c.id, hrModule: true }, `Kadr paketi seçilsin? ${data.hrModulePriceAzn} ₼ + ${vat}% ƏDV = ${withVat(data.hrModulePriceAzn).toFixed(2)} ₼ hesab-faktura yaranacaq.`)}>Kadr paketini aktivləşdir</button>
+          <div>
+            {data.hrExpired && <small className="muted" style={{ display: "block", marginBottom: 6 }}>{`Kadr modulunun müddəti bitib${data.hrUntil ? ` (${data.hrUntil.slice(0, 10)})` : ""}: Kadr bölmələri bağlıdır. Davam etmək üçün yenidən aktivləşdirin.`}</small>}
+            <button type="button" className="primary" disabled={busy} onClick={() => act("company/ai-plan/change", { planId: c.id, hrModule: true }, `Kadr paketi seçilsin (30 gün)? ${data.hrModulePriceAzn} ₼ + ${vat}% ƏDV = ${withVat(data.hrModulePriceAzn).toFixed(2)} ₼ hesab-faktura yaranacaq.`)}>{data.hrExpired ? "Kadr paketini yenidən aktivləşdir" : "Kadr paketini aktivləşdir"}</button>
+          </div>
         )}
       </div>
       <h4 style={{ margin: "16px 0 8px" }}>AI paketi (istəyə görə)</h4>

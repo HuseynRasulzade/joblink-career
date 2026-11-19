@@ -26,7 +26,7 @@ import { draftFromContent } from "@/lib/job-templates";
 
 import { quiet } from "@/lib/quiet";
 import { latestSubscription } from "@/lib/plan-service";
-import { addPeriod, azn as aznCents, planById } from "@/lib/plans";
+import { PLANS, addPeriod, azn as aznCents, planById } from "@/lib/plans";
 import { providerFor } from "@/lib/payments";
 import { buildServiceContract } from "@/lib/contracts";
 import { quota } from "@/lib/plan-service";
@@ -38,7 +38,7 @@ import { pickSigners, sameName } from "@/lib/order-signers";
 import { ORDER_KINDS, signedOrderNotice } from "@/lib/orders";
 
 import { loadPackageOverrides } from "@/lib/package-limits";
-import { HR_MODULE_API, hrModuleOpen, packageById, monthKey, quotaLeft } from "@/lib/ai-packages";
+import { COMPANY_AI_PACKAGES, HR_MODULE_API, HR_PRICES, hrModuleOpen, packageById, monthKey, quotaLeft } from "@/lib/ai-packages";
 
 import { statusAfter, type ApplicationFlowEvent } from "@/lib/application-flow";
 import { daysOff, monthDays, summarize as summarizeAttendance, type CalendarOverride } from "@/lib/calendar-az";
@@ -177,6 +177,17 @@ async function route(request: Request) {
   const db = await store();
   // The AI limits of the packages (edited by the admin) are applied over the defaults, refreshed once a minute.
   await loadPackageOverrides(db);
+  // What the public page shows: the packages as the admin has set them (prices, limits and texts).
+  if (request.method === "GET" && path === "public/packages") {
+    return Response.json(
+      {
+        candidate: PLANS.map((p) => ({ id: p.id, name: p.name, priceAzn: p.priceAzn, summary: p.summary, features: p.features })),
+        company: COMPANY_AI_PACKAGES.map((p) => ({ id: p.id, name: p.name, priceAzn: p.priceAzn, fullPerMonth: p.fullPerMonth, rankPerMonth: p.rankPerMonth })),
+        hr: { alone: HR_PRICES.alone, bundle: HR_PRICES.bundle },
+      },
+      { headers: { "Cache-Control": "public, max-age=60" } },
+    );
+  }
   // The three shared lists and the session are read together: each D1 round trip is slow.
   // The three shared lists change rarely (only the admin edits them): they are kept for half a minute in the instance, so most requests
   // do not read them from the database again. Any admin write drops the copy at once.
@@ -791,8 +802,8 @@ async function route(request: Request) {
   if (accountRole !== "company" && companyPaths.has(path))
     throw new HttpError(403, "Bu əməliyyat şirkət hesabı üçündür.");
   if (accountRole === "company" && HR_MODULE_API.test(path)) {
-    const row = await db.prepare("SELECT a.created,p.hr_module FROM accounts a LEFT JOIN company_ai_plans p ON p.company_id=a.id WHERE a.id=?").bind(id).first<{ created: string; hr_module: number | null }>().catch(() => null);
-    if (row && !hrModuleOpen(row.created, !!row.hr_module)) throw new HttpError(402, "Kadr modulu aktiv deyil. «Paketlər» bölməsindən 150 ₼ + ƏDV ilə aktivləşdirin.");
+    const row = await db.prepare("SELECT a.created,p.hr_module,p.hr_until FROM accounts a LEFT JOIN company_ai_plans p ON p.company_id=a.id WHERE a.id=?").bind(id).first<{ created: string; hr_module: number | null; hr_until: string | null }>().catch(() => null);
+    if (row && !hrModuleOpen(row.created, !!row.hr_module, row.hr_until)) throw new HttpError(402, "Kadr modulu aktiv deyil. «Paketlər» bölməsindən aktivləşdirin (və ya müddəti bitibsə uzadın).");
   }
     {
     const r = await handle_misc_02({ accountRole, canAct, db, id, memberGrants, memberRole, path, request, requirePermission, userId });

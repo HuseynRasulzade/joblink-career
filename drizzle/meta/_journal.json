@@ -911,6 +911,13 @@
       "when": 1802113200000,
       "tag": "0129_legal_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "6",
+      "when": 1802199600000,
+      "tag": "0130_hr_module_until",
+      "breakpoints": true
     }
   ]
 }

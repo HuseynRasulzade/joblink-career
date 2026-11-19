@@ -28,11 +28,22 @@ export const COST_SHARES = { vat: 0, payment: 0.025, running: 0.025 };
 export const HR_MODULE_PRICE_AZN = 150;
 // Used together with a paid AI package the HR module costs less: 120 AZN a month (without VAT) instead of 150.
 export const HR_MODULE_BUNDLE_PRICE_AZN = 120;
-export const hrModulePriceFor = (aiPackagePriceAzn: number) => (aiPackagePriceAzn > 0 ? HR_MODULE_BUNDLE_PRICE_AZN : HR_MODULE_PRICE_AZN);
+// The live prices (the admin can change them: see `lib/package-limits.ts`); the constants above are the defaults.
+export const HR_PRICES = { alone: HR_MODULE_PRICE_AZN, bundle: HR_MODULE_BUNDLE_PRICE_AZN };
+export const hrModulePriceFor = (aiPackagePriceAzn: number) => (aiPackagePriceAzn > 0 ? HR_PRICES.bundle : HR_PRICES.alone);
 // Companies registered before this day keep the HR (Kadr) module free; companies registered from this day on need it as a package.
 export const HR_MODULE_REQUIRED_FROM = "2026-11-19T00:00:00.000Z";
 // The HR module is open when it was bought, or when the company is older than the rule.
-export const hrModuleOpen = (companyCreated: string, hrModule: boolean) => hrModule || !companyCreated || companyCreated < HR_MODULE_REQUIRED_FROM;
+// A bought module lasts 30 days (`hr_until`, empty = no end, for older rows); the admin can also give it for any number of days.
+export const HR_MODULE_DAYS = 30;
+export const hrModuleOpen = (companyCreated: string, hrModule: boolean, hrUntil?: string | null, now: string = new Date().toISOString()) =>
+  (hrModule && (!hrUntil || hrUntil > now)) || !companyCreated || companyCreated < HR_MODULE_REQUIRED_FROM;
+// The end of the module after buying or renewing: from today, or from the current end when it is still in the future.
+export const hrUntilAfter = (days: number, currentUntil?: string | null, now: string = new Date().toISOString()) => {
+  const from = currentUntil && currentUntil > now ? new Date(currentUntil) : new Date(now);
+  from.setUTCDate(from.getUTCDate() + days);
+  return from.toISOString();
+};
 // API areas of the HR module (running the staff); recruitment areas stay open for everybody.
 export const HR_MODULE_API = /^company\/(payroll|employees|staff|shifts|trips|orders|hours|attendance|leave-schedule|offboarding|performance|training|assets|skill-matrix|succession|employee-tasks|employee-docs|doc-registry|ohs|plan-fact|branches|budget-plan|hr-expenses|one-on-ones|celebrations|policies)(\/|$)/;
 

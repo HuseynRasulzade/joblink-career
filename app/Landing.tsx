@@ -9,6 +9,7 @@ import SuperGross from "./SuperGross";
 import { localizeTree } from "./i18n";
 
 // The public page under the sign-in: what the platform is, for whom, how it starts, what it costs.
+type LivePackages = { candidate: { id: string; name: string; priceAzn: number; summary: string; features: string[] }[]; company: { id: string; name: string; priceAzn: number; fullPerMonth: number; rankPerMonth: number }[]; hr: { alone: number; bundle: number } };
 const QLINKS: { title: string; text: string; icon: typeof Briefcase; href?: string }[] = [
   { title: "Açıq vakansiyalar", text: "Şəhər, maaş və iş formatı üzrə axtarın", icon: Briefcase, href: "/jobs" },
   { title: "Maaş kalkulyatoru", text: "Gross ↔ net, məzuniyyət, ixtisar, haqq-hesab", icon: Calculator, href: "/kalkulyatorlar" },
@@ -170,6 +171,20 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
   const [audience, setAudience] = useState<"seeker" | "company">("seeker");
   const signup = () => onAuth("register");
   const root = useRef<HTMLDivElement>(null);
+  // The packages as the admin has set them (prices, limits, texts); until they arrive the defaults of the code are shown.
+  const [live, setLive] = useState<LivePackages | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/joblink/public/packages")
+      .then((r) => (r.ok ? (r.json() as Promise<LivePackages>) : null))
+      .then((d) => { if (alive && d) setLive(d); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+  const plans = PLANS.map((p) => { const l = live?.candidate.find((x) => x.id === p.id); return l ? { ...p, priceAzn: l.priceAzn, summary: l.summary, features: l.features } : p; });
+  const companyPlans = COMPANY_AI_PACKAGES.map((p) => { const l = live?.company.find((x) => x.id === p.id); return l ? { ...p, priceAzn: l.priceAzn, fullPerMonth: l.fullPerMonth, rankPerMonth: l.rankPerMonth } : p; });
+  const hrAlone = live?.hr.alone ?? HR_MODULE_PRICE_AZN;
+  const hrBundle = live?.hr.bundle ?? HR_MODULE_BUNDLE_PRICE_AZN;
   // Gentle reveal: blocks below the fold fade and slide in as they are scrolled to.
   useEffect(() => {
     const node = root.current;
@@ -263,7 +278,7 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
           <>
             <p className="landing-note">Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir (+18% ƏDV əlavə olunur). Paketsiz istifadə pulsuzdur.</p>
             <div className="landing-plans cols6">
-              {PLANS.map((p) => (
+              {plans.map((p) => (
                 <article className={`landing-card plan-card${p.id === "plus-7" ? " popular" : ""}`} key={p.id}>
                   {p.id === "plus-7" && <span className="plan-badge">Ən çox seçilən</span>}
                   <span className="landing-tag">{p.name}</span>
@@ -276,9 +291,9 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
           </>
         ) : (
           <>
-            <p className="landing-note">{`Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir (+18% ƏDV əlavə olunur). Kadr modulu (ştat, əmrlər, əmək haqqı, davamiyyət) AI paketi ilə birlikdə +${HR_MODULE_BUNDLE_PRICE_AZN} ₼ / ay, tək isə ${HR_MODULE_PRICE_AZN} ₼ / aydır; paket AI analizinin sayını müəyyən edir. Limit bitəndə əlavə analiz paketi almaq olar.`}</p>
+            <p className="landing-note">{`Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir (+18% ƏDV əlavə olunur). Kadr modulu (ştat, əmrlər, əmək haqqı, davamiyyət) AI paketi ilə birlikdə +${hrBundle} ₼ / ay, tək isə ${hrAlone} ₼ / aydır; paket AI analizinin sayını müəyyən edir. Limit bitəndə əlavə analiz paketi almaq olar.`}</p>
             <div className="landing-plans cols5">
-              {COMPANY_AI_PACKAGES.map((p) => (
+              {companyPlans.map((p) => (
                 <article className={`landing-card plan-card${p.id === "pro" ? " popular" : ""}`} key={p.id}>
                   {p.id === "pro" && <span className="plan-badge">Ən çox seçilən</span>}
                   <span className="landing-tag">{p.name}</span>
@@ -286,7 +301,7 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
                   <ul className="landing-checks">
                     <li><Check size={15} /><span><b>{p.fullPerMonth}</b> tam CV analizi / ay</span></li>
                     <li><Check size={15} /><span><b>{p.rankPerMonth}</b> AI reytinqi / ay</span></li>
-                    <li><Check size={15} />{p.priceAzn > 0 ? `Kadr modulu birlikdə: +${HR_MODULE_BUNDLE_PRICE_AZN} ₼ / ay + ƏDV` : `Kadr modulu tək: ${HR_MODULE_PRICE_AZN} ₼ / ay + ƏDV`}</li>
+                    <li><Check size={15} />{p.priceAzn > 0 ? `Kadr modulu birlikdə: +${hrBundle} ₼ / ay + ƏDV` : `Kadr modulu tək: ${hrAlone} ₼ / ay + ƏDV`}</li>
                     <li><Check size={15} />Əlavə analiz paketi alıla bilər</li>
                   </ul>
                   <button type="button" className={p.id === "pro" ? "primary" : "secondary"} onClick={signup}>{p.priceAzn ? "Paketi seç" : "Pulsuz başla"}</button>

@@ -35,3 +35,24 @@ test("the monthly analyses in the package text follow the token limit", () => {
   applyPackageOverrides(null);
   assert.ok(planById("premium").features.some((f) => f.includes("Ayda təxminən 550 tam AI CV analizi")));
 });
+
+test("admin prices are applied in place, bad prices are dropped, and they can be undone", async () => {
+  const { HR_PRICES, hrModulePriceFor } = await import("../lib/ai-packages.ts");
+  applyPackageOverrides({ prices: { candidate: { "plus-7": 9.5 }, company: { start: 59 }, hrAlone: 160, hrBundle: 130 } });
+  assert.equal(planById("plus-7").priceAzn, 9.5);
+  assert.equal(packageById("start").priceAzn, 59);
+  assert.equal(hrModulePriceFor(0), 160);
+  assert.equal(hrModulePriceFor(59), 130);
+  assert.equal(HR_PRICES.alone, 160);
+  // untouched packages keep their price
+  assert.equal(planById("plus-10").priceAzn, 10);
+  assert.equal(packageById("standard").priceAzn, 149);
+  applyPackageOverrides(null);
+  assert.equal(planById("plus-7").priceAzn, 7);
+  assert.equal(packageById("start").priceAzn, 49);
+  assert.equal(hrModulePriceFor(0), 150);
+  assert.equal(hrModulePriceFor(49), 120);
+  // a paid package cannot be made free, the free one stays free, unknown ids and bad numbers are dropped, the bundle price cannot beat the alone price
+  const ov = normalizeOverrides({ prices: { candidate: { "plus-7": 0, free: 0, nope: 5, basic: "x" }, company: { big: -3, pro: 250.456 }, hrAlone: 100, hrBundle: 120 } });
+  assert.deepEqual(ov, { prices: { candidate: { free: 0 }, company: { pro: 250.46 }, hrAlone: 100 } });
+});

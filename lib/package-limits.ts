@@ -2,14 +2,16 @@
 // what the admin saves is kept in `app_settings` ("package_limits") and is applied over the defaults, in place, so everything that
 // reads a package (limits, the packages page, the monthly quotas) sees the new numbers.
 import { PLANS, type PlanLimits } from "./plans.ts";
-import { COMPANY_AI_PACKAGES } from "./ai-packages.ts";
+import { COMPANY_AI_PACKAGES, HR_PRICES, HR_MODULE_BUNDLE_PRICE_AZN, HR_MODULE_PRICE_AZN } from "./ai-packages.ts";
 
 export const PACKAGE_LIMITS_KEY = "package_limits";
 export const CANDIDATE_LIMIT_KEYS = ["aiApplyPerDay", "cvAnalysesPerDay", "cvFixesPerDay", "aiTokensWindow", "aiTokensMonth"] as const;
 export const COMPANY_LIMIT_KEYS = ["fullPerMonth", "rankPerMonth"] as const;
 export type CandidateKey = (typeof CANDIDATE_LIMIT_KEYS)[number];
 export type CompanyKey = (typeof COMPANY_LIMIT_KEYS)[number];
-export type PackageOverrides = { candidate?: Record<string, Partial<Record<CandidateKey, number>>>; company?: Record<string, Partial<Record<CompanyKey, number>>> };
+export type PriceOverrides = { candidate?: Record<string, number>; company?: Record<string, number>; hrAlone?: number; hrBundle?: number };
+export type PackageOverrides = { candidate?: Record<string, Partial<Record<CandidateKey, number>>>; company?: Record<string, Partial<Record<CompanyKey, number>>>; prices?: PriceOverrides };
+export const MAX_PRICE = 100_000;
 
 export const MAX_LIMIT = 100_000_000;
 // One full CV analysis is about 3 800 tokens: the free and premium package texts quote the monthly number of analyses.
@@ -19,6 +21,14 @@ export const TOKENS_PER_ANALYSIS = 3800;
 const DEFAULT_LIMITS = new Map(PLANS.map((p) => [p.id as string, { ...p.limits } as PlanLimits]));
 const DEFAULT_TEXT = new Map(PLANS.map((p) => [p.id as string, { summary: p.summary, features: [...p.features] }]));
 const DEFAULT_COMPANY = new Map(COMPANY_AI_PACKAGES.map((p) => [p.id, { fullPerMonth: p.fullPerMonth, rankPerMonth: p.rankPerMonth }]));
+const DEFAULT_PRICE = new Map<string, number>([...PLANS.map((p) => ["c:" + p.id, p.priceAzn] as const), ...COMPANY_AI_PACKAGES.map((p) => ["b:" + p.id, p.priceAzn] as const)]);
+export const defaultCandidatePrice = (id: string) => DEFAULT_PRICE.get("c:" + id) ?? 0;
+export const defaultCompanyPrice = (id: string) => DEFAULT_PRICE.get("b:" + id) ?? 0;
+export const DEFAULT_HR_PRICES = { alone: HR_MODULE_PRICE_AZN, bundle: HR_MODULE_BUNDLE_PRICE_AZN };
+const cleanPrice = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= MAX_PRICE ? Math.round(n * 100) / 100 : null;
+};
 
 export const defaultCandidateLimits = (id: string) => DEFAULT_LIMITS.get(id) || null;
 export const defaultCompanyLimits = (id: string) => DEFAULT_COMPANY.get(id) || null;
@@ -50,6 +60,24 @@ export function normalizeOverrides(input: unknown): PackageOverrides {
     }
     if (Object.keys(row).length) (out.company ||= {})[id] = row;
   }
+  // Prices (without VAT). A paid package cannot be made free by a typo: 0 is allowed only for the free packages.
+  const pr = (src.prices || {}) as PriceOverrides;
+  const prices: PriceOverrides = {};
+  for (const [id, v] of Object.entries(pr.candidate || {})) {
+    const n = cleanPrice(v);
+    if (n !== null && DEFAULT_PRICE.has("c:" + id) && (n > 0 || defaultCandidatePrice(id) === 0)) (prices.candidate ||= {})[id] = n;
+  }
+  for (const [id, v] of Object.entries(pr.company || {})) {
+    const n = cleanPrice(v);
+    if (n !== null && DEFAULT_PRICE.has("b:" + id) && (n > 0 || defaultCompanyPrice(id) === 0)) (prices.company ||= {})[id] = n;
+  }
+  const alone = cleanPrice(pr.hrAlone);
+  const bundle = cleanPrice(pr.hrBundle);
+  if (alone !== null && alone > 0) prices.hrAlone = alone;
+  if (bundle !== null && bundle > 0) prices.hrBundle = bundle;
+  // beside a paid AI package the HR module cannot cost more than alone
+  if ((prices.hrBundle ?? DEFAULT_HR_PRICES.bundle) > (prices.hrAlone ?? DEFAULT_HR_PRICES.alone)) delete prices.hrBundle;
+  if (Object.keys(prices).length) out.prices = prices;
   return out;
 }
 
@@ -74,11 +102,15 @@ export function applyPackageOverrides(stored: unknown) {
   const ov = normalizeOverrides(stored);
   for (const plan of PLANS) {
     Object.assign(plan.limits, DEFAULT_LIMITS.get(plan.id), ov.candidate?.[plan.id] || {});
+    plan.priceAzn = ov.prices?.candidate?.[plan.id] ?? defaultCandidatePrice(plan.id);
     refreshText(plan.id);
   }
   for (const pkg of COMPANY_AI_PACKAGES) {
     Object.assign(pkg, DEFAULT_COMPANY.get(pkg.id), ov.company?.[pkg.id] || {});
+    pkg.priceAzn = ov.prices?.company?.[pkg.id] ?? defaultCompanyPrice(pkg.id);
   }
+  HR_PRICES.alone = ov.prices?.hrAlone ?? DEFAULT_HR_PRICES.alone;
+  HR_PRICES.bundle = ov.prices?.hrBundle ?? DEFAULT_HR_PRICES.bundle;
   return ov;
 }
 

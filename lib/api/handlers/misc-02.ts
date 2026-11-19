@@ -70,12 +70,12 @@ export async function handle_misc_02(c: Pick<RouteCtx, "accountRole" | "canAct" 
       ),
     ).length;
     const hrRow = await db
-      .prepare("SELECT a.created,p.hr_module FROM accounts a LEFT JOIN company_ai_plans p ON p.company_id=a.id WHERE a.id=?")
+      .prepare("SELECT a.created,p.hr_module,p.hr_until FROM accounts a LEFT JOIN company_ai_plans p ON p.company_id=a.id WHERE a.id=?")
       .bind(id)
-      .first<{ created: string; hr_module: number | null }>()
+      .first<{ created: string; hr_module: number | null; hr_until: string | null }>()
       .catch(() => null);
     return ok({
-      hrModuleActive: hrRow ? hrModuleOpen(hrRow.created, !!hrRow.hr_module) : true,
+      hrModuleActive: hrRow ? hrModuleOpen(hrRow.created, !!hrRow.hr_module, hrRow.hr_until) : true,
       company,
       role: memberRole,
       roleLabel: roleLabel(memberRole),
