@@ -49,6 +49,9 @@ const worker = {
   },
   // Daily cron: sends the weekly and monthly summaries that are due and interview reminders.
   async scheduled(controller: { cron?: string }, env: Env, ctx: ExecutionContext) {
+    // The last run is written down: the admin's health page shows it.
+    const ranAt = new Date().toISOString();
+    ctx.waitUntil(env.DB.prepare("INSERT INTO app_settings(key,value,updated) VALUES('cron_last',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated=excluded.updated").bind(JSON.stringify({ cron: controller?.cron || "" }), ranAt).run().catch(() => undefined));
     // The half-hourly run only closes interviews whose time is over (and asks for their opinion); the daily run does everything.
     if (controller?.cron === "*/30 * * * *") {
       ctx.waitUntil(completePastInterviews(env.DB));

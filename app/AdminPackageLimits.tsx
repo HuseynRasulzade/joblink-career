@@ -99,7 +99,7 @@ export default function AdminPackageLimits({ api, notify }: { api: (path: string
           (1 milyon token ≈ <b>${data.blend.usdPerMillion}</b>, 1 USD = {data.blend.aznPerUsd} ₼; ölçülən token: {data.blend.measuredTokens.toLocaleString("az-AZ")}). «Qalan marja» ödəniş haqqı (2,5%) çıxıldıqdan sonrakıdır; 15%-dən aşağı qırmızı görünür.
         </p>
         <h4>Kadr modulu qiyməti (ƏDV-siz, ayda)</h4>
-        <div className="form-grid">
+        <div className="form-grid admin-notice-form">
           <label>AI paketi ilə birlikdə (₼)<input className="admin-input" type="number" min={1} step="0.01" value={prices.hrBundle} onChange={(e) => setPrices({ ...prices, hrBundle: Math.max(0, Number(e.target.value) || 0) })} /><small className="muted">ilkin: {data.hr.defaults.bundle} ₼ (tək qiymətdən çox ola bilməz)</small></label>
           <label>Tək, AI-siz (₼)<input className="admin-input" type="number" min={1} step="0.01" value={prices.hrAlone} onChange={(e) => setPrices({ ...prices, hrAlone: Math.max(0, Number(e.target.value) || 0) })} /><small className="muted">ilkin: {data.hr.defaults.alone} ₼</small></label>
         </div>

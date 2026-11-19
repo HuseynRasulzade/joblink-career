@@ -585,3 +585,13 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 @media (max-width: 1500px) { .gate-card-line { display: none; } }
 @media (max-width: 1240px) { .gate-card-bars, .gate-card-donut { display: none; } }
 @media (prefers-reduced-motion: reduce) { .gc-bars rect { transform: none; animation: none; } .gc-seg, .gc-area, .gc-dot { opacity: 1; animation: none; } .gc-stroke { stroke-dashoffset: 0; animation: none; } }
+
+/* administrator's notice above the panels */
+.site-notice { display: flex; align-items: center; gap: 10px; padding: 9px clamp(14px, 3vw, 36px); background: #e8f4f1; color: #14444c; border-bottom: 1px solid #cfe5e0; font-size: 14px; font-weight: 600; }
+.site-notice.warning { background: #fff1dc; color: #7a4a05; border-bottom-color: #f0d3a1; }
+.site-notice span { flex: 1; }
+.site-notice button { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: inherit; background: transparent; border: 0; cursor: pointer; }
+.site-notice button:hover { background: rgba(0, 0, 0, 0.08); }
+
+.admin-notice-form label { display: grid; gap: 6px; font-weight: 600; }
+.admin-notice-form input, .admin-notice-form select { width: 100%; }

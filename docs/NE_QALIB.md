@@ -602,3 +602,13 @@ Yüklənən mətnlər: Vergi Məcəlləsi (2026-cı il dəyişiklikləri ilə), 
 - Operator: standart olaraq **Digilabs**, əlaqə **info@digilabs.az**. Hüquqi ad, VÖEN və ünvan Cloudflare-də `PLATFORM_LEGAL_NAME`, `PLATFORM_VOEN`, `PLATFORM_ADDRESS`, `PLATFORM_EMAIL` ilə yazılanda mətndə görünür.
 - Mətn işçi layihəsidir: açıqlamadan əvvəl hüquqşünas yoxlamalıdır.
 - **Hero qrafikləri:** fiqurun ətrafında 3 «Nümunə» qrafiki (`app/GateCharts.tsx`): müraciət dinamikası (sütun, böyüyərək açılır), namizəd mərhələləri (dairəvi), işə qəbul sürəti (xətt, çəkilərək açılır). Bunlar bəzəkdir, canlı məlumat deyil və kartlarda «Nümunə» yazılıb; dar ekranda gizlədilir, hərəkət azaldılmışsa animasiyasızdır.
+
+## 60. Admin: qiymətlər, Kadr müddəti, bildiriş, sağlamlıq, göstəricilər (2026-11-19)
+
+- **Qiymətlər:** «Paket qiymət və limitləri» səhifəsində namizəd və işəgötürən paketlərinin qiyməti, həmçinin Kadr modulunun iki qiyməti (AI ilə birlikdə / tək) dəyişir. Dəyişiklik paket səhifələrinə, yeni hesab-fakturalara və giriş səhifəsinə (`/api/joblink/public/packages`) dərhal keçir; kəsilmiş hesab-fakturalar dəyişmir. Ödənişli paket 0 ₼ edilə bilməz; birlikdə qiymət təkdən çox ola bilməz; ƏDV (18%) qanunla sabitdir və buradan dəyişmir.
+- **Kadr müddəti:** alınmış Kadr modulu 30 gün işləyir (`company_ai_plans.hr_until`, miqrasiya 0130), sonra 402 ilə bağlanır; şirkət «Paketlər»dən yenidən aktivləşdirir və ya «30 gün uzat» edir (müddət bitməmişsə mövcud sondan əlavə olunur). 19 noyabr 2026-dan əvvəl yaranmış şirkətlərdə modul pulsuz qalır. `hr_until` boş olan köhnə sətirlər müddətsizdir.
+- **Əl ilə paket / sınaq:** «İşəgötürən AI paketləri»ndə hər şirkət üçün Kadr modulu +30 / +90 gün verilir və ya geri alınır (hədiyyə, sınaq); audit jurnalına yazılır.
+- **Hamıya bildiriş:** «Sistem sağlamlığı» səhifəsində mətn, auditoriya (hamı / işəgötürən / namizəd), görünüş və son tarix yazılır; panellərin yuxarısında zolaq kimi görünür, istifadəçi bağlaya bilər.
+- **Sistem sağlamlığı:** baza, miqrasiyalar, e-poçt, AI, Turnstile, ödəniş, şifrələmə açarı, cron (son işləmə `app_settings.cron_last`), 24 saatın xətaları, vaxtı keçmiş hesab-fakturalar.
+- **Gəlir və göstəricilər:** son 30 gün qeydiyyat qrafiki, şirkət və namizəd hunisi (qeydiyyat → vakansiya/profil → paket → ödəniş), aylıq hesab-fakturalar, aylıq təxmini gəlir. Gəlir **təxmini**dir (aktiv paketlərin ƏDV-siz cəmi), ödəniş inteqrasiyası olmadığı üçün həqiqi daxilolma deyil.
+- **Edilmədi:** hesaba «görüntü rejimi» (admin istifadəçi kimi baxır): təhlükəsizlik və məxfilik baxımından ayrıca dizayn və hüquqi əsas (məxfilik siyasətində admin baxışı) tələb edir.

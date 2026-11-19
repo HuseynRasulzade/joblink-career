@@ -39,6 +39,7 @@ import {
   FileCheck2,
   CreditCard,
   Gauge,
+  Activity,
   Scale,
   Tags,
   Award,
@@ -137,6 +138,7 @@ import AtsAnalytics from "./AtsAnalytics";
 import GuidePage from "./GuidePage";
 import Landing from "./Landing";
 import GateCharts from "./GateCharts";
+import SiteNotice from "./SiteNotice";
 import GateNav from "./GateNav";
 import ThemeToggle from "./ThemeToggle";
 import FirstSteps from "./FirstSteps";
@@ -214,7 +216,9 @@ const adminNav = [
   { id: "admin-calendar", label: "İstehsalat təqvimi", icon: CalendarDays },
   { id: "admin-laws", label: "Qanunvericilik", icon: Scale },
   { id: "admin-company-ai", label: "İşəgötürən AI paketləri", icon: CreditCard },
-  { id: "admin-package-limits", label: "Paket AI limitləri", icon: Gauge },
+  { id: "admin-package-limits", label: "Paket qiymət və limitləri", icon: Gauge },
+  { id: "admin-metrics", label: "Gəlir və göstəricilər", icon: BarChart3 },
+  { id: "admin-health", label: "Sistem sağlamlığı", icon: Activity },
   { id: "admin-support", label: "Sorğular və mesajlar", icon: Inbox },
   { id: "admin-guide", label: "İstifadə təlimatı", icon: BookOpen },
   { id: "admin-reviews", label: "Şirkət rəyləri", icon: UserCheck },
@@ -2061,6 +2065,7 @@ export default function Joblink() {
         </div>
       </aside>
       <div className="main-shell">
+        {signedIn && <SiteNotice role={accountRole ?? ""} />}
         <header className="topbar">
           <button type="button" className="menu-toggle" aria-label="Menyu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
             <Menu size={20} />

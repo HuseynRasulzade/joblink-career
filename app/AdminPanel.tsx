@@ -37,6 +37,7 @@ import AdminEducation from "./AdminEducation";
 import AdminMatching from "./AdminMatching";
 import AdminProductionCalendar from "./AdminProductionCalendar";
 import AdminCompanyPackages from "./AdminCompanyPackages";
+import { AdminHealth, AdminMetrics } from "./AdminInsights";
 import AdminPackageLimits from "./AdminPackageLimits";
 import AdminLegislation from "./AdminLegislation";
 import type { JobTitleDefinition } from "@/lib/job-title-catalog";
@@ -517,7 +518,9 @@ export default function AdminPanel({
                     page === "admin-calendar" ? "İstehsalat təqvimi" :
                     page === "admin-laws" ? "Qanunvericilik" :
                     page === "admin-company-ai" ? "İşəgötürən AI paketləri" :
-                    page === "admin-package-limits" ? "Paket AI limitləri" :
+                    page === "admin-package-limits" ? "Paketlərin qiymətləri və limitləri" :
+                    page === "admin-metrics" ? "Gəlir və göstəricilər" :
+                    page === "admin-health" ? "Sistem sağlamlığı və bildiriş" :
                     page === "admin-education" ? "Təhsil kataloqu" :
                     page === "admin-relations" ? "İzləmə və bloklar" :
                   page === "admin-system" ? "Sistem və audit" : "Platforma icmalı"}
@@ -781,6 +784,8 @@ export default function AdminPanel({
       {page === "admin-laws" && <AdminLegislation api={api} notify={notify} />}
       {page === "admin-company-ai" && <AdminCompanyPackages api={api} notify={notify} />}
       {page === "admin-package-limits" && <AdminPackageLimits api={api} notify={notify} />}
+      {page === "admin-metrics" && <AdminMetrics api={api} notify={notify} />}
+      {page === "admin-health" && <AdminHealth api={api} notify={notify} />}
 
       {page === "admin-relations" && (
         <>

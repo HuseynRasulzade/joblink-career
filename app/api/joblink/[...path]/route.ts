@@ -162,6 +162,7 @@ import { handle_hr_07 } from "@/lib/api/handlers/hr-07";
 import { handle_job_status_01 } from "@/lib/api/handlers/job-status-01";
 import { handle_admin_02 } from "@/lib/api/handlers/admin-02";
 import { handle_admin_03 } from "@/lib/api/handlers/admin-03";
+import { SITE_NOTICE_KEY, handle_admin_08, publicNotice } from "@/lib/api/handlers/admin-08";
 import { handle_admin_04 } from "@/lib/api/handlers/admin-04";
 import { handle_admin_05 } from "@/lib/api/handlers/admin-05";
 import { handle_admin_06 } from "@/lib/api/handlers/admin-06";
@@ -177,6 +178,11 @@ async function route(request: Request) {
   const db = await store();
   // The AI limits of the packages (edited by the admin) are applied over the defaults, refreshed once a minute.
   await loadPackageOverrides(db);
+  // The notice the administrator wrote for everybody (the panels show it as a strip).
+  if (request.method === "GET" && path === "public/notice") {
+    const row = await db.prepare("SELECT value FROM app_settings WHERE key=?").bind(SITE_NOTICE_KEY).first<{ value: string }>().catch(() => null);
+    return Response.json({ notice: publicNotice(row?.value) }, { headers: { "Cache-Control": "no-store" } });
+  }
   // What the public page shows: the packages as the admin has set them (prices, limits and texts).
   if (request.method === "GET" && path === "public/packages") {
     return Response.json(
@@ -646,6 +652,10 @@ async function route(request: Request) {
     // original employer's name in the text.
         {
       const r = await handle_admin_03({ db, id, path, request, requestUrl });
+      if (r) return r;
+    }
+        {
+      const r = await handle_admin_08({ db, id, path, request });
       if (r) return r;
     }
     // ---- Catalog upkeep: translation check, duplicates, merging, imports, backup ----
