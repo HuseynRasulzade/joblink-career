@@ -412,42 +412,42 @@ Namizəd, işəgötürən (həm «İşə qəbul», həm «Kadr» rejimi) və adm
 - **Yan menyu qrupları** (`lib/nav-groups.ts`): işəgötürən menyusu «Vakansiya və namizəd», «Qiymətləndirmə», «İşçilər və əmrlər», «Plan və əmək haqqı», «Şirkət» başlıqları altında açılıb-bağlanır; bağlanan başlıqlar brauzerdə yadda qalır, cari səhifənin qrupu həmişə açıq qalır. Yerlidə yoxlandı (bağlama, yadda qalma, Ctrl+K ilə keçid). Namizəd və admin menyusu dəyişməyib.
 - Hələ edilməyib: vakansiya kartlarında şirkət loqosu, illüstrasiyalar, qaranlıq rejim (bax: bölmə 40).
 
-## 40. NƏ QALIB (2026-11-18-ə olan vəziyyət)
+## 40. NƏ QALIB (yenilənib: 2026-11-19)
 
-Bu bölmə bütün işlərin sonunda qalan hər şeyin dürüst siyahısıdır. «Kod» = mən icra edə bilərəm; «Qərar/xarici» = sənin qərarın, hüquqi, müqavilə, açar və ya real istifadəçi lazımdır.
+«Kod» = mən icra edə bilərəm; «Qərar/xarici» = sizin qərarınız, hüquqi baxış, müqavilə, açar və ya real istifadəçi lazımdır.
 
 ### A. Açıq buraxılışdan əvvəl məcburi (qərar / xarici)
-1. **Test məlumatlarının silinməsi:** ZZ-TEST hesabları (`zz-test-company-…`, `zz-test-candidate-…`, `zz-test-reg-…`), `sirket-demo`, test qeydləri, yerli demo hesablar. Canlı mühitdən silinməlidir.
-2. **Real e-poçt çatdırılması:** bütün e-poçt xatırlatmaları (əmr, namizəd qəbulu, dayanmış namizəd, hesabat cədvəli, təsdiq) kodda var, lakin canlıda göndərici provayder və açar yoxlanmayıb. Yerlidə yalnız gələn qutusu bildirişləri təsdiqlənib.
-3. **Ödəniş:** ABB müqaviləsi və açarları; avtomatik yenilənən ödəniş.
-4. **Öz domen:** indi `workers.dev` ünvanıdır; domen, e-poçt göndərən ünvanı, təqdimatlardakı ünvan.
-5. **Hüquqçu baxışı:** istifadə şərtləri və məxfilik siyasəti, namizəd məlumatının saxlama müddəti və silinməsi, qara siyahı (yalnız hüquqi baxışdan sonra), əmək haqqı hesablamalarının məsuliyyət qeydi.
-6. **Təhlükəsizlik siyasəti:** CSP hələ yalnız hesabat rejimindədir (məcburi rejimə keçmək üçün əvvəl canlıda pozuntu hesabatlarına baxmaq lazımdır); admin üçün 2 addımlı giriş məcburi deyil.
-7. **Real istifadəçi pilotu:** sistemdə real istifadəçi yoxdur; analitika (işə qəbul müddəti və s.) real məlumatla mənalı olacaq.
-8. **CI-də e2e testləri üçün gizli açarlar** (repoda qurulmayıb).
+1. **E-poçt açarları:** Cloudflare-də `EMAIL_FROM` və `RESEND_API_KEY` yoxdur: canlıda qeydiyyatda e-poçt kodu addımı atlanır, bildirişlər göndərilmir (admin «Sistem sağlamlığı» səhifəsi bunu qırmızı göstərir).
+2. **Test məlumatlarının silinməsi:** canlıdakı `ZZ-TEST` hesabları, `sirket-demo` və test qeydləri açıqlamadan əvvəl silinməlidir.
+3. **Hüquqşünas baxışı:** istifadə şərtləri və məxfilik siyasəti işçi layihədir; `PLATFORM_LEGAL_NAME`, `PLATFORM_VOEN`, `PLATFORM_ADDRESS` dəyişənləri yazılmalıdır (indi yalnız Digilabs və info@digilabs.az).
+4. **Onlayn ödəniş:** bank müqaviləsi və açarlar yoxdur; paketlər dəstək və admin vasitəsilə aktivləşir.
+5. **Öz domen:** sayt hələ `workers.dev` ünvanındadır.
+6. **Əlaqə məlumatı:** telefon (+994 55 478 25 81) və e-poçt təsdiqlənib; iş saatları (B.e.–Cümə 09:00–18:00) mənim təxminimdir, təsdiqlənməlidir.
+7. **Təhlükəsizlik:** CSP hələ yalnız hesabat rejimindədir; admin üçün 2 addımlı giriş məcburi deyil.
+8. **OpenAI açarı:** şəkil/PDF təqvim və qanun oxuması canlıda yoxlanmayıb; real token xərci tutulması yalnız vahid testlə yoxlanıb.
+9. **Real istifadəçi pilotu:** sistemdə real istifadəçi yoxdur; giriş səhifəsindəki qrafiklər «Nümunə»dir. CI-də e2e üçün gizli açarlar repoda qurulmayıb.
+10. **Hero şəklinin hüququ:** dəbilqəli fiqur üçüncü tərəf istinadından hazırlanıb; reklamda istifadədən əvvəl hüquqları yoxlanmalıdır (mənbə şəkil kiçikdir, orijinal yaxşı olardı).
 
-### B. Məhsul (kod, istəsən icra edim)
-**İşə qəbul:** istedad bazasına toplu «hələ maraqlısınızmı» e-poçtu (razılıq qaydası ilə); namizəd məlumatının saxlama müddəti və silmə aləti; Meet/Zoom linkinin avtomatik yaranması (açar tələb edir); vakansiya üzrə ayrıca SLA həddi; skorkartlı müsahibələrin kriteriya üzrə ümumi hesabatı.
-**Kadr və əmək haqqı:** növbəti ilə plan köçürmə sihirbazı; çoxlu işçi üçün toplu «maaş artımı dalğası» təsdiqi; vəzifəyə görə fərqli adaptasiya siyahısı (departament üzrə var); kütləvi dəyişikliyin filial və maaşı əhatə etməsi (indi yalnız departament, şöbə, iş rejimi); kalkulyator nəticəsinin hesabda saxlanması/paylaşılması; müvəqqəti icazə bitəndə xatırlatma; əmək haqqında aylar üzrə illik yekunun sürətləndirilməsi (indi canlıda ~5 s).
-**Davamiyyət və komanda:** terminal/cihaz inteqrasiyası; gecikmədən intizam əmrinə birbaşa keçid; icazələrin tarixçəsi ekranı.
-**Hesab-faktura:** çap/PDF forması (satıcının hüquqi rekvizitləri və ƏDV qaydası lazımdır — yazmamışam).
-**Dəstək:** təcililik dərəcəsi və cavab müddəti (SLA).
-**Sürət:** canlıda D1 sorğusu ~100 ms-dir; `dashboard` (14 sorğu), `today` (17), `hr-trends` (11), `hr-report` (10) səhifələri hələ ardıcıl sorğularla işləyir; `employees` artıq paralel edilib (~1,3 s → ~0,8 s).
+### B. Hazırdır (bu sessiyada)
+Admin qiymət və limit redaktoru (Kadr 150/120 daxil), Kadr modulunun 30 günlük müddəti və uzadılması, admin tərəfindən Kadr hədiyyəsi/sınağı, hamıya bildiriş zolağı, sistem sağlamlığı, gəlir və huni göstəriciləri, tarixlə vergi/sığorta parametrləri (bax bölmə 60), giriş səhifəsinin yeni dizaynı, tünd tema, hüquqi mətnlər (3 dil), tanıtım videosu (səssiz) və Seedance paketi.
 
-### C. Vizual
-Vakansiya kartlarında şirkət loqosu (loqo yüklənir, amma namizədə göstərmək üçün ictimai loqo ünvanı və vakansiya məlumatına əlavə lazımdır); illüstrasiyalar və boş vəziyyət şəkilləri; qaranlıq rejim (köhnə CSS-də çoxlu sərt rəng var, ayrıca iş tələb edir); marka serif şriftinin başlıqlarda istifadəsi.
+### C. Qalan məhsul işləri (kod, «hə» desəniz icra edərəm)
+- **Hesaba «görüntü rejimi»** (admin istifadəçi kimi baxır): təhlükəsizlik, audit və məxfilik siyasətində hüquqi əsas tələb edir, ayrıca dizayn lazımdır.
+- **Kadr «Mini» qiyməti** (10 işçiyə qədər) və pulsuz sınaq: qiymət qərarı sizindir.
+- **Video:** səsləndirmə (diktor və ya ElevenLabs), 9:16 və 15 saniyəlik variantlar.
+- **Parametr dəstinə hələ bağlanmayanlar:** məzuniyyət/müavinət hədləri (25× minimum pensiya), ezamiyyət normaları.
+- Əvvəlki siyahıdan qalan məhsul işləri: istedad bazasına toplu e-poçt, saxlama müddəti və silmə aləti, Meet/Zoom linki, növbəti ilə plan köçürmə sihirbazı, toplu maaş artımı təsdiqi, terminal inteqrasiyası, hesab-faktura çap/PDF forması (satıcının hüquqi rekvizitləri lazımdır), dəstək SLA-sı, bəzi səhifələrin sorğularını paralel etmək.
 
-### D. Yoxlama boşluqları (kodda var, amma brauzerdə təsdiqlənməyib)
-- Rəhbər və auditor üçün yeni işçilər, əmrlər, əmək haqqı səhifələri tam gəzilməyib (API 403-lər yoxlanıb).
-- Rus və ingilis dilində yeni səhifələr (açılış, təlimat) brauzerdə yoxlanmayıb; təlimat yalnız Azərbaycan dilindədir.
-- Kalkulyatordan əmr: pəncərə açılır, lakin imza axını sonuna qədər sınanmayıb. «Vakansiya aç» düyməsi HR köməkçisini açır, elanın tam yaradılması sınanmayıb.
-- Bölmə 32-dəki üç «yoxdur» iddiası təsdiqlənməyib (bölmə 36-ya bax): davamiyyətdə intizama keçid, komanda icazə tarixçəsi, dəstək SLA-sı.
-- Təqdimat slaydları brauzerdə vizual yoxlanmayıb (linklər şəxsidir).
+### D. Yoxlama boşluqları
+- Tünd temanın kontrastı 67 menyu səhifəsinin ilkin görünüşündə və açılan 5 pəncərədə (işçi əlavə et, müsahibə dəvəti, vakansiya yarat, yeni əmr, təsdiq təfərrüatı) ölçülüb, qrafik rəngləri və hover halları ölçülməyib; açıq tema yenidən yoxlanmayıb.
+- Giriş səhifəsi EN və RU gözlə baxılıb (qiymət mətnləri tərcümə olundu); RU başlıq uzun olduğu üçün fiqura yaxındır.
+- Video 73 saniyənin hamısı tam izlənməyib; kadrlar yoxlanıb.
+- Rəhbər və auditor üçün yeni işçilər/əmrlər/əmək haqqı səhifələri tam gəzilməyib; kalkulyatordan əmr axını sona qədər sınanmayıb.
+- Təqdimat slaydları brauzerdə vizual yoxlanmayıb.
 
 ### E. Təqdimatlar və təlimat
-- İnvestor təqdimatında sarı qutulu yerlər doldurulmalıdır: tarix, bazar rəqəmləri (mənbə ilə), rəqiblərin adları, nəticələr (real istifadəçi, pilot, ödəyən müştəri), komanda, tələb olunan məbləğ və istifadə bölgüsü, əlaqə.
-- Reklam təqdimatında sayt ünvanı və əlaqə məlumatı yenilənməlidir; qiymətlər təqdimatdan əvvəl təsdiqlənməlidir.
-- «İstifadə təlimatı» (`lib/guide-content.ts`) əl ilə yazılır: yeni funksiya əlavə edəndə təlimatı da yeniləmək lazımdır (menyu adı dəyişsə test pozulur).
+- İnvestor təqdimatında sarı qutulu yerlər doldurulmalıdır (tarix, bazar rəqəmləri mənbə ilə, rəqiblər, nəticələr, komanda, tələb olunan məbləğ).
+- «İstifadə təlimatı» (`lib/guide-content.ts`) əl ilə yazılır: yeni funksiya əlavə edəndə yenilənməlidir (menyu adı dəyişsə test pozulur). Yeni admin səhifələri üçün təlimat bəndi hələ yazılmayıb.
 
 ## 41. Rol/icazə tarixçəsi və kalkulyator nəticəsini saxlamaq
 

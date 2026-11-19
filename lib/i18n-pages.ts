@@ -2145,7 +2145,8 @@ son 12 həftə|last 12 weeks|последние 12 недель
 gündən-günə sürətlənir|speeding up day by day|ускоряется день за днём
 Sütun qrafiki|Bar chart|Столбчатая диаграмма
 Dairəvi qrafik|Donut chart|Круговая диаграмма
-Xətt qrafiki|Line chart|Линейный график`;
+Xətt qrafiki|Line chart|Линейный график
+₼ / ay + 18% ƏDV|₼ / month + 18% VAT|₼ / мес. + 18% НДС`;
 const EN: Record<string, string> = {};
 const RU: Record<string, string> = {};
 for (const line of LINES.split("\n")) {
@@ -2159,6 +2160,9 @@ export const RU_PAGES = RU;
 // Sentences with numbers or names inside: (pattern, English, Russian). $1.. are the captured parts; a captured part is translated by `part` when it is a known phrase.
 type Rule = [RegExp, string, string];
 const RULES: Rule[] = [
+  [/^Aylıq ödəniş, qiymətlər ƏDV-siz göstərilir \(\+18% ƏDV əlavə olunur\)\. Kadr modulu \(ştat, əmrlər, əmək haqqı, davamiyyət\) AI paketi ilə birlikdə \+([\d.]+) ₼ \/ ay, tək isə ([\d.]+) ₼ \/ aydır; paket AI analizinin sayını müəyyən edir\. Limit bitəndə əlavə analiz paketi almaq olar\.$/, "Monthly payment; prices are shown without VAT (+18% VAT is added). The HR module (staffing, orders, payroll, attendance) is +$1 ₼ / month together with an AI package, or $2 ₼ / month alone; the package sets the number of AI analyses. When the limit runs out you can buy an extra analysis pack.", "Ежемесячная оплата; цены указаны без НДС (добавляется 18% НДС). Кадровый модуль (штат, приказы, зарплата, посещаемость) вместе с ИИ-пакетом +$1 ₼ / мес., отдельно $2 ₼ / мес.; пакет определяет число ИИ-анализов. Когда лимит закончится, можно купить дополнительный пакет анализов."],
+  [/^Kadr modulu birlikdə: \+([\d.]+) ₼ \/ ay \+ ƏDV$/, "HR module together: +$1 ₼ / month + VAT", "Кадровый модуль вместе: +$1 ₼ / мес. + НДС"],
+  [/^Kadr modulu tək: ([\d.]+) ₼ \/ ay \+ ƏDV$/, "HR module alone: $1 ₼ / month + VAT", "Кадровый модуль отдельно: $1 ₼ / мес. + НДС"],
   [/^(.+): təfərrüatlara bax$/, "$1: see details", "$1: смотреть детали"],
   [/^(.+): (\d+) işçi$/, "$1: $2 employees", "$1: $2 сотр."],
   [/^(.+): (\d+) boş yer$/, "$1: $2 vacant places", "$1: $2 свободных мест"],
