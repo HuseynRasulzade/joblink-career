@@ -1,0 +1,18 @@
+[Unit]
+Description=JobMatch sayt
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=jobmatch
+Group=jobmatch
+WorkingDirectory=/opt/jobmatch/app
+ExecStart=/bin/bash /opt/jobmatch/app/deploy/vps/start.sh
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+Environment=NODE_OPTIONS=--max-old-space-size=384
+MemoryHigh=800M
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+[Unit]
+Description=JobMatch ehtiyat nüsxə
+
+[Service]
+Type=oneshot
+User=jobmatch
+ExecStart=/opt/jobmatch/bin/backup.sh

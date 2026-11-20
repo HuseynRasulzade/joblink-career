@@ -1,0 +1,8 @@
+[Unit]
+Description=JobMatch gündəlik işlər (xatırlatmalar, xülasələr)
+After=jobmatch.service
+
+[Service]
+Type=oneshot
+User=jobmatch
+ExecStart=/opt/jobmatch/bin/cron.sh "0 5 * * *"

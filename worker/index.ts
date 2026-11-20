@@ -23,6 +23,7 @@ interface Env {
   EMAIL?: Mailer;
   EMAIL_FROM?: string;
   RESEND_API_KEY?: string;
+  CRON_SECRET?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -64,7 +65,24 @@ const worker = {
 async function respond(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
 
+  // Self-hosted (VPS) runs have no Cloudflare cron: a system timer calls this route instead. It stays closed (404) unless CRON_SECRET is set.
+  if (url.pathname === "/__cron" && request.method === "POST") {
+    const secret = env.CRON_SECRET || "";
+    const given = request.headers.get("x-cron-secret") || "";
+    let diff = secret.length < 16 || given.length !== secret.length ? 1 : 0;
+    for (let i = 0; i < given.length && i < secret.length; i++) diff |= given.charCodeAt(i) ^ secret.charCodeAt(i);
+    if (diff !== 0) return new Response("Not found", { status: 404 });
+    await worker.scheduled({ cron: url.searchParams.get("cron") || "" }, env, ctx);
+    return new Response("ok");
+  }
+
   if (url.pathname === "/_vinext/image") {
+    // Without the Cloudflare Images binding (self-hosted run) the browser is sent to the original file.
+    if (!env.IMAGES) {
+      const src = url.searchParams.get("url") || "";
+      if (!src.startsWith("/") || src.startsWith("//") || src.includes("\\")) return new Response("Bad request", { status: 400 });
+      return Response.redirect(new URL(src, request.url).toString(), 302);
+    }
     const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
     return handleImageOptimization(request, {
       fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),

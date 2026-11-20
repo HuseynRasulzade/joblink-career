@@ -1,0 +1,8 @@
+[Unit]
+Description=JobMatch 30 dəqiqəlik işlər (müsahibələrin bağlanması)
+After=jobmatch.service
+
+[Service]
+Type=oneshot
+User=jobmatch
+ExecStart=/opt/jobmatch/bin/cron.sh "*/30 * * * *"
