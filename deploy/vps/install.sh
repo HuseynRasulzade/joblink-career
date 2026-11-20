@@ -101,6 +101,9 @@ if [ "$DOMAIN" != "-" ]; then
   fi
 fi
 
+echo "[+] Sürətləndirmə (statik fayllar, HTTP/2, açılış səhifəsi keşi)"
+bash "$HERE/speedup.sh" || echo "Sürətləndirmə tətbiq olunmadı; sonra: bash /opt/jobmatch/app/deploy/vps/speedup.sh"
+
 echo
 echo "Hazırdır. Yoxlama:  systemctl status jobmatch   |   curl -I http://127.0.0.1:8787/"
 echo "Gizli ayarlar: $ENVF   (dəyişəndən sonra: systemctl restart jobmatch)"

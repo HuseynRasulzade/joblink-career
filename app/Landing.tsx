@@ -6,7 +6,8 @@ import { ArrowUpRight, Briefcase, Building2, CalendarClock, Calculator, ChartNoA
 import { CONTACT } from "@/lib/contact";
 import { calculateFromGross, calculateFromNet, type Sector } from "@/lib/salary";
 import SuperGross from "./SuperGross";
-import { localizeTree } from "./i18n";
+import { useLocalize } from "./localize-context";
+import BrandMark from "./BrandMark";
 
 // The public page under the sign-in: what the platform is, for whom, how it starts, what it costs.
 type LivePackages = { candidate: { id: string; name: string; priceAzn: number; summary: string; features: string[] }[]; company: { id: string; name: string; priceAzn: number; fullPerMonth: number; rankPerMonth: number }[]; hr: { alone: number; bundle: number } };
@@ -168,6 +169,7 @@ function JobsShowcase({ onAuth }: { onAuth: (want: "login" | "register") => void
 }
 
 export default function Landing({ onAuth }: { onAuth: (want: "login" | "register") => void }) {
+  const localize = useLocalize();
   const [audience, setAudience] = useState<"seeker" | "company">("seeker");
   const signup = () => onAuth("register");
   const root = useRef<HTMLDivElement>(null);
@@ -200,7 +202,7 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
     }, 400);
     return () => { window.clearTimeout(timer); io.disconnect(); };
   }, []);
-  return localizeTree(
+  return localize(
     <div className="landing" ref={root}>
       <section className="landing-block" id="kecidler">
         <header className="landing-head">
@@ -369,7 +371,7 @@ export default function Landing({ onAuth }: { onAuth: (want: "login" | "register
       </section>
 
       <footer className="landing-footer">
-        <span>jobmatch<span className="star">✳</span></span>
+        <span><BrandMark />jobmatch</span>
         <span className="landing-footer-links"><a href="/jobs">Vakansiyalar</a> · <a href="/kalkulyatorlar">Kalkulyatorlar</a> · <a href="#qiymetler">Qiymətlər</a> · <a href={`tel:${CONTACT.phoneHref}`}>{CONTACT.phone}</a> · <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></span>
         <span><a href="/terms" target="_blank" rel="noreferrer">İstifadə şərtləri</a> · <a href="/privacy" target="_blank" rel="noreferrer">Məxfilik siyasəti</a></span>
         <p className="landing-credit">JobMatch by <b>Digilabs</b></p>

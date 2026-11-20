@@ -6,6 +6,7 @@ import "./polish.css";
 import "./landing.css";
 import "./ember.css";
 import "./ember-base.css";
+import "./public-light.css";
 import RegisterServiceWorker from "./RegisterServiceWorker";
 import TaxParamsLoader from "./TaxParamsLoader";
 import ClientErrorReporter from "./ClientErrorReporter";
@@ -49,7 +50,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="az">
+    <html lang="az" suppressHydrationWarning>
+      <head>
+        {/* The white look is chosen with the sun/moon button; it is applied before the first paint so the page does not flash dark. */}
+        <script dangerouslySetInnerHTML={{ __html: 'try{if(localStorage.getItem("joblink-theme")==="light")document.documentElement.dataset.pub="light"}catch(e){}' }} />
+      </head>
       <body
         className={`${fraunces.variable} ${inter.variable} ${geistSans.variable} ${geistMono.variable} antialiased`}
       >

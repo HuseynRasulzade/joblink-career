@@ -10,5 +10,7 @@ tar -xzf "$RELEASE" -C "$APP"
 (cd "$APP" && npm install --omit=dev --no-audit --no-fund 2>&1 | tail -1)
 chown -R jobmatch:jobmatch /opt/jobmatch
 systemctl start jobmatch
+# Köhnə açılış səhifəsi keşdə qalmasın (yeni fayl adları ilə uyğunsuz olar)
+rm -rf /var/cache/nginx/jobmatch/* 2>/dev/null || true
 sleep 15
 curl -fsS -o /dev/null -w "Sayt cavabı: %{http_code}\n" http://127.0.0.1:8787/

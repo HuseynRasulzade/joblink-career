@@ -129,7 +129,8 @@ import {
   VerifiedBadge,
   type CompanyInfo,
 } from "./CompaniesPage";
-import { HrCalculators } from "./HrCalculators";
+import dynamic from "next/dynamic";
+
 import WorkplacePage from "./WorkplacePage";
 import PayrollPage from "./PayrollPage";
 import { HIDDEN_HR_PAGES, HR_MODULES, inModule, moduleOf, type HrModule } from "@/lib/hr-modules";
@@ -137,7 +138,6 @@ import PeopleOps from "./PeopleOps";
 import AtsAnalytics from "./AtsAnalytics";
 import GuidePage from "./GuidePage";
 import Landing from "./Landing";
-import GateCharts from "./GateCharts";
 import SiteNotice from "./SiteNotice";
 import GateNav from "./GateNav";
 import ThemeToggle from "./ThemeToggle";
@@ -151,6 +151,15 @@ import { FitReviewPanel } from "./FitReview";
 import PackagesPage from "./PackagesPage";
 import { localizeTree, observeTranslations, setSiteLanguage } from "./i18n";
 import { googleMapsSearchUrl } from "@/lib/maps";
+import BrandMark from "./BrandMark";
+import GateHero from "./GateHero";
+import { LocalizeContext } from "./localize-context";
+
+// The calculators (about 1 MB) open only on their own pages, so they load when that page is opened.
+const HrCalculators = dynamic(() => import("./HrCalculators").then((module) => module.HrCalculators), {
+  ssr: false,
+  loading: () => <p className="muted">Yüklənir…</p>,
+});
 const candidateNav = [
   { id: "overview", label: "Ümumi baxış", icon: LayoutDashboard },
   { id: "jobs", label: "Vakansiyalar", icon: BriefcaseBusiness },
@@ -1220,6 +1229,17 @@ export default function Joblink() {
       setBusy(false);
     }
   }
+  // The public page sends «Daxil ol» / «Qeydiyyat» here as /panel?auth=login|register.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const want = params.get("auth");
+    if (want !== "login" && want !== "register") return;
+    params.delete("auth");
+    const rest = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`);
+    openAuth(want);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // A shared link /?job=ID&src=linkedin opens that vacancy and remembers the channel until the candidate applies.
   const deepLinked = useRef("");
   useEffect(() => {
@@ -1776,7 +1796,7 @@ export default function Joblink() {
     return (
       <div className="auth-gate auth-gate-loading" role="status">
         <div className="auth-gate-brand">
-          jobmatch<span>✳</span>
+          <BrandMark />jobmatch
         </div>
         <p>Hesabınız yoxlanılır…</p>
       </div>
@@ -1785,7 +1805,7 @@ export default function Joblink() {
 
   if (!signedIn) {
     return localizeTree(
-      <>
+      <LocalizeContext.Provider value={(node) => localizeTree(node)}>
       <GateNav
         onAuth={openAuth}
         language={language}
@@ -1795,80 +1815,7 @@ export default function Joblink() {
         }}
       />
       <main className="auth-gate" id="top">
-        <section className="auth-gate-intro">
-          <div className="auth-gate-brand">
-            jobmatch<span>✳</span>
-          </div>
-          <div className="gate-stage" aria-hidden="true">
-            <div className="gate-glow" />
-            <div className="gate-orbit one" />
-            <div className="gate-orbit two" />
-            <div className="gate-figure">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/hero-figure.webp?v=2" alt="" width={560} height={792} decoding="async" fetchPriority="high" />
-              <span className="gate-ring" />
-              <span className="gate-badge">✳</span>
-            </div>
-            <div className="gate-card gate-card-match">
-              <small>Nümunə: uyğunluq balı</small>
-              <strong>87%</strong>
-              <div className="gate-bar"><i style={{ width: "87%" }} /></div>
-              <div className="gate-tags"><span>Bacarıq 92%</span><span>Təcrübə 85%</span></div>
-            </div>
-            <div className="gate-card gate-card-flow">
-              <small>Müraciətin yolu</small>
-              <ol>
-                <li className="done">Müraciət</li>
-                <li className="done">Müsahibə</li>
-                <li>Təklif</li>
-              </ol>
-            </div>
-            <GateCharts />
-            <div className="gate-card gate-card-facts">
-              <div><strong>3</strong><small>istifadəçi növü</small></div>
-              <div><strong>13</strong><small>kalkulyator</small></div>
-              <div><strong>3</strong><small>dil</small></div>
-            </div>
-          </div>
-          <div className="gate-copy">
-            <span className="gate-pill">AI ilə işləyir</span>
-            <h1>
-              DOĞRU İNSAN
-              <br />
-              DOĞRU İMKAN
-            </h1>
-            <p className="gate-sub">
-              İş axtaran kimi CV-nizi inkişaf etdirin və uyğun vakansiyaları
-              tapın. Şirkət kimi vakansiyalar yaradın və uyğun namizədləri idarə
-              edin.
-            </p>
-            <form className="gate-search" action="/jobs" method="get" role="search">
-              <Search size={18} aria-hidden="true" />
-              <input name="q" type="search" placeholder="Vəzifə, şirkət və ya bacarıq" aria-label="Vakansiya axtarışı" maxLength={80} />
-              <select name="city" aria-label="Şəhər" defaultValue="">
-                <option value="">Bütün şəhərlər</option>
-                <option value="Bakı">Bakı</option>
-                <option value="Sumqayıt">Sumqayıt</option>
-                <option value="Gəncə">Gəncə</option>
-                <option value="Uzaqdan">Uzaqdan</option>
-              </select>
-              <button type="submit" className="gate-search-go">Axtar</button>
-            </form>
-            <div className="gate-chips" aria-label="Sürətli axtarış">
-              <a href="/jobs?q=Uzaqdan">Uzaqdan</a>
-              <a href="/jobs?q=Tam+ştat">Tam ştat</a>
-              <a href="/jobs?q=Mühasib">Mühasib</a>
-              <a href="/jobs?q=Satış">Satış</a>
-              <a href="/kalkulyatorlar">Maaş kalkulyatoru</a>
-            </div>
-            <div className="auth-gate-role-note">
-              <UserRound size={20} />
-              <span>
-                Hər hesab yalnız qeydiyyatda seçilən panelə giriş əldə edir.
-              </span>
-            </div>
-          </div>
-        </section>
+        <GateHero />
         {(authShown || Boolean(resetToken)) && (
         <div className="auth-modal" role="dialog" aria-modal="true">
         <button type="button" className="auth-modal-backdrop" tabIndex={-1} aria-label="Close" onClick={() => setAuthShown(false)} />
@@ -1911,7 +1858,7 @@ export default function Joblink() {
         )}
       </main>
       <Landing onAuth={openAuth} />
-      </>,
+      </LocalizeContext.Provider>,
     );
   }
 
@@ -1927,7 +1874,7 @@ export default function Joblink() {
             go(admin ? "admin-overview" : hr ? "hr-overview" : "overview")
           }
         >
-          jobmatch<span>✳</span>
+          <BrandMark />jobmatch
         </a>
         <div className="workspace">
           <span>
@@ -2115,7 +2062,7 @@ export default function Joblink() {
                     try {
                       await api("auth/logout", {});
                       await resetSignedOut();
-                      notify("Hesabınızdan çıxdınız.");
+                      window.location.assign("/");
                     } catch (e) {
                       notify((e as Error).message);
                     }

@@ -1,6 +1,7 @@
 "use client";
 import { type Profile, candidateCertifications, years } from "@/lib/model";
 import { certificationById, detectCertifications } from "@/lib/certification-catalog";
+import BrandMark from "./BrandMark";
 
 const STATUS: Record<string, string> = { in_progress: "davam edir", expired: "müddəti bitib" };
 
@@ -29,7 +30,7 @@ export default function BrandedCv({ profile: p }: { profile: Profile }) {
           {p.links && <p className="branded-cv-contact">{p.links}</p>}
         </div>
         <span className="branded-cv-logo">
-          jobmatch<span>✳</span>
+          <BrandMark />jobmatch
         </span>
       </header>
       <div className="branded-cv-body">
@@ -114,7 +115,7 @@ export default function BrandedCv({ profile: p }: { profile: Profile }) {
       </div>
       <footer className="branded-cv-foot">
         <span>
-          jobmatch<span>✳</span>
+          <BrandMark />jobmatch
         </span>
         <span>Bu CV JobMatch platformasında hazırlanıb</span>
       </footer>

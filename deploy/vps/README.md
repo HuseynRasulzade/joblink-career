@@ -15,6 +15,9 @@ Sayt Cloudflare Workers üçün yazılıb. VPS-də həmin kod `workerd` mühərr
    (Domen hələ yönləndirilməyibsə: `-` yazın, sayt `http://203.161.44.162` ünvanında açılır.)
 5. **Gizli ayarlar:** `nano /etc/jobmatch/env` → `RESEND_API_KEY`, `EMAIL_FROM`, `OPENAI_API_KEY` və s. doldurun, sonra `systemctl restart jobmatch`. `DATA_KEY`-i itirməyin.
 
+## Sürətləndirmə (nginx)
+`bash /opt/jobmatch/app/deploy/vps/speedup.sh` — statik fayllar diskdən birbaşa verilir (brauzerdə 1 il), HTTP/2 açılır, daxil olmamış ziyarətçilər üçün açılış səhifəsi 60 saniyə keşlənir. Xəta olsa köhnə ayar özü bərpa olunur. Yoxlama: `curl -sI https://jobmatch.az/` iki dəfə, ikincidə `X-Cache: HIT`.
+
 ## Yeniləmə
 Yeni `jobmatch-release.tar.gz`-i serverə göndərin və: `bash /opt/jobmatch/bin/update.sh /root/jobmatch-release.tar.gz` (əvvəlcə ehtiyat nüsxə alır, miqrasiyaları tətbiq edir).
 

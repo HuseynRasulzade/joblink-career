@@ -2,7 +2,9 @@
 import { ChevronDown, Headset, LogIn, UserPlus } from "lucide-react";
 import { CONTACT } from "@/lib/contact";
 import { useEffect, useRef, useState } from "react";
-import { localizeTree } from "./i18n";
+import { useLocalize } from "./localize-context";
+import BrandMark from "./BrandMark";
+import PublicTheme from "./PublicTheme";
 
 const LINKS = [
   { href: "#kimler", label: "Kimlər üçün" },
@@ -15,6 +17,7 @@ const LINKS = [
 
 // The top menu of the public page: sections of the page and one «Daxil ol» button that offers sign-in or registration.
 export default function GateNav({ onAuth, language, onLanguage }: { onAuth: (want: "login" | "register") => void; language: "az" | "en" | "ru"; onLanguage: (next: "az" | "en" | "ru") => void }) {
+  const localize = useLocalize();
   const [open, setOpen] = useState(false);
   const [solid, setSolid] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -29,9 +32,9 @@ export default function GateNav({ onAuth, language, onLanguage }: { onAuth: (wan
     return () => { window.removeEventListener("scroll", onScroll); document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, []);
   const choose = (want: "login" | "register") => { setOpen(false); onAuth(want); };
-  return localizeTree(
+  return localize(
     <header className={`gate-nav${solid ? " solid" : ""}`}>
-      <a className="gate-nav-brand" href="#top" aria-label="JobMatch">jobmatch<span>✳</span></a>
+      <a className="gate-nav-brand" href="#top" aria-label="JobMatch"><BrandMark />jobmatch</a>
       <nav aria-label="Bölmələr">
         {LINKS.map((l) => (
           <a key={l.href} href={l.href}>{l.label}</a>
@@ -39,6 +42,7 @@ export default function GateNav({ onAuth, language, onLanguage }: { onAuth: (wan
       </nav>
       <div className="gate-nav-right">
       <a className="gate-nav-phone" href={`tel:${CONTACT.phoneHref}`} aria-label={`Zəng et: ${CONTACT.phone}`}><Headset size={17} /><span>{CONTACT.phone}</span></a>
+      <PublicTheme />
       <select className="gate-nav-lang" aria-label="Language / Dil" value={language} onChange={(e) => onLanguage(e.target.value as "az" | "en" | "ru")}>
         <option value="az">AZ</option>
         <option value="en">EN</option>

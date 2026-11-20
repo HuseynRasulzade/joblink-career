@@ -2,6 +2,8 @@
 import { ArrowRight, BadgeCheck, FileCheck2, Gift } from "lucide-react";
 import { HrCalculators } from "./HrCalculators";
 import { PUBLIC_FAQ as FAQ } from "@/lib/public-faq";
+import BrandMark from "./BrandMark";
+import PublicTheme from "./PublicTheme";
 
 
 // The open page of the calculators: free for everyone, and the way new visitors meet the platform.
@@ -9,13 +11,16 @@ export default function PublicCalculators() {
   return (
     <div className="pc">
       <header className="gate-nav solid pj-nav">
-        <a className="gate-nav-brand" href="/">jobmatch<span>✳</span></a>
+        <a className="gate-nav-brand" href="/"><BrandMark />jobmatch</a>
         <nav aria-label="Bölmələr">
           <a href="/jobs">Vakansiyalar</a>
           <a href="/kalkulyatorlar">Kalkulyatorlar</a>
           <a href="/#qiymetler">Qiymətlər</a>
         </nav>
-        <a className="gate-nav-btn" href="/">Daxil ol / Qeydiyyat</a>
+        <div className="gate-nav-right">
+          <PublicTheme />
+          <a className="gate-nav-btn" href="/panel?auth=login">Daxil ol / Qeydiyyat</a>
+        </div>
       </header>
       <section className="pc-hero">
         <p className="pc-eyebrow">PULSUZ · QEYDİYYATSIZ</p>
@@ -50,7 +55,7 @@ export default function PublicCalculators() {
         ))}
       </section>
       <footer className="pc-footer">
-        <span className="pc-logo">jobmatch<span>✳</span></span>
+        <span className="pc-logo"><BrandMark />jobmatch</span>
         <span><a href="/terms">İstifadə şərtləri</a> · <a href="/privacy">Məxfilik siyasəti</a></span>
         <p className="landing-credit">JobMatch by <b>Digilabs</b></p>
       </footer>
