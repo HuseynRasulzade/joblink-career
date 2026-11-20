@@ -16,6 +16,7 @@ import { purgeOldReportJobs, runReportJob } from "../lib/report-jobs.ts";
 import { mailerOf } from "../lib/mail.ts";
 import { cacheable, edgeCacheSeconds } from "../lib/edge-cache.ts";
 import { withSecurityHeaders } from "../lib/security-headers.ts";
+import { behindProxy } from "../lib/proxy-scheme.ts";
 
 interface Env {
   ASSETS: Fetcher;
@@ -24,6 +25,7 @@ interface Env {
   EMAIL_FROM?: string;
   RESEND_API_KEY?: string;
   CRON_SECRET?: string;
+  TRUST_PROXY?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -46,7 +48,7 @@ interface ExecutionContext {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    return withSecurityHeaders(await respond(request, env, ctx));
+    return withSecurityHeaders(await respond(behindProxy(request, env.TRUST_PROXY), env, ctx));
   },
   // Daily cron: sends the weekly and monthly summaries that are due and interview reminders.
   async scheduled(controller: { cron?: string }, env: Env, ctx: ExecutionContext) {
@@ -75,6 +77,8 @@ async function respond(request: Request, env: Env, ctx: ExecutionContext): Promi
     await worker.scheduled({ cron: url.searchParams.get("cron") || "" }, env, ctx);
     return new Response("ok");
   }
+
+  if (url.pathname === "/favicon.ico") return Response.redirect(new URL("/icon-192.png", request.url).toString(), 302);
 
   if (url.pathname === "/_vinext/image") {
     // Without the Cloudflare Images binding (self-hosted run) the browser is sent to the original file.

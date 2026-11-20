@@ -49,6 +49,8 @@ if [ ! -f "$ENVF" ]; then
   cat > "$ENVF" <<EOF
 # Dəyərləri doldurun, sonra: systemctl restart jobmatch
 SITE_URL=$SITE
+# nginx arxasında HTTPS: sorğunun mənbəyi (Origin) yoxlaması üçün lazımdır
+TRUST_PROXY=1
 CRON_SECRET=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 40)
 # E-poçt (Resend): açar olmadan e-poçt göndərilmir
 EMAIL_FROM=
