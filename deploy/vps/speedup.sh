@@ -10,7 +10,7 @@ CLIENT=/opt/jobmatch/app/dist/client
 [ -f "$CONF" ] || { echo "nginx ayarı tapılmadı: $CONF"; exit 1; }
 [ -d "$CLIENT" ] || { echo "Tətbiq faylları tapılmadı: $CLIENT"; exit 1; }
 # Yeni versiyanın köməkçi skriptləri (yeniləmə köhnə keşi təmizləyir)
-for f in update.sh backup.sh cron.sh; do [ -f "$CLIENT/../deploy/vps/$f" ] && install -m 755 "$CLIENT/../deploy/vps/$f" "/opt/jobmatch/bin/$f"; done
+for f in update.sh backup.sh cron.sh; do [ -f "/opt/jobmatch/app/deploy/vps/$f" ] && install -m 755 "/opt/jobmatch/app/deploy/vps/$f" "/opt/jobmatch/bin/$f"; done
 # nginx-in fayllara çatması üçün: qovluqlar oxunaqlı olmalıdır (arxivdən gələn 700 icazə nginx-i bloklayırdı)
 chmod 755 /opt/jobmatch /opt/jobmatch/app
 chmod -R a+rX "$CLIENT"
