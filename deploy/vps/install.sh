@@ -71,6 +71,7 @@ TURNSTILE_SECRET=
 EOF
   chmod 640 "$ENVF"; chown root:jobmatch "$ENVF"
 fi
+chmod 755 /opt/jobmatch "$APP"
 chown -R jobmatch:jobmatch /opt/jobmatch "$DATA" /var/backups/jobmatch
 
 echo "[6/9] Servislər"

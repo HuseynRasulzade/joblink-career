@@ -11,6 +11,7 @@ WR=$(node -p "require('./node_modules/wrangler/package.json').version")
 cat > "$STAGE/package.json" <<JSON
 { "name": "jobmatch-runtime", "private": true, "dependencies": { "wrangler": "$WR" } }
 JSON
+chmod 755 "$STAGE"
 tar -czf jobmatch-release.tar.gz -C "$STAGE" .
 rm -rf "$STAGE"
 ls -lh jobmatch-release.tar.gz

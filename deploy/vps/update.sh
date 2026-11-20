@@ -8,6 +8,7 @@ systemctl stop jobmatch
 rm -rf "$APP"/dist "$APP"/drizzle
 tar -xzf "$RELEASE" -C "$APP"
 (cd "$APP" && npm install --omit=dev --no-audit --no-fund 2>&1 | tail -1)
+chmod 755 /opt/jobmatch "$APP"
 chown -R jobmatch:jobmatch /opt/jobmatch
 systemctl start jobmatch
 # Köhnə açılış səhifəsi keşdə qalmasın (yeni fayl adları ilə uyğunsuz olar)

@@ -11,9 +11,20 @@ CLIENT=/opt/jobmatch/app/dist/client
 [ -d "$CLIENT" ] || { echo "Tətbiq faylları tapılmadı: $CLIENT"; exit 1; }
 # Yeni versiyanın köməkçi skriptləri (yeniləmə köhnə keşi təmizləyir)
 for f in update.sh backup.sh cron.sh; do [ -f "$CLIENT/../deploy/vps/$f" ] && install -m 755 "$CLIENT/../deploy/vps/$f" "/opt/jobmatch/bin/$f"; done
+# nginx-in fayllara çatması üçün: qovluqlar oxunaqlı olmalıdır (arxivdən gələn 700 icazə nginx-i bloklayırdı)
+chmod 755 /opt/jobmatch /opt/jobmatch/app
+chmod -R a+rX "$CLIENT"
+NGUSER=$(awk '/^user[ \t]/ {gsub(";", "", $2); print $2; exit}' /etc/nginx/nginx.conf)
+NGUSER=${NGUSER:-nginx}
+mkdir -p /var/cache/nginx/jobmatch
+chown "$NGUSER":"$NGUSER" /var/cache/nginx/jobmatch
+if command -v semanage >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null)" = "Enforcing" ]; then
+  semanage fcontext -a -t httpd_sys_content_t "$CLIENT(/.*)?" 2>/dev/null || true
+  restorecon -R "$CLIENT" 2>/dev/null || true
+fi
 BACKUP="$CONF.bak.$(date +%s)"
 cp -a "$CONF" "$BACKUP"
-mkdir -p /etc/nginx/snippets /var/cache/nginx/jobmatch
+mkdir -p /etc/nginx/snippets
 
 cat > /etc/nginx/conf.d/jobmatch-cache.conf <<'EOF'
 upstream jobmatch_app { server 127.0.0.1:8787; keepalive 16; }
@@ -73,7 +84,20 @@ PY
 
 if nginx -t; then
   systemctl reload nginx
-  echo "Hazırdır. Yoxlama:  curl -sI https://\$(hostname -f 2>/dev/null || echo jobmatch.az)/ | head -5   (ikinci sorğuda X-Cache: HIT görünməlidir)"
+  # Öz-yoxlama: statik fayl həqiqətən 200 verirmi? Vermirsə statik hissə avtomatik söndürülür (sayt sınmasın).
+  DOMAIN=$(awk '/server_name/ {gsub(";", "", $2); print $2; exit}' "$CONF")
+  ASSET=$(cd "$CLIENT" && ls _next/static/css/*.css 2>/dev/null | head -1)
+  CODE=$(curl -sk -o /dev/null -w '%{http_code}' --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/$ASSET" 2>/dev/null || echo 000)
+  if [ "$CODE" != "200" ]; then
+    echo "Statik fayl yoxlaması alınmadı (cavab: $CODE). Statik hissə söndürülür, sayt əvvəlki kimi işləyir."
+    sed -i '/jobmatch-static.conf/d' "$CONF"
+    nginx -t && systemctl reload nginx
+    echo "Səbəb üçün baxın:  tail -5 /var/log/nginx/error.log   və   getenforce"
+    exit 1
+  fi
+  curl -sk -o /dev/null --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/" || true
+  CACHE=$(curl -sk -D - -o /dev/null --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/" | awk -F': ' 'tolower($1)=="x-cache" {print $2}' | tr -d '\r')
+  echo "Hazırdır. Statik fayllar: 200 (nginx-dən). Açılış səhifəsi keşi: ${CACHE:-?}   (HIT olmalıdır)"
 else
   echo "nginx ayarı səhv oldu, köhnə ayar bərpa olunur..."
   cp -a "$BACKUP" "$CONF"
