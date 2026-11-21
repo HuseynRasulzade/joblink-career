@@ -609,3 +609,9 @@ img.job-tile-mark { background: #fff; padding: 4px; }
   .gate-nav-btn { padding: 8px 12px; font-size: 14px; }
 }
 @media (max-width: 460px) { .gate-nav-phone { display: none; } }
+/* the top menu must never wrap: with the web fonts and the extra white/dark button it is tight on laptop widths */
+.gate-nav nav a, .gate-nav-btn, .gate-nav-lang { white-space: nowrap; }
+.gate-nav-btn { flex: none; }
+@media (max-width: 1480px) { .gate-nav-phone span { display: none; } .gate-nav-phone { padding: 10px; } }
+@media (max-width: 1320px) { .gate-nav nav { gap: 2px; } .gate-nav nav a { padding: 8px 10px; font-size: 14px; } .gate-nav { gap: 12px; } }
+@media (max-width: 1100px) { .gate-nav nav a { padding: 8px 8px; font-size: 13.5px; } }
