@@ -415,7 +415,7 @@ export default function Joblink() {
   >(null);
   const [accountName, setAccountName] = useState("");
   const [aiEnabled, setAiEnabled] = useState(false);
-  const [aiProvider, setAiProvider] = useState("DeepSeek");
+  const [aiProvider, setAiProvider] = useState("AI");
   const [language, setLanguage] = useState<"az" | "en" | "ru">("az");
   setSiteLanguage(language);
   const [cvReport, setCvReport] = useState<{
@@ -956,7 +956,7 @@ export default function Joblink() {
       setAccountRole(b.account?.role || null);
       setAccountName(b.account?.name || "");
       setAiEnabled(b.aiEnabled);
-      setAiProvider(b.aiProvider || "DeepSeek");
+      setAiProvider("AI");
       setAuthMode(b.authMode || "chatgpt");
       setCvStorage(b.cvStorage || "r2");
       if (b.profile && b.account?.role === "candidate") {

@@ -811,7 +811,7 @@ export function ProfileEditor({
   onNotice,
   localCv = false,
   aiEnabled = false,
-  aiProvider = "DeepSeek",
+  aiProvider = "AI",
   focusTarget,
 }: {
   profile: Profile;

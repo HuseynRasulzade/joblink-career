@@ -142,6 +142,9 @@ export const RU_UI: Record<string, string> = {
   "ilə tam doldur": "заполнить полностью с помощью",
   "DeepSeek ilə doldur": "Заполнить через DeepSeek",
   "OpenAI ilə doldur": "Заполнить через OpenAI",
+  "AI ilə doldur": "Заполнить с помощью ИИ",
+  'Fayl yükləyəndə və ya "AI ilə doldur" düyməsini basanda boş qalan sahələr (ixtisas, xülasə, bacarıqlar və s.) avtomatik doldurulur. Doldurulan sahələr "AI" nişanı ilə göstərilir — tətbiq etməzdən əvvəl yoxlayın.':
+    "При загрузке файла или нажатии «Заполнить с помощью ИИ» пустые поля (специальность, резюме, навыки и т. д.) заполняются автоматически. Заполненные поля помечены значком «ИИ» — проверьте их перед применением.",
   'Fayl yükləyəndə və ya "DeepSeek ilə doldur" düyməsini basanda boş qalan sahələr (ixtisas, xülasə, bacarıqlar və s.) avtomatik doldurulur. Doldurulan sahələr "AI" nişanı ilə göstərilir — tətbiq etməzdən əvvəl yoxlayın.':
     "При загрузке файла или нажатии «Заполнить через DeepSeek» пустые поля (специальность, резюме, навыки и т. д.) заполняются автоматически. Заполненные поля помечены значком «ИИ» — проверьте их перед применением.",
   'Fayl yükləyəndə və ya "OpenAI ilə doldur" düyməsini basanda boş qalan sahələr (ixtisas, xülasə, bacarıqlar və s.) avtomatik doldurulur. Doldurulan sahələr "AI" nişanı ilə göstərilir — tətbiq etməzdən əvvəl yoxlayın.':
