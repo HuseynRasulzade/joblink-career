@@ -8,6 +8,7 @@ import { notify } from "@/lib/api-core";
 import { syncSubscription } from "@/lib/plan-service";
 import { ok } from "@/lib/api/shared";
 import type { RouteCtx } from "@/lib/api/ctx";
+import { operatorOf } from "@/lib/platform-company";
 
 export async function handle_plan_01(c: Pick<RouteCtx, "db" | "id" | "path" | "paymentProvider" | "request">): Promise<Response | undefined> {
   const { db, id, path, paymentProvider, request } = c;
@@ -211,12 +212,7 @@ export async function handle_plan_01(c: Pick<RouteCtx, "db" | "id" | "path" | "p
         email: account?.email || "",
       },
       plan,
-      operator: {
-        name: settings.PLATFORM_LEGAL_NAME || "",
-        voen: settings.PLATFORM_VOEN || "",
-        address: settings.PLATFORM_ADDRESS || "",
-        email: settings.PLATFORM_EMAIL || settings.ADMIN_EMAIL || "",
-      },
+      operator: operatorOf(settings),
       autoRenew,
       periodStart: at.slice(0, 10),
       periodEnd: periodEnd.slice(0, 10),

@@ -157,3 +157,7 @@ html[data-pub="light"] .lg-text p { color: #4a2a20; }
 @media (max-width: 900px) { html[data-pub="light"] .gate-nav { background: rgba(255, 255, 255, 0.94); } }
 html[data-pub="light"] .landing-footer, html[data-pub="light"] .pj-footer, html[data-pub="light"] .pc-footer { background: #2a1410; }
 html[data-pub="light"] .gate-search svg { color: #8a3a1c; }
+html[data-pub="light"] .about-grid { border-top-color: rgba(120, 50, 20, 0.18); }
+html[data-pub="light"] .about-grid > div { border-bottom-color: rgba(120, 50, 20, 0.18); }
+html[data-pub="light"] .about-grid dt { color: #6b4b40; }
+html[data-pub="light"] .about-grid dd { color: #2a1410; }

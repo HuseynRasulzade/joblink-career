@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { runtime } from "@/lib/server";
 import { LEGAL_UPDATED, termsDoc, type LegalLang, type Operator } from "@/lib/legal-text";
+import { operatorOf } from "@/lib/platform-company";
 import LegalPage from "../LegalPage";
 import PublicShell from "../jobs/PublicShell";
 
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: "İstifadə şərtləri | JobMatch", 
 
 export default function Page() {
   const env = runtime();
-  const op: Operator = { name: env.PLATFORM_LEGAL_NAME || "", voen: env.PLATFORM_VOEN || "", address: env.PLATFORM_ADDRESS || "", email: env.PLATFORM_EMAIL || "" };
+  const op: Operator = operatorOf(env);
   const docs = { az: termsDoc(op, "az"), en: termsDoc(op, "en"), ru: termsDoc(op, "ru") } as Record<LegalLang, ReturnType<typeof termsDoc>>;
   return (
     <PublicShell>

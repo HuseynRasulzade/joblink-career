@@ -615,3 +615,10 @@ img.job-tile-mark { background: #fff; padding: 4px; }
 @media (max-width: 1480px) { .gate-nav-phone span { display: none; } .gate-nav-phone { padding: 10px; } }
 @media (max-width: 1320px) { .gate-nav nav { gap: 2px; } .gate-nav nav a { padding: 8px 10px; font-size: 14px; } .gate-nav { gap: 12px; } }
 @media (max-width: 1100px) { .gate-nav nav a { padding: 8px 8px; font-size: 13.5px; } }
+
+/* About page: company details as a two-column list. */
+.about-grid { display: grid; gap: 0; margin: 14px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.about-grid > div { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.about-grid dt { color: #d8bfb0; font-size: 14px; }
+.about-grid dd { margin: 0; color: #fff; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .about-grid > div { grid-template-columns: 1fr; gap: 2px; } }

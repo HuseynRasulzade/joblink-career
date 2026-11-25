@@ -21,7 +21,7 @@ export default function PublicShell({ children }: { children: ReactNode }) {
       {children}
       <footer className="pj-footer">
         <span className="gate-nav-brand"><BrandMark />jobmatch</span>
-        <span><a href="/terms">İstifadə şərtləri</a> · <a href="/privacy">Məxfilik siyasəti</a></span>
+        <span><a href="/haqqimizda">Haqqımızda</a> · <a href="/terms">İstifadə şərtləri</a> · <a href="/privacy">Məxfilik siyasəti</a></span>
       </footer>
     </div>
   );

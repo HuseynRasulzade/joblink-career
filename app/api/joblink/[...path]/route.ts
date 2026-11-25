@@ -170,6 +170,7 @@ import { handle_admin_04 } from "@/lib/api/handlers/admin-04";
 import { handle_admin_05 } from "@/lib/api/handlers/admin-05";
 import { handle_admin_06 } from "@/lib/api/handlers/admin-06";
 import { handle_admin_07 } from "@/lib/api/handlers/admin-07";
+import { operatorOf } from "@/lib/platform-company";
 
 async function route(request: Request) {
   const requestUrl = new URL(request.url);
@@ -2697,7 +2698,7 @@ async function route(request: Request) {
       date: at.slice(0, 10),
       party: { kind: "candidate", name: account?.name || "", email: account?.email || "" },
       plan,
-      operator: { name: settings.PLATFORM_LEGAL_NAME || "", voen: settings.PLATFORM_VOEN || "", address: settings.PLATFORM_ADDRESS || "", email: settings.PLATFORM_EMAIL || settings.ADMIN_EMAIL || "" },
+      operator: operatorOf(settings),
       autoRenew: order.auto_renew === 1,
       periodStart: at.slice(0, 10),
       periodEnd: periodEnd.slice(0, 10),
